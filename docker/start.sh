@@ -14,14 +14,65 @@ php artisan package:discover --ansi
 php artisan config:cache
 php artisan route:cache
 php artisan storage:link --no-interaction 2>/dev/null || true
-php artisan migrate --force
+
+echo "=== Checking database readiness ==="
+php -r '
+$host = getenv("DB_HOST");
+$port = getenv("DB_PORT") ?: "3306";
+$db   = getenv("DB_DATABASE");
+$user = getenv("DB_USERNAME");
+$pass = getenv("DB_PASSWORD");
+
+if (empty($host) || $host === "127.0.0.1" || $host === "localhost") {
+    echo "Local database or no DB_HOST configured.\n";
+    passthru("php artisan migrate --force", $code);
+    exit(0);
+}
+
+$retries = 8;
+$connected = false;
+
+while ($retries > 0) {
+    $ip = gethostbyname($host);
+    if ($ip === $host && !filter_var($host, FILTER_VALIDATE_IP)) {
+        echo "DNS resolution for host \"{$host}\" not ready yet. Retrying in 3s... ({$retries} attempts left)\n";
+    } else {
+        echo "Resolved {$host} -> {$ip}. Checking database connection...\n";
+        try {
+            $options = [
+                PDO::ATTR_TIMEOUT => 4,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ];
+            if (file_exists("/etc/ssl/certs/ca-certificates.crt")) {
+                $options[PDO::MYSQL_ATTR_SSL_CA] = "/etc/ssl/certs/ca-certificates.crt";
+                $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            }
+            $pdo = new PDO("mysql:host={$host};port={$port};dbname={$db}", $user, $pass, $options);
+            echo "Database connection successful!\n";
+            $connected = true;
+            break;
+        } catch (\Throwable $e) {
+            echo "Database connect attempt failed: " . $e->getMessage() . " ({$retries} attempts left)\n";
+        }
+    }
+    sleep(3);
+    $retries--;
+}
+
+if ($connected) {
+    echo "Running migrations...\n";
+    passthru("php artisan migrate --force", $code);
+} else {
+    echo "WARNING: Could not connect to database ({$host}:{$port}). Skipping migrations so container can start.\n";
+}
+'
 
 echo "=== Provider discovery check ==="
 php -r "
 \$pkg = '/var/www/html/bootstrap/cache/packages.php';
 if (!file_exists(\$pkg)) { echo 'packages.php: MISSING'; exit; }
 \$providers = (require \$pkg)['providers'] ?? [];
-echo in_array('Laravel\\Octane\\OctaneServiceProvider', \$providers) ? 'Octane SP: IN CACHE' : 'Octane SP: NOT IN CACHE';
+echo in_array('Laravel\\\\Octane\\\\OctaneServiceProvider', \$providers) ? 'Octane SP: IN CACHE' : 'Octane SP: NOT IN CACHE';
 echo PHP_EOL;
 "
 
@@ -29,9 +80,9 @@ echo "=== Class loader check ==="
 php -r "
 require '/var/www/html/vendor/autoload.php';
 \$classes = [
-  'Spiral\\RoadRunner\\Worker',
-  'Spiral\\RoadRunner\\Http\\PSR7Worker',
-  'Laravel\\Octane\\Commands\\WorkerCommand',
+  'Spiral\\\\RoadRunner\\\\Worker',
+  'Spiral\\\\RoadRunner\\\\Http\\\\PSR7Worker',
+  'Laravel\\\\Octane\\\\Commands\\\\WorkerCommand',
 ];
 foreach (\$classes as \$c) {
   echo \$c . ': ' . (class_exists(\$c) ? 'OK' : 'MISSING') . PHP_EOL;

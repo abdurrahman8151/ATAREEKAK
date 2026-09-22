@@ -6,6 +6,7 @@ use App\Services\JwtService;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -87,6 +88,7 @@ class JwtAuthMiddleware
                 }
 
                 $request->setUserResolver(fn () => $user);
+                Auth::setUser($user);
                 return $next($request);
             }
         }
@@ -107,6 +109,7 @@ class JwtAuthMiddleware
         }
 
         $request->setUserResolver(fn () => $user);
+        Auth::setUser($user);
         return $next($request);
     }
 
