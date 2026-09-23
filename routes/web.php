@@ -4,7 +4,9 @@ use App\Http\Controllers\API\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\GoogleController;
-
+Route::get('/up', function () {
+    return response('OK', 200);
+});
 Route::get('/', function () {
     return view('welcome');
 });

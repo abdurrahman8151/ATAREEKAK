@@ -1,8 +1,12 @@
 #!/bin/sh
 set -e
 
-APP_PORT="${PORT:-8000}"
-WORKERS="${WEB_CONCURRENCY:-1}"
+APP_PORT="${PORT:-10000}"
+# Always use at least 2 workers so health checks never starve
+WORKERS="${WEB_CONCURRENCY:-2}"
+if [ "$WORKERS" -lt 2 ]; then
+    WORKERS=2
+fi
 
 echo "=== SyRide: port=${APP_PORT} workers=${WORKERS} ==="
 echo "    PHP $(php -r 'echo phpversion();')"
@@ -62,11 +66,38 @@ if ($connected) {
     echo "Running migrations...\n";
     passthru("php artisan migrate --force", $code);
 } else {
-    echo "WARNING: Could not connect to database ({$host}:{$port}). Skipping migrations so container can start.\n";
+    echo "WARNING: Could not connect to database ({$host}:{$port}). Skipping migrations.\n";
 }
 '
 
-# Find the valid Octane RoadRunner worker script
+echo "=== Checking Redis readiness ==="
+php -r '
+try {
+    $redisUrl = getenv("REDIS_URL");
+    if ($redisUrl) {
+        $parts = parse_url($redisUrl);
+        $host = ($parts["scheme"] === "rediss" ? "tls://" : "") . $parts["host"];
+        $port = $parts["port"] ?? 6379;
+        $pass = $parts["pass"] ?? null;
+    } else {
+        $host = getenv("REDIS_HOST") ?: "127.0.0.1";
+        $port = (int)(getenv("REDIS_PORT") ?: 6379);
+        $pass = getenv("REDIS_PASSWORD") ?: null;
+    }
+
+    echo "Testing Redis connection to {$host}:{$port}...\n";
+    $redis = new Redis();
+    $redis->connect($host, $port, 3.0); // 3 second timeout
+    if ($pass) {
+        $redis->auth($pass);
+    }
+    $redis->ping();
+    echo "Redis connection successful!\n";
+} catch (\Throwable $e) {
+    echo "WARNING: Redis connection test failed: " . $e->getMessage() . "\n";
+}
+'
+
 WORKER_SCRIPT="/var/www/html/vendor/bin/roadrunner-worker"
 if [ ! -f "$WORKER_SCRIPT" ]; then
     WORKER_SCRIPT="/var/www/html/vendor/laravel/octane/bin/roadrunner-worker"
@@ -74,7 +105,6 @@ fi
 
 echo "Using worker script: ${WORKER_SCRIPT}"
 
-# Generate .rr.yaml with the REAL Octane worker script
 cat > /var/www/html/.rr.yaml << RRCFG
 version: "3"
 
@@ -88,7 +118,7 @@ server:
 
 http:
   address: "0.0.0.0:${APP_PORT}"
-  middleware: ["headers", "gzip"]
+  middleware: ["gzip"]
   trusted_subnets:
     - "10.0.0.0/8"
     - "172.16.0.0/12"
