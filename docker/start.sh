@@ -8,9 +8,8 @@ echo "=== SyRide: port=${APP_PORT} workers=${WORKERS} ==="
 echo "    PHP $(php -r 'echo phpversion();')"
 echo "    Ext: $(php -m | grep -E '^(sockets|pcntl|redis|pdo_mysql)$' | tr '\n' ' ')"
 
-# CRITICAL: regenerate packages.php so OctaneServiceProvider registers octane:worker
+# Discover packages & cache config
 php artisan package:discover --ansi
-
 php artisan config:cache
 php artisan route:cache
 php artisan storage:link --no-interaction 2>/dev/null || true
@@ -67,32 +66,15 @@ if ($connected) {
 }
 '
 
-echo "=== Provider discovery check ==="
-php -r "
-\$pkg = '/var/www/html/bootstrap/cache/packages.php';
-if (!file_exists(\$pkg)) { echo 'packages.php: MISSING'; exit; }
-\$providers = (require \$pkg)['providers'] ?? [];
-echo in_array('Laravel\\\\Octane\\\\OctaneServiceProvider', \$providers) ? 'Octane SP: IN CACHE' : 'Octane SP: NOT IN CACHE';
-echo PHP_EOL;
-"
+# Find the valid Octane RoadRunner worker script
+WORKER_SCRIPT="/var/www/html/vendor/bin/roadrunner-worker"
+if [ ! -f "$WORKER_SCRIPT" ]; then
+    WORKER_SCRIPT="/var/www/html/vendor/laravel/octane/bin/roadrunner-worker"
+fi
 
-echo "=== Class loader check ==="
-php -r "
-require '/var/www/html/vendor/autoload.php';
-\$classes = [
-  'Spiral\\\\RoadRunner\\\\Worker',
-  'Spiral\\\\RoadRunner\\\\Http\\\\PSR7Worker',
-  'Laravel\\\\Octane\\\\Commands\\\\WorkerCommand',
-];
-foreach (\$classes as \$c) {
-  echo \$c . ': ' . (class_exists(\$c) ? 'OK' : 'MISSING') . PHP_EOL;
-}
-"
+echo "Using worker script: ${WORKER_SCRIPT}"
 
-echo "=== Worker probe ==="
-( timeout 8s php artisan octane:worker --server=roadrunner 2>&1 || true )
-echo "=== Probe complete ==="
-
+# Generate .rr.yaml with the REAL Octane worker script
 cat > /var/www/html/.rr.yaml << RRCFG
 version: "3"
 
@@ -100,7 +82,7 @@ rpc:
   listen: "tcp://127.0.0.1:6001"
 
 server:
-  command: "php -d display_errors=stderr -d log_errors=1 -d error_log=/dev/stderr /var/www/html/artisan octane:worker --server=roadrunner"
+  command: "php -d variables_order=EGPCS -d display_errors=stderr -d log_errors=1 -d error_log=/dev/stderr ${WORKER_SCRIPT}"
   relay: pipes
   relay_timeout: 30s
 
@@ -130,5 +112,5 @@ logs:
   output: stderr
 RRCFG
 
-echo "=== Starting RoadRunner ==="
+echo "=== Starting RoadRunner on port ${APP_PORT} ==="
 exec /var/www/html/rr serve -c /var/www/html/.rr.yaml

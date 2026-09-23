@@ -4,7 +4,7 @@ rpc:
   listen: tcp://127.0.0.1:6001
 
 server:
-  command: "php artisan octane:worker --server=roadrunner"
+  command: "php -d variables_order=EGPCS ./vendor/bin/roadrunner-worker"
   relay: pipes
 
 http:
@@ -23,5 +23,5 @@ logs:
   mode: production
   level: error
   encoding: json
-  output: stdout
+  output: stderr
   err_output: stderr
