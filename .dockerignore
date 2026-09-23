@@ -18,9 +18,4 @@ rr.bat
 *.php.patch
 
 rr
-
-# User uploads live in the shared bind-mounted volume, never in the image.
-# Baking them in makes stale copies shadow the real storage on any node
-# whose volume mount is missing, which hides upload bugs behind old files.
-storage/app/public
-storage/logs
+bootstrap/cache/*.php

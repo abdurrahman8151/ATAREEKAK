@@ -51,31 +51,26 @@ class Kernel extends ConsoleKernel
             ->appendOutputTo(storage_path('logs/scheduled/staff-tokens-cleanup.log'));
 
         // ── OTP CLEANUP ──────────────────────────────────────────────────────
-        // ⚠️  This was missing from your original Kernel.
-        //
-        // OTPs expire after a few minutes (your OTP model has expiry logic),
-        // but the rows stay in the DB forever if never cleaned. In a ride-sharing
-        // app with thousands of daily signups this table grows fast and starts
-        // slowing down OTP verification lookups.
-        //
-        // Every 30 minutes strikes a balance: table stays small, but we're not
-        // hammering the DB with deletes every minute.
-        $schedule->command('otp:cleanup')
-            ->everyThirtyMinutes()
+        // OTPs expire after a few minutes but rows stay in the DB forever if
+        // never cleaned. In a ride-sharing app with thousands of daily signups
+        // this table grows fast and slows down OTP verification lookups.
+        // Every 30 minutes keeps the table small without hammering the DB.
+        $schedule->command('otp:cleanup')   // ← matches CleanupExpiredOtps $signature
+        ->everyThirtyMinutes()
             ->onOneServer()
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/scheduled/otps-cleanup.log'));
 
         // ── ADMIN PASSWORD ROTATION ──────────────────────────────────────────
-        // You have RotateAdminPasswordCommand — wire it up if you want
-        // automatic rotation (common security requirement).
         // Uncomment and adjust frequency to your security policy.
         //
         // $schedule->command('admin:rotate-password')
         //     ->monthly()
         //     ->onOneServer()
         //     ->emailOutputOnFailure(config('admin.alert_email'));
+
+        // ── NO-SHOW RESOLUTION ───────────────────────────────────────────────
         $schedule->command('noshow:resolve')
             ->everyMinute()
             ->onOneServer()

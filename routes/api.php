@@ -508,3 +508,5 @@ Route::prefix('employees')->middleware(['staff:admin,system_admin', 'throttle:ad
     Route::patch('/{id}/reset-password', [EmployeeManagementController::class, 'resetPassword']);
     Route::delete('/{id}',               [EmployeeManagementController::class, 'destroy']);
 });
+
+Route::get('/health', fn() => response()->json(['status' => 'ok', 'node' => gethostname()]));

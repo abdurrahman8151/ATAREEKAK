@@ -1,0 +1,27 @@
+version: "3"
+
+rpc:
+  listen: tcp://127.0.0.1:6001
+
+server:
+  command: "php -d variables_order=EGPCS ./vendor/bin/roadrunner-worker"
+  relay: pipes
+
+http:
+  address: "0.0.0.0:8000"
+  middleware: ["static", "gzip", "headers"]
+  static:
+    dir: "public"
+    forbid: [".php"]
+  pool:
+    num_workers: 1
+    max_jobs: 500
+    allocate_timeout: 60s
+    destroy_timeout: 60s
+
+logs:
+  mode: production
+  level: error
+  encoding: json
+  output: stderr
+  err_output: stderr

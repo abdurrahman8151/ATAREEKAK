@@ -12,6 +12,7 @@ services:
             APP_ENV: production
             APP_DEBUG: "false"
             DB_HOST: mysql
+            DB_REPLICA_HOST: mysql_replica
             DB_PASSWORD: "secret"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
@@ -47,6 +48,7 @@ services:
             APP_ENV: production
             APP_DEBUG: "false"
             DB_HOST: mysql
+            DB_REPLICA_HOST: mysql_replica
             DB_PASSWORD: "secret"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
@@ -81,6 +83,7 @@ services:
             APP_ENV: production
             APP_DEBUG: "false"
             DB_HOST: mysql
+            DB_REPLICA_HOST: mysql_replica
             DB_PASSWORD: "secret"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
@@ -105,6 +108,7 @@ services:
                 condition: service_healthy
             redis:
                 condition: service_started
+
     app4:
         image: syride_octane:latest
         container_name: syride_app4
@@ -114,6 +118,7 @@ services:
             APP_ENV: production
             APP_DEBUG: "false"
             DB_HOST: mysql
+            DB_REPLICA_HOST: mysql_replica
             DB_PASSWORD: "secret"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
@@ -148,6 +153,7 @@ services:
             APP_ENV: production
             APP_DEBUG: "false"
             DB_HOST: mysql
+            DB_REPLICA_HOST: mysql_replica
             DB_PASSWORD: "secret"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
@@ -172,11 +178,12 @@ services:
                 condition: service_healthy
             redis:
                 condition: service_started
+
     nginx:
         image: nginx:alpine
         container_name: syride_nginx
         ports:
-            - "127.0.0.1:8089:80"
+            - "127.0.0.1:8080:80"
         volumes:
             - ./nginx-docker.conf:/etc/nginx/nginx.conf:ro
             - ./storage/app/public:/var/www/html/storage/app/public:ro
@@ -186,7 +193,6 @@ services:
             - app3
             - app4
             - app5
-
         restart: unless-stopped
 
     redis:
@@ -221,11 +227,14 @@ services:
         environment:
             MYSQL_ROOT_PASSWORD: "secret"
         volumes:
-            - mysql_replica_data:/var/lib/mysql
+            # No persistent volume — replica always resyncs from primary on recreate.
+            # On plain restarts the container layer retains data and slave auto-resumes.
+            - ./docker/mysql/replica-init.sh:/docker-entrypoint-initdb.d/01-replica-init.sh:ro
         depends_on:
             mysql:
                 condition: service_healthy
         restart: unless-stopped
+
     phpmyadmin:
         image: phpmyadmin/phpmyadmin
         container_name: syride_phpmyadmin
@@ -249,6 +258,7 @@ services:
         environment:
             APP_ENV: production
             DB_HOST: mysql
+            DB_REPLICA_HOST: mysql_replica
             DB_PASSWORD: "secret"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
@@ -277,6 +287,7 @@ services:
         environment:
             APP_ENV: production
             DB_HOST: mysql
+            DB_REPLICA_HOST: mysql_replica
             DB_PASSWORD: "secret"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
@@ -293,4 +304,3 @@ services:
 
 volumes:
     mysql_data:
-    mysql_replica_data:

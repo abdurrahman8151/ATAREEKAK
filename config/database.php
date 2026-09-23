@@ -46,18 +46,19 @@ return [
         'mysql' => [
             'driver'    => 'mysql',
             'url'       => env('DATABASE_URL'),
-            // No read replica is deployed — production's docker-compose.yml
-            // only runs a single `mysql` service. A prior commit (534fe0e)
-            // pointed reads at a `syride_mysql_replica` host that has never
-            // existed there, which fails DNS resolution on every SELECT
-            // (confirmed against the live container). Re-add a 'read'/'write'
-            // split only once a real replica service is provisioned and
-            // replicating.
-            'host'      => env('DB_HOST', '127.0.0.1'),
-            'port'      => env('DB_PORT', '3306'),
-            'database'  => env('DB_DATABASE', 'forge'),
-            'username'  => env('DB_USERNAME', 'forge'),
-            'password'  => env('DB_PASSWORD', ''),
+
+            'read' => [
+                'host' => [env('DB_REPLICA_HOST', env('DB_HOST', '127.0.0.1'))],
+            ],
+            'write' => [
+                'host' => [env('DB_HOST', '127.0.0.1')],
+            ],
+            'sticky' => true,
+
+            'port'           => env('DB_PORT', '3306'),
+            'database'       => env('DB_DATABASE', 'forge'),
+            'username'       => env('DB_USERNAME', 'forge'),
+            'password'       => env('DB_PASSWORD', ''),
             'unix_socket'    => env('DB_SOCKET', ''),
             'charset'        => 'utf8mb4',
             'collation'      => 'utf8mb4_unicode_ci',
@@ -65,9 +66,21 @@ return [
             'prefix_indexes' => true,
             'strict'         => true,
             'engine'         => 'InnoDB',
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+            'options' => extension_loaded('pdo_mysql') ? (function () {
+                $options = [
+                    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => filter_var(env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', false), FILTER_VALIDATE_BOOLEAN),
+                ];
+                $ca = env('MYSQL_ATTR_SSL_CA');
+                if (!$ca && file_exists(storage_path('certs/aiven-ca.pem'))) {
+                    $ca = storage_path('certs/aiven-ca.pem');
+                } elseif (!$ca && file_exists('/etc/ssl/certs/ca-certificates.crt') && (env('DB_PORT') != 3306 || env('DB_SSL', false))) {
+                    $ca = '/etc/ssl/certs/ca-certificates.crt';
+                }
+                if (!empty($ca)) {
+                    $options[PDO::MYSQL_ATTR_SSL_CA] = $ca;
+                }
+                return $options;
+            })() : [],
         ],
 
         'pgsql' => [
@@ -142,6 +155,7 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
+            'scheme'   => env('REDIS_SCHEME', null),
         ],
 
         'cache' => [
@@ -150,7 +164,8 @@ return [
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_CACHE_DB', '1'),
+            'database' => env('REDIS_CACHE_DB', env('REDIS_DB', '0')),
+            'scheme'   => env('REDIS_SCHEME', null),
         ],
 
     ],
