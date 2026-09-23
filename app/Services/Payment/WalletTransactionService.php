@@ -2,6 +2,7 @@
 
 namespace App\Services\Payment;
 
+use App\Interfaces\PolicyRepositoryInterface;
 use App\Models\Booking;
 use App\Models\Employee;
 use App\Models\Ride;
@@ -26,8 +27,9 @@ use Illuminate\Support\Str;
  *    Passenger ──(100% of seats × price)──► SyCash (escrow)
  *
  *  RIDE COMPLETION:
- *    SyCash ──(95%)──► Driver
- *    SyCash ──( 5%)──► Primary Admin
+ *    SyCash ──(driver %)──► Driver
+ *    SyCash ──(platform %)──► Primary Admin
+ *    (split is configurable — see PolicySetting::platform_profit_percentage)
  *
  *  DRIVER CANCELS RIDE:
  *    SyCash ──(100% per booking)──► each Passenger (full refund)
@@ -42,8 +44,8 @@ use Illuminate\Support\Str;
  *      70–100% →   0% passenger / 100% driver
  *
  *  PASSENGER NO-SHOW (e-pay):
- *    SyCash ──(95%)──► Driver
- *    SyCash ──( 5%)──► Primary Admin
+ *    SyCash ──(driver %)──► Driver
+ *    SyCash ──(platform %)──► Primary Admin
  *
  *  DRIVER NO-SHOW (e-pay):
  *    SyCash ──(100%)──► Passenger
@@ -55,6 +57,10 @@ use Illuminate\Support\Str;
  */
 class WalletTransactionService
 {
+    public function __construct(
+        private readonly PolicyRepositoryInterface $policySettings,
+    ) {}
+
     // =========================================================================
     // BOOKING PAYMENT  (Passenger → SyCash)
     // =========================================================================
@@ -132,8 +138,8 @@ class WalletTransactionService
     /**
      * Release escrow after all parties confirm ride completion.
      *
-     * SyCash → Driver  (95%)
-     * SyCash → Primary ( 5%)
+     * SyCash → Driver  (driver %)
+     * SyCash → Primary (platform %)
      */
     public function releaseEarningsToDriver(Ride $ride, Collection $confirmedBookings): void
     {
@@ -144,8 +150,10 @@ class WalletTransactionService
             return;
         }
 
-        $driverShare  = round($total * 0.95, 2);
-        $primaryShare = round($total * 0.05, 2);
+        $platformPercentage = $this->policySettings->getPlatformProfitPercentage();
+        $driverPercentage   = 100 - $platformPercentage;
+        $primaryShare       = round($total * $platformPercentage / 100, 2);
+        $driverShare        = round($total - $primaryShare, 2);
 
         $syCashWallet  = $this->lockWalletByPhone(config('admin.sycash.phone'));
         $primaryWallet = $this->lockWalletByPhone(config('admin.system_admin.phone'));
@@ -185,7 +193,7 @@ class WalletTransactionService
             'reference'        => "ride:{$ride->id}",
         ]);
 
-        // Driver receives 95%
+        // Driver receives the driver percentage
         WalletTransaction::create([
             'wallet_id'        => $driverWallet->id,
             'user_id'          => $ride->driver_id,
@@ -193,13 +201,13 @@ class WalletTransactionService
             'amount'           => $driverShare,
             'previous_balance' => $driverPrev,
             'new_balance'      => $driverWallet->balance,
-            'description'      => "Earnings (95%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
+            'description'      => "Earnings ({$driverPercentage}%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
             'transaction_id'   => 'DRIVER_' . $txId,
             'status'           => 'completed',
             'reference'        => "ride:{$ride->id}",
         ]);
 
-        // Primary receives 5%
+        // Primary receives the platform percentage
         WalletTransaction::create([
             'wallet_id'        => $primaryWallet->id,
             'user_id'          => null,
@@ -207,7 +215,7 @@ class WalletTransactionService
             'amount'           => $primaryShare,
             'previous_balance' => $primaryPrev,
             'new_balance'      => $primaryWallet->balance,
-            'description'      => "Platform fee (5%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
+            'description'      => "Platform fee ({$platformPercentage}%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
             'transaction_id'   => 'PRIMARY_' . $txId,
             'status'           => 'completed',
             'reference'        => "ride:{$ride->id}",
@@ -454,13 +462,15 @@ class WalletTransactionService
 
     /**
      * Passenger didn't show — E-PAY ride.
-     * SyCash → Driver (95%) + SyCash → Primary (5%).
+     * SyCash → Driver (driver %) + SyCash → Primary (platform %).
      */
     public function processPassengerNoShow(Booking $booking, Ride $ride, User $passenger): void
     {
-        $total        = $booking->seats * $ride->price_per_seat;
-        $driverShare  = round($total * 0.95, 2);
-        $primaryShare = round($total * 0.05, 2);
+        $total              = $booking->seats * $ride->price_per_seat;
+        $platformPercentage = $this->policySettings->getPlatformProfitPercentage();
+        $driverPercentage   = 100 - $platformPercentage;
+        $primaryShare       = round($total * $platformPercentage / 100, 2);
+        $driverShare        = round($total - $primaryShare, 2);
 
         $syCashWallet  = $this->lockWalletByPhone(config('admin.sycash.phone'));
         $driverWallet  = $this->lockWalletByUserId($ride->driver_id);
@@ -506,7 +516,7 @@ class WalletTransactionService
             'amount'           => $driverShare,
             'previous_balance' => $driverPrev,
             'new_balance'      => $driverWallet->balance,
-            'description'      => "No-show compensation (95%) — passenger absent, {$booking->seats} seat(s)",
+            'description'      => "No-show compensation ({$driverPercentage}%) — passenger absent, {$booking->seats} seat(s)",
             'transaction_id'   => 'DRIVER_' . $txId,
             'status'           => 'completed',
             'reference'        => "booking:{$booking->id}",
@@ -519,7 +529,7 @@ class WalletTransactionService
             'amount'           => $primaryShare,
             'previous_balance' => $primaryPrev,
             'new_balance'      => $primaryWallet->balance,
-            'description'      => "Platform fee (5%) — no-show booking #{$booking->id}",
+            'description'      => "Platform fee ({$platformPercentage}%) — no-show booking #{$booking->id}",
             'transaction_id'   => 'PRIMARY_' . $txId,
             'status'           => 'completed',
             'reference'        => "booking:{$booking->id}",

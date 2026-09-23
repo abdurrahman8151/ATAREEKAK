@@ -23,7 +23,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new WalletTransactionService();
+        $this->service = new WalletTransactionService(new \App\Repositories\PolicyRepository());
     }
 
     // ─── Tier 1: 0–30% elapsed → 100% refund ────────────────────────────────

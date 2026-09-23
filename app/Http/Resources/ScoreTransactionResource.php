@@ -51,7 +51,8 @@ final class ScoreTransactionResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $action = ScoreAction::from($this->action);
+        $action = ScoreAction::tryFrom($this->action);
+        $label  = $action ? $action->label() : ucwords(str_replace('_', ' ', $this->action ?? ''));
         $sign   = $this->points >= 0 ? '+' : '';   // negative already carries its own '−'
 
         return [
@@ -59,8 +60,8 @@ final class ScoreTransactionResource extends JsonResource
             'id'    => $this->id,
             'event' => [
                 'code'    => $this->action,
-                'label'   => $action->label(),
-                'summary' => "{$sign}{$this->points} pts — {$action->label()}",
+                'label'   => $label,
+                'summary' => "{$sign}{$this->points} pts — {$label}",
             ],
 
             // ── Points ────────────────────────────────────────────────────

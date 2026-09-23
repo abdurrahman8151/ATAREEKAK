@@ -166,7 +166,8 @@ class AdminWalletService
     }
 
     /**
-     * Wallet transactions with pagination.
+     * Wallet transactions with pagination, in the same {data, meta} envelope
+     * every other paginated endpoint in this API returns.
      */
     public function getWalletTransactions(int $walletId, int $perPage = 10): array
     {
@@ -176,8 +177,31 @@ class AdminWalletService
             ->paginate($perPage);
 
         return [
-            'wallet'       => $wallet,
-            'transactions' => $transactions,
+            'wallet' => [
+                'id'            => $wallet->id,
+                'name'          => $wallet->name,
+                'wallet_number' => $wallet->wallet_number,
+                'phone_number'  => $wallet->phone_number,
+                'balance'       => Money::from($wallet->balance)->formatted(),
+            ],
+            'data' => $transactions->getCollection()->map(fn (WalletTransaction $tx) => [
+                'id'                => $tx->id,
+                'type'              => $tx->type,
+                'amount'            => (float) $tx->amount,
+                'previous_balance'  => (float) $tx->previous_balance,
+                'new_balance'       => (float) $tx->new_balance,
+                'description'       => $tx->description,
+                'transaction_id'    => $tx->transaction_id,
+                'status'            => $tx->status,
+                'reference'         => $tx->reference,
+                'created_at'        => $tx->created_at->toIso8601String(),
+            ])->values(),
+            'meta' => [
+                'current_page' => $transactions->currentPage(),
+                'last_page'    => $transactions->lastPage(),
+                'per_page'     => $transactions->perPage(),
+                'total'        => $transactions->total(),
+            ],
         ];
     }
 }

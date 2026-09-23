@@ -217,6 +217,7 @@ final class AdminReportService
             return [
                 'booking_id' => $booking->id,
                 'user'       => [
+                    'id'     => $booking->user?->id,
                     'name'   => trim("{$booking->user?->first_name} {$booking->user?->last_name}"),
                     'number' => 'XXX-XXX-' . substr($booking->communication_number ?? '', -4),
                 ],

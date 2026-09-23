@@ -25,7 +25,7 @@ RUN composer install \
     --no-interaction \
     --ignore-platform-reqs
 COPY . .
-RUN composer run-script post-autoload-dump --no-interaction || true
+RUN composer dump-autoload --optimize --no-interaction
 
 # ============================================================
 # Stage 4: Final image

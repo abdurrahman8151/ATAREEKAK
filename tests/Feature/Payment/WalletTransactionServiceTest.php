@@ -36,7 +36,7 @@ class WalletTransactionServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new WalletTransactionService();
+        $this->service = app(WalletTransactionService::class);
 
         // Generate unique phone numbers for each test method
         $this->driverPhone    = '091' . rand(1000000, 9999999);

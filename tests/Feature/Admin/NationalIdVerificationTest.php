@@ -117,14 +117,14 @@ class NationalIdVerificationTest extends TestCase
 
         $response = $this->withToken($this->staffToken())
             ->postJson($this->staffApproveRoute($driver->id), [
-                'national_id' => 'SY-12345678',
+                'national_id' => '1234567890',
             ]);
 
         $response->assertOk();
 
         $this->assertDatabaseHas('users', [
             'id'          => $driver->id,
-            'national_id' => 'SY-12345678',
+            'national_id' => '1234567890',
         ]);
     }
 
@@ -133,7 +133,7 @@ class NationalIdVerificationTest extends TestCase
     {
         // Another already-verified user holds this national_id.
         User::factory()->create([
-            'national_id' => 'SY-99999999',
+            'national_id' => '9999999999',
             'status'      => 1,
         ]);
 
@@ -141,7 +141,7 @@ class NationalIdVerificationTest extends TestCase
 
         $response = $this->withToken($this->staffToken())
             ->postJson($this->staffApproveRoute($driver->id), [
-                'national_id' => 'SY-99999999',
+                'national_id' => '9999999999',
             ]);
 
         $response->assertStatus(422);
@@ -156,7 +156,7 @@ class NationalIdVerificationTest extends TestCase
     public function failed_approval_leaves_pending_status_unchanged(): void
     {
         User::factory()->create([
-            'national_id' => 'SY-11111111',
+            'national_id' => '1111111111',
             'status'      => 1,
         ]);
 
@@ -164,7 +164,7 @@ class NationalIdVerificationTest extends TestCase
 
         $this->withToken($this->staffToken())
             ->postJson($this->staffApproveRoute($driver->id), [
-                'national_id' => 'SY-11111111',
+                'national_id' => '1111111111',
             ]);
 
         $this->assertDatabaseHas('users', [
@@ -174,30 +174,10 @@ class NationalIdVerificationTest extends TestCase
     }
 
     /** @test */
-    public function duplicate_check_is_case_insensitive(): void
-    {
-        // Store in lowercase.
-        User::factory()->create([
-            'national_id' => 'sy-12345678',
-            'status'      => 1,
-        ]);
-
-        $driver = $this->pendingDriver();
-
-        // Submit in uppercase — MySQL's utf8 collation treats them as equal.
-        $response = $this->withToken($this->staffToken())
-            ->postJson($this->staffApproveRoute($driver->id), [
-                'national_id' => 'SY-12345678',
-            ]);
-
-        $response->assertStatus(422);
-    }
-
-    /** @test */
     public function admin_cannot_approve_with_duplicate_national_id(): void
     {
         User::factory()->create([
-            'national_id' => 'SY-12345678',
+            'national_id' => '1234567890',
             'status'      => 1,
         ]);
 
@@ -205,7 +185,7 @@ class NationalIdVerificationTest extends TestCase
 
         $response = $this->withToken($this->adminToken())
             ->postJson($this->adminApproveRoute($driver->id), [
-                'national_id' => 'SY-12345678',
+                'national_id' => '1234567890',
             ]);
 
         $response->assertStatus(422);
@@ -218,15 +198,37 @@ class NationalIdVerificationTest extends TestCase
 
         $response = $this->withToken($this->adminToken())
             ->postJson($this->adminApproveRoute($driver->id), [
-                'national_id' => 'SY-99999999',
+                'national_id' => '9999999999',
             ]);
 
         $response->assertOk();
 
         $this->assertDatabaseHas('users', [
             'id'          => $driver->id,
-            'national_id' => 'SY-99999999',
+            'national_id' => '9999999999',
         ]);
+    }
+
+    /** @test */
+    public function national_id_must_be_exactly_10_digits(): void
+    {
+        $driver = $this->pendingDriver();
+
+        // 9 digits
+        $response = $this->withToken($this->staffToken())
+            ->postJson($this->staffApproveRoute($driver->id), [
+                'national_id' => '123456789',
+            ]);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['national_id']);
+
+        // 11 digits
+        $response = $this->withToken($this->staffToken())
+            ->postJson($this->staffApproveRoute($driver->id), [
+                'national_id' => '12345678901',
+            ]);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['national_id']);
     }
 
     /** @test */

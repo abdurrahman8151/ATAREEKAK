@@ -4,13 +4,18 @@ namespace App\Http\Controllers\API;
 
 use App\DTOs\Ride\CreateRideDTO;
 use App\DTOs\Ride\BookRideDTO;
+use App\Enums\SyrianCity;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CityTripsRequest;
 use App\Http\Requests\CreateRideRequest;
 use App\Http\Requests\BookRideRequest;
+use App\Http\Resources\CityTripResource;
 use App\Http\Resources\RideResource;
 use App\Http\Resources\BookingResource;
+use App\Models\Ride;
 use App\Services\Geocoding\GeocodingService;
 use App\Services\Geocoding\RouteCalculationService;
+use App\Services\Ride\CityTripService;
 use App\Services\Ride\RideService;
 use App\Services\Ride\BookingService;
 use Illuminate\Http\JsonResponse;
@@ -48,6 +53,7 @@ class RideController extends Controller
         private readonly GeocodingService        $geocodingService,
         private readonly RouteCalculationService $routeService,
         private readonly NotificationService     $notificationService,
+        private readonly CityTripService         $cityTripService,
     ) {}
 
     // =========================================================================
@@ -61,7 +67,7 @@ class RideController extends Controller
      * try scope, and returned 201 even on failure. Now uses a single clean
      * try/catch with \Throwable to also catch PHP Errors.
      */
-    public function create(CreateRideRequest $request): JsonResponse
+    public function createRide(CreateRideRequest $request): JsonResponse
     {
         try {
             $dto   = CreateRideDTO::fromRequest($request->validated(), $request->user()->id);
@@ -339,7 +345,16 @@ class RideController extends Controller
     public function getRides(Request $request): JsonResponse
     {
         try {
-            $rides = $this->rideService->getDriverRides($request->user()->id);
+            // Same payload shape as always, except route_geometry is trimmed to
+            // the path's start and end point — the full polyline is thousands of
+            // coordinates per ride and this endpoint returns every ride a driver
+            // has. GET /rides/{id} still returns the complete line for the map.
+            $rides = $this->rideService->getDriverRides($request->user()->id)
+                ->map(function (Ride $ride) {
+                    return array_merge($ride->toArray(), [
+                        'route_geometry' => $ride->routeEndpoints(),
+                    ]);
+                });
 
             return response()->json([
                 'success' => true,
@@ -374,6 +389,7 @@ class RideController extends Controller
             'dest_lng'            => 'required_with:dest_lat|numeric',
             'departure_date'      => 'required|date|after:yesterday',
             'seats_required'      => 'required|integer|min:1',
+            'sort_by'             => 'sometimes|string|in:best,price_asc,price_desc,rating_desc,distance_asc,departure_time_asc',
         ]);
 
         try {
@@ -392,11 +408,12 @@ class RideController extends Controller
                 'source_lng'     => $source['lng'],
                 'dest_lat'       => $destination['lat'],
                 'dest_lng'       => $destination['lng'],
+                'sort_by'        => $validated['sort_by'] ?? 'best',
             ]);
 
             return response()->json([
                 'success' => true,
-                'data'    => $rides,
+                'data'    => RideResource::collection($rides),
             ]);
 
         } catch (\Throwable $e) {
@@ -404,6 +421,94 @@ class RideController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Search failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // =========================================================================
+    // CITY TRIPS  (trips leaving from / arriving at the user's city)
+    // =========================================================================
+
+    /**
+     * GET /rides/city-trips
+     *
+     * Every trip in the system that departs FROM or arrives AT the
+     * authenticated user's city (users.address), paginated and filterable.
+     *
+     * NOT cached — available_seats changes on every booking, and a stale seat
+     * count on a browse-and-book list directly causes failed bookings.
+     *
+     * The city is taken from the user's profile. A user who never set an
+     * address gets 422 with a pointer to update their profile, unless they
+     * pass an explicit ?city=.
+     *
+     * Query params — all optional. See CityTripsRequest for the exact rules.
+     */
+    public function cityTrips(CityTripsRequest $request): JsonResponse
+    {
+        $filters = $request->validated();
+        $user    = $request->user();
+
+        // Explicit ?city= wins; otherwise fall back to the user's own city.
+        $city = ! empty($filters['city'])
+            ? SyrianCity::tryFromAddress($filters['city'])
+            : SyrianCity::tryFromAddress($user->address);
+
+        if ($city === null) {
+            return response()->json([
+                'success' => false,
+                'message' => empty($user->address)
+                    ? 'Your city is not set. Update your profile address, or pass ?city= explicitly.'
+                    : "Unrecognised city: {$user->address}",
+                'available_cities' => SyrianCity::values(),
+            ], 422);
+        }
+
+        try {
+            $paginator = $this->cityTripService->getCityTrips($city, $filters, $user->id);
+
+            return response()->json([
+                'success' => true,
+                'data'    => CityTripResource::collection($paginator->getCollection()),
+                'meta'    => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page'    => $paginator->lastPage(),
+                    'per_page'     => $paginator->perPage(),
+                    'total'        => $paginator->total(),
+                    'from'         => $paginator->firstItem(),
+                    'to'           => $paginator->lastItem(),
+                    'has_more'     => $paginator->hasMorePages(),
+                ],
+                'city' => [
+                    'value'     => $city->value,
+                    'name_en'   => $city->englishName(),
+                    'radius_km' => $city->radiusKm(),
+                    'source'    => empty($filters['city']) ? 'user_profile' : 'query_param',
+                ],
+                // Opt-in: two extra COUNTs over the same spatial predicate.
+                'counts' => filter_var($filters['with_counts'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                    ? $this->cityTripService->getDirectionCounts(
+                        $city,
+                        $filters,
+                        $user->id,
+                        $filters['direction'] ?? 'both',
+                        $paginator->total(),
+                    )
+                    : null,
+                'applied_filters' => $filters + ['direction' => $filters['direction'] ?? 'both'],
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('City trips lookup failed', [
+                'user_id' => $user->id,
+                'city'    => $city->value,
+                'filters' => $filters,
+                'error'   => $e->getMessage(),
+                'class'   => get_class($e),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load trips for your city',
             ], 500);
         }
     }
@@ -449,7 +554,10 @@ class RideController extends Controller
     public function index(Request $request): JsonResponse
     {
         $rides = $this->rideService->getUserRides($request->user()->id);
-        $rides->load(['driver', 'driver.profile'])
+        $rides->load([
+            'driver' => fn ($query) => $query->withAvg('receivedRatings as driver_rating', 'rating'),
+            'driver.profile',
+        ])
             ->loadCount(['bookings as total_booked_seats' => function ($query) {
                 $query->select(DB::raw('COALESCE(SUM(seats), 0)'));
             }]);
@@ -703,10 +811,16 @@ class RideController extends Controller
                 );
                 $validated['distance']       = $validated['distance']  ?? $route['distance'];
                 $validated['duration']       = $validated['duration']  ?? $route['duration'];
-                $validated['route_geometry'] = $validated['route_geometry'] ?? [
-                    'type'        => 'LineString',
-                    'coordinates' => $route['geometry'],
-                ];
+                if (empty($validated['route_geometry'])) {
+                    // Only persist a geometry the routing service actually returned.
+                    // A LineString with fewer than two positions is not valid GeoJSON,
+                    // and ST_GeomFromGeoJSON rejects it later during ride search —
+                    // null is the same "no route" state the repository already stores.
+                    $geometry = $route['geometry'] ?? null;
+                    $validated['route_geometry'] = (is_array($geometry) && count($geometry) >= 2)
+                        ? ['type' => 'LineString', 'coordinates' => $geometry]
+                        : null;
+                }
             }
 
             $dto  = CreateRideDTO::fromRequest($validated, $request->user()->id);

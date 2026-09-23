@@ -136,6 +136,39 @@ class Ride extends Model
     }
 
     //------------------------------------------------------------------------//
+    // Route geometry helpers
+    //------------------------------------------------------------------------//
+
+    /**
+     * The stored route polyline reduced to its first and last point.
+     *
+     * A real ORS route is thousands of [lng, lat] pairs, which dominates the
+     * payload of any endpoint that returns one row per ride. List endpoints use
+     * this instead; GET /rides/{id} still carries the full polyline so the map
+     * has a line to draw. The full geometry stays in the column untouched —
+     * corridor search (RideSearchService) reads it straight from SQL.
+     *
+     * Returns the value unchanged when there is nothing to trim, so a null or
+     * already-minimal geometry passes through as-is.
+     */
+    public function routeEndpoints(): ?array
+    {
+        $coordinates = $this->route_geometry['coordinates'] ?? null;
+
+        if (! is_array($coordinates) || count($coordinates) < 3) {
+            return $this->route_geometry;
+        }
+
+        return [
+            'type'        => 'LineString',
+            'coordinates' => [
+                $coordinates[array_key_first($coordinates)],
+                $coordinates[array_key_last($coordinates)],
+            ],
+        ];
+    }
+
+    //------------------------------------------------------------------------//
     // Scope
     //------------------------------------------------------------------------//
 

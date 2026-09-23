@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\Ride\Noshowservice;
+use App\Services\Ride\NoshowService;
 use Illuminate\Console\Command;
 
 /**
@@ -25,7 +25,7 @@ class ResolveExpiredNoshowReports extends Command
     protected $signature   = 'noshow:resolve';
     protected $description = 'Resolve expired no-show reports and apply penalties to the losing party';
 
-    public function handle(Noshowservice $noshowService): int
+    public function handle(NoshowService $noshowService): int
     {
         $this->info('Checking for expired no-show reports...');
 

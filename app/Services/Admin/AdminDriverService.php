@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Interfaces\PolicyRepositoryInterface;
 use App\Models\Booking;
 use App\Models\Photo;
 use App\Models\Profile;
@@ -43,6 +44,10 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
  */
 final class AdminDriverService
 {
+    public function __construct(
+        private readonly PolicyRepositoryInterface $policySettings,
+    ) {}
+
     // =========================================================================
     // BFF – full dashboard in one call
     // =========================================================================
@@ -87,7 +92,13 @@ final class AdminDriverService
             ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->count();
 
-        $suspendedDrivers = 0; // not implemented yet
+        $suspendedDrivers = User::where(function ($q) {
+            $q->where('is_verified_driver', true)
+                ->orWhere(function ($q2) {
+                    $q2->whereIn('verification_status', ['pending', 'rejected'])
+                        ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']));
+                });
+        })->whereIn('status', [-1, 0])->count();
 
         $avgRating = UserRating::whereHas(
             'ratedUser',
@@ -137,7 +148,9 @@ final class AdminDriverService
             'verified'  => $query->where('is_verified_driver', true),
             'pending'   => $query->where('verification_status', 'pending')
                 ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
-            'suspended' => $query->where('status', 0),
+            // 'suspended' covers both banned (-1) and logged-out (0) accounts —
+            // i.e. every driver who currently cannot use the app.
+            'suspended' => $query->whereIn('status', [-1, 0]),
             default     => null,
         };
 
@@ -187,6 +200,7 @@ final class AdminDriverService
             'phone'               => $this->resolveDriverPhone($driver->id),
             'vehicle'             => $vehicleLabel,
             'status'              => $this->resolveDriverStatus($driver),
+            'is_banned'           => $driver->status == -1,
             'avg_rating'          => isset($driver->avg_rating) && $driver->avg_rating !== null
                 ? round((float) $driver->avg_rating, 1)
                 : null,
@@ -310,11 +324,12 @@ final class AdminDriverService
             ? round(($cancelledRides / $totalRides) * 100, 1)
             : 0.0;
 
-        // Earnings = SUM(seats × price_per_seat × 0.95) across completed bookings
+        // Earnings = SUM(seats × price_per_seat × driver share) across completed bookings
+        $driverSharePct = (100 - $this->policySettings->getPlatformProfitPercentage()) / 100;
         $totalEarnings = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->where('rides.driver_id', $driverId)
             ->where('bookings.status', 'completed')
-            ->selectRaw('SUM(bookings.seats * rides.price_per_seat * 0.95) as total')
+            ->selectRaw('SUM(bookings.seats * rides.price_per_seat * ?) as total', [$driverSharePct])
             ->value('total') ?? 0.0;
 
         // ── Recent rides ──────────────────────────────────────────────────────
@@ -356,7 +371,7 @@ final class AdminDriverService
                 : null,
 
             'rating' => [
-                'average'       => $ratingStats->average ?? 0,
+                'average'       => $ratingStats->average !== null ? (float) $ratingStats->average : 0.0,
                 'total_ratings' => (int) ($ratingStats->total ?? 0),
             ],
 
@@ -365,7 +380,7 @@ final class AdminDriverService
                 'completed_rides' => $completedRides,
                 'cancelled_rides' => $cancelledRides,
                 'cancel_rate'     => $cancelRate,                        // e.g. 2.4 (%)
-                'total_earnings'  => round((float) $totalEarnings, 2),  // after 5% commission
+                'total_earnings'  => round((float) $totalEarnings, 2),  // after platform commission
             ],
 
             'vehicle' => [
@@ -618,7 +633,8 @@ final class AdminDriverService
 
     private function resolveDriverStatus(User $driver): string
     {
-        if ($driver->status == 0)                        return 'suspended';
+        if ($driver->status == -1)                       return 'banned';
+        if ($driver->status == 0)                        return 'logged_out';
         if ($driver->is_verified_driver)                 return 'verified';
         if ($driver->verification_status === 'pending')  return 'pending';
         if ($driver->verification_status === 'rejected') return 'rejected';

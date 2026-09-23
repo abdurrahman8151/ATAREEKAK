@@ -77,6 +77,17 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/scheduled/noshow-resolve.log'));
+
+        // ── DRIVER COMMITMENT STREAK BONUS ──────────────────────────────────────
+        // Awards +2/+4/+6 pts for 7/14/30 cancellation-free days. Once a day is
+        // enough — the milestone check is date-based, not time-of-day sensitive.
+        $schedule->command('score:driver-commitment-streaks')
+            ->daily()
+            ->at('04:00')
+            ->onOneServer()
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/scheduled/driver-commitment-streaks.log'));
     }
 
     /**

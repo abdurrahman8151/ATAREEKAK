@@ -291,15 +291,28 @@ final class AdminDashboardController extends Controller
         }
     }
 
-    public function showWalletTransactions(int $walletId): JsonResponse
+    public function showWalletTransactions(int $walletId, Request $request): JsonResponse
     {
+        $validator = Validator::make($request->all(), [
+            'per_page' => 'sometimes|integer|min:1|max:50',
+            'page'     => 'sometimes|integer|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
         try {
-            $result = $this->walletService->getWalletTransactions($walletId);
+            $result = $this->walletService->getWalletTransactions(
+                $walletId,
+                (int) $request->get('per_page', 10)
+            );
 
             return response()->json([
-                'status'       => 'success',
-                'wallet'       => $result['wallet'],
-                'transactions' => $result['transactions'],
+                'status' => 'success',
+                'wallet' => $result['wallet'],
+                'data'   => $result['data'],
+                'meta'   => $result['meta'],
             ]);
         } catch (\Exception) {
             return response()->json([
@@ -307,11 +320,6 @@ final class AdminDashboardController extends Controller
                 'message' => 'Wallet not found',
             ], 404);
         }
-    }
-
-    public function uploadAdminPhoto(Request $request): JsonResponse
-    {
-        return response()->json(['status' => 'success', 'message' => 'Photo uploaded']);
     }
 
     // =========================================================================
@@ -455,9 +463,10 @@ final class AdminDashboardController extends Controller
     public function approveVerification(int $userId, Request $request): JsonResponse
     {
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-            'national_id' => 'required|string|max:50',
+            'national_id' => 'required|digits:10',
         ], [
             'national_id.required' => 'The national ID number is required to approve verification.',
+            'national_id.digits'   => 'The national ID number must be exactly 10 digits.',
         ]);
 
         if ($validator->fails()) {

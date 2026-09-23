@@ -25,8 +25,20 @@ final class RideSearchService
     private const MAX_DISTANCE_KM = 20;
     private const ROUTE_BUFFER_DEGREES = 0.05; // ~5km buffer around route
 
+    /** Weights for the composite "best match" ranking. Must sum to 1.0. */
+    private const WEIGHT_PRICE = 0.30;
+    private const WEIGHT_DISTANCE = 0.25;
+    private const WEIGHT_RATING = 0.25;
+    private const WEIGHT_DRIVER_SCORE = 0.15;
+    private const WEIGHT_TIMING = 0.05;
+
+    private const VALID_SORTS = ['best', 'price_asc', 'price_desc', 'rating_desc', 'distance_asc', 'departure_time_asc'];
+
     /**
      * Search for available rides matching criteria
+     *
+     * $params['sort_by'] selects the ordering (default 'best', a weighted
+     * composite of price/distance/rating/driver score/timing — see rankByBestMatch()).
      */
     public function searchRides(array $params): Collection
     {
@@ -36,21 +48,126 @@ final class RideSearchService
             ->where('status', RideStatus::ACTIVE->value);
 
         $this->applySpatialFilters($query, $params);
+        $this->selectMatchDistance($query, $params);
 
-        return $query
+        $rides = $query
             ->with([
                 'driver' => function ($query) {
-                    $query->select('id', 'first_name', 'last_name', 'driver_rating');
+                    // There is no driver_rating column on users — ratings live in
+                    // user_ratings, so the average is aggregated into the alias
+                    // RideResource reads. One extra sub-select, no N+1.
+                    $query->select('id', 'first_name', 'last_name', 'avatar')
+                        ->withAvg('receivedRatings as driver_rating', 'rating');
                 },
                 'driver.profile' => function ($query) {
                     $query->select('user_id', 'profile_photo');
-                }
+                },
+                'driver.userScore',
             ])
             ->withCount(['bookings as total_booked_seats' => function ($query) {
                 $query->selectRaw('COALESCE(SUM(seats), 0)');
             }])
-            ->orderBy('departure_time', 'asc')
             ->get();
+
+        $sortBy = in_array($params['sort_by'] ?? 'best', self::VALID_SORTS, true)
+            ? $params['sort_by']
+            : 'best';
+
+        return $this->sortRides($rides, $sortBy);
+    }
+
+    /**
+     * Select the ride-to-search-points distance (pickup+destination, in meters)
+     * as a transient `match_distance_meters` attribute, used by rankByBestMatch().
+     */
+    private function selectMatchDistance(Builder $query, array $params): void
+    {
+        $srcWkt = sprintf('POINT(%F %F)', $params['source_lng'], $params['source_lat']);
+        $dstWkt = sprintf('POINT(%F %F)', $params['dest_lng'], $params['dest_lat']);
+
+        $query->addSelect('rides.*')->selectRaw(
+            'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326))
+                + ST_Distance_Sphere(destination_location, ST_GeomFromText(?, 4326))
+                AS match_distance_meters',
+            [$srcWkt, $dstWkt]
+        );
+    }
+
+    /**
+     * Order the result set per the requested strategy.
+     */
+    private function sortRides(Collection $rides, string $sortBy): Collection
+    {
+        return match ($sortBy) {
+            'price_asc' => $rides->sortBy('price_per_seat')->values(),
+            'price_desc' => $rides->sortByDesc('price_per_seat')->values(),
+            'rating_desc' => $rides->sortByDesc(fn (Ride $ride) => $ride->driver->driver_rating ?? 0)->values(),
+            'distance_asc' => $rides->sortBy(fn (Ride $ride) => (float) $ride->match_distance_meters)->values(),
+            'departure_time_asc' => $rides->sortBy('departure_time')->values(),
+            default => $this->rankByBestMatch($rides),
+        };
+    }
+
+    /**
+     * Composite "best match" ranking: cheaper, closer, better-rated, more
+     * reliable (driver score), and sooner-departing rides rank higher.
+     *
+     * Each factor is min-max normalized across the current result set (not
+     * against a global scale) so the ranking stays meaningful regardless of
+     * how prices/distances happen to spread for a given search.
+     */
+    private function rankByBestMatch(Collection $rides): Collection
+    {
+        if ($rides->isEmpty()) {
+            return $rides;
+        }
+
+        $prices = $rides->map(fn (Ride $r) => (float) $r->price_per_seat);
+        $distances = $rides->map(fn (Ride $r) => (float) $r->match_distance_meters);
+        $ratings = $rides->map(fn (Ride $r) => (float) ($r->driver->driver_rating ?? 0));
+        $driverScores = $rides->map(fn (Ride $r) => (float) ($r->driver->userScore->score ?? 70));
+        $departureTimes = $rides->map(fn (Ride $r) => $r->departure_time->timestamp);
+
+        $priceRange = [$prices->min(), $prices->max()];
+        $distanceRange = [$distances->min(), $distances->max()];
+        $ratingRange = [$ratings->min(), $ratings->max()];
+        $driverScoreRange = [$driverScores->min(), $driverScores->max()];
+        $timeRange = [$departureTimes->min(), $departureTimes->max()];
+
+        return $rides
+            ->map(function (Ride $ride) use (
+                $priceRange, $distanceRange, $ratingRange, $driverScoreRange, $timeRange
+            ) {
+                $priceScore = 1 - $this->normalize((float) $ride->price_per_seat, $priceRange);
+                $distanceScore = 1 - $this->normalize((float) $ride->match_distance_meters, $distanceRange);
+                $ratingScore = $this->normalize((float) ($ride->driver->driver_rating ?? 0), $ratingRange);
+                $driverScoreScore = $this->normalize((float) ($ride->driver->userScore->score ?? 70), $driverScoreRange);
+                $timingScore = 1 - $this->normalize((float) $ride->departure_time->timestamp, $timeRange);
+
+                $ride->match_score = round(
+                    self::WEIGHT_PRICE * $priceScore
+                    + self::WEIGHT_DISTANCE * $distanceScore
+                    + self::WEIGHT_RATING * $ratingScore
+                    + self::WEIGHT_DRIVER_SCORE * $driverScoreScore
+                    + self::WEIGHT_TIMING * $timingScore,
+                    4
+                );
+
+                return $ride;
+            })
+            ->sortByDesc('match_score')
+            ->values();
+    }
+
+    /**
+     * Min-max normalize a value into [0, 1]. A zero-width range (every ride
+     * ties on this factor) normalizes to 1 so it stops influencing the ranking.
+     */
+    private function normalize(float $value, array $range): float
+    {
+        [$min, $max] = $range;
+
+        return $max > $min ? ($value - $min) / ($max - $min) : 1.0;
     }
 
     /**
@@ -99,6 +216,11 @@ final class RideSearchService
 
     /**
      * Match rides where route passes near search points
+     *
+     * The corridor is measured with a planar ST_Distance on SRID 0 geometries rather
+     * than ST_Contains(ST_Buffer(...)): MySQL cannot buffer a LINESTRING in a geographic
+     * SRS (error 3618), and forcing both operands to SRID 0 also keeps the GeoJSON
+     * lon/lat axis order aligned with the POINT(lng lat) WKT built above.
      */
     private function applyRouteMatching(Builder $query, string $srcWkt, string $dstWkt): void
     {
@@ -107,27 +229,27 @@ final class RideSearchService
             ->whereRaw("JSON_VALID(route_geometry)")
             ->whereRaw("JSON_EXTRACT(route_geometry, '$.coordinates') IS NOT NULL")
             ->whereRaw("JSON_TYPE(JSON_EXTRACT(route_geometry, '$.coordinates')) = 'ARRAY'")
+            // A LineString needs at least two positions, and each position must
+            // itself be an array. ST_GeomFromGeoJSON raises error 3072 on anything
+            // else, and that aborts the whole query rather than skipping the row,
+            // so a single malformed ride would 500 the entire search.
+            ->whereRaw("JSON_LENGTH(JSON_EXTRACT(route_geometry, '$.coordinates')) >= 2")
+            ->whereRaw("JSON_TYPE(JSON_EXTRACT(route_geometry, '$.coordinates[0]')) = 'ARRAY'")
             // Check if source point is near route
             ->whereRaw(
-                "ST_Contains(
-                    ST_Buffer(
-                        ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)),
-                        ?
-                    ),
-                    ST_GeomFromText(?, 4326)
-                )",
-                [self::ROUTE_BUFFER_DEGREES, $srcWkt]
+                "ST_Distance(
+                    ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry), 1, 0),
+                    ST_GeomFromText(?, 0)
+                ) <= ?",
+                [$srcWkt, self::ROUTE_BUFFER_DEGREES]
             )
             // Check if destination point is near route
             ->whereRaw(
-                "ST_Contains(
-                    ST_Buffer(
-                        ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)),
-                        ?
-                    ),
-                    ST_GeomFromText(?, 4326)
-                )",
-                [self::ROUTE_BUFFER_DEGREES, $dstWkt]
+                "ST_Distance(
+                    ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry), 1, 0),
+                    ST_GeomFromText(?, 0)
+                ) <= ?",
+                [$dstWkt, self::ROUTE_BUFFER_DEGREES]
             );
     }
 
@@ -145,7 +267,10 @@ final class RideSearchService
                 "ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?",
                 [$pointWkt, $radiusMeters]
             )
-            ->with(['driver', 'driver.profile'])
+            ->with([
+                'driver' => fn ($query) => $query->withAvg('receivedRatings as driver_rating', 'rating'),
+                'driver.profile',
+            ])
             ->orderBy('departure_time', 'asc')
             ->get();
     }

@@ -46,7 +46,7 @@ use Illuminate\Support\Facades\Log;
  *
  * ══════════════════════════════════════════════════════════════════════════════
  */
-final class Noshowservice
+final class NoshowService
 {
     // Gate: button unlocks this many hours after departure
     // private const GATE_HOURS = 1;

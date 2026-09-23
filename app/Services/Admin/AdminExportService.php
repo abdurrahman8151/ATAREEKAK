@@ -3,6 +3,7 @@
 namespace App\Services\Admin;
 
 use App\Domain\ValueObjects\Money;
+use App\Support\ArabicShaper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
@@ -60,6 +61,10 @@ final class AdminExportService
         $payload = $this->buildPayload($startDate, $endDate, $sections);
 
         $html = View::make('exports.dashboard-report', $payload)->render();
+
+        // dompdf/DejaVu Sans don't shape Arabic themselves — connected letters
+        // (names, routes, city names) render disconnected without this pass.
+        $html = ArabicShaper::shapeHtml($html);
 
         $pdf = Pdf::loadHTML($html)
             ->setPaper('A4', 'portrait')

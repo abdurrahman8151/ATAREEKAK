@@ -36,11 +36,11 @@ final class PushNotificationService
     }
 
     /**
-     * Remove a token
+     * Remove a token, optionally scoped to its owner
      */
-    public function removeToken(string $token): bool
+    public function removeToken(string $token, ?int $userId = null): bool
     {
-        return $this->tokenManager->removeToken($token);
+        return $this->tokenManager->removeToken($token, $userId);
     }
 
     /**

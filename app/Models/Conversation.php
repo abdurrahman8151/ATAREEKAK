@@ -55,9 +55,20 @@ class Conversation extends Model
         return $this->participants()->where('user_id', $user->id)->exists();
     }
 
+    /**
+     * The other party in a two-party conversation.
+     *
+     * Both 'private' (user ↔ user) and 'support' (user ↔ agent, created by
+     * ContactController) have exactly one "other" participant. The guard exists
+     * for 'group', where the question has no single answer.
+     *
+     * 'support' used to be excluded here, which made StaffChatController's
+     * `user` block null for every conversation the staff inbox serves — the one
+     * screen whose whole job is to say who the customer is.
+     */
     public function getOtherParticipant(User $currentUser): ?User
     {
-        if ($this->type !== 'private') {
+        if (!in_array($this->type, ['private', 'support'], true)) {
             return null;
         }
 

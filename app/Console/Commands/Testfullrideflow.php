@@ -10,7 +10,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserScore;
 use App\Models\Wallet;
-use App\Services\Ride\Noshowservice;
+use App\Services\Ride\NoshowService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -49,7 +49,7 @@ class Testfullrideflow extends Command
     /** Monotonic counter so every scenario gets unique emails / phone numbers */
     private int $seq = 0;
 
-    public function handle(Noshowservice $noshowService): int
+    public function handle(NoshowService $noshowService): int
     {
         $this->hash = Hash::make('test');
 

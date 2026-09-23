@@ -93,6 +93,29 @@ class EmployeeManagementService
         return $employee;
     }
 
+    /**
+     * Shape an Employee for API responses.
+     */
+    public function formatEmployee(Employee $e): array
+    {
+        return [
+            'id'         => $e->id,
+            'username'   => $e->username,
+            'email'      => $e->email,
+            'full_name'  => $e->fullName(),
+            'first_name' => $e->first_name,
+            'last_name'  => $e->last_name,
+            'role'       => $e->role->value,
+            'role_label' => $e->role->label(),
+            'is_active'  => $e->is_active,
+            'created_by' => $e->creator
+                ? ['id' => $e->creator->id, 'username' => $e->creator->username, 'name' => $e->creator->fullName()]
+                : null,
+            'last_login_at' => $e->last_login_at,
+            'created_at'    => $e->created_at,
+        ];
+    }
+
     // =========================================================================
     // CREATE
     // =========================================================================
@@ -136,7 +159,7 @@ class EmployeeManagementService
 
         // ── Guard 3: unique username ──────────────────────────────────────────
         if (Employee::where('username', $data['username'])->exists()) {
-            throw new \DomainException("Username '{$data['username']}' is already taken.");
+            throw new \RuntimeException("Username '{$data['username']}' is already taken.");
         }
 
         // ── Guard 4: unique email (if provided) ───────────────────────────────
@@ -144,7 +167,7 @@ class EmployeeManagementService
             !empty($data['email'])
             && Employee::where('email', $data['email'])->exists()
         ) {
-            throw new \DomainException("Email '{$data['email']}' is already in use.");
+            throw new \RuntimeException("Email '{$data['email']}' is already in use.");
         }
 
         // ── Guard 5: support agents must have an email ────────────────────────
@@ -225,7 +248,7 @@ class EmployeeManagementService
             && $data['username'] !== $employee->username
             && Employee::where('username', $data['username'])->exists()
         ) {
-            throw new \DomainException("Username '{$data['username']}' is already taken.");
+            throw new \RuntimeException("Username '{$data['username']}' is already taken.");
         }
 
         // Email uniqueness when changing
@@ -234,7 +257,7 @@ class EmployeeManagementService
             && $data['email'] !== $employee->email
             && Employee::where('email', $data['email'])->exists()
         ) {
-            throw new \DomainException("Email '{$data['email']}' is already in use.");
+            throw new \RuntimeException("Email '{$data['email']}' is already in use.");
         }
 
         $oldEmail = $employee->email;

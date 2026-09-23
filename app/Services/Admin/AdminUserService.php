@@ -28,7 +28,8 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
  * ── Status definitions ──────────────────────────────────────────────────────
  *   verified  = is_verified_driver = 1  OR  is_verified_passenger = 1
  *   pending   = verification_status = 'pending'
- *   suspended = status = 0
+ *   suspended = status IN (-1, 0)   — banned or logged-out
+ *   banned    = status = -1         — the ban-only subset of `suspended`
  */
 final class AdminUserService
 {
@@ -42,7 +43,7 @@ final class AdminUserService
      *
      * @param int|null $adminUserId
      * @param string   $typeFilter    all | driver | passenger
-     * @param string   $statusFilter  all | verified | pending | suspended
+     * @param string   $statusFilter  all | verified | pending | suspended | banned
      * @param string   $dateFilter    all | last_30_days | last_3_months | last_6_months | last_12_months
      * @param int      $perPage
      * @param int      $page
@@ -72,6 +73,7 @@ final class AdminUserService
             'admin_photo' => $this->getAdminPhoto($adminUserId),
             'stats'       => $this->getStats(),
             'users'       => $rows,
+            'counts'      => $this->getStatusCounts($typeFilter, $dateFilter, $search),
             'meta'        => [
                 'current_page' => $paginator->currentPage(),
                 'last_page'    => $paginator->lastPage(),
@@ -101,7 +103,7 @@ final class AdminUserService
             'passengers'       => User::where('is_verified_passenger', true)
                 ->where('is_verified_driver', false)
                 ->count(),
-            'suspended_users'  => User::where('status', 0)->count(),
+            'suspended_users'  => User::whereIn('status', [-1, 0])->count(),
         ];
     }
 
@@ -135,6 +137,22 @@ final class AdminUserService
             'photos:id,user_id,type',
         ]);
 
+        $this->applyTypeDateSearch($query, $typeFilter, $dateFilter, $search);
+        $this->applyStatusFilter($query, $statusFilter);
+
+        return $query->orderByDesc('created_at');
+    }
+
+    /**
+     * Applies the type/date/search filters only — the shared base that both
+     * the paginated table and the per-status counts below are built on top of.
+     */
+    private function applyTypeDateSearch(
+        $query,
+        string  $typeFilter,
+        string  $dateFilter,
+        ?string $search
+    ): void {
         // ── Type filter ───────────────────────────────────────────────────
         match ($typeFilter) {
 
@@ -151,21 +169,6 @@ final class AdminUserService
                 ->whereDoesntHave('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
 
             default => null,   // 'all' — no constraint
-        };
-
-        // ── Status filter ─────────────────────────────────────────────────
-        match ($statusFilter) {
-
-            'verified'  => $query->where(function ($q) {
-                $q->where('is_verified_driver', true)
-                    ->orWhere('is_verified_passenger', true);
-            }),
-
-            'pending'   => $query->where('verification_status', 'pending'),
-
-            'suspended' => $query->where('status', 0),
-
-            default     => null,   // 'all' — no constraint
         };
 
         // ── Date / join filter ────────────────────────────────────────────
@@ -189,8 +192,56 @@ final class AdminUserService
                     ->orWhere('email',      'like', "%{$search}%");
             });
         }
+    }
 
-        return $query->orderByDesc('created_at');
+    private function applyStatusFilter($query, string $statusFilter): void
+    {
+        match ($statusFilter) {
+
+            'verified'  => $query->where(function ($q) {
+                $q->where('is_verified_driver', true)
+                    ->orWhere('is_verified_passenger', true);
+            }),
+
+            'pending'   => $query->where('verification_status', 'pending'),
+
+            // 'suspended' covers both banned (-1) and logged-out (0) accounts.
+            'suspended' => $query->whereIn('status', [-1, 0]),
+
+            // 'banned' is the narrower cut: only accounts an admin actually
+            // banned, excluding the logged-out (0) rows `suspended` sweeps in.
+            'banned'    => $query->where('status', -1),
+
+            default     => null,   // 'all' — no constraint
+        };
+    }
+
+    /**
+     * Per-status counts for the filter-tab badges, respecting the *other*
+     * active filters (type/date/search) — unlike getStats(), which is always
+     * platform-wide. Separate counted queries over the same filtered base
+     * rather than one grouped query, since 'verified' and 'suspended' are
+     * OR/whereIn conditions that don't reduce to a single GROUP BY (and
+     * 'banned' overlaps 'suspended', so the buckets aren't disjoint anyway).
+     */
+    public function getStatusCounts(
+        string  $typeFilter,
+        string  $dateFilter,
+        ?string $search
+    ): array {
+        $base = fn () => tap(User::query(), fn ($q) =>
+            $this->applyTypeDateSearch($q, $typeFilter, $dateFilter, $search)
+        );
+
+        $counts = ['all' => $base()->count()];
+
+        foreach (['verified', 'pending', 'suspended', 'banned'] as $status) {
+            $query = $base();
+            $this->applyStatusFilter($query, $status);
+            $counts[$status] = $query->count();
+        }
+
+        return $counts;
     }
 
     // =========================================================================
@@ -208,6 +259,7 @@ final class AdminUserService
                 : null,
             'type'          => $this->resolveUserType($user),
             'status'        => $this->resolveUserStatus($user),
+            'is_banned'     => $user->status == -1,
             'joined_at'     => $user->created_at->toIso8601String(),
             'joined_label'  => $user->created_at->format('d M Y'),
         ];
@@ -228,7 +280,8 @@ final class AdminUserService
 
     private function resolveUserStatus(User $user): string
     {
-        if ($user->status == 0)                        return 'suspended';
+        if ($user->status == -1)                       return 'banned';
+        if ($user->status == 0)                        return 'logged_out';
         if ($user->is_verified_driver)                 return 'verified';
         if ($user->is_verified_passenger)              return 'verified';
         if ($user->verification_status === 'pending')  return 'pending';

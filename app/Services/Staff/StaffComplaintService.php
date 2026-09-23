@@ -78,7 +78,12 @@ final class StaffComplaintService
         int     $perPage = 15,
         int     $page    = 1,
     ): LengthAwarePaginator {
-        $query = Complaint::with(self::WITH);
+        // Scope to complaints that were actually escalated at some point —
+        // this is what makes it the *escalated* view. status alone isn't
+        // enough: resolveEscalated() moves status away from 'escalated', so
+        // a bare status filter would match every resolved/closed complaint
+        // platform-wide, escalated or not (BUG-10).
+        $query = Complaint::with(self::WITH)->whereNotNull('escalated_at');
 
         if ($status) {
             // Admin can filter e.g. resolved escalated for history
@@ -226,6 +231,7 @@ final class StaffComplaintService
             'status'           => ComplaintStatus::ESCALATED,
             'assigned_to'      => null,         // leaves agent queue
             'resolution_notes' => $escalationLog,
+            'escalated_at'     => now(),        // never cleared — true escalation history
         ]);
 
         return $complaint->fresh(self::WITH);
@@ -294,7 +300,10 @@ final class StaffComplaintService
             'status'           => $complaint->status->value,
             'status_label'     => $complaint->status->label(),
             'status_color'     => $complaint->status->color(),
-            'is_escalated'     => $complaint->status === ComplaintStatus::ESCALATED,
+            // True escalation history, not just "currently escalated" — a
+            // resolved complaint that passed through escalation still reads
+            // is_escalated: true (see BUG-10).
+            'is_escalated'     => $complaint->escalated_at !== null,
             'resolution_notes' => $complaint->resolution_notes,
             'resolved_at'      => $complaint->resolved_at?->toIso8601String(),
             'assigned_to'      => $complaint->assignedAgent ? [

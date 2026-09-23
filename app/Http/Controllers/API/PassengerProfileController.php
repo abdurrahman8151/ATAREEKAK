@@ -7,8 +7,10 @@ use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\Profile;
 use App\Models\Ride;
+use App\Models\ScoreTransaction;
 use App\Models\User;
 use App\Models\UserRating;
+use App\Models\UserScore;
 use App\Models\WalletTransaction;
 use App\Services\JwtService;
 use App\Services\NotificationService;
@@ -40,6 +42,8 @@ use Illuminate\Support\Facades\Validator;
  *
  *  Actions:
  *    POST /api/admin/passengers/{userId}/charge-wallet  → chargeWallet()
+ *    POST /api/admin/passengers/{userId}/increase-score → increaseScore()
+ *    POST /api/admin/passengers/{userId}/decrease-score → decreaseScore()
  *    POST /api/admin/users/{userId}/ban                 → ban()   (AdminBanController)
  *    POST /api/admin/users/{userId}/unban               → unban() (AdminBanController)
  *
@@ -52,6 +56,7 @@ use Illuminate\Support\Facades\Validator;
  *  NOT CACHED complaints()    paginated + filters + status changes from admin side
  *  NOT CACHED walletCharges() paginated financial data
  *  NOT CACHED chargeWallet()  mutation — busts full-profile + stats + dashboard
+ *  NOT CACHED increase/decreaseScore() mutation — busts full-profile + stats + dashboard
  */
 final class PassengerProfileController extends Controller
 {
@@ -77,7 +82,7 @@ final class PassengerProfileController extends Controller
     {
         try {
             $data = Cache::remember("admin.passenger.full-profile.{$userId}", 300, function () use ($userId) {
-                $user = User::with(['profile', 'wallet', 'photos'])->findOrFail($userId);
+                $user = User::with(['profile', 'wallet', 'photos', 'userScore'])->findOrFail($userId);
 
                 return [
                     'user'           => $this->formatUser($user),
@@ -117,7 +122,7 @@ final class PassengerProfileController extends Controller
     {
         try {
             $data = Cache::remember("admin.passenger.stats.{$userId}", 300, function () use ($userId) {
-                $user = User::with('wallet')->findOrFail($userId);
+                $user = User::with(['wallet', 'userScore'])->findOrFail($userId);
                 return $this->buildStats($user);
             });
 
@@ -397,6 +402,126 @@ final class PassengerProfileController extends Controller
         }
     }
 
+    /**
+     * POST /api/admin/passengers/{userId}/increase-score
+     *
+     * Mutation — not cached. Busts the full-profile BFF and the stats
+     * endpoint because both embed the score / tier.
+     *
+     * Body:
+     *   points integer required, min 1, max 100
+     *   reason string  optional, max 500
+     */
+    public function increaseScore(int $userId, Request $request): JsonResponse
+    {
+        return $this->adjustScore($userId, $request, 1);
+    }
+
+    /**
+     * POST /api/admin/passengers/{userId}/decrease-score
+     *
+     * Mutation — not cached. Busts the full-profile BFF and the stats
+     * endpoint because both embed the score / tier.
+     *
+     * Body:
+     *   points integer required, min 1, max 100
+     *   reason string  optional, max 500
+     */
+    public function decreaseScore(int $userId, Request $request): JsonResponse
+    {
+        return $this->adjustScore($userId, $request, -1);
+    }
+
+    /**
+     * Shared implementation for increaseScore() / decreaseScore().
+     * $sign is +1 or -1, applied to the validated `points` amount.
+     */
+    private function adjustScore(int $userId, Request $request, int $sign): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'points' => 'required|integer|min:1|max:100',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $user   = User::findOrFail($userId);
+            $delta  = $sign * (int) $request->input('points');
+            $reason = $request->input('reason');
+
+            $previousScore = null;
+            $newScore      = null;
+
+            DB::transaction(function () use ($user, $delta, $reason, $request, &$previousScore, &$newScore) {
+                $userScore = UserScore::lockForUpdate()->firstOrCreate(['user_id' => $user->id]);
+
+                $previousScore = $userScore->score;
+                $userScore->applyDelta($delta);
+                $newScore = $userScore->score;
+
+                ScoreTransaction::create([
+                    'user_id'        => $user->id,
+                    'action'         => $delta >= 0 ? 'admin_increase' : 'admin_decrease',
+                    'points'         => $delta,
+                    'previous_score' => $previousScore,
+                    'new_score'      => $newScore,
+                    'reason'         => $reason,
+                    'metadata'       => ['admin_id' => $request->user()?->id],
+                ]);
+
+                Log::info('Admin adjusted user score', [
+                    'user_id'        => $user->id,
+                    'admin_id'       => $request->user()?->id,
+                    'delta'          => $delta,
+                    'previous_score' => $previousScore,
+                    'new_score'      => $newScore,
+                    'reason'         => $reason,
+                ]);
+            });
+
+            // Bust caches — score / tier are embedded in both
+            Cache::forget("admin.passenger.full-profile.{$userId}");
+            Cache::forget("admin.passenger.stats.{$userId}");
+            Cache::forget('admin.dashboard.data');
+            Cache::forget('admin.dashboard.stats');
+
+            try {
+                $this->notificationService->createNotification(
+                    $user,
+                    'score_adjusted',
+                    $delta >= 0 ? 'تم رفع نقاطك' : 'تم خفض نقاطك',
+                    ($delta >= 0
+                        ? "تم إضافة {$delta} نقطة إلى رصيدك بواسطة الإدارة."
+                        : 'تم خصم ' . abs($delta) . ' نقطة من رصيدك بواسطة الإدارة.')
+                    . ($reason ? ' السبب: ' . $reason : ''),
+                    ['delta' => $delta, 'new_score' => $newScore],
+                    'normal',
+                    'system'
+                );
+            } catch (\Throwable) {
+                // Never let notification failure block the adjustment
+            }
+
+            return response()->json([
+                'status'         => 'success',
+                'message'        => "Score updated successfully. New score: {$newScore}.",
+                'previous_score' => $previousScore,
+                'new_score'      => $newScore,
+            ]);
+        } catch (ModelNotFoundException) {
+            return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
+        } catch (\Exception $e) {
+            Log::error('PassengerProfile: adjustScore failed', [
+                'user_id' => $userId,
+                'error'   => $e->getMessage(),
+            ]);
+            return $this->serverError();
+        }
+    }
+
     // =========================================================================
     // PRIVATE BUILDERS
     // =========================================================================
@@ -424,6 +549,8 @@ final class PassengerProfileController extends Controller
             'total_spending' => round((float) $totalSpending, 2),
             'avg_rating'     => round((float) $avgRating, 1),
             'wallet_balance' => round((float) $walletBalance, 2),
+            'score'          => $user->userScore?->score ?? 70,
+            'score_tier'     => $user->userScore?->tier ?? 'Silver',
         ];
     }
 
@@ -602,25 +729,24 @@ final class PassengerProfileController extends Controller
 
     private function formatWalletCharge(\App\Models\WalletTransaction $tx): array
     {
-        $admin = $tx->user;
+        // The actor is a staff Employee, not a users-table row — resolve via
+        // processed_by_employee_id, not the wallet-owner `user_id` column.
+        $admin = $tx->processedByEmployee;
 
         return [
-            'id'                 => $tx->id,
-            'transaction_id'     => $tx->transaction_id,
-            'amount'             => (float) $tx->amount,
-            'previous_balance'   => (float) $tx->previous_balance,
-            'new_balance'        => (float) $tx->new_balance,
-            'status'             => $tx->status,
-            'notes'              => $tx->description,
-            'date'               => $tx->created_at->toDateString(),
-            'created_at'         => $tx->created_at->toIso8601String(),
-            'processed_by_id'    => $admin?->id,
-            'processed_by_name'  => $admin
-                ? trim("{$admin->first_name} {$admin->last_name}")
-                : null,
-            'processed_by_photo' => $admin?->profile?->profile_photo
-                ? asset('storage/' . $admin->profile->profile_photo)
-                : null,
+            'id'                   => $tx->id,
+            'transaction_id'       => $tx->transaction_id,
+            'amount'               => (float) $tx->amount,
+            'previous_balance'     => (float) $tx->previous_balance,
+            'new_balance'          => (float) $tx->new_balance,
+            'status'               => $tx->status,
+            'notes'                => $tx->description,
+            'date'                 => $tx->created_at->toDateString(),
+            'created_at'           => $tx->created_at->toIso8601String(),
+            'processed_by_id'      => $admin?->id,
+            'processed_by_name'    => $admin?->fullName(),
+            // Employees have no photo column (see BUG-12) — always null.
+            'processed_by_photo'   => null,
         ];
     }
 

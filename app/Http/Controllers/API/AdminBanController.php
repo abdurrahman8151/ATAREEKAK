@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -90,7 +91,7 @@ final class AdminBanController extends Controller
                 'ban_expires_at' => $request->input('type') === 'temporary'
                     ? $request->input('expires_at')
                     : null,
-                'banned_by'      => $request->user()?->id,
+                'banned_by'      => $request->attributes->get('staffEmployee')?->id,
             ]);
 
             // Revoke all tokens — ban takes effect on the very next request
@@ -101,7 +102,7 @@ final class AdminBanController extends Controller
 
             Log::info('User banned', [
                 'user_id'    => $user->id,
-                'banned_by'  => $request->user()?->id,
+                'banned_by'  => $request->attributes->get('staffEmployee')?->id,
                 'type'       => $request->input('type'),
                 'expires_at' => $request->input('expires_at'),
             ]);
@@ -183,7 +184,7 @@ final class AdminBanController extends Controller
 
             Log::info('User unbanned', [
                 'user_id'     => $userId,
-                'unbanned_by' => $request->user()?->id,
+                'unbanned_by' => $request->attributes->get('staffEmployee')?->id,
                 'notes'       => $request->input('admin_notes'),
             ]);
 
@@ -282,8 +283,10 @@ final class AdminBanController extends Controller
         ];
 
         if ($user->status == -1) {
+            // banned_by holds an employees.id (the staff member who banned the
+            // user), not a users.id — it must be resolved against Employee.
             $bannedBy = $user->banned_by
-                ? User::select('id', 'first_name', 'last_name')->find($user->banned_by)
+                ? Employee::select('id', 'first_name', 'last_name')->find($user->banned_by)
                 : null;
 
             $isExpired = $user->ban_type === 'temporary'

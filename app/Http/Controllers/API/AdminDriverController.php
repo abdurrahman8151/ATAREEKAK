@@ -64,7 +64,7 @@ final class AdminDriverController extends Controller
         try {
             $data = Cache::remember('admin.drivers.dashboard', 300, function () use ($request) {
                 return $this->driverService->getDashboardData(
-                    $request->user()?->id
+                    $request->attributes->get('staffEmployee')?->id
                 );
             });
 
@@ -159,6 +159,8 @@ final class AdminDriverController extends Controller
                 ->map(fn($driver) => $this->driverService->formatDriver($driver))
                 ->values();
 
+            $stats = $this->driverService->getStats();
+
             return response()->json([
                 'status' => 'success',
                 'data'   => $data,
@@ -168,6 +170,12 @@ final class AdminDriverController extends Controller
                     'per_page'     => $paginator->perPage(),
                     'total'        => $paginator->total(),
                     'filter'       => $filter,
+                ],
+                'counts' => [
+                    'all'       => $stats['total_drivers'],
+                    'verified'  => $stats['active_drivers'],
+                    'pending'   => $stats['pending_verifications'],
+                    'suspended' => $stats['suspended_drivers'],
                 ],
             ]);
         } catch (\Exception $e) {

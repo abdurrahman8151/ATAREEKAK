@@ -73,9 +73,49 @@ class ChatRepository implements ChatRepositoryInterface
             ->first();
     }
 
+    /**
+     * Find the user's existing support conversation, whichever agent is on it.
+     *
+     * The customer never picks their agent, so the agent must NOT be part of
+     * the lookup: assignment is load-balanced and shifts as other customers
+     * open chats, so keying on "user + currently least-loaded agent" misses the
+     * thread the user already has and opens a fresh one on every page load.
+     *
+     * Conversations where this user sits on the 'agent' side are excluded —
+     * those are the support agent's own inbox, not their customer chat.
+     */
+    public function findSupportConversationForUser(User $user): ?Conversation
+    {
+        return Conversation::where('type', 'support')
+            ->whereHas('participants', fn ($q) => $q
+                ->where('user_id', $user->id)
+                ->where('conversation_participants.role', '!=', 'agent'))
+            ->orderBy('created_at', 'asc')
+            ->first();
+    }
+
     public function getUserConversations(User $user): Collection
     {
         return Conversation::whereHas('participants', fn($q) => $q->where('user_id', $user->id))
+            ->with([
+                'participants.profile',
+                'latestMessage.sender',
+            ])
+            ->latest('updated_at')
+            ->get();
+    }
+
+    /**
+     * All support conversations, regardless of which agent is assigned.
+     *
+     * Support conversations are assigned to a single least-loaded agent at
+     * creation time (see ContactController), but any active staff member is
+     * meant to be able to read and reply to any of them from the staff
+     * dashboard — this is the shared-inbox listing behind that.
+     */
+    public function getAllSupportConversations(): Collection
+    {
+        return Conversation::where('type', 'support')
             ->with([
                 'participants.profile',
                 'latestMessage.sender',

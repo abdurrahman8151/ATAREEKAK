@@ -59,10 +59,14 @@ final class PushTokenManager
 
     /**
      * Remove a push notification token
+     *
+     * When $userId is given the token must belong to that user, so a caller
+     * cannot deactivate someone else's token by guessing its value.
      */
-    public function removeToken(string $token): bool
+    public function removeToken(string $token, ?int $userId = null): bool
     {
-        return PushNotificationToken::where('token', $token)
+        return (bool) PushNotificationToken::where('token', $token)
+            ->when($userId !== null, fn ($q) => $q->where('user_id', $userId))
             ->update(['is_active' => false]);
     }
 

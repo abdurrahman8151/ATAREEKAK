@@ -21,15 +21,26 @@ final class RouteCalculationService
     private string $baseUrl = 'https://api.openrouteservice.org/';
     private int $cacheTtl = 3600;
 
+    /**
+     * NOTE: a missing OPENROUTE_API_KEY must never throw here. This service is
+     * constructor-injected into RideController and RideRepository, so throwing
+     * took down every ride/booking endpoint — including the ones that do no
+     * routing at all — with a 500 before any controller code could run.
+     *
+     * Without a key we degrade to the straight-line fallback below instead.
+     */
     public function __construct()
     {
-        $this->apiKey = config('services.openroute.api_key');
+        $this->apiKey = (string) config('services.openroute.api_key', '');
+    }
 
-        if (empty($this->apiKey)) {
-            throw new \InvalidArgumentException(
-                'OpenRouteService API key is required. Please set OPENROUTE_API_KEY in your .env file.'
-            );
-        }
+    /**
+     * Whether the remote routing API is usable. When false, callers silently
+     * receive fallback estimates (marked with is_fallback => true).
+     */
+    private function hasApiKey(): bool
+    {
+        return $this->apiKey !== '';
     }
 
     /**
@@ -40,12 +51,18 @@ final class RouteCalculationService
         $this->validateCoordinates($origin, 'Origin');
         $this->validateCoordinates($destination, 'Destination');
 
+        // No key: skip the guaranteed-401 round trip, and don't cache the
+        // degraded result so routing recovers immediately once a key is set.
+        if (!$this->hasApiKey()) {
+            return $this->calculateFallbackRoute($origin, $destination);
+        }
+
         $cacheKey = "route:v2:" . md5(json_encode([$origin, $destination]));
 
         return Cache::remember($cacheKey, $this->cacheTtl, function () use ($origin, $destination) {
             try {
                 return $this->fetchRoute($origin, $destination);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 Log::warning('Route calculation failed, using fallback', [
                     'error' => $e->getMessage()
                 ]);
@@ -63,17 +80,33 @@ final class RouteCalculationService
         $this->validateCoordinates($origin, 'Origin');
         $this->validateCoordinates($destination, 'Destination');
 
+        if (!$this->hasApiKey()) {
+            return [$this->calculateFallbackRoute($origin, $destination)];
+        }
+
         $cacheKey = "routes:v2:" . md5(json_encode([$origin, $destination, $maxAlternatives]));
 
         return Cache::remember($cacheKey, $this->cacheTtl, function () use ($origin, $destination, $maxAlternatives) {
             try {
                 return $this->fetchAlternatives($origin, $destination, $maxAlternatives);
-            } catch (\Exception $e) {
-                Log::warning('Alternative routes failed, using fallback', [
+            } catch (\Throwable $e) {
+                Log::warning('Alternative routes failed, trying single route', [
                     'error' => $e->getMessage()
                 ]);
 
-                return [$this->calculateFallbackRoute($origin, $destination)];
+                // ORS refuses the alternative-routes algorithm above ~100 km
+                // (error 2004), which is common for intercity trips here. A single
+                // real road route is far better than a straight line, so only fall
+                // back to haversine if the plain directions call fails too.
+                try {
+                    return [$this->fetchRoute($origin, $destination) + ['route_index' => 0]];
+                } catch (\Throwable $inner) {
+                    Log::warning('Single route also failed, using fallback', [
+                        'error' => $inner->getMessage()
+                    ]);
+
+                    return [$this->calculateFallbackRoute($origin, $destination)];
+                }
             }
         });
     }
@@ -114,7 +147,7 @@ final class RouteCalculationService
         return [
             'distance' => (float) $route['summary']['distance'], // meters
             'duration' => (float) $route['summary']['duration'], // seconds
-            'geometry' => $route['geometry']['coordinates'] ?? [],
+            'geometry' => $this->decodeGeometry($route['geometry'] ?? null),
         ];
     }
 
@@ -158,12 +191,81 @@ final class RouteCalculationService
             $routes[] = [
                 'distance' => (float) $route['summary']['distance'],
                 'duration' => (float) $route['summary']['duration'],
-                'geometry' => $route['geometry']['coordinates'] ?? [],
+                'geometry' => $this->decodeGeometry($route['geometry'] ?? null),
                 'route_index' => $index,
             ];
         }
 
         return $routes;
+    }
+
+    /**
+     * Normalise the `geometry` field of an OpenRouteService route.
+     *
+     * The /v2/directions/{profile}/json endpoint returns geometry as a Google
+     * *encoded polyline string*, not GeoJSON. The previous code read
+     * $route['geometry']['coordinates'], which is null for a string — so every
+     * route came back with an empty geometry and the app had no line to draw.
+     *
+     * Accepts either shape and always returns [[lng, lat], …], matching the
+     * GeoJSON axis order used by calculateFallbackRoute().
+     */
+    private function decodeGeometry(mixed $geometry): array
+    {
+        if (is_array($geometry)) {
+            // Already GeoJSON-shaped (e.g. if the /geojson endpoint is ever used).
+            return $geometry['coordinates'] ?? $geometry;
+        }
+
+        if (!is_string($geometry) || $geometry === '') {
+            return [];
+        }
+
+        return $this->decodePolyline($geometry);
+    }
+
+    /**
+     * Decode a precision-5 encoded polyline into [[lng, lat], …].
+     *
+     * ORS emits (lat, lng) deltas like Google's algorithm; we flip each pair on
+     * output so callers get GeoJSON order.
+     */
+    private function decodePolyline(string $encoded): array
+    {
+        $points = [];
+        $index  = 0;
+        $length = strlen($encoded);
+        $lat    = 0;
+        $lng    = 0;
+
+        while ($index < $length) {
+            foreach (['lat', 'lng'] as $axis) {
+                $shift  = 0;
+                $result = 0;
+
+                do {
+                    if ($index >= $length) {
+                        return $points; // truncated payload — return what we have
+                    }
+
+                    $byte    = ord($encoded[$index++]) - 63;
+                    $result |= ($byte & 0x1f) << $shift;
+                    $shift  += 5;
+                } while ($byte >= 0x20);
+
+                $delta = ($result & 1) ? ~($result >> 1) : ($result >> 1);
+
+                if ($axis === 'lat') {
+                    $lat += $delta;
+                } else {
+                    $lng += $delta;
+                }
+            }
+
+            $points[] = [$lng * 1e-5, $lat * 1e-5];
+        }
+
+        return $points;
     }
 
     /**

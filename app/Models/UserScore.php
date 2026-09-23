@@ -29,19 +29,48 @@ class UserScore extends Model
         'total_rides',
         'total_cancellations',
         'total_no_shows',      // ← add this
+        'consecutive_five_star_ratings',
+        'last_driver_cancellation_at',
+        'last_streak_milestone_days',
     ];
 
     protected $casts = [
-        'score'               => 'integer',
-        'total_rides'         => 'integer',
-        'total_cancellations' => 'integer',
-        'total_no_shows'      => 'integer',   // ← add this
+        'score'                         => 'integer',
+        'total_rides'                   => 'integer',
+        'total_cancellations'           => 'integer',
+        'total_no_shows'                => 'integer',   // ← add this
+        'consecutive_five_star_ratings' => 'integer',
+        'last_driver_cancellation_at'   => 'datetime',
+        'last_streak_milestone_days'    => 'integer',
     ];
 
 // Add this helper method
     public function incrementNoShows(): void
     {
         $this->increment('total_no_shows');
+    }
+
+    /** Bumps the 5-star streak counter (call on every 5-star rating received). */
+    public function incrementFiveStarStreak(): void
+    {
+        $this->increment('consecutive_five_star_ratings');
+    }
+
+    /** Breaks the 5-star streak (call on any rating below 5 stars). */
+    public function resetFiveStarStreak(): void
+    {
+        if ($this->consecutive_five_star_ratings !== 0) {
+            $this->update(['consecutive_five_star_ratings' => 0]);
+        }
+    }
+
+    /** Resets the no-cancellation streak clock (call on any driver cancellation / no-show). */
+    public function registerDriverCancellation(): void
+    {
+        $this->update([
+            'last_driver_cancellation_at' => now(),
+            'last_streak_milestone_days'  => 0,
+        ]);
     }
     // ── Relationships ────────────────────────────────────────────────────────
 

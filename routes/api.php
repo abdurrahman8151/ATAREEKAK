@@ -20,6 +20,7 @@ use App\Http\Controllers\API\LogoutController;
 use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\OtpController;
 use App\Http\Controllers\API\PassengerProfileController;
+use App\Http\Controllers\API\PolicyController;
 use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\PushNotificationController;
 use App\Http\Controllers\API\RefreshTokenController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\API\RideController;
 use App\Http\Controllers\API\ScoreController;
 use App\Http\Controllers\API\SignupController;
 use App\Http\Controllers\API\Staff\EmployeeManagementController;
+use App\Http\Controllers\API\Staff\PolicyManagementController;
 use App\Http\Controllers\API\Staff\StaffAuthController;
 use App\Http\Controllers\API\Staff\StaffChatController;      // ← NEW
 use App\Http\Controllers\API\Staff\StaffOperationsController;
@@ -59,6 +61,27 @@ use Illuminate\Support\Facades\Route;
 | is the effective cap (e.g. search is capped at 30 not 60).
 |
 */
+
+// ========================================
+// ROUTE PARAMETER CONSTRAINTS
+// ========================================
+//
+// Every one of these parameter names is always a numeric DB id throughout
+// this file. Without a constraint, a non-numeric segment (e.g. the literal
+// string "metrics" hitting `{id}`) still matches the route, reaches a
+// controller action whose signature type-hints `int`, and blows up with an
+// uncaught TypeError — a 500 with a full stack trace — instead of cleanly
+// 404ing. Registered globally so every route using these names is covered
+// in one place rather than one `->whereNumber()` at a time.
+Route::pattern('id',             '[0-9]+');
+Route::pattern('userId',         '[0-9]+');
+Route::pattern('rideId',         '[0-9]+');
+Route::pattern('bookingId',      '[0-9]+');
+Route::pattern('driverId',       '[0-9]+');
+Route::pattern('walletId',       '[0-9]+');
+Route::pattern('conversationId', '[0-9]+');
+Route::pattern('messageId',      '[0-9]+');
+Route::pattern('commentId',      '[0-9]+');
 
 // ========================================
 // UTILITY / DEBUG — no throttle
@@ -193,6 +216,9 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
             Route::post('/route-options', [RideController::class, 'getRouteOptions']);
         });
 
+        // Trips leaving from / arriving at the user's own city (paginated)
+        Route::get('/city-trips', [RideController::class, 'cityTrips']);
+
         Route::post('/create-with-route', [RideController::class, 'createRideWithRoute']);
 
         Route::get('/',  [RideController::class, 'getRides']);
@@ -243,6 +269,15 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
         Route::delete('/{id}',      [NotificationController::class, 'destroy']);
     });
 
+    // ── Push notification tokens (FCM) ────────────────────────────────────────
+
+    Route::prefix('push-tokens')->group(function () {
+        Route::get('/',      [PushNotificationController::class, 'getUserTokens']);
+        Route::post('/',     [PushNotificationController::class, 'registerToken']);
+        Route::delete('/',   [PushNotificationController::class, 'removeToken']);
+        Route::post('/test', [PushNotificationController::class, 'testNotification']);
+    });
+
     // ── Wallet ────────────────────────────────────────────────────────────────
 
     Route::prefix('wallet')->group(function () {
@@ -251,9 +286,9 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
         Route::post('/verify-and-create', [WalletController::class, 'verifyAndCreateWallet']);
         Route::get('/transactions',       [WalletController::class, 'transactions']);
         Route::get('/requests',           [WalletRequestController::class, 'myRequests']);
+        Route::post('/requests',          [WalletRequestController::class, 'store']);
         Route::post('/request-charge',    [WalletRequestController::class, 'requestCharge']);
         Route::post('/request-withdraw',  [WalletRequestController::class, 'requestWithdraw']);
-        Route::post('/requests',          [WalletRequestController::class, 'store']);
         Route::get('/requests/{id}',      [WalletRequestController::class, 'show']);
         Route::post('/create-direct',     [WalletController::class, 'createDirect']);
         Route::delete('/requests/{id}',   [WalletRequestController::class, 'destroy']);
@@ -272,6 +307,12 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
     Route::post('/contact', ContactController::class);
 
 });
+
+// ========================================
+// PUBLIC — POLICIES (privacy / cancellation text, shown before login too)
+// ========================================
+
+Route::get('/policies', [PolicyController::class, 'index']);
 
 // ========================================
 // ADMIN ROUTES
@@ -300,7 +341,11 @@ Route::prefix('admin')->group(function () {
 
         // ── Session ────────────────────────────────────────────────────────
         Route::post('/logout', [AdminDashboardController::class, 'logout']);
-        Route::post('/photo',  [AdminDashboardController::class, 'uploadAdminPhoto']);
+        // NOTE: POST /photo (uploadAdminPhoto) was removed — it was a stub that
+        // reported success without storing anything, employees have no photo
+        // column to store a path in, and no frontend page was ever wired to it
+        // (see BUG-12 in docs/api/backend-issues.md). Re-add only alongside a
+        // real employees.photo column and a genuine implementation.
 
         // ── Dashboard ──────────────────────────────────────────────────────
         Route::prefix('dashboard')->group(function () {
@@ -345,6 +390,8 @@ Route::prefix('admin')->group(function () {
             Route::get('/{userId}/complaints',     [PassengerProfileController::class, 'complaints']);
             Route::get('/{userId}/wallet-charges', [PassengerProfileController::class, 'walletCharges']);
             Route::post('/{userId}/charge-wallet', [PassengerProfileController::class, 'chargeWallet']);
+            Route::post('/{userId}/increase-score', [PassengerProfileController::class, 'increaseScore']);
+            Route::post('/{userId}/decrease-score', [PassengerProfileController::class, 'decreaseScore']);
         });
 
         // ── System Admin only ──────────────────────────────────────────────
@@ -358,6 +405,17 @@ Route::prefix('admin')->group(function () {
                 Route::get('/',                  [AdminDashboardController::class, 'pendingVerifications']);
                 Route::post('/{userId}/approve', [AdminDashboardController::class, 'approveVerification']);
                 Route::post('/{userId}/reject',  [AdminDashboardController::class, 'rejectVerification']);
+            });
+
+            // Privacy / cancellation / FAQ content — Settings page.
+            // `/settings` and `/faq` are literal routes registered ahead of
+            // the `{type}` wildcard (which only accepts privacy|cancellation)
+            // so they never fall through to it.
+            Route::prefix('policies')->group(function () {
+                Route::get('/',         [PolicyManagementController::class, 'index']);
+                Route::put('/settings', [PolicyManagementController::class, 'updateSettings']);
+                Route::put('/faq',      [PolicyManagementController::class, 'updateFaq']);
+                Route::put('/{type}',   [PolicyManagementController::class, 'update']);
             });
 
         });
@@ -412,6 +470,7 @@ Route::prefix('staff')->name('staff.')->group(function () {
         // The agent's User account (matched by email) is the chat participant.
         Route::prefix('chat')->name('chat.')->group(function () {
             Route::get('conversations',                    [StaffChatController::class, 'conversations'])->name('conversations');
+            Route::post('conversations',                   [StaffChatController::class, 'startConversation'])->name('start');
             Route::get('conversations/{id}/messages',      [StaffChatController::class, 'messages'])->name('messages');
             Route::post('conversations/{id}/messages',     [StaffChatController::class, 'sendMessage'])->name('send');
         });
@@ -437,16 +496,17 @@ Route::prefix('staff')->name('staff.')->group(function () {
 });
 
 // ========================================
-// EMPLOYEE MANAGEMENT — system_admin only [throttle:admin]
+// EMPLOYEE MANAGEMENT — admin + system_admin [throttle:admin]
 // ========================================
 
-Route::prefix('employees')->middleware(['staff:system_admin', 'throttle:admin'])->group(function () {
+Route::prefix('employees')->middleware(['staff:admin,system_admin', 'throttle:admin'])->group(function () {
     Route::get('/',                      [EmployeeManagementController::class, 'index']);
     Route::post('/',                     [EmployeeManagementController::class, 'store']);
     Route::get('/{id}',                  [EmployeeManagementController::class, 'show']);
     Route::put('/{id}',                  [EmployeeManagementController::class, 'update']);
     Route::patch('/{id}/toggle-active',  [EmployeeManagementController::class, 'toggleActive']);
     Route::patch('/{id}/reset-password', [EmployeeManagementController::class, 'resetPassword']);
+    Route::delete('/{id}',               [EmployeeManagementController::class, 'destroy']);
 });
 
 Route::get('/health', fn() => response()->json(['status' => 'ok', 'node' => gethostname()]));

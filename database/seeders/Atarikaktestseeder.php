@@ -21,6 +21,7 @@ use App\Services\Ride\RideService;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class Atarikaktestseeder extends Seeder
@@ -46,6 +47,7 @@ class Atarikaktestseeder extends Seeder
 
     private RideService    $rideService;
     private BookingService $bookingService;
+    private string         $placeholderImage = '';
 
     // =========================================================================
     // ENTRY POINT
@@ -71,6 +73,10 @@ class Atarikaktestseeder extends Seeder
 
         $this->rideService    = app(RideService::class);
         $this->bookingService = app(BookingService::class);
+
+        // Seeded profile/verification photo paths are meaningless without an
+        // actual file behind them — every seeded photo URL 404s otherwise (BUG-7).
+        $this->preparePlaceholderImage();
 
         // ── 1. Seed base users ───────────────────────────────────────────────
         $this->command->info('Creating users...');
@@ -183,11 +189,7 @@ class Atarikaktestseeder extends Seeder
             }
 
             foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $docType) {
-                \App\Models\Photo::create([
-                    'user_id' => $user->id,
-                    'type'    => $docType,
-                    'path'    => "verifications/{$docType}/seeded_{$user->id}.jpg",
-                ]);
+                $this->createVerificationDoc($user->id, $docType);
             }
 
             $drivers->push($user);
@@ -251,11 +253,7 @@ class Atarikaktestseeder extends Seeder
             }
 
             foreach (['face_id', 'back_id'] as $docType) {
-                \App\Models\Photo::create([
-                    'user_id' => $user->id,
-                    'type'    => $docType,
-                    'path'    => "verifications/{$docType}/seeded_{$user->id}.jpg",
-                ]);
+                $this->createVerificationDoc($user->id, $docType);
             }
 
             $passengers->push($user);
@@ -843,5 +841,45 @@ class Atarikaktestseeder extends Seeder
         } while ($to === $from);
 
         return ['from' => $from, 'to' => $to];
+    }
+
+    /**
+     * A tiny real JPEG (same placeholder used by Syrideseeder) so every seeded
+     * `profile_photo` / verification document path resolves to an actual file
+     * instead of a 404 (BUG-7).
+     */
+    private function preparePlaceholderImage(): void
+    {
+        $this->placeholderImage = base64_decode(
+            '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDB'
+            . 'kSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAAR'
+            . 'CAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAA'
+            . 'AAAAAAAAAAAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAA'
+            . 'AAAAAAAA/9oADAMBAAIRAxEAPwCwABmX/9k='
+        );
+
+        // Shared by every seeded user — write it once.
+        Storage::disk('public')->put(
+            'profiles/profile_photo/default-profile-photo.jpg',
+            $this->placeholderImage
+        );
+    }
+
+    /**
+     * Writes the placeholder image behind a seeded verification document path
+     * and inserts the matching Photo row — pairing BUG-7's fix with every
+     * `Photo::create()` call site so no seeded document path is left dangling.
+     */
+    private function createVerificationDoc(int $userId, string $docType): void
+    {
+        $path = "verifications/{$docType}/seeded_{$userId}.jpg";
+
+        Storage::disk('public')->put($path, $this->placeholderImage);
+
+        \App\Models\Photo::create([
+            'user_id' => $userId,
+            'type'    => $docType,
+            'path'    => $path,
+        ]);
     }
 }

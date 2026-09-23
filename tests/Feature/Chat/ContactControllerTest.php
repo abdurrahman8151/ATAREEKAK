@@ -138,22 +138,58 @@ class ContactControllerTest extends TestCase
             ->assertStatus(200);
     }
 
+    // ─── Multiple agents (load balancing must not fork the thread) ────────────
+
+    public function test_second_call_returns_same_conversation_with_multiple_agents(): void
+    {
+        // Two agents: after the first chat is created, agent #1 has one support
+        // conversation and agent #2 has none — so the least-loaded pick flips to
+        // agent #2 on the second call. The user must still get their own thread.
+        $this->seedAgent(username: 'agent_one', email: 'one@support.test');
+        $this->seedAgent(username: 'agent_two', email: 'two@support.test');
+
+        $r1 = $this->withToken($this->token)->postJson('/api/contact');
+        $r2 = $this->withToken($this->token)->postJson('/api/contact');
+
+        $r1->assertStatus(201);
+        $r2->assertStatus(200);
+        $this->assertEquals($r1->json('conversation_id'), $r2->json('conversation_id'));
+        $this->assertEquals($r1->json('agent.name'), $r2->json('agent.name'));
+
+        $this->assertDatabaseCount('conversations', 1);
+    }
+
+    public function test_repeated_calls_never_accumulate_conversations(): void
+    {
+        $this->seedAgent(username: 'agent_one', email: 'one@support.test');
+        $this->seedAgent(username: 'agent_two', email: 'two@support.test');
+        $this->seedAgent(username: 'agent_three', email: 'three@support.test');
+
+        $ids = [];
+        for ($i = 0; $i < 5; $i++) {
+            $ids[] = $this->withToken($this->token)->postJson('/api/contact')->json('conversation_id');
+        }
+
+        $this->assertCount(1, array_unique($ids));
+        $this->assertDatabaseCount('conversations', 1);
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private function seedAgent(
         bool   $active    = true,
         string $firstName = 'Support',
         string $lastName  = 'Agent',
+        string $username  = 'support_agent',
+        string $email     = 'agent@support.test',
     ): User {
-        $email = 'agent@support.test';
-
         $agentUser = User::factory()->create([
             'email'    => $email,
             'password' => bcrypt('password123'),
         ]);
 
         Employee::create([
-            'username'      => 'support_agent',
+            'username'      => $username,
             'email'         => $email,
             'password'      => bcrypt('password123'),
             'first_name'    => $firstName,

@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 /**
  * CashRideFeeService
  *
- * Manages the 5% creation fee charged to drivers on CASH rides only.
+ * Manages the platform-profit-percentage creation fee charged to drivers on CASH rides only.
  *
  * ═══════════════════════════════════════════════════════════════════
  *  RULES
@@ -209,7 +209,7 @@ final class CashRideFeeService
             'amount'           => -$feeAmount,
             'previous_balance' => $driverPrev,
             'new_balance'      => (float) $driverWallet->balance,
-            'description'      => "Cash ride creation fee (5%) — ride #{$ride->id}: "
+            'description'      => "Cash ride creation fee — ride #{$ride->id}: "
                 . "{$ride->pickup_address} → {$ride->destination_address}",
             'transaction_id'   => $txId,
             'status'           => 'completed',

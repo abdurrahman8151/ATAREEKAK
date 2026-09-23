@@ -220,12 +220,20 @@ final class StaffComplaintController extends Controller
                 ->pluck('total', 'status')
                 ->toArray();
 
+            $pending   = $rows[ComplaintStatus::PENDING->value]   ?? 0;
+            $inReview  = $rows[ComplaintStatus::IN_REVIEW->value] ?? 0;
+            $resolved  = $rows[ComplaintStatus::RESOLVED->value]  ?? 0;
+            $closed    = $rows[ComplaintStatus::CLOSED->value]    ?? 0;
+
             return [
-                'all'       => array_sum($rows),
-                'pending'   => $rows[ComplaintStatus::PENDING->value]   ?? 0,
-                'in_review' => $rows[ComplaintStatus::IN_REVIEW->value] ?? 0,
-                'resolved'  => $rows[ComplaintStatus::RESOLVED->value]  ?? 0,
-                'closed'    => $rows[ComplaintStatus::CLOSED->value]    ?? 0,
+                // Sum of the four buckets the list can actually return —
+                // NOT array_sum($rows), which also counts escalated
+                // complaints that listAll() hard-excludes (BUG-9).
+                'all'       => $pending + $inReview + $resolved + $closed,
+                'pending'   => $pending,
+                'in_review' => $inReview,
+                'resolved'  => $resolved,
+                'closed'    => $closed,
             ];
         });
     }

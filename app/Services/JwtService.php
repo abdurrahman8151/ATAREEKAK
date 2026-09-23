@@ -10,6 +10,8 @@ use Carbon\Carbon;
 
 class JwtService
 {
+    private const SUB_TYPE = 'user';
+
     // =========================================================================
     // PUBLIC — TOKEN PAIR
     // =========================================================================
@@ -82,6 +84,17 @@ class JwtService
 
         // Check expiry
         if (isset($payload['exp']) && Carbon::now()->timestamp > $payload['exp']) {
+            return null;
+        }
+
+        // Reject tokens issued for a different identity realm (e.g. a staff
+        // Employee token). StaffJwtService signs with the same raw secret,
+        // so a staff-issued token verifies here too unless sub_type is
+        // checked — without this, its numeric `sub` would be looked up
+        // against `users` and resolved as whichever unrelated user happens
+        // to share that id (BUG-13). Tokens issued before this claim
+        // existed carry no sub_type at all and are still accepted.
+        if (isset($payload['sub_type']) && $payload['sub_type'] !== self::SUB_TYPE) {
             return null;
         }
 
@@ -226,13 +239,14 @@ class JwtService
         $expiresAt = Carbon::now()->addMinutes($expiresIn);
 
         $payload = [
-            'iss'  => config('app.url'),
-            'sub'  => $user->id,
-            'iat'  => Carbon::now()->timestamp,
-            'exp'  => $expiresAt->timestamp,
-            'jti'  => Str::uuid()->toString(),
-            'type' => 'access',
-            'ver'  => $user->token_version,
+            'iss'      => config('app.url'),
+            'sub'      => $user->id,
+            'sub_type' => self::SUB_TYPE,
+            'iat'      => Carbon::now()->timestamp,
+            'exp'      => $expiresAt->timestamp,
+            'jti'      => Str::uuid()->toString(),
+            'type'     => 'access',
+            'ver'      => $user->token_version,   // ← token_version claim
         ];
 
         return [
@@ -254,6 +268,7 @@ class JwtService
         $payload = [
             'iss'        => config('app.url'),
             'sub'        => $adminUser->id,
+            'sub_type'   => self::SUB_TYPE,
             'iat'        => $now->timestamp,
             'exp'        => $now->addMinutes($expiresIn)->timestamp,
             'jti'        => Str::uuid()->toString(),

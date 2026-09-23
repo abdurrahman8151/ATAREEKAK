@@ -16,6 +16,7 @@ class WalletRequest extends Model
         'user_notes',
         'admin_notes',
         'processed_by',
+        'processed_by_employee_id',
         'processed_at',
     ];
 
@@ -39,6 +40,14 @@ class WalletRequest extends Model
     public function processedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    /**
+     * The staff employee who approved/rejected this request, if any.
+     */
+    public function processedByEmployee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'processed_by_employee_id');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

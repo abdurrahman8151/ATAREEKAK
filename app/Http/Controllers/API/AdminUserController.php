@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Validator;
  * ── Query params (all optional, all default to "all") ───────────────────────
  *
  *  type      = all | driver | passenger
- *  status    = all | verified | pending | suspended
+ *  status    = all | verified | pending | suspended | banned
  *  date      = all | last_30_days | last_3_months | last_6_months | last_12_months
  *  per_page  = 1–50   (default 10)
  *  page      = int    (default 1)
@@ -49,7 +49,7 @@ final class AdminUserController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'type'     => 'sometimes|in:all,driver,passenger',
-            'status'   => 'sometimes|in:all,verified,pending,suspended',
+            'status'   => 'sometimes|in:all,verified,pending,suspended,banned',
             'date'     => 'sometimes|in:all,last_30_days,last_3_months,last_6_months,last_12_months',
             'per_page' => 'sometimes|integer|min:1|max:50',
             'page'     => 'sometimes|integer|min:1',
@@ -65,7 +65,7 @@ final class AdminUserController extends Controller
 
         try {
             $data = $this->userService->getPageData(
-                adminUserId:  $request->user()?->id,
+                adminUserId:  $request->attributes->get('staffEmployee')?->id,
                 typeFilter:   $request->get('type',     'all'),
                 statusFilter: $request->get('status',   'all'),
                 dateFilter:   $request->get('date',     'all'),

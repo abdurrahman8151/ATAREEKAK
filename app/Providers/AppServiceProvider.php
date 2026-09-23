@@ -116,6 +116,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Services\Verification\DocumentVerificationService::class);
 
         // ========================================
+        // POLICY SERVICE (privacy / cancellation text — Settings page)
+        // ========================================
+        $this->app->singleton(\App\Services\PolicyService::class);
+
+        // ========================================
         // REPOSITORY BINDINGS
         // ========================================
         $this->app->bind(
@@ -170,6 +175,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             RideRepositoryInterface::class,
             RideRepository::class
+        );
+
+        $this->app->bind(
+            \App\Interfaces\PolicyRepositoryInterface::class,
+            \App\Repositories\PolicyRepository::class
         );
 
         // ========================================

@@ -22,7 +22,7 @@ return [
         'http://127.0.0.1:3000',
         'http://localhost:8080',  // Alternative Flutter web port
         'http://127.0.0.1:8080',
-        // Add your production domain here when deploying
+        'https://dashboard.onwayride.me',
     ],
 
     'allowed_origins_patterns' => [],

@@ -29,7 +29,13 @@ interface ChatRepositoryInterface
     /** Find an existing support conversation between a customer and an agent. */
     public function findSupportConversation(User $user, User $agent): ?Conversation;
 
+    /** Find the customer's existing support conversation, whichever agent is on it. */
+    public function findSupportConversationForUser(User $user): ?Conversation;
+
     public function getUserConversations(User $user): Collection;
+
+    /** All support conversations, regardless of which agent is assigned — the staff shared inbox. */
+    public function getAllSupportConversations(): Collection;
 
     public function sendMessage(
         int     $conversationId,

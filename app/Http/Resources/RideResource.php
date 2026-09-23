@@ -10,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * FIXED: Uses pre-loaded data instead of calling relationships
  *
  * Make sure to eager load:
- * - driver
+ * - driver, ideally with withAvg('receivedRatings as driver_rating', 'rating')
  * - driver.profile
  * - withCount(['bookings as total_booked_seats' => ...])
  */
@@ -27,7 +27,8 @@ class RideResource extends JsonResource
                 'avatar' => $this->driver->profile?->profile_photo
                     ? asset('storage/' . $this->driver->profile->profile_photo)
                     : $this->driver->avatar,
-                'rating' => $this->driver->driver_rating ?? 0,
+                'rating' => $this->driverRating(),
+                'score' => $this->driver->userScore->score ?? null,
             ],
 
             'pickup' => [
@@ -58,6 +59,7 @@ class RideResource extends JsonResource
 
             'price_per_seat' => $this->price_per_seat,
             'status' => $this->status,
+            'match_score' => $this->when(isset($this->match_score), fn () => $this->match_score),
 
             'distance' => [
                 'meters' => $this->distance,
@@ -84,6 +86,20 @@ class RideResource extends JsonResource
             'created_at' => $this->created_at->toIso8601String(),
             'updated_at' => $this->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Average rating of the driver, out of 5.
+     *
+     * Ratings live in user_ratings, never on the users table. List endpoints
+     * pre-aggregate them into the driver_rating alias; single-ride endpoints
+     * that skip that fall back to the accessor, which costs one AVG query.
+     */
+    private function driverRating(): float
+    {
+        $rating = $this->driver->driver_rating ?? $this->driver->average_rating;
+
+        return round((float) $rating, 1);
     }
 
     /**

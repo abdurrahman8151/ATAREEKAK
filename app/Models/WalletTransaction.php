@@ -12,6 +12,7 @@ class WalletTransaction extends Model
     protected $fillable = [
         'wallet_id',
         'user_id',
+        'processed_by_employee_id',
         'type',
         'amount',
         'previous_balance',
@@ -44,5 +45,13 @@ class WalletTransaction extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The staff employee who performed an admin-initiated transaction, if any.
+     */
+    public function processedByEmployee()
+    {
+        return $this->belongsTo(Employee::class, 'processed_by_employee_id');
     }
 }

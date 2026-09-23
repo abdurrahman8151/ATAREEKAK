@@ -14,21 +14,30 @@ class PushNotificationController extends Controller
         private PushNotificationService $pushService
     ) {}
 
+    /**
+     * Accepts either `device_type` (the column name) or `platform` as the
+     * device field, so both mobile client payload shapes work.
+     */
     public function registerToken(Request $request): JsonResponse
     {
-        $request->validate([
-            'token' => 'required|string',
-            'platform' => 'required|in:android,ios,web',
-            'device_id' => 'nullable|string',
-            'device_name' => 'nullable|string',
+        $validated = $request->validate([
+            'token'       => 'required|string|max:191',
+            'device_type' => 'required_without:platform|in:android,ios,web',
+            'platform'    => 'required_without:device_type|in:android,ios,web',
         ]);
 
         $token = $this->pushService->registerToken(
-            $request->user(),
-            $request->token,
-            $request->platform,
-            $request->only(['device_id', 'device_name'])
+            $request->user()->id,
+            $validated['token'],
+            $validated['device_type'] ?? $validated['platform']
         );
+
+        if (!$token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to register push notification token'
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
@@ -43,7 +52,8 @@ class PushNotificationController extends Controller
             'token' => 'required|string'
         ]);
 
-        $removed = $this->pushService->removeToken($request->token);
+        // Scoped to the caller so one user cannot deactivate another's token.
+        $removed = $this->pushService->removeToken($request->token, $request->user()->id);
 
         return response()->json([
             'success' => $removed,
@@ -86,17 +96,5 @@ class PushNotificationController extends Controller
             'message' => 'Test notification sent',
             'data' => $notification
         ]);
-    }
-    // app/Http/Controllers/API/PushTokenController.php
-    public function store(Request $request, PushNotificationService $pushService)
-    {
-        $request->validate([
-            'token' => 'required|string',
-            'device_type' => 'required|in:android,ios,web',
-        ]);
-
-        $pushService->registerToken(auth()->id(), $request->token, $request->device_type);
-
-        return response()->json(['message' => 'Token registered']);
     }
 }

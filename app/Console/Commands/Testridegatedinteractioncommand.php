@@ -239,6 +239,22 @@ class Testridegatedinteractioncommand extends Command
                     ->where('ride_id', $ride->id)->value('rating'));
         });
 
+        // ── S12 ───────────────────────────────────────────────────────────────
+        $this->runScenario('12 — Driver ratings & comments on Passenger ALLOWED after completed ride', function () use ($service) {
+            ['driver' => $driver, 'passenger' => $passenger, 'ride' => $ride] =
+                $this->makeScenario('completed');
+
+            $comment = $service->addComment($driver->id, $passenger->id, 'Great passenger!', $ride->id);
+            $this->check('Driver comment created', true, isset($comment['id']));
+
+            $stats = $service->rateUser($driver->id, $passenger->id, 5.0, $ride->id);
+            $this->check('Driver rated passenger successfully', true, isset($stats['average']));
+            $this->check('Rating stored in DB', 5.0,
+                (float) UserRating::where('rater_id', $driver->id)
+                    ->where('rated_user_id', $passenger->id)
+                    ->where('ride_id', $ride->id)->value('rating'));
+        });
+
         // ── Summary ──────────────────────────────────────────────────────────
         $this->line('');
         $this->line('  ╔═══════════════════════════════════════════════════════╗');

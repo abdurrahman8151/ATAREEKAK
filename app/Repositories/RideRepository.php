@@ -26,6 +26,9 @@ use Carbon\Carbon;
  */
 class RideRepository implements RideRepositoryInterface
 {
+    /** ~5km corridor around a ride's route, expressed in degrees (planar/SRID 0). */
+    private const ROUTE_BUFFER_DEGREES = 0.05;
+
     public function __construct(
         // ✅ NEW: Split services
         private GeocodingService $geocodingService,
@@ -332,10 +335,11 @@ class RideRepository implements RideRepositoryInterface
     private function applySpatialFilters($query, array $params): void
     {
         $maxDistance = 20 * 1000;
+        $routeBufferDegrees = self::ROUTE_BUFFER_DEGREES;
         $srcWkt = sprintf('POINT(%F %F)', $params['source_lng'], $params['source_lat']);
         $dstWkt = sprintf('POINT(%F %F)', $params['dest_lng'], $params['dest_lat']);
 
-        $query->where(function ($q) use ($maxDistance, $srcWkt, $dstWkt) {
+        $query->where(function ($q) use ($maxDistance, $routeBufferDegrees, $srcWkt, $dstWkt) {
             $q->whereRaw(
                 "ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?",
                 [$srcWkt, $maxDistance]
@@ -344,18 +348,24 @@ class RideRepository implements RideRepositoryInterface
                     "ST_Distance_Sphere(destination_location, ST_GeomFromText(?, 4326)) <= ?",
                     [$dstWkt, $maxDistance]
                 )
-                ->orWhere(function ($q2) use ($srcWkt, $dstWkt) {
+                ->orWhere(function ($q2) use ($routeBufferDegrees, $srcWkt, $dstWkt) {
                     $q2->whereNotNull('route_geometry')
                         ->whereRaw("JSON_VALID(route_geometry)")
                         ->whereRaw("JSON_EXTRACT(route_geometry, '$.coordinates') IS NOT NULL")
                         ->whereRaw("JSON_TYPE(JSON_EXTRACT(route_geometry, '$.coordinates')) = 'ARRAY'")
+                        // A LineString needs at least two positions, and each position
+                        // must itself be an array. ST_GeomFromGeoJSON raises error 3072
+                        // on anything else, and that aborts the whole query rather than
+                        // skipping the row, so one malformed ride would 500 every search.
+                        ->whereRaw("JSON_LENGTH(JSON_EXTRACT(route_geometry, '$.coordinates')) >= 2")
+                        ->whereRaw("JSON_TYPE(JSON_EXTRACT(route_geometry, '$.coordinates[0]')) = 'ARRAY'")
                         ->whereRaw(
-                            "ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))",
-                            [$srcWkt]
+                            "ST_Distance(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry), 1, 0), ST_GeomFromText(?, 0)) <= ?",
+                            [$srcWkt, $routeBufferDegrees]
                         )
                         ->whereRaw(
-                            "ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))",
-                            [$dstWkt]
+                            "ST_Distance(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry), 1, 0), ST_GeomFromText(?, 0)) <= ?",
+                            [$dstWkt, $routeBufferDegrees]
                         );
                 });
         });

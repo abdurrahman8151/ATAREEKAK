@@ -231,6 +231,30 @@ final class EmployeeManagementController extends Controller
         }
     }
 
+    // ── DELETE /api/employees/{id} ────────────────────────────────────────────
+
+    public function destroy(int $id, Request $request): JsonResponse
+    {
+        try {
+            $this->managementService->delete(
+                $id,
+                $request->attributes->get('staffEmployee')
+            );
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Employee deleted successfully.',
+            ]);
+        } catch (ModelNotFoundException) {
+            return response()->json(['status' => 'error', 'message' => 'Employee not found.'], 404);
+        } catch (\DomainException $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 403);
+        } catch (\Exception $e) {
+            Log::error('Employee deletion failed', ['error' => $e->getMessage()]);
+            return $this->serverError();
+        }
+    }
+
     // ── Shared ────────────────────────────────────────────────────────────────
 
     /**

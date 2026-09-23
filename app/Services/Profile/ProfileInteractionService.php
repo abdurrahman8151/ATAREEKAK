@@ -7,6 +7,7 @@ use App\Models\Profile;
 use App\Models\ProfileComment;
 use App\Models\User;
 use App\Models\UserRating;
+use App\Services\Score\ScoreService;
 
 /**
  * ProfileInteractionService — corrected for actual DB schema:
@@ -15,6 +16,10 @@ use App\Models\UserRating;
  */
 class ProfileInteractionService
 {
+    public function __construct(
+        private readonly ScoreService $scoreService,
+    ) {}
+
     // =========================================================================
     // COMMENT
     // =========================================================================
@@ -113,12 +118,14 @@ class ProfileInteractionService
             throw new \Exception('You have already rated this ride.', 409);
         }
 
-        UserRating::create([
+        $userRating = UserRating::create([
             'rater_id'      => $raterId,    // ← was user_id
             'rated_user_id' => $ratedUserId,
             'rating'        => $rating,
             'ride_id'       => $rideId,
         ]);
+
+        $this->scoreService->recordRating(User::findOrFail($ratedUserId), $userRating);
 
         return $this->getRatingStats($ratedUserId);
     }
@@ -141,20 +148,29 @@ class ProfileInteractionService
 
     private function assertEligible(
         int    $actorId,
-        int    $driverId,
+        int    $targetUserId,
         int    $rideId,
         string $action,
     ): void {
-        $eligible = Booking::query()
+        // Case 1: Passenger rating/commenting on Driver
+        $passengerOnDriver = Booking::query()
             ->where('user_id', $actorId)
             ->where('ride_id', $rideId)
             ->where('status', 'completed')
-            ->whereHas('ride', fn ($q) => $q->where('driver_id', $driverId))
+            ->whereHas('ride', fn ($q) => $q->where('driver_id', $targetUserId))
             ->exists();
 
-        if (! $eligible) {
+        // Case 2: Driver rating/commenting on Passenger
+        $driverOnPassenger = Booking::query()
+            ->where('user_id', $targetUserId)
+            ->where('ride_id', $rideId)
+            ->where('status', 'completed')
+            ->whereHas('ride', fn ($q) => $q->where('driver_id', $actorId))
+            ->exists();
+
+        if (! $passengerOnDriver && ! $driverOnPassenger) {
             throw new \Exception(
-                "You can only {$action} a driver after completing a ride with them.",
+                "You can only {$action} a user after completing a ride together.",
                 403
             );
         }

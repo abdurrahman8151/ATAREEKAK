@@ -84,11 +84,11 @@ final class CreateRideDTO
     }
 
     /**
-     * Calculate ride creation fee (5% of total value)
+     * Calculate ride creation fee (platform profit percentage of total value)
      */
-    public function calculateRideCreationFee(): Money
+    public function calculateRideCreationFee(float $percentage): Money
     {
-        return $this->calculateTotalValue()->percentage(5);
+        return $this->calculateTotalValue()->percentage($percentage);
     }
 
     /**

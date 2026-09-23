@@ -19,12 +19,14 @@ class Complaint extends Model
         'status',
         'resolution_notes',
         'resolved_at',
+        'escalated_at',
     ];
 
     protected $casts = [
-        'status'      => ComplaintStatus::class,
-        'type'        => ComplaintType::class,
-        'resolved_at' => 'datetime',
+        'status'       => ComplaintStatus::class,
+        'type'         => ComplaintType::class,
+        'resolved_at'  => 'datetime',
+        'escalated_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

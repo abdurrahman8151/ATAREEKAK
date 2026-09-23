@@ -52,7 +52,7 @@ class AdminDriverServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new AdminDriverService();
+        $this->service = app(AdminDriverService::class);
 
         Config::set('admin.system_admin.email', 'no-admin-configured@test.invalid');
 

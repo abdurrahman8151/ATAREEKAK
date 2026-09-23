@@ -8,6 +8,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Events\RideCreated;
 use App\Events\RideCancelled;
+use App\Interfaces\PolicyRepositoryInterface;
 use App\Interfaces\RideRepositoryInterface;
 use App\Models\Booking;
 use App\Models\Ride;
@@ -31,6 +32,7 @@ final class  RideService
         private readonly NotificationService      $notificationService,
         private readonly ScoreService             $scoreService,
         private readonly CashRideFeeService       $cashRideFeeService,
+        private readonly PolicyRepositoryInterface $policySettings,
     ) {}
 
     // =========================================================================
@@ -40,7 +42,7 @@ final class  RideService
     /**
      * Create a new ride and immediately charge the driver the creation fee.
      *
-     * Fee: 5% of (price_per_seat × available_seats) — Driver wallet → SyCash wallet.
+     * Fee: platform profit percentage of (price_per_seat × available_seats) — Driver wallet → SyCash wallet.
      * Applies to both CASH and E-PAY rides; all drivers need a wallet.
      *
      * Score gate: driver score must be ≥ 50 (validated in RideValidationService).
@@ -56,7 +58,7 @@ final class  RideService
 
             // Cash ride: check eligibility and stamp fee fields
             if ($dto->paymentMethod->value === 'cash') {
-                $feeAmount   = $dto->calculateRideCreationFee()->amount();
+                $feeAmount   = $dto->calculateRideCreationFee($this->policySettings->getPlatformProfitPercentage())->amount();
                 $eligibility = $this->cashRideFeeService->canCreateCashRide($driver, $feeAmount);
 
                 if (!$eligibility['allowed']) {
@@ -487,7 +489,7 @@ final class  RideService
      */
     public function reportDriverNoShow(int $rideId, User $passenger): array
     {
-        return app(\App\Services\Ride\Noshowservice::class)
+        return app(\App\Services\Ride\NoshowService::class)
             ->reportDriverNoShow($rideId, $passenger);
     }
 
@@ -512,7 +514,7 @@ final class  RideService
 
     public function searchRides(array $criteria): Collection
     {
-        return $this->rideRepository->searchRides($criteria);
+        return $this->searchService->searchRides($criteria);
     }
 
     // =========================================================================

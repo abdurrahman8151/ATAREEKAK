@@ -10,6 +10,7 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\ScoreTransaction;
 use App\Models\User;
+use App\Models\UserRating;
 use App\Models\UserScore;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -61,6 +62,76 @@ final class ScoreService
                     $this->incrementRides($booking->user);
                 });
         });
+    }
+
+    /**
+     * Award score points for a rating a driver just received.
+     *
+     *  +3 pts for any 4-or-5-star rating.
+     *  +2 pts bonus every 3rd consecutive 5-star rating in a row (counter
+     *  resets on any rating below 5 stars).
+     */
+    public function recordRating(User $ratedUser, UserRating $rating): void
+    {
+        DB::transaction(function () use ($ratedUser, $rating) {
+            $userScore = $this->getOrCreateScore($ratedUser);
+
+            if ((float) $rating->rating >= 4.0) {
+                $this->applyAction(
+                    user:      $ratedUser,
+                    action:    ScoreAction::RATING_POSITIVE,
+                    reference: $rating,
+                );
+            }
+
+            if ((float) $rating->rating >= 5.0) {
+                $userScore->incrementFiveStarStreak();
+                $userScore->refresh();
+
+                if ($userScore->consecutive_five_star_ratings >= 3) {
+                    $this->applyAction(
+                        user:      $ratedUser,
+                        action:    ScoreAction::RATING_FIVE_STAR_STREAK,
+                        reference: $rating,
+                    );
+                    $userScore->update(['consecutive_five_star_ratings' => 0]);
+                }
+            } else {
+                $userScore->resetFiveStarStreak();
+            }
+        });
+    }
+
+    /**
+     * Check whether a driver has newly crossed a 7/14/30-day cancellation-free
+     * milestone and award the corresponding bonus. Intended to be called once
+     * per driver per day by the score:driver-commitment-streaks command.
+     *
+     * Awards every milestone crossed since the last check (not just the
+     * highest), so a gap in the scheduler still pays out each one in order.
+     */
+    public function evaluateDriverCommitmentStreak(User $driver): void
+    {
+        $userScore = $this->getOrCreateScore($driver);
+        $anchor    = $userScore->last_driver_cancellation_at ?? $userScore->created_at;
+        $daysClean = $anchor->diffInDays(now());
+
+        $milestones = [
+            7  => ScoreAction::DRIVER_COMMITMENT_STREAK_7,
+            14 => ScoreAction::DRIVER_COMMITMENT_STREAK_14,
+            30 => ScoreAction::DRIVER_COMMITMENT_STREAK_30,
+        ];
+
+        foreach ($milestones as $days => $action) {
+            if ($daysClean >= $days && $userScore->last_streak_milestone_days < $days) {
+                $this->applyAction(
+                    user:      $driver,
+                    action:    $action,
+                    context:   ['days_clean' => $daysClean],
+                );
+                $userScore->update(['last_streak_milestone_days' => $days]);
+            }
+        }
     }
 
     public function recordPassengerCancel(
@@ -124,6 +195,8 @@ final class ScoreService
     public function recordDriverCancelSeat(User $driver, Booking $booking): void
     {
         DB::transaction(function () use ($driver, $booking) {
+            $this->getOrCreateScore($driver)->registerDriverCancellation();
+
             $this->applyAction(
                 user:      $driver,
                 action:    ScoreAction::DRIVER_CANCEL_SEAT,
@@ -140,6 +213,7 @@ final class ScoreService
     ): void {
         DB::transaction(function () use ($driver, $ride, $elapsedPct) {
             $this->incrementCancellations($driver);
+            $this->getOrCreateScore($driver)->registerDriverCancellation();
 
             $action = ScoreAction::driverCancelRideAction($elapsedPct);
             $this->applyAction(
@@ -170,6 +244,7 @@ final class ScoreService
         $previousScore = $userScore->score;
         $userScore->applyDelta($points);
         $userScore->incrementNoShows();
+        $userScore->registerDriverCancellation();
 
         ScoreTransaction::create([
             'user_id'                  => $driver->id,
@@ -267,9 +342,12 @@ final class ScoreService
             $result = $policy->calculate($action, $userScore, $context);
 
             $previousScore = (int) $userScore->score;
-            $newScore      = max(0, $previousScore + $result->points);
+            $newScore      = max(0, min(100, $previousScore + $result->points));
 
-            if ($result->isPositive()) {
+            // NOTE: gated on the action itself, not $result->isPositive() (points > 0) —
+            // rating and commitment-streak bonuses are also positive-point actions but
+            // must NOT be counted as completed rides for total_rides / cancel_rate.
+            if ($action === ScoreAction::RIDE_COMPLETED) {
                 $userScore->total_rides = (int) $userScore->total_rides + 1;
 
                 if ($userScore->total_rides > 0) {
@@ -400,7 +478,7 @@ final class ScoreService
 
             // ── Update aggregate stats on UserScore ───────────────────────────
             $previousScore = $userScore->score;
-            $newScore = max(0, $previousScore + $result->points);
+            $newScore = max(0, min(100, $previousScore + $result->points));
 
             $updates = ['score' => $newScore];
 

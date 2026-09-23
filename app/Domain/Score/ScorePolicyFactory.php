@@ -4,9 +4,11 @@ namespace App\Domain\Score;
 
 use App\Domain\Score\Policies\DriverCancelRidePolicy;
 use App\Domain\Score\Policies\DriverCancelSeatPolicy;
+use App\Domain\Score\Policies\DriverCommitmentStreakPolicy;
 use App\Domain\Score\Policies\DriverNoShowPolicy;
 use App\Domain\Score\Policies\PassengerCancelPolicy;
 use App\Domain\Score\Policies\PassengerNoShowPolicy;
+use App\Domain\Score\Policies\RatingPolicy;
 use App\Domain\Score\Policies\RideCompletionPolicy;
 use App\Domain\Score\Policies\ScorePolicyInterface;
 use App\Enums\ScoreAction;
@@ -27,6 +29,8 @@ final class ScorePolicyFactory
     {
         $this->policies = [
             new RideCompletionPolicy(),
+            new RatingPolicy(),
+            new DriverCommitmentStreakPolicy(),
             new PassengerCancelPolicy(),
             new PassengerNoShowPolicy(),
             new DriverCancelSeatPolicy(),

@@ -11,6 +11,7 @@ use App\Services\Chat\ChatMessageHandler;
 use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -47,7 +48,11 @@ final class StaffChatController extends Controller
     /**
      * GET /api/staff/chat/conversations
      *
-     * Returns conversations the staff member participates in, newest first.
+     * Shared inbox — returns EVERY support conversation, newest first, not
+     * just the ones the logged-in staff member happens to be the assigned
+     * agent on. Support conversations are assigned to a single least-loaded
+     * agent at creation time, but any active staff role (agent, admin,
+     * system_admin) can read and reply to any of them from the dashboard.
      * The shadow User is created silently on first access if it does not exist.
      */
     public function conversations(Request $request): JsonResponse
@@ -59,7 +64,7 @@ final class StaffChatController extends Controller
         }
 
         try {
-            $conversations = $this->chatRepo->getUserConversations($agentUser);
+            $conversations = $this->chatRepo->getAllSupportConversations();
 
             return response()->json([
                 'status' => 'success',
@@ -74,13 +79,103 @@ final class StaffChatController extends Controller
     }
 
     // =========================================================================
+    // START OR FIND CONVERSATION WITH USER
+    // =========================================================================
+
+    /**
+     * POST /api/staff/chat/conversations
+     *
+     * Finds or creates a support conversation between the staff member and a target user.
+     *
+     * Body:
+     *   user_id  int  required, exists:users,id
+     */
+    public function startConversation(Request $request): JsonResponse
+    {
+        $agentUser = $this->resolveUserAccount($request);
+
+        if (!$agentUser) {
+            return $this->noEmail($request);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $targetUser = User::find($request->user_id);
+
+            if (!$targetUser) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'User not found.',
+                ], 404);
+            }
+
+            if ($targetUser->id === $agentUser->id) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Cannot start a chat with your own account.',
+                ], 422);
+            }
+
+            // Find if a support conversation already exists for this customer
+            $existing = $this->chatRepo->findSupportConversationForUser($targetUser);
+
+            if ($existing) {
+                // Ensure current agent is attached if not already
+                if (!$existing->isParticipant($agentUser)) {
+                    $existing->participants()->attach($agentUser->id, [
+                        'role'      => 'agent',
+                        'joined_at' => now(),
+                    ]);
+                    $existing->load('participants');
+                    Cache::forget("conversation.{$existing->id}");
+                }
+
+                return response()->json([
+                    'status'          => 'success',
+                    'conversation_id' => $existing->id,
+                    'is_new'          => false,
+                    'conversation'    => $this->formatConversation($existing, $agentUser),
+                ]);
+            }
+
+            // Create new support conversation
+            $conversation = $this->chatRepo->createConversation(
+                participants: [$targetUser->id, $agentUser->id],
+                type:         'support',
+                title:        null,
+                roles:        [
+                    $targetUser->id => 'customer',
+                    $agentUser->id  => 'agent',
+                ],
+            );
+
+            return response()->json([
+                'status'          => 'success',
+                'conversation_id' => $conversation->id,
+                'is_new'          => true,
+                'conversation'    => $this->formatConversation($conversation, $agentUser),
+            ], 201);
+        } catch (\Exception $e) {
+            return $this->serverError($e);
+        }
+    }
+
+    // =========================================================================
     // GET MESSAGES IN A CONVERSATION
     // =========================================================================
 
     /**
      * GET /api/staff/chat/conversations/{id}/messages
      *
-     * Returns paginated messages. The staff member must be a participant.
+     * Returns paginated messages. Any active staff member may view any
+     * support conversation — shared inbox, not participant-gated.
      *
      * Query params:
      *   page  = int   (default 1)
@@ -106,7 +201,7 @@ final class StaffChatController extends Controller
         try {
             $conversation = $this->chatRepo->findConversation($conversationId);
 
-            if (!$conversation || !$conversation->isParticipant($agentUser)) {
+            if (!$conversation || $conversation->type !== 'support') {
                 return response()->json([
                     'status'  => 'error',
                     'message' => 'Conversation not found or access denied.',
@@ -171,11 +266,25 @@ final class StaffChatController extends Controller
         try {
             $conversation = $this->chatRepo->findConversation($conversationId);
 
-            if (!$conversation || !$conversation->isParticipant($agentUser)) {
+            if (!$conversation || $conversation->type !== 'support') {
                 return response()->json([
                     'status'  => 'error',
                     'message' => 'Conversation not found or access denied.',
                 ], 404);
+            }
+
+            // Shared inbox: any staff member may reply, not just the agent the
+            // conversation was originally assigned to. Join them as a participant
+            // on first reply so isParticipant() checks (message send, broadcast
+            // channel auth) recognize them, then drop the 5-minute conversation
+            // cache ChatMessageHandler reads so it sees the new participant.
+            if (!$conversation->isParticipant($agentUser)) {
+                $conversation->participants()->attach($agentUser->id, [
+                    'role'      => 'agent',
+                    'joined_at' => now(),
+                ]);
+                $conversation->load('participants');
+                Cache::forget("conversation.{$conversationId}");
             }
 
             // The ChatMessageHandler expects 'content' but the staff API
@@ -237,9 +346,14 @@ final class StaffChatController extends Controller
      */
     private function formatConversation($conversation, User $agentUser): array
     {
-        // Zero DB queries — uses the already eager-loaded participants collection
+        // Zero DB queries — uses the already eager-loaded participants collection.
+        // Looked up by pivot role rather than "not me": now that any staff member
+        // can join a support conversation on reply, there can be more than one
+        // agent-side participant, and "not me" could resolve to a colleague
+        // instead of the customer.
         $otherUser = $conversation->participants
-            ->firstWhere('id', '!=', $agentUser->id);
+            ->first(fn ($p) => $p->pivot->role === 'customer')
+            ?? $conversation->participants->firstWhere('id', '!=', $agentUser->id);
 
         // Zero DB queries — uses the already eager-loaded latestMessage relation
         $lastMessage = $conversation->latestMessage;
@@ -270,7 +384,10 @@ final class StaffChatController extends Controller
                     ? asset('storage/' . $lastMessage->content)
                     : $lastMessage->content,
                 'sender_name'    => $lastMessage->sender?->first_name, // already eager-loaded
-                'sent_by_agent'  => $lastMessage->sender?->id === $agentUser->id,
+                // "Not the customer" rather than "not me": in the shared inbox any
+                // staff member's reply should read as agent-side, not just the
+                // viewer's own messages.
+                'sent_by_agent'  => $lastMessage->sender?->id !== $otherUser?->id,
                 'created_at'     => $lastMessage->created_at->diffForHumans(),
                 'created_at_iso' => $lastMessage->created_at->toIso8601String(),
             ] : null,
