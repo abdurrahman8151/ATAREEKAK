@@ -4,8 +4,16 @@ use App\Http\Controllers\API\NotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\Auth\GoogleController;
+use Illuminate\Support\Facades\DB;
+
 Route::get('/up', function () {
-    return response('OK', 200);
+    try {
+        // Runs a lightweight query to register activity on Aiven MySQL
+        DB::select('SELECT 1');
+        return response('OK', 200);
+    } catch (\Throwable $e) {
+        return response('Database unavailable: ' . $e->getMessage(), 500);
+    }
 });
 Route::get('/', function () {
     return view('welcome');
