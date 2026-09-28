@@ -34,10 +34,10 @@ class AdminWalletService
     {
         $wallet = Wallet::where('phone_number', $adminConfig['phone'])->first();
 
-        if (!$wallet) {
+        if (! $wallet) {
             throw new \RuntimeException(
-                "System wallet for phone [{$adminConfig['phone']}] not found. " .
-                "Run: php artisan db:seed --class=SystemWalletSeeder"
+                "System wallet for phone [{$adminConfig['phone']}] not found. ".
+                'Run: php artisan db:seed --class=SystemWalletSeeder'
             );
         }
 
@@ -53,8 +53,7 @@ class AdminWalletService
      * Accessible only to the primary admin (enforced via route middleware).
      *
      * @param  string  $phoneNumber  Target user wallet phone
-     * @param  Money   $amount
-     * @param  array   $adminConfig  config('admin.primary')
+     * @param  array  $adminConfig  config('admin.primary')
      */
     public function chargeWallet(string $phoneNumber, Money $amount, array $adminConfig): array
     {
@@ -64,37 +63,37 @@ class AdminWalletService
                 ->firstOrFail();
 
             $previousBalance = (float) $wallet->balance;
-            $newBalance      = $previousBalance + $amount->amount();
+            $newBalance = $previousBalance + $amount->amount();
 
             $wallet->balance = $newBalance;
             $wallet->save();
 
-            $transactionId = strtoupper($adminConfig['type']) . '_CHARGE_' . time() . '_' . Str::random(8);
+            $transactionId = strtoupper($adminConfig['type']).'_CHARGE_'.time().'_'.Str::random(8);
 
             $transaction = WalletTransaction::create([
-                'wallet_id'        => $wallet->id,
-                'user_id'          => $wallet->user_id,   // null for system wallets
-                'type'             => 'admin_credit',
-                'amount'           => $amount->amount(),
+                'wallet_id' => $wallet->id,
+                'user_id' => $wallet->user_id,   // null for system wallets
+                'type' => 'admin_credit',
+                'amount' => $amount->amount(),
                 'previous_balance' => $previousBalance,
-                'new_balance'      => $newBalance,
-                'description'      => 'Admin wallet charge by ' . $adminConfig['type'],
-                'transaction_id'   => $transactionId,
-                'status'           => 'completed',
+                'new_balance' => $newBalance,
+                'description' => 'Admin wallet charge by '.$adminConfig['type'],
+                'transaction_id' => $transactionId,
+                'status' => 'completed',
                 // NOTE: no 'metadata' column in wallet_transactions
             ]);
 
             Log::info('Wallet charged by admin', [
-                'wallet_id'  => $wallet->id,
-                'amount'     => $amount->amount(),
+                'wallet_id' => $wallet->id,
+                'amount' => $amount->amount(),
                 'admin_type' => $adminConfig['type'],
             ]);
 
             return [
-                'wallet'           => $wallet,
-                'transaction'      => $transaction,
+                'wallet' => $wallet,
+                'transaction' => $transaction,
                 'previous_balance' => Money::from($previousBalance),
-                'new_balance'      => Money::from($newBalance),
+                'new_balance' => Money::from($newBalance),
             ];
         });
     }
@@ -109,7 +108,7 @@ class AdminWalletService
     public function getAdminWallets(): array
     {
         $adminConfigs = config('admin');
-        $phones       = [
+        $phones = [
             $adminConfigs['system_admin']['phone'],
             $adminConfigs['sycash']['phone'],
         ];
@@ -126,14 +125,14 @@ class AdminWalletService
                 }
 
                 return [
-                    'id'            => $wallet->id,
-                    'name'          => $wallet->name,
+                    'id' => $wallet->id,
+                    'name' => $wallet->name,
                     'wallet_number' => $wallet->wallet_number,
-                    'phone_number'  => $wallet->phone_number,
-                    'balance'       => Money::from($wallet->balance)->formatted(),
-                    'admin_type'    => $type,
-                    'created_at'    => $wallet->created_at,
-                    'updated_at'    => $wallet->updated_at,
+                    'phone_number' => $wallet->phone_number,
+                    'balance' => Money::from($wallet->balance)->formatted(),
+                    'admin_type' => $type,
+                    'created_at' => $wallet->created_at,
+                    'updated_at' => $wallet->updated_at,
                 ];
             })
             ->toArray();
@@ -149,17 +148,17 @@ class AdminWalletService
             ->get()
             ->map(function (Wallet $wallet) {
                 return [
-                    'id'            => $wallet->id,
-                    'name'          => $wallet->name ?? null,
-                    'is_system'     => $wallet->isSystemWallet(),
+                    'id' => $wallet->id,
+                    'name' => $wallet->name ?? null,
+                    'is_system' => $wallet->isSystemWallet(),
                     'wallet_number' => $wallet->wallet_number,
-                    'phone_number'  => $wallet->phone_number,
-                    'balance'       => Money::from($wallet->balance)->formatted(),
-                    'owner'         => $wallet->user
-                        ? $wallet->user->first_name . ' ' . $wallet->user->last_name
+                    'phone_number' => $wallet->phone_number,
+                    'balance' => Money::from($wallet->balance)->formatted(),
+                    'owner' => $wallet->user
+                        ? $wallet->user->first_name.' '.$wallet->user->last_name
                         : ($wallet->name ?? 'System'),
-                    'owner_email'   => $wallet->user?->email,
-                    'created_at'    => $wallet->created_at->toDateTimeString(),
+                    'owner_email' => $wallet->user?->email,
+                    'created_at' => $wallet->created_at->toDateTimeString(),
                 ];
             })
             ->toArray();
@@ -170,13 +169,13 @@ class AdminWalletService
      */
     public function getWalletTransactions(int $walletId, int $perPage = 10): array
     {
-        $wallet       = Wallet::findOrFail($walletId);
+        $wallet = Wallet::findOrFail($walletId);
         $transactions = WalletTransaction::where('wallet_id', $walletId)
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
         return [
-            'wallet'       => $wallet,
+            'wallet' => $wallet,
             'transactions' => $transactions,
         ];
     }

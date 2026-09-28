@@ -54,13 +54,14 @@ final class Noshowservice
     // Window: the other party has this many hours to file a counter-report
     //   private const DISPUTE_HOURS = 2;
     // AFTER (testing mode)
-    private const GATE_MINUTES    = 1;
+    private const GATE_MINUTES = 1;
+
     private const DISPUTE_MINUTES = 2;
 
     public function __construct(
-        private readonly ScoreService             $scoreService,
-        private readonly WalletTransactionService  $walletService,
-        private readonly NotificationService       $notificationService,
+        private readonly ScoreService $scoreService,
+        private readonly WalletTransactionService $walletService,
+        private readonly NotificationService $notificationService,
     ) {}
 
     // =========================================================================
@@ -72,8 +73,8 @@ final class Noshowservice
     {
         return DB::transaction(function () use ($bookingId, $driver) {
 
-            $booking   = Booking::lockForUpdate()->with(['ride', 'user'])->findOrFail($bookingId);
-            $ride      = $booking->ride;
+            $booking = Booking::lockForUpdate()->with(['ride', 'user'])->findOrFail($bookingId);
+            $ride = $booking->ride;
             $passenger = $booking->user;
 
             // ── Authorization ─────────────────────────────────────────────────
@@ -89,7 +90,7 @@ final class Noshowservice
             }
 
             // ── Ride must be in a live status ─────────────────────────────────
-            if (!in_array($ride->status, [
+            if (! in_array($ride->status, [
                 RideStatus::ACTIVE->value,
                 RideStatus::FULL->value,
                 RideStatus::LAUNCHED->value,
@@ -104,7 +105,7 @@ final class Noshowservice
             if (now()->lt($gateOpensAt)) {
                 $remaining = now()->diffInSeconds($gateOpensAt);
                 throw new \InvalidArgumentException(
-                    "No-show reporting unlocks " . self::GATE_MINUTES . " minute(s) after departure. {$remaining} second(s) remaining."
+                    'No-show reporting unlocks '.self::GATE_MINUTES." minute(s) after departure. {$remaining} second(s) remaining."
                 );
             }
 
@@ -135,25 +136,25 @@ final class Noshowservice
                 // ── SCENARIO C: CONFLICT ──────────────────────────────────────
                 return $this->handleConflict(
                     existingReport: $counterReport,
-                    driver:         $driver,
-                    passenger:      $passenger,
-                    booking:        $booking,
-                    ride:           $ride,
-                    newReporterRole:'driver',
+                    driver: $driver,
+                    passenger: $passenger,
+                    booking: $booking,
+                    ride: $ride,
+                    newReporterRole: 'driver',
                 );
             }
 
             // ── SCENARIO A: pending driver report ─────────────────────────────
             $report = NoshowReport::create([
-                'ride_id'        => $ride->id,
-                'booking_id'     => $booking->id,
-                'reporter_id'    => $driver->id,
-                'reporter_role'  => 'driver',
-                'target_id'      => $passenger->id,
-                'target_role'    => 'passenger',
+                'ride_id' => $ride->id,
+                'booking_id' => $booking->id,
+                'reporter_id' => $driver->id,
+                'reporter_role' => 'driver',
+                'target_id' => $passenger->id,
+                'target_role' => 'passenger',
                 'payment_method' => $ride->payment_method,
-                'status'         => 'pending',
-                'expires_at'     => now()->addMinutes(self::DISPUTE_MINUTES),
+                'status' => 'pending',
+                'expires_at' => now()->addMinutes(self::DISPUTE_MINUTES),
             ]);
 
             // Notify passenger: you have 2 hours to contest
@@ -163,26 +164,28 @@ final class Noshowservice
                     'noshow_driver_reported_you',
                     'تقرير غياب — لديك ساعتان للاعتراض',
                     "أفاد السائق {$driver->first_name} {$driver->last_name} بأنك لم تصل في موعد الرحلة. "
-                    . "إذا كان السائق هو من لم يحضر، اضغط زر «السائق لم يحضر» قبل انتهاء ساعتين.",
+                    .'إذا كان السائق هو من لم يحضر، اضغط زر «السائق لم يحضر» قبل انتهاء ساعتين.',
                     ['booking_id' => $booking->id, 'ride_id' => $ride->id, 'report_id' => $report->id],
                     'high',
                     'ride'
                 );
-            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            }
 
             Log::info('Driver filed passenger no-show report', [
-                'report_id'    => $report->id,
-                'driver_id'    => $driver->id,
+                'report_id' => $report->id,
+                'driver_id' => $driver->id,
                 'passenger_id' => $passenger->id,
-                'booking_id'   => $booking->id,
-                'expires_at'   => $report->expires_at,
+                'booking_id' => $booking->id,
+                'expires_at' => $report->expires_at,
             ]);
 
             return [
-                'message'    => 'No-show report submitted. The passenger has 2 hours to dispute. If no dispute, the penalty is applied automatically.',
-                'report_id'  => $report->id,
+                'message' => 'No-show report submitted. The passenger has 2 hours to dispute. If no dispute, the penalty is applied automatically.',
+                'report_id' => $report->id,
                 'expires_at' => $report->expires_at->toIso8601String(),
-                'conflict'   => false,
+                'conflict' => false,
             ];
         });
     }
@@ -196,7 +199,7 @@ final class Noshowservice
     {
         return DB::transaction(function () use ($rideId, $passenger) {
 
-            $ride   = Ride::lockForUpdate()->with('driver')->findOrFail($rideId);
+            $ride = Ride::lockForUpdate()->with('driver')->findOrFail($rideId);
             $driver = $ride->driver;
 
             // ── Find this passenger's booking ─────────────────────────────────
@@ -206,12 +209,12 @@ final class Noshowservice
                 ->where('status', BookingStatus::CONFIRMED->value)
                 ->first();
 
-            if (!$booking) {
+            if (! $booking) {
                 throw new \InvalidArgumentException('No confirmed booking found for you on this ride.');
             }
 
             // ── Ride must be in a live status ─────────────────────────────────
-            if (!in_array($ride->status, [
+            if (! in_array($ride->status, [
                 RideStatus::ACTIVE->value,
                 RideStatus::FULL->value,
                 RideStatus::LAUNCHED->value,
@@ -226,7 +229,7 @@ final class Noshowservice
             if (now()->lt($gateOpensAt)) {
                 $remaining = now()->diffInSeconds($gateOpensAt);
                 throw new \InvalidArgumentException(
-                    "No-show reporting unlocks " . self::GATE_MINUTES . " minute(s) after departure. {$remaining} second(s) remaining."
+                    'No-show reporting unlocks '.self::GATE_MINUTES." minute(s) after departure. {$remaining} second(s) remaining."
                 );
             }
 
@@ -256,25 +259,25 @@ final class Noshowservice
                 // ── SCENARIO C: CONFLICT ──────────────────────────────────────
                 return $this->handleConflict(
                     existingReport: $counterReport,
-                    driver:         $driver,
-                    passenger:      $passenger,
-                    booking:        $booking,
-                    ride:           $ride,
-                    newReporterRole:'passenger',
+                    driver: $driver,
+                    passenger: $passenger,
+                    booking: $booking,
+                    ride: $ride,
+                    newReporterRole: 'passenger',
                 );
             }
 
             // ── SCENARIO B: pending passenger report ──────────────────────────
             $report = NoshowReport::create([
-                'ride_id'        => $ride->id,
-                'booking_id'     => $booking->id,
-                'reporter_id'    => $passenger->id,
-                'reporter_role'  => 'passenger',
-                'target_id'      => $driver->id,
-                'target_role'    => 'driver',
+                'ride_id' => $ride->id,
+                'booking_id' => $booking->id,
+                'reporter_id' => $passenger->id,
+                'reporter_role' => 'passenger',
+                'target_id' => $driver->id,
+                'target_role' => 'driver',
                 'payment_method' => $ride->payment_method,
-                'status'         => 'pending',
-                'expires_at'     => now()->addMinutes(self::DISPUTE_MINUTES),
+                'status' => 'pending',
+                'expires_at' => now()->addMinutes(self::DISPUTE_MINUTES),
             ]);
 
             // Notify driver: passenger reported you, 2 hours to contest
@@ -284,26 +287,28 @@ final class Noshowservice
                     'noshow_passenger_reported_you',
                     'تقرير غياب — لديك ساعتان للاعتراض',
                     "أفاد الراكب {$passenger->first_name} {$passenger->last_name} بأنك لم تحضر للرحلة. "
-                    . "إذا كان الراكب هو من لم يصل، اضغط زر «الراكب لم يحضر» على الحجز المعني قبل انتهاء ساعتين.",
+                    .'إذا كان الراكب هو من لم يصل، اضغط زر «الراكب لم يحضر» على الحجز المعني قبل انتهاء ساعتين.',
                     ['ride_id' => $ride->id, 'report_id' => $report->id],
                     'high',
                     'ride'
                 );
-            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            }
 
             Log::info('Passenger filed driver no-show report', [
-                'report_id'    => $report->id,
+                'report_id' => $report->id,
                 'passenger_id' => $passenger->id,
-                'driver_id'    => $driver->id,
-                'booking_id'   => $booking->id,
-                'expires_at'   => $report->expires_at,
+                'driver_id' => $driver->id,
+                'booking_id' => $booking->id,
+                'expires_at' => $report->expires_at,
             ]);
 
             return [
-                'message'    => 'No-show report submitted. The driver has 2 hours to dispute. If no dispute, the penalty is applied automatically.',
-                'report_id'  => $report->id,
+                'message' => 'No-show report submitted. The driver has 2 hours to dispute. If no dispute, the penalty is applied automatically.',
+                'report_id' => $report->id,
                 'expires_at' => $report->expires_at->toIso8601String(),
-                'conflict'   => false,
+                'conflict' => false,
             ];
         });
     }
@@ -347,7 +352,7 @@ final class Noshowservice
                     $this->applyPenalty($locked);
 
                     $locked->update([
-                        'status'      => 'resolved_reporter_wins',
+                        'status' => 'resolved_reporter_wins',
                         'resolved_at' => now(),
                     ]);
 
@@ -361,16 +366,16 @@ final class Noshowservice
                 $resolved++;
 
                 Log::info('No-show report auto-resolved', [
-                    'report_id'   => $report->id,
+                    'report_id' => $report->id,
                     'target_role' => $report->target_role,
-                    'target_id'   => $report->target_id,
+                    'target_id' => $report->target_id,
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Failed to resolve no-show report', [
                     'report_id' => $report->id,
-                    'error'     => $e->getMessage(),
-                    'file'      => $e->getFile(),
-                    'line'      => $e->getLine(),
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
                 ]);
             }
         }
@@ -389,45 +394,45 @@ final class Noshowservice
      */
     private function handleConflict(
         NoshowReport $existingReport,
-        User         $driver,
-        User         $passenger,
-        Booking      $booking,
-        Ride         $ride,
-        string       $newReporterRole,   // 'driver' | 'passenger'
+        User $driver,
+        User $passenger,
+        Booking $booking,
+        Ride $ride,
+        string $newReporterRole,   // 'driver' | 'passenger'
     ): array {
         // Mark the existing report as disputed
         $existingReport->update([
-            'status'      => 'disputed',
+            'status' => 'disputed',
             'resolved_at' => now(),
         ]);
 
         // Create the incoming report also as disputed (audit trail)
-        $newReporterId   = $newReporterRole === 'driver' ? $driver->id   : $passenger->id;
-        $newTargetId     = $newReporterRole === 'driver' ? $passenger->id : $driver->id;
-        $newTargetRole   = $newReporterRole === 'driver' ? 'passenger'   : 'driver';
+        $newReporterId = $newReporterRole === 'driver' ? $driver->id : $passenger->id;
+        $newTargetId = $newReporterRole === 'driver' ? $passenger->id : $driver->id;
+        $newTargetRole = $newReporterRole === 'driver' ? 'passenger' : 'driver';
 
         NoshowReport::create([
-            'ride_id'        => $ride->id,
-            'booking_id'     => $booking->id,
-            'reporter_id'    => $newReporterId,
-            'reporter_role'  => $newReporterRole,
-            'target_id'      => $newTargetId,
-            'target_role'    => $newTargetRole,
+            'ride_id' => $ride->id,
+            'booking_id' => $booking->id,
+            'reporter_id' => $newReporterId,
+            'reporter_role' => $newReporterRole,
+            'target_id' => $newTargetId,
+            'target_role' => $newTargetRole,
             'payment_method' => $ride->payment_method,
-            'status'         => 'disputed',
-            'expires_at'     => now(),
-            'resolved_at'    => now(),
+            'status' => 'disputed',
+            'expires_at' => now(),
+            'resolved_at' => now(),
         ]);
 
         // ── Auto-create the no_show complaint ─────────────────────────────────
         $complaint = Complaint::create([
-            'user_id'       => $passenger->id,      // passenger as the "submitter"
+            'user_id' => $passenger->id,      // passenger as the "submitter"
             'complained_id' => $driver->id,         // driver as the "respondent"
-            'type'          => ComplaintType::NO_SHOW->value,
-            'title'         => 'تعارض تقارير الغياب — يحتاج تحقيقاً',
-            'description'   => $this->buildConflictDescription($driver, $passenger, $booking, $ride, $existingReport, $newReporterRole),
-            'status'        => ComplaintStatus::PENDING->value,
-            'ride_id'       => $ride->id,
+            'type' => ComplaintType::NO_SHOW->value,
+            'title' => 'تعارض تقارير الغياب — يحتاج تحقيقاً',
+            'description' => $this->buildConflictDescription($driver, $passenger, $booking, $ride, $existingReport, $newReporterRole),
+            'status' => ComplaintStatus::PENDING->value,
+            'ride_id' => $ride->id,
         ]);
 
         // Notify both parties
@@ -450,19 +455,21 @@ final class Noshowservice
                 'high',
                 'system'
             );
-        } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
+        } catch (\Throwable $e) {
+            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+        }
 
         Log::info('No-show conflict detected — auto-complaint created', [
-            'ride_id'      => $ride->id,
-            'booking_id'   => $booking->id,
-            'driver_id'    => $driver->id,
+            'ride_id' => $ride->id,
+            'booking_id' => $booking->id,
+            'driver_id' => $driver->id,
             'passenger_id' => $passenger->id,
             'complaint_id' => $complaint->id,
         ]);
 
         return [
-            'message'      => 'Both parties filed a no-show report. A support complaint has been opened automatically. No automatic penalty will be applied — the support team will investigate.',
-            'conflict'     => true,
+            'message' => 'Both parties filed a no-show report. A support complaint has been opened automatically. No automatic penalty will be applied — the support team will investigate.',
+            'conflict' => true,
             'complaint_id' => $complaint->id,
         ];
     }
@@ -477,10 +484,10 @@ final class Noshowservice
      */
     private function applyPenalty(NoshowReport $report): void
     {
-        $booking   = Booking::with(['ride', 'user'])->findOrFail($report->booking_id);
-        $ride      = $booking->ride;
+        $booking = Booking::with(['ride', 'user'])->findOrFail($report->booking_id);
+        $ride = $booking->ride;
         $passenger = User::findOrFail($report->target_role === 'passenger' ? $report->target_id : $report->reporter_id);
-        $driver    = User::findOrFail($ride->driver_id);
+        $driver = User::findOrFail($ride->driver_id);
 
         if ($report->target_role === 'passenger') {
             // ── Driver won → passenger is penalised ───────────────────────────
@@ -505,7 +512,9 @@ final class Noshowservice
                     'high',
                     'system'
                 );
-            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            }
 
             // Notify driver: you received your earnings
             try {
@@ -513,13 +522,15 @@ final class Noshowservice
                     $driver,
                     'noshow_resolved_in_your_favor',
                     'تم البت في تقرير الغياب',
-                    "تم تأكيد غياب الراكب وتطبيق العقوبة المقررة." .
+                    'تم تأكيد غياب الراكب وتطبيق العقوبة المقررة.'.
                     ($report->payment_method === 'e-pay' ? ' تم تحويل المبلغ إلى محفظتك.' : ''),
                     ['booking_id' => $booking->id],
                     'normal',
                     'ride'
                 );
-            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            }
 
         } else {
             // ── Passenger won → driver is penalised ───────────────────────────
@@ -544,7 +555,9 @@ final class Noshowservice
                     'high',
                     'system'
                 );
-            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            }
 
             // Notify passenger: refunded (e-pay) or resolved (cash)
             try {
@@ -552,13 +565,15 @@ final class Noshowservice
                     $passenger,
                     'noshow_resolved_in_your_favor',
                     'تم البت في تقرير الغياب',
-                    "تم تأكيد غياب السائق وتطبيق العقوبة المقررة." .
+                    'تم تأكيد غياب السائق وتطبيق العقوبة المقررة.'.
                     ($report->payment_method === 'e-pay' ? ' تم استرجاع المبلغ إلى محفظتك.' : ''),
                     ['booking_id' => $booking->id],
                     'normal',
                     'ride'
                 );
-            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            }
         }
     }
 
@@ -567,15 +582,15 @@ final class Noshowservice
     // =========================================================================
 
     private function buildConflictDescription(
-        User         $driver,
-        User         $passenger,
-        Booking      $booking,
-        Ride         $ride,
+        User $driver,
+        User $passenger,
+        Booking $booking,
+        Ride $ride,
         NoshowReport $firstReport,
-        string       $secondReporterRole,
+        string $secondReporterRole,
     ): string {
-        $firstRole  = $firstReport->reporter_role === 'driver' ? 'السائق' : 'الراكب';
-        $secondRole = $secondReporterRole === 'driver'          ? 'السائق' : 'الراكب';
+        $firstRole = $firstReport->reporter_role === 'driver' ? 'السائق' : 'الراكب';
+        $secondRole = $secondReporterRole === 'driver' ? 'السائق' : 'الراكب';
 
         return implode("\n", [
             '═══════════════════════════════════════════',
@@ -599,7 +614,7 @@ final class Noshowservice
             '',
             '── التسلسل الزمني ─────────────────────────',
             "  أول تقرير : {$firstRole} — {$firstReport->created_at->format('Y-m-d H:i:s')}",
-            "  ثاني تقرير: {$secondRole} — " . now()->format('Y-m-d H:i:s') . " (هذا التقرير)",
+            "  ثاني تقرير: {$secondRole} — ".now()->format('Y-m-d H:i:s').' (هذا التقرير)',
             "  نافذة النزاع: {$firstReport->expires_at->format('Y-m-d H:i:s')}",
             '',
             '── المطلوب من فريق الدعم ──────────────────',

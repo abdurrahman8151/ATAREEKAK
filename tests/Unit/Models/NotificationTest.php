@@ -16,39 +16,39 @@ class NotificationTest extends TestCase
 
     public function test_fillable_contains_title(): void
     {
-        $this->assertContains('title', (new Notification())->getFillable());
+        $this->assertContains('title', (new Notification)->getFillable());
     }
 
     public function test_fillable_contains_message(): void
     {
-        $this->assertContains('message', (new Notification())->getFillable());
+        $this->assertContains('message', (new Notification)->getFillable());
     }
 
     public function test_fillable_contains_type(): void
     {
-        $this->assertContains('type', (new Notification())->getFillable());
+        $this->assertContains('type', (new Notification)->getFillable());
     }
 
     public function test_fillable_contains_data(): void
     {
-        $this->assertContains('data', (new Notification())->getFillable());
+        $this->assertContains('data', (new Notification)->getFillable());
     }
 
     public function test_fillable_contains_sent_at(): void
     {
-        $this->assertContains('sent_at', (new Notification())->getFillable());
+        $this->assertContains('sent_at', (new Notification)->getFillable());
     }
 
     // ─── Casts ────────────────────────────────────────────────────────────────────
 
     public function test_data_is_cast_to_array(): void
     {
-        $this->assertEquals('array', (new Notification())->getCasts()['data']);
+        $this->assertEquals('array', (new Notification)->getCasts()['data']);
     }
 
     public function test_sent_at_is_cast_to_datetime(): void
     {
-        $this->assertEquals('datetime', (new Notification())->getCasts()['sent_at']);
+        $this->assertEquals('datetime', (new Notification)->getCasts()['sent_at']);
     }
 
     // ─── Relationships ────────────────────────────────────────────────────────────
@@ -112,10 +112,10 @@ class NotificationTest extends TestCase
     public function test_notification_can_be_created_with_json_data(): void
     {
         $notification = Notification::create([
-            'title'   => 'Test',
+            'title' => 'Test',
             'message' => 'Body',
-            'type'    => 'general',
-            'data'    => ['key' => 'value'],
+            'type' => 'general',
+            'data' => ['key' => 'value'],
             'sent_at' => now(),
         ]);
 
@@ -126,16 +126,16 @@ class NotificationTest extends TestCase
 
     public function test_notification_user_notifications_relationship_loads(): void
     {
-        $user         = User::factory()->create();
+        $user = User::factory()->create();
         $notification = Notification::create([
-            'title'   => 'Test',
+            'title' => 'Test',
             'message' => 'Body',
-            'type'    => 'general',
+            'type' => 'general',
             'sent_at' => now(),
         ]);
 
         UserNotification::create([
-            'user_id'         => $user->id,
+            'user_id' => $user->id,
             'notification_id' => $notification->id,
         ]);
 

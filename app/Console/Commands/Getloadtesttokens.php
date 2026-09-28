@@ -29,7 +29,8 @@ use Illuminate\Console\Command;
 
 class Getloadtesttokens extends Command
 {
-    protected $signature   = 'loadtest:tokens {--count=5} {--export=table}';
+    protected $signature = 'loadtest:tokens {--count=5} {--export=table}';
+
     protected $description = 'Generate JWT tokens for seeded test users (for k6 load testing)';
 
     public function __construct(private JwtService $jwtService)
@@ -39,7 +40,7 @@ class Getloadtesttokens extends Command
 
     public function handle(): int
     {
-        $count  = (int) $this->option('count');
+        $count = (int) $this->option('count');
         $export = $this->option('export');
 
         $this->warn('⚠️  FOR LOAD TESTING ONLY — do not use in production');
@@ -56,7 +57,7 @@ class Getloadtesttokens extends Command
         // ── Drivers ───────────────────────────────────────────────────────────
         $drivers = User::where('is_verified_driver', 1)
             ->where('status', 1)
-            ->take(max(2, (int)($count / 3)))
+            ->take(max(2, (int) ($count / 3)))
             ->get();
 
         // ── Fallback: if no verified passengers exist yet ─────────────────────
@@ -73,6 +74,7 @@ class Getloadtesttokens extends Command
 
         if ($passengers->isEmpty()) {
             $this->error('No active users found at all. Check: SELECT id, status FROM users LIMIT 5;');
+
             return 1;
         }
 
@@ -84,18 +86,18 @@ class Getloadtesttokens extends Command
         // ── Generate tokens ───────────────────────────────────────────────────
         $passengerTokens = $passengers->map(function (User $user) {
             return [
-                'id'    => $user->id,
+                'id' => $user->id,
                 'email' => $user->email,
-                'type'  => 'passenger',
+                'type' => 'passenger',
                 'token' => $this->jwtService->generateTokenPair($user)['access_token'],
             ];
         });
 
         $driverTokens = $drivers->map(function (User $user) {
             return [
-                'id'    => $user->id,
+                'id' => $user->id,
                 'email' => $user->email,
-                'type'  => 'driver',
+                'type' => 'driver',
                 'token' => $this->jwtService->generateTokenPair($user)['access_token'],
             ];
         });
@@ -106,11 +108,11 @@ class Getloadtesttokens extends Command
         if ($export === 'table') {
             $this->table(
                 ['ID', 'Email', 'Type', 'Token (first 50 chars)'],
-                $allTokens->map(fn($t) => [
+                $allTokens->map(fn ($t) => [
                     $t['id'],
                     $t['email'],
                     $t['type'],
-                    substr($t['token'], 0, 50) . '...',
+                    substr($t['token'], 0, 50).'...',
                 ])->toArray()
             );
 
@@ -118,15 +120,15 @@ class Getloadtesttokens extends Command
             $this->info('── Paste this into syride-breakpoint-test.js ──────────────────');
             $this->newLine();
 
-            $pTokens = $passengerTokens->pluck('token')->map(fn($t) => "    '$t'")->implode(",\n");
-            $dTokens = $driverTokens->pluck('token')->map(fn($t) => "    '$t'")->implode(",\n");
+            $pTokens = $passengerTokens->pluck('token')->map(fn ($t) => "    '$t'")->implode(",\n");
+            $dTokens = $driverTokens->pluck('token')->map(fn ($t) => "    '$t'")->implode(",\n");
 
             $this->line('const PASSENGER_TOKENS = [');
-            $this->line($pTokens ?: "    // no passenger tokens — see warning above");
+            $this->line($pTokens ?: '    // no passenger tokens — see warning above');
             $this->line('];');
             $this->newLine();
             $this->line('const DRIVER_TOKENS = [');
-            $this->line($dTokens ?: "    // no driver tokens — see warning above");
+            $this->line($dTokens ?: '    // no driver tokens — see warning above');
             $this->line('];');
             $this->newLine();
 
@@ -151,7 +153,7 @@ class Getloadtesttokens extends Command
 
         $this->newLine();
         $this->info("Generated {$passengerTokens->count()} passenger + {$driverTokens->count()} driver tokens.");
-        $this->warn('Tokens expire based on JWT_TTL (' . config('jwt.ttl', '?') . ' min). Re-run if they expire.');
+        $this->warn('Tokens expire based on JWT_TTL ('.config('jwt.ttl', '?').' min). Re-run if they expire.');
         $this->newLine();
 
         // ── Helpful DB query for ride IDs (needed by the k6 test) ─────────────
@@ -159,7 +161,7 @@ class Getloadtesttokens extends Command
         // Password is intentionally omitted: mysql prompts for it, so the
         // credential never lands in shell history, process listings, or logs.
         // It comes from MYSQL_ROOT_PASSWORD in .env.
-        $this->line('docker exec -it syride_mysql mysql -uroot -p ' . config('database.connections.mysql.database', '4th_year_project_db') . ' \\');
+        $this->line('docker exec -it syride_mysql mysql -uroot -p '.config('database.connections.mysql.database', '4th_year_project_db').' \\');
         $this->line("  -e \"SELECT id, status FROM rides WHERE status='active' LIMIT 20;\"");
 
         return 0;

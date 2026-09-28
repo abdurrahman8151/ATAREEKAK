@@ -44,8 +44,8 @@ return [
         ],
 
         'mysql' => [
-            'driver'    => 'mysql',
-            'url'       => env('DATABASE_URL'),
+            'driver' => 'mysql',
+            'url' => env('DATABASE_URL'),
 
             'read' => [
                 'host' => [env('DB_REPLICA_HOST', env('DB_HOST', '127.0.0.1'))],
@@ -55,30 +55,31 @@ return [
             ],
             'sticky' => true,
 
-            'port'           => env('DB_PORT', '3306'),
-            'database'       => env('DB_DATABASE', 'forge'),
-            'username'       => env('DB_USERNAME', 'forge'),
-            'password'       => env('DB_PASSWORD', ''),
-            'unix_socket'    => env('DB_SOCKET', ''),
-            'charset'        => 'utf8mb4',
-            'collation'      => 'utf8mb4_unicode_ci',
-            'prefix'         => '',
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
             'prefix_indexes' => true,
-            'strict'         => true,
-            'engine'         => 'InnoDB',
+            'strict' => true,
+            'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? (function () {
                 $options = [
                     PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => filter_var(env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', false), FILTER_VALIDATE_BOOLEAN),
                 ];
                 $ca = env('MYSQL_ATTR_SSL_CA');
-                if (!$ca && file_exists(storage_path('certs/aiven-ca.pem'))) {
+                if (! $ca && file_exists(storage_path('certs/aiven-ca.pem'))) {
                     $ca = storage_path('certs/aiven-ca.pem');
-                } elseif (!$ca && file_exists('/etc/ssl/certs/ca-certificates.crt') && (env('DB_PORT') != 3306 || env('DB_SSL', false))) {
+                } elseif (! $ca && file_exists('/etc/ssl/certs/ca-certificates.crt') && (env('DB_PORT') != 3306 || env('DB_SSL', false))) {
                     $ca = '/etc/ssl/certs/ca-certificates.crt';
                 }
-                if (!empty($ca)) {
+                if (! empty($ca)) {
                     $options[PDO::MYSQL_ATTR_SSL_CA] = $ca;
                 }
+
                 return $options;
             })() : [],
         ],
@@ -155,7 +156,7 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
-            'scheme'   => env('REDIS_SCHEME', null),
+            'scheme' => env('REDIS_SCHEME', null),
         ],
 
         'cache' => [
@@ -165,7 +166,7 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_CACHE_DB', env('REDIS_DB', '0')),
-            'scheme'   => env('REDIS_SCHEME', null),
+            'scheme' => env('REDIS_SCHEME', null),
         ],
 
     ],

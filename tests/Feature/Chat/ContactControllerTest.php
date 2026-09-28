@@ -12,13 +12,14 @@ class ContactControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $user;
+    private User $user;
+
     private string $token;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user = User::factory()->create(['password' => bcrypt('password123')]);
         $this->token = $this->getToken($this->user);
     }
 
@@ -42,13 +43,13 @@ class ContactControllerTest extends TestCase
     {
         // Employee row exists but no matching User row — controller returns 503
         Employee::create([
-            'username'      => 'orphaned_agent',
-            'email'         => 'orphan@support.test',
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Orphaned',
-            'last_name'     => 'Agent',
-            'role'          => StaffRole::SUPPORT_AGENT->value,
-            'is_active'     => true,
+            'username' => 'orphaned_agent',
+            'email' => 'orphan@support.test',
+            'password' => bcrypt('password123'),
+            'first_name' => 'Orphaned',
+            'last_name' => 'Agent',
+            'role' => StaffRole::SUPPORT_AGENT->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
         // Deliberately NOT creating a matching User row
@@ -105,7 +106,7 @@ class ContactControllerTest extends TestCase
     {
         $this->seedAgent();
 
-        $other      = User::factory()->create(['password' => bcrypt('password123')]);
+        $other = User::factory()->create(['password' => bcrypt('password123')]);
         $otherToken = $this->getToken($other);
 
         $r1 = $this->withToken($this->token)->postJson('/api/contact');
@@ -141,25 +142,25 @@ class ContactControllerTest extends TestCase
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private function seedAgent(
-        bool   $active    = true,
+        bool $active = true,
         string $firstName = 'Support',
-        string $lastName  = 'Agent',
+        string $lastName = 'Agent',
     ): User {
         $email = 'agent@support.test';
 
         $agentUser = User::factory()->create([
-            'email'    => $email,
+            'email' => $email,
             'password' => bcrypt('password123'),
         ]);
 
         Employee::create([
-            'username'      => 'support_agent',
-            'email'         => $email,
-            'password'      => bcrypt('password123'),
-            'first_name'    => $firstName,
-            'last_name'     => $lastName,
-            'role'          => StaffRole::SUPPORT_AGENT->value,
-            'is_active'     => $active,
+            'username' => 'support_agent',
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'role' => StaffRole::SUPPORT_AGENT->value,
+            'is_active' => $active,
             'token_version' => 0,
         ]);
 
@@ -169,7 +170,7 @@ class ContactControllerTest extends TestCase
     private function getToken(User $user): string
     {
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }

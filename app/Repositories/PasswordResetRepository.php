@@ -20,7 +20,7 @@ class PasswordResetRepository implements PasswordResetRepositoryInterface
         return Password::reset($credentials, function ($user, $password) {
             $user->update([
                 'password' => bcrypt($password),
-                'status'   => 1,
+                'status' => 1,
             ]);
 
             // This is the critical line — revokes all refresh tokens

@@ -2,13 +2,12 @@
 
 namespace App\Events;
 
-use App\Models\Ride;
 use App\Models\Booking;
+use App\Models\Ride;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -17,7 +16,7 @@ use Illuminate\Queue\SerializesModels;
  *
  * FIXED: Explicit data arrays instead of only() to prevent accidental exposure
  */
-class RideBooked implements  ShouldBroadcast
+class RideBooked implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -33,8 +32,8 @@ class RideBooked implements  ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('user.' . $this->ride->driver_id),
-            new PrivateChannel('user.' . $this->passenger->id)
+            new PrivateChannel('user.'.$this->ride->driver_id),
+            new PrivateChannel('user.'.$this->passenger->id),
         ];
     }
 
@@ -69,7 +68,7 @@ class RideBooked implements  ShouldBroadcast
             ],
             'passenger' => [
                 'id' => $this->passenger->id,
-                'name' => $this->passenger->first_name . ' ' . $this->passenger->last_name,
+                'name' => $this->passenger->first_name.' '.$this->passenger->last_name,
             ],
         ];
     }

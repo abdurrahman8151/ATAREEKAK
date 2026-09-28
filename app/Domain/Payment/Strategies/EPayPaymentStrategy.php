@@ -26,11 +26,12 @@ final class EPayPaymentStrategy implements PaymentStrategy
 
     public function processBookingPayment(
         Booking $booking,
-        Ride    $ride,
-        User    $passenger,
+        Ride $ride,
+        User $passenger,
     ): PaymentResult {
         try {
             $this->walletService->chargePassengerForBooking($booking, $ride, $passenger);
+
             return PaymentResult::success('Payment held in escrow');
         } catch (\Exception $e) {
             return PaymentResult::failure($e->getMessage());
@@ -45,12 +46,13 @@ final class EPayPaymentStrategy implements PaymentStrategy
      */
     public function processRideCompletionPayment(
         Booking $booking,
-        Ride    $ride,
-        User    $passenger,
+        Ride $ride,
+        User $passenger,
     ): PaymentResult {
         try {
             $driver = $ride->driver;   // ← derive driver from ride; passenger is the confirmer
             $this->walletService->releaseEscrowToDriver($booking, $ride, $driver);
+
             return PaymentResult::success('Escrow released to driver');
         } catch (\Exception $e) {
             return PaymentResult::failure($e->getMessage());
@@ -60,12 +62,13 @@ final class EPayPaymentStrategy implements PaymentStrategy
 
     public function processRefund(
         Booking $booking,
-        Ride    $ride,
-        User    $passenger,
+        Ride $ride,
+        User $passenger,
     ): RefundResult {
         try {
             $bookings = new EloquentCollection([$booking]);
             $this->walletService->refundPassengersForDriverCancellation($ride, $bookings);
+
             return RefundResult::success('Refund processed successfully');
         } catch (\Exception $e) {
             return RefundResult::failure($e->getMessage());

@@ -4,15 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Carbon\Carbon;
 
 class Booking extends Model
 {
     // Status constants
     const PENDING = 'pending';
+
     const CONFIRMED = 'confirmed';
+
     const CANCELLED = 'cancelled';
+
     const NO_SHOW = 'no_show';
+
     const COMPLETED = 'completed';
 
     protected $fillable = [
@@ -23,13 +26,13 @@ class Booking extends Model
         'communication_number',
 
         'completed_at',
-        'passenger_confirmed_at'
+        'passenger_confirmed_at',
     ];
 
     protected $casts = [
         'completed_at' => 'datetime',
         'passenger_confirmed_at' => 'datetime',
-        'total_price' => 'decimal:2'
+        'total_price' => 'decimal:2',
     ];
 
     /**
@@ -42,7 +45,7 @@ class Booking extends Model
             self::CONFIRMED,
             self::CANCELLED,
             self::NO_SHOW,
-            self::COMPLETED
+            self::COMPLETED,
         ];
     }
 
@@ -67,7 +70,7 @@ class Booking extends Model
      */
     public function isActive(): bool
     {
-        return !in_array($this->status, [self::CANCELLED, self::NO_SHOW]);
+        return ! in_array($this->status, [self::CANCELLED, self::NO_SHOW]);
     }
 
     /**
@@ -77,7 +80,7 @@ class Booking extends Model
     {
         $this->update([
             'status' => self::COMPLETED,
-            'completed_at' => now()
+            'completed_at' => now(),
         ]);
     }
 
@@ -87,7 +90,7 @@ class Booking extends Model
     public function markPassengerConfirmed(): void
     {
         $this->update([
-            'passenger_confirmed_at' => now()
+            'passenger_confirmed_at' => now(),
         ]);
     }
 
@@ -110,6 +113,6 @@ class Booking extends Model
 
     public function getIsPassengerConfirmedAttribute(): bool
     {
-        return !is_null($this->passenger_confirmed_at);
+        return ! is_null($this->passenger_confirmed_at);
     }
 }

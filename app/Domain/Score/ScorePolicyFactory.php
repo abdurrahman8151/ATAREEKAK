@@ -26,12 +26,12 @@ final class ScorePolicyFactory
     public function __construct()
     {
         $this->policies = [
-            new RideCompletionPolicy(),
-            new PassengerCancelPolicy(),
-            new PassengerNoShowPolicy(),
-            new DriverCancelSeatPolicy(),
-            new DriverCancelRidePolicy(),
-            new DriverNoShowPolicy(),
+            new RideCompletionPolicy,
+            new PassengerCancelPolicy,
+            new PassengerNoShowPolicy,
+            new DriverCancelSeatPolicy,
+            new DriverCancelRidePolicy,
+            new DriverNoShowPolicy,
         ];
     }
 

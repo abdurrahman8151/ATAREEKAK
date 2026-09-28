@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Services\NotificationService;
 use App\Models\UserNotification;
-use Illuminate\Http\Request;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
@@ -26,8 +26,8 @@ class NotificationController extends Controller
         );
 
         return response()->json([
-            'success'      => true,
-            'data'         => $notifications,
+            'success' => true,
+            'data' => $notifications,
             'unread_count' => $request->user()->unread_notifications_count,
         ]);
     }
@@ -52,7 +52,7 @@ class NotificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Notification marked as read',
-            'data'    => $notification->fresh(),
+            'data' => $notification->fresh(),
         ]);
     }
 
@@ -75,7 +75,7 @@ class NotificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Notification marked as unread',
-            'data'    => $notification->fresh(),
+            'data' => $notification->fresh(),
         ]);
     }
 
@@ -84,8 +84,8 @@ class NotificationController extends Controller
         $this->notificationService->markAllAsRead($request->user());
 
         return response()->json([
-            'success'      => true,
-            'message'      => 'All notifications marked as read',
+            'success' => true,
+            'message' => 'All notifications marked as read',
             'unread_count' => 0,
         ]);
     }
@@ -115,7 +115,7 @@ class NotificationController extends Controller
     public function getUnreadCount(Request $request): JsonResponse
     {
         return response()->json([
-            'success'      => true,
+            'success' => true,
             'unread_count' => $request->user()->unread_notifications_count,
         ]);
     }
@@ -124,24 +124,24 @@ class NotificationController extends Controller
     {
         $categories = [
             'general' => 'General',
-            'ride'    => 'Rides',
-            'chat'    => 'Messages',
+            'ride' => 'Rides',
+            'chat' => 'Messages',
             'profile' => 'Profile',
-            'system'  => 'System',
+            'system' => 'System',
         ];
 
         return response()->json([
             'success' => true,
-            'data'    => $categories,
+            'data' => $categories,
         ]);
     }
 
     public function bulkAction(Request $request): JsonResponse
     {
         $request->validate([
-            'action'               => 'required|in:mark_read,mark_unread,delete',
-            'notification_ids'     => 'required|array',
-            'notification_ids.*'   => 'exists:user_notifications,id',
+            'action' => 'required|in:mark_read,mark_unread,delete',
+            'notification_ids' => 'required|array',
+            'notification_ids.*' => 'exists:user_notifications,id',
         ]);
 
         $notifications = UserNotification::whereIn('id', $request->notification_ids)
@@ -173,8 +173,8 @@ class NotificationController extends Controller
         }
 
         return response()->json([
-            'success'      => true,
-            'message'      => $message,
+            'success' => true,
+            'message' => $message,
             'unread_count' => $request->user()->unread_notifications_count,
         ]);
     }

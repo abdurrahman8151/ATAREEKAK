@@ -17,65 +17,65 @@ class WalletRequestTest extends TestCase
 
     public function test_fillable_contains_user_id(): void
     {
-        $this->assertContains('user_id', (new WalletRequest())->getFillable());
+        $this->assertContains('user_id', (new WalletRequest)->getFillable());
     }
 
     public function test_fillable_contains_type(): void
     {
-        $this->assertContains('type', (new WalletRequest())->getFillable());
+        $this->assertContains('type', (new WalletRequest)->getFillable());
     }
 
     public function test_fillable_contains_amount(): void
     {
-        $this->assertContains('amount', (new WalletRequest())->getFillable());
+        $this->assertContains('amount', (new WalletRequest)->getFillable());
     }
 
     public function test_fillable_contains_status(): void
     {
-        $this->assertContains('status', (new WalletRequest())->getFillable());
+        $this->assertContains('status', (new WalletRequest)->getFillable());
     }
 
     public function test_fillable_contains_notes(): void
     {
-        $this->assertContains('notes', (new WalletRequest())->getFillable());
+        $this->assertContains('notes', (new WalletRequest)->getFillable());
     }
 
     public function test_fillable_contains_processed_by(): void
     {
-        $this->assertContains('processed_by', (new WalletRequest())->getFillable());
+        $this->assertContains('processed_by', (new WalletRequest)->getFillable());
     }
 
     public function test_fillable_contains_processed_at(): void
     {
-        $this->assertContains('processed_at', (new WalletRequest())->getFillable());
+        $this->assertContains('processed_at', (new WalletRequest)->getFillable());
     }
 
     // ─── Casts ────────────────────────────────────────────────────────────────
 
     public function test_status_is_cast_to_wallet_request_status_enum(): void
     {
-        $casts = (new WalletRequest())->getCasts();
+        $casts = (new WalletRequest)->getCasts();
         $this->assertArrayHasKey('status', $casts);
         $this->assertEquals(WalletRequestStatus::class, $casts['status']);
     }
 
     public function test_type_is_cast_to_wallet_request_type_enum(): void
     {
-        $casts = (new WalletRequest())->getCasts();
+        $casts = (new WalletRequest)->getCasts();
         $this->assertArrayHasKey('type', $casts);
         $this->assertEquals(WalletRequestType::class, $casts['type']);
     }
 
     public function test_amount_is_cast_to_decimal(): void
     {
-        $casts = (new WalletRequest())->getCasts();
+        $casts = (new WalletRequest)->getCasts();
         $this->assertArrayHasKey('amount', $casts);
         $this->assertStringContainsString('decimal', $casts['amount']);
     }
 
     public function test_processed_at_is_cast_to_datetime(): void
     {
-        $casts = (new WalletRequest())->getCasts();
+        $casts = (new WalletRequest)->getCasts();
         $this->assertArrayHasKey('processed_at', $casts);
         $this->assertEquals('datetime', $casts['processed_at']);
     }
@@ -99,28 +99,28 @@ class WalletRequestTest extends TestCase
 
     public function test_wallet_request_can_be_created_in_database(): void
     {
-        $user    = User::factory()->create();
+        $user = User::factory()->create();
         $request = WalletRequest::create([
             'user_id' => $user->id,
-            'type'    => WalletRequestType::TOP_UP->value,
-            'amount'  => 50.00,
-            'status'  => WalletRequestStatus::PENDING->value,
+            'type' => WalletRequestType::TOP_UP->value,
+            'amount' => 50.00,
+            'status' => WalletRequestStatus::PENDING->value,
         ]);
 
         $this->assertDatabaseHas('wallet_requests', [
-            'id'      => $request->id,
+            'id' => $request->id,
             'user_id' => $user->id,
         ]);
     }
 
     public function test_status_is_cast_to_enum_on_retrieval(): void
     {
-        $user    = User::factory()->create();
+        $user = User::factory()->create();
         $request = WalletRequest::create([
             'user_id' => $user->id,
-            'type'    => WalletRequestType::TOP_UP->value,
-            'amount'  => 25.00,
-            'status'  => WalletRequestStatus::PENDING->value,
+            'type' => WalletRequestType::TOP_UP->value,
+            'amount' => 25.00,
+            'status' => WalletRequestStatus::PENDING->value,
         ]);
 
         $fresh = WalletRequest::find($request->id);
@@ -131,12 +131,12 @@ class WalletRequestTest extends TestCase
 
     public function test_type_is_cast_to_enum_on_retrieval(): void
     {
-        $user    = User::factory()->create();
+        $user = User::factory()->create();
         $request = WalletRequest::create([
             'user_id' => $user->id,
-            'type'    => WalletRequestType::WITHDRAWAL->value,
-            'amount'  => 30.00,
-            'status'  => WalletRequestStatus::PENDING->value,
+            'type' => WalletRequestType::WITHDRAWAL->value,
+            'amount' => 30.00,
+            'status' => WalletRequestStatus::PENDING->value,
         ]);
 
         $fresh = WalletRequest::find($request->id);
@@ -147,12 +147,12 @@ class WalletRequestTest extends TestCase
 
     public function test_user_relationship_returns_correct_user(): void
     {
-        $user    = User::factory()->create();
+        $user = User::factory()->create();
         $request = WalletRequest::create([
             'user_id' => $user->id,
-            'type'    => WalletRequestType::TOP_UP->value,
-            'amount'  => 10.00,
-            'status'  => WalletRequestStatus::PENDING->value,
+            'type' => WalletRequestType::TOP_UP->value,
+            'amount' => 10.00,
+            'status' => WalletRequestStatus::PENDING->value,
         ]);
 
         $this->assertEquals($user->id, $request->user->id);
@@ -160,12 +160,12 @@ class WalletRequestTest extends TestCase
 
     public function test_processed_at_defaults_to_null(): void
     {
-        $user    = User::factory()->create();
+        $user = User::factory()->create();
         $request = WalletRequest::create([
             'user_id' => $user->id,
-            'type'    => WalletRequestType::TOP_UP->value,
-            'amount'  => 20.00,
-            'status'  => WalletRequestStatus::PENDING->value,
+            'type' => WalletRequestType::TOP_UP->value,
+            'amount' => 20.00,
+            'status' => WalletRequestStatus::PENDING->value,
         ]);
 
         $this->assertNull($request->processed_at);

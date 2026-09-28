@@ -23,9 +23,9 @@ class RideResource extends JsonResource
 
             'driver' => [
                 'id' => $this->driver->id,
-                'name' => trim($this->driver->first_name . ' ' . $this->driver->last_name),
+                'name' => trim($this->driver->first_name.' '.$this->driver->last_name),
                 'avatar' => $this->driver->profile?->profile_photo
-                    ? asset('storage/' . $this->driver->profile->profile_photo)
+                    ? asset('storage/'.$this->driver->profile->profile_photo)
                     : $this->driver->avatar,
                 'rating' => $this->driver->driver_rating ?? 0,
             ],

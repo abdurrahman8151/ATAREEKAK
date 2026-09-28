@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Domain\ValueObjects;
 
 use InvalidArgumentException;
@@ -35,7 +36,7 @@ final class Email
 
     private function validate(): void
     {
-        if (!filter_var($this->address, FILTER_VALIDATE_EMAIL)) {
+        if (! filter_var($this->address, FILTER_VALIDATE_EMAIL)) {
             throw new InvalidArgumentException(
                 "Invalid email address: {$this->address}"
             );

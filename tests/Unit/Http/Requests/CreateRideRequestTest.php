@@ -17,27 +17,27 @@ class CreateRideRequestTest extends TestCase
 {
     private function rules(): array
     {
-        return (new CreateRideRequest())->rules();
+        return (new CreateRideRequest)->rules();
     }
 
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
-            'pickup_address'       => 'Damascus, Old City',
-            'destination_address'  => 'Homs, City Center',
-            'departure_time'       => now()->addHour()->toDateTimeString(),
-            'available_seats'      => 3,
-            'price_per_seat'       => 5000,
-            'payment_method'       => 'cash',
-            'booking_type'         => 'direct',
+            'pickup_address' => 'Damascus, Old City',
+            'destination_address' => 'Homs, City Center',
+            'departure_time' => now()->addHour()->toDateTimeString(),
+            'available_seats' => 3,
+            'price_per_seat' => 5000,
+            'payment_method' => 'cash',
+            'booking_type' => 'direct',
             'communication_number' => '0912345678',
-            'vehicle_type'         => 'sedan',
+            'vehicle_type' => 'sedan',
         ], $overrides);
     }
 
     public function test_authorize_always_returns_true(): void
     {
-        $this->assertTrue((new CreateRideRequest())->authorize());
+        $this->assertTrue((new CreateRideRequest)->authorize());
     }
 
     public function test_passes_with_valid_addresses_and_no_coordinates(): void
@@ -56,10 +56,10 @@ class CreateRideRequestTest extends TestCase
         unset($payload['pickup_address'], $payload['destination_address']);
 
         $payload = array_merge($payload, [
-            'pickup_lat'          => 33.5138,
-            'pickup_lng'          => 36.2765,
-            'destination_lat'     => 34.7324,
-            'destination_lng'     => 36.7137,
+            'pickup_lat' => 33.5138,
+            'pickup_lng' => 36.2765,
+            'destination_lat' => 34.7324,
+            'destination_lng' => 36.7137,
         ]);
 
         $validator = Validator::make($payload, $this->rules());
@@ -189,11 +189,11 @@ class CreateRideRequestTest extends TestCase
     public static function invalidCommunicationNumberProvider(): array
     {
         return [
-            'missing leading 09'   => ['912345678'],
-            'wrong prefix'         => ['0812345678'],
-            'too short'            => ['091234567'],
-            'too long'             => ['09123456789'],
-            'contains letters'     => ['09abcd5678'],
+            'missing leading 09' => ['912345678'],
+            'wrong prefix' => ['0812345678'],
+            'too short' => ['091234567'],
+            'too long' => ['09123456789'],
+            'contains letters' => ['09abcd5678'],
             'international format' => ['+963912345678'],
         ];
     }
@@ -234,16 +234,16 @@ class CreateRideRequestTest extends TestCase
         $this->assertTrue($validator->fails());
 
         foreach ([
-                     'pickup_address',
-                     'destination_address',
-                     'departure_time',
-                     'available_seats',
-                     'price_per_seat',
-                     'payment_method',
-                     'booking_type',
-                     'communication_number',
-                     'vehicle_type',
-                 ] as $field) {
+            'pickup_address',
+            'destination_address',
+            'departure_time',
+            'available_seats',
+            'price_per_seat',
+            'payment_method',
+            'booking_type',
+            'communication_number',
+            'vehicle_type',
+        ] as $field) {
             $this->assertArrayHasKey($field, $validator->errors()->toArray(), "Expected error for [{$field}]");
         }
     }
@@ -258,10 +258,10 @@ class CreateRideRequestTest extends TestCase
     public function test_passes_with_optional_route_fields_present(): void
     {
         $payload = $this->validPayload([
-            'route_index'    => 0,
+            'route_index' => 0,
             'route_geometry' => ['type' => 'LineString', 'coordinates' => [[36.2765, 33.5138], [36.7137, 34.7324]]],
-            'distance'       => 12345.6,
-            'duration'       => 900.0,
+            'distance' => 12345.6,
+            'duration' => 900.0,
         ]);
 
         $validator = Validator::make($payload, $this->rules());

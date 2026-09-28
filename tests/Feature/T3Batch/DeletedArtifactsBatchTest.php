@@ -56,7 +56,7 @@ class DeletedArtifactsBatchTest extends TestCase
                 $this->assertStringNotContainsString(
                     $needle,
                     (string) file_get_contents($f->getPathname()),
-                    $f->getPathname() . ' still references the deleted stub (T3-7)'
+                    $f->getPathname().' still references the deleted stub (T3-7)'
                 );
             }
         }

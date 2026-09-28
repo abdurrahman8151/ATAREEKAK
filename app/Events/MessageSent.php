@@ -3,14 +3,11 @@
 namespace App\Events;
 
 use App\Models\Message;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-
 
 class MessageSent implements ShouldBroadcast
 {
@@ -26,7 +23,7 @@ class MessageSent implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('conversation.' . $this->message->conversation_id),
+            new PrivateChannel('conversation.'.$this->message->conversation_id),
         ];
     }
 
@@ -34,19 +31,19 @@ class MessageSent implements ShouldBroadcast
     {
         return [
             'message' => [
-                'id'              => $this->message->id,
+                'id' => $this->message->id,
                 'conversation_id' => $this->message->conversation_id,
-                'sender'          => [
-                    'id'   => $this->message->sender->id,
-                    'name' => $this->message->sender->first_name . ' ' . $this->message->sender->last_name,
+                'sender' => [
+                    'id' => $this->message->sender->id,
+                    'name' => $this->message->sender->first_name.' '.$this->message->sender->last_name,
                 ],
-                'type'       => $this->message->type,
-                'content'    => $this->message->type === 'image'
-                    ? asset('storage/' . $this->message->content)
+                'type' => $this->message->type,
+                'content' => $this->message->type === 'image'
+                    ? asset('storage/'.$this->message->content)
                     : $this->message->content,
-                'metadata'   => $this->message->metadata,
+                'metadata' => $this->message->metadata,
                 'created_at' => $this->message->created_at->toIso8601String(),
-            ]
+            ],
         ];
     }
 }

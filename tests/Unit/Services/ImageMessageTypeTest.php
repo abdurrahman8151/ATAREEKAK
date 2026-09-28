@@ -20,7 +20,7 @@ class ImageMessageTypeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->type = new ImageMessageType();
+        $this->type = new ImageMessageType;
     }
 
     // ─── Instantiation & interface ─────────────────────────────────────────
@@ -51,7 +51,7 @@ class ImageMessageTypeTest extends TestCase
     {
         $result = $this->type->validate([
             'content' => 'images/chat/photo.jpg',
-            'type'    => 'image',
+            'type' => 'image',
         ]);
 
         $this->assertTrue($result);
@@ -87,7 +87,7 @@ class ImageMessageTypeTest extends TestCase
     {
         $result = $this->type->process([
             'content' => 'images/chat/test.jpg',
-            'type'    => 'image',
+            'type' => 'image',
         ]);
 
         $this->assertIsArray($result);

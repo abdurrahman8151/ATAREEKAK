@@ -48,12 +48,12 @@ return [
     | has been deleted; this is the single config.
     */
     'limits' => [
-        'auth'    => (int) env('RATE_LIMIT_AUTH',    5),
-        'api'     => (int) env('RATE_LIMIT_API',     60),
-        'search'  => (int) env('RATE_LIMIT_SEARCH',  30),
+        'auth' => (int) env('RATE_LIMIT_AUTH', 5),
+        'api' => (int) env('RATE_LIMIT_API', 60),
+        'search' => (int) env('RATE_LIMIT_SEARCH', 30),
         'uploads' => (int) env('RATE_LIMIT_UPLOADS', 10),
-        'admin'   => (int) env('RATE_LIMIT_ADMIN',   300),
-        'staff'   => (int) env('RATE_LIMIT_STAFF',   200),
+        'admin' => (int) env('RATE_LIMIT_ADMIN', 300),
+        'staff' => (int) env('RATE_LIMIT_STAFF', 200),
     ],
 
 ];

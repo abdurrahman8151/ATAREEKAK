@@ -1,5 +1,7 @@
 <?php
+
 // ============== App/Models/PushNotificationToken.php ==============
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,11 +15,11 @@ class PushNotificationToken extends Model
         'user_id',
         'token',
         'device_type',
-        'is_active'
+        'is_active',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean'
+        'is_active' => 'boolean',
     ];
 
     public function user()

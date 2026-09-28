@@ -13,12 +13,13 @@ class NotificationTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private string $token;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user = User::factory()->create(['password' => bcrypt('password123')]);
         $this->token = $this->getToken($this->user);
     }
 
@@ -106,7 +107,7 @@ class NotificationTest extends TestCase
         $n2 = $this->createNotificationForUser();
 
         $response = $this->withToken($this->token)->postJson('/api/notifications/bulk-action', [
-            'action'           => 'mark_read',
+            'action' => 'mark_read',
             'notification_ids' => [$n1->id, $n2->id],
         ]);
 
@@ -121,6 +122,7 @@ class NotificationTest extends TestCase
         $notification = Notification::create([
             'title' => 'Test', 'message' => 'Test message', 'type' => 'general', 'sent_at' => now(),
         ]);
+
         return UserNotification::create([
             'user_id' => $this->user->id, 'notification_id' => $notification->id,
         ]);
@@ -129,6 +131,7 @@ class NotificationTest extends TestCase
     private function getToken(User $user): string
     {
         $r = $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'password123']);
+
         return $r->json('tokens.access_token');
     }
 }

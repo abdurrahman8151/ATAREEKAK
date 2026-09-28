@@ -7,6 +7,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Admin\AdminReportService;
+use App\Services\JwtService;
 use App\Services\Payment\WalletTransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -32,12 +33,19 @@ class AdminFinancialReportEscrowTest extends TestCase
     use RefreshDatabase;
 
     private User $driver;
+
     private User $p1;
+
     private User $p2;
+
     private Wallet $driverWallet;
+
     private Wallet $syCash;
+
     private Wallet $primary;
+
     private string $p1Token;
+
     private string $p2Token;
 
     protected function setUp(): void
@@ -62,22 +70,22 @@ class AdminFinancialReportEscrowTest extends TestCase
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
         $this->driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
         $this->driverWallet = Wallet::create([
-            'user_id' => $this->driver->id, 'phone_number' => '0911' . rand(100000, 999999),
-            'wallet_number' => 'WLT-' . Str::random(10), 'balance' => 0,
+            'user_id' => $this->driver->id, 'phone_number' => '0911'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 0,
         ]);
         $this->driver->update(['wallet_id' => $this->driverWallet->id]);
 
-        $tokenService = app(\App\Services\JwtService::class);
+        $tokenService = app(JwtService::class);
 
         foreach ([['p1', '0922', 'p1Token'], ['p2', '0933', 'p2Token']] as [$prop, $prefix, $tokenProp]) {
             $u = User::factory()->create(['is_verified_passenger' => true]);
             $u->profile()->create(['full_name' => $prop, 'number_of_rides' => 0]);
             $w = Wallet::create([
-                'user_id' => $u->id, 'phone_number' => $prefix . rand(100000, 999999),
-                'wallet_number' => 'WLT-' . Str::random(10), 'balance' => 1_000_000,
+                'user_id' => $u->id, 'phone_number' => $prefix.rand(100000, 999999),
+                'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 1_000_000,
             ]);
             $u->update(['wallet_id' => $w->id]);
-            $this->{$prop}      = $u;
+            $this->{$prop} = $u;
             $this->{$tokenProp} = $tokenService->generateTokenPair($u)['access_token'];
         }
     }
@@ -133,8 +141,8 @@ class AdminFinancialReportEscrowTest extends TestCase
     public function test_report_counts_per_passenger_escrow_release(): void
     {
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
-        $b2   = $this->book($ride, $this->p2);
+        $b1 = $this->book($ride, $this->p1);
+        $b2 = $this->book($ride, $this->p2);
 
         // Both fares are escrowed; nothing released yet.
         $before = $this->financialStats();
@@ -173,15 +181,15 @@ class AdminFinancialReportEscrowTest extends TestCase
     public function test_report_out_matches_sycash_balance_drop(): void
     {
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
             ->assertStatus(200);
 
         // The report's escrow-out figure must equal what actually left SyCash.
-        $stats   = $this->financialStats();
-        $out     = (float) str_replace([' ', 'SYP', ','], '', $stats['sycash']['total_escrow_out']);
+        $stats = $this->financialStats();
+        $out = (float) str_replace([' ', 'SYP', ','], '', $stats['sycash']['total_escrow_out']);
         $dropped = 50_000.0 - (float) $this->syCash->fresh()->balance;
 
         $this->assertEquals($dropped, $out);
@@ -192,18 +200,18 @@ class AdminFinancialReportEscrowTest extends TestCase
         // Historical rows written by the retired ride-wide release must not
         // disappear from the total just because the live path changed spelling.
         DB::table('wallet_transactions')->insert([
-            'wallet_id'        => $this->syCash->id,
-            'user_id'          => null,
-            'type'             => 'escrow_released',
-            'amount'           => -12_345.00,
+            'wallet_id' => $this->syCash->id,
+            'user_id' => null,
+            'type' => 'escrow_released',
+            'amount' => -12_345.00,
             'previous_balance' => 12_345.00,
-            'new_balance'      => 0.00,
-            'description'      => 'legacy ride-wide release',
-            'transaction_id'   => 'SYCASH_LEGACY_' . Str::random(8),
-            'status'           => 'completed',
-            'reference'        => 'ride:999',
-            'created_at'       => now(),
-            'updated_at'       => now(),
+            'new_balance' => 0.00,
+            'description' => 'legacy ride-wide release',
+            'transaction_id' => 'SYCASH_LEGACY_'.Str::random(8),
+            'status' => 'completed',
+            'reference' => 'ride:999',
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $stats = $this->financialStats();

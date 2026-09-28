@@ -40,7 +40,7 @@ trait ResolvesSeedCredentials
         }
 
         return self::$resolvedSeedPasswords[$envKey]
-            ??= Str::random(16) . '#' . random_int(10, 99);
+            ??= Str::random(16).'#'.random_int(10, 99);
     }
 
     /**
@@ -54,7 +54,7 @@ trait ResolvesSeedCredentials
         }
 
         $fromEnv = env($envKey);
-        $source  = (is_string($fromEnv) && $fromEnv !== '') ? "from {$envKey}" : 'generated for this run';
+        $source = (is_string($fromEnv) && $fromEnv !== '') ? "from {$envKey}" : 'generated for this run';
 
         $this->command->line("  {$label}: {$this->seedPassword($envKey)}  ({$source})");
     }

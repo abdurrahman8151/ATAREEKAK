@@ -20,13 +20,13 @@ class CleanupExpiredStaffTokensCommandTest extends TestCase
         parent::setUp();
 
         $this->employee = Employee::create([
-            'username'      => 'test_staff',
-            'email'         => 'staff@test.com',
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Test',
-            'last_name'     => 'Staff',
-            'role'          => StaffRole::SUPPORT_AGENT->value,
-            'is_active'     => true,
+            'username' => 'test_staff',
+            'email' => 'staff@test.com',
+            'password' => bcrypt('password123'),
+            'first_name' => 'Test',
+            'last_name' => 'Staff',
+            'role' => StaffRole::SUPPORT_AGENT->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
@@ -61,9 +61,9 @@ class CleanupExpiredStaffTokensCommandTest extends TestCase
     {
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', 'expired_staff_token'),
-            'expires_at'  => Carbon::now()->subDays(2),
-            'revoked'     => false,
+            'token' => hash('sha256', 'expired_staff_token'),
+            'expires_at' => Carbon::now()->subDays(2),
+            'revoked' => false,
         ]);
 
         $this->artisan('staff-tokens:cleanup')->assertExitCode(0);
@@ -75,9 +75,9 @@ class CleanupExpiredStaffTokensCommandTest extends TestCase
     {
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', 'revoked_staff_token'),
-            'expires_at'  => Carbon::now()->addDay(), // not expired but revoked
-            'revoked'     => true,
+            'token' => hash('sha256', 'revoked_staff_token'),
+            'expires_at' => Carbon::now()->addDay(), // not expired but revoked
+            'revoked' => true,
         ]);
 
         $this->artisan('staff-tokens:cleanup')->assertExitCode(0);
@@ -89,9 +89,9 @@ class CleanupExpiredStaffTokensCommandTest extends TestCase
     {
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', 'active_staff_token'),
-            'expires_at'  => Carbon::now()->addDays(7),
-            'revoked'     => false,
+            'token' => hash('sha256', 'active_staff_token'),
+            'expires_at' => Carbon::now()->addDays(7),
+            'revoked' => false,
         ]);
 
         $this->artisan('staff-tokens:cleanup')->assertExitCode(0);
@@ -104,25 +104,25 @@ class CleanupExpiredStaffTokensCommandTest extends TestCase
         // Expired
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', 'expired'),
-            'expires_at'  => Carbon::now()->subDays(2),
-            'revoked'     => false,
+            'token' => hash('sha256', 'expired'),
+            'expires_at' => Carbon::now()->subDays(2),
+            'revoked' => false,
         ]);
 
         // Revoked
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', 'revoked'),
-            'expires_at'  => Carbon::now()->addDay(),
-            'revoked'     => true,
+            'token' => hash('sha256', 'revoked'),
+            'expires_at' => Carbon::now()->addDay(),
+            'revoked' => true,
         ]);
 
         // Active
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', 'active'),
-            'expires_at'  => Carbon::now()->addDays(7),
-            'revoked'     => false,
+            'token' => hash('sha256', 'active'),
+            'expires_at' => Carbon::now()->addDays(7),
+            'revoked' => false,
         ]);
 
         $this->artisan('staff-tokens:cleanup')->assertExitCode(0);
@@ -135,9 +135,9 @@ class CleanupExpiredStaffTokensCommandTest extends TestCase
     {
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', 'expired_1'),
-            'expires_at'  => Carbon::now()->subDay(),
-            'revoked'     => false,
+            'token' => hash('sha256', 'expired_1'),
+            'expires_at' => Carbon::now()->subDay(),
+            'revoked' => false,
         ]);
 
         $this->artisan('staff-tokens:cleanup')

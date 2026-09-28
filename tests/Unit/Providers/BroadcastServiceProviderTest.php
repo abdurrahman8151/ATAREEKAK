@@ -4,6 +4,7 @@ namespace Tests\Unit\Providers;
 
 use App\Providers\BroadcastServiceProvider;
 use Illuminate\Broadcasting\BroadcastManager;
+use Illuminate\Support\ServiceProvider;
 use Tests\TestCase;
 
 class BroadcastServiceProviderTest extends TestCase
@@ -38,7 +39,7 @@ class BroadcastServiceProviderTest extends TestCase
         $this->assertTrue(
             is_subclass_of(
                 BroadcastServiceProvider::class,
-                \Illuminate\Support\ServiceProvider::class
+                ServiceProvider::class
             )
         );
     }

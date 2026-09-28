@@ -5,11 +5,9 @@ namespace Tests\Feature\Staff;
 use App\Enums\StaffRole;
 use App\Models\Booking;
 use App\Models\Employee;
-use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -33,21 +31,26 @@ class StaffOperationsControllerTest extends TestCase
     use RefreshDatabase;
 
     private Employee $agent;
-    private string   $agentToken;
-    private User     $driver;
-    private User     $passenger;
-    private string   $driverPhone;
-    private string   $passengerPhone;
+
+    private string $agentToken;
+
+    private User $driver;
+
+    private User $passenger;
+
+    private string $driverPhone;
+
+    private string $passengerPhone;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         // Unique phone numbers prevent duplicate-key errors across tests.
-        $this->driverPhone    = '091' . rand(1000000, 9999999);
-        $this->passengerPhone = '092' . rand(1000000, 9999999);
+        $this->driverPhone = '091'.rand(1000000, 9999999);
+        $this->passengerPhone = '092'.rand(1000000, 9999999);
 
-        $this->agent      = $this->makeEmployee(
+        $this->agent = $this->makeEmployee(
             StaffRole::SUPPORT_AGENT,
             'ops_agent@test.test',
             'ops_agent_1'
@@ -55,33 +58,33 @@ class StaffOperationsControllerTest extends TestCase
         $this->agentToken = $this->getStaffToken('ops_agent@test.test', 'password123');
 
         $this->driver = User::factory()->create([
-            'is_verified_driver'    => true,
+            'is_verified_driver' => true,
             'is_verified_passenger' => true,
-            'verification_status'   => 'approved',
-            'password'              => bcrypt('password123'),
+            'verification_status' => 'approved',
+            'password' => bcrypt('password123'),
         ]);
 
         $this->passenger = User::factory()->create([
             'is_verified_passenger' => true,
-            'verification_status'   => 'approved',
-            'password'              => bcrypt('password123'),
+            'verification_status' => 'approved',
+            'password' => bcrypt('password123'),
         ]);
 
         $this->seedAdminWallets();
 
         $dw = Wallet::create([
-            'user_id'       => $this->driver->id,
-            'phone_number'  => $this->driverPhone,
-            'wallet_number' => 'WLT-' . Str::random(10),
-            'balance'       => 0,
+            'user_id' => $this->driver->id,
+            'phone_number' => $this->driverPhone,
+            'wallet_number' => 'WLT-'.Str::random(10),
+            'balance' => 0,
         ]);
         $this->driver->update(['wallet_id' => $dw->id]);
 
         $pw = Wallet::create([
-            'user_id'       => $this->passenger->id,
-            'phone_number'  => $this->passengerPhone,
-            'wallet_number' => 'WLT-' . Str::random(10),
-            'balance'       => 0,
+            'user_id' => $this->passenger->id,
+            'phone_number' => $this->passengerPhone,
+            'wallet_number' => 'WLT-'.Str::random(10),
+            'balance' => 0,
         ]);
         $this->passenger->update(['wallet_id' => $pw->id]);
     }
@@ -295,7 +298,7 @@ class StaffOperationsControllerTest extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'ride_history' => [
-                        'as_driver'    => ['total', 'completed', 'cancelled'],
+                        'as_driver' => ['total', 'completed', 'cancelled'],
                         'as_passenger' => ['total', 'completed', 'cancelled'],
                     ],
                 ],
@@ -306,7 +309,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $user = User::factory()->create([
             'first_name' => 'Ahmad',
-            'last_name'  => 'Alzoubi',
+            'last_name' => 'Alzoubi',
         ]);
 
         $response = $this->withToken($this->agentToken)
@@ -542,7 +545,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_filters_by_user_id(): void
     {
-        $ride      = $this->insertRide();
+        $ride = $this->insertRide();
         $otherUser = User::factory()->create();
         $this->makeBooking($ride, 'confirmed', $this->passenger);
         $this->makeBooking($ride, 'confirmed', $otherUser);
@@ -607,7 +610,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_total_price_equals_seats_times_price_per_seat(): void
     {
-        $ride    = $this->insertRide(['price_per_seat' => 50000]);
+        $ride = $this->insertRide(['price_per_seat' => 50000]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $response = $this->withToken($this->agentToken)->getJson('/api/staff/bookings');
@@ -648,14 +651,14 @@ class StaffOperationsControllerTest extends TestCase
             ->assertJsonPath('status', 'success');
 
         $this->assertDatabaseHas('rides', [
-            'id'     => $ride->id,
+            'id' => $ride->id,
             'status' => 'cancelled',
         ]);
     }
 
     public function test_cancel_trip_also_cancels_confirmed_bookings(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -665,14 +668,14 @@ class StaffOperationsControllerTest extends TestCase
             ->assertStatus(200);
 
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'cancelled',
         ]);
     }
 
     public function test_cancel_trip_also_cancels_pending_bookings(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'pending');
 
         $this->withToken($this->agentToken)
@@ -682,7 +685,7 @@ class StaffOperationsControllerTest extends TestCase
             ->assertStatus(200);
 
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'cancelled',
         ]);
     }
@@ -804,7 +807,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_leaves_already_cancelled_booking_untouched(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'cancelled');
 
         $this->withToken($this->agentToken)
@@ -815,7 +818,7 @@ class StaffOperationsControllerTest extends TestCase
 
         // Still cancelled (not double-cancelled or re-opened).
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'cancelled',
         ]);
     }
@@ -826,7 +829,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_sets_booking_status_to_cancelled(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -837,14 +840,14 @@ class StaffOperationsControllerTest extends TestCase
             ->assertJsonPath('status', 'success');
 
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'cancelled',
         ]);
     }
 
     public function test_cancel_booking_restores_seats_to_the_ride(): void
     {
-        $ride    = $this->insertRide(['status' => 'active', 'available_seats' => 3]);
+        $ride = $this->insertRide(['status' => 'active', 'available_seats' => 3]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $this->withToken($this->agentToken)
@@ -855,14 +858,14 @@ class StaffOperationsControllerTest extends TestCase
 
         // 3 original seats + 2 restored = 5.
         $this->assertDatabaseHas('rides', [
-            'id'              => $ride->id,
+            'id' => $ride->id,
             'available_seats' => 5,
         ]);
     }
 
     public function test_cancel_booking_on_full_ride_resets_ride_to_active(): void
     {
-        $ride    = $this->insertRide(['status' => 'full', 'available_seats' => 0]);
+        $ride = $this->insertRide(['status' => 'full', 'available_seats' => 0]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $this->withToken($this->agentToken)
@@ -872,14 +875,14 @@ class StaffOperationsControllerTest extends TestCase
             ->assertStatus(200);
 
         $this->assertDatabaseHas('rides', [
-            'id'     => $ride->id,
+            'id' => $ride->id,
             'status' => 'active',
         ]);
     }
 
     public function test_cancel_booking_can_cancel_a_pending_booking(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'pending');
 
         $this->withToken($this->agentToken)
@@ -893,7 +896,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_requires_reason(): void
     {
-        $ride    = $this->insertRide();
+        $ride = $this->insertRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -904,7 +907,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_requires_reason_at_least_10_characters(): void
     {
-        $ride    = $this->insertRide();
+        $ride = $this->insertRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -925,7 +928,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_rejects_already_cancelled_booking(): void
     {
-        $ride    = $this->insertRide();
+        $ride = $this->insertRide();
         $booking = $this->makeBooking($ride, 'cancelled');
 
         $this->withToken($this->agentToken)
@@ -937,7 +940,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_rejects_completed_booking(): void
     {
-        $ride    = $this->insertRide();
+        $ride = $this->insertRide();
         $booking = $this->makeBooking($ride, 'completed');
 
         $this->withToken($this->agentToken)
@@ -949,7 +952,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_requires_authentication(): void
     {
-        $ride    = $this->insertRide();
+        $ride = $this->insertRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->postJson("/api/staff/bookings/{$booking->id}/cancel", [
@@ -959,7 +962,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_response_includes_seats_restored_field(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $response = $this->withToken($this->agentToken)
@@ -975,7 +978,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_new_status_field_is_cancelled(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $response = $this->withToken($this->agentToken)
@@ -989,7 +992,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_booking_id_in_response_matches_cancelled_booking(): void
     {
-        $ride    = $this->insertRide(['status' => 'active']);
+        $ride = $this->insertRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $response = $this->withToken($this->agentToken)
@@ -1003,7 +1006,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_on_awaiting_confirmation_ride_keeps_ride_status(): void
     {
-        $ride    = $this->insertRide(['status' => 'awaiting_confirmation', 'available_seats' => 2]);
+        $ride = $this->insertRide(['status' => 'awaiting_confirmation', 'available_seats' => 2]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 1);
 
         $this->withToken($this->agentToken)
@@ -1014,7 +1017,7 @@ class StaffOperationsControllerTest extends TestCase
 
         // Ride should still have the awaiting_confirmation status (not reverted to active).
         $this->assertDatabaseHas('rides', [
-            'id'     => $ride->id,
+            'id' => $ride->id,
             'status' => 'awaiting_confirmation',
         ]);
     }
@@ -1026,22 +1029,22 @@ class StaffOperationsControllerTest extends TestCase
     private function makeEmployee(StaffRole $role, string $email, string $username): Employee
     {
         return Employee::create([
-            'username'      => $username,
-            'email'         => $email,
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Staff',
-            'last_name'     => 'Member',
-            'role'          => $role->value,
-            'is_active'     => true,
+            'username' => $username,
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'first_name' => 'Staff',
+            'last_name' => 'Member',
+            'role' => $role->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
 
     private function insertRide(array $overrides = []): Ride
     {
-        $status    = $overrides['status']          ?? 'active';
-        $seats     = $overrides['available_seats'] ?? 4;
-        $price     = $overrides['price_per_seat']  ?? 50000;
+        $status = $overrides['status'] ?? 'active';
+        $seats = $overrides['available_seats'] ?? 4;
+        $price = $overrides['price_per_seat'] ?? 50000;
         $departure = isset($overrides['departure_time'])
             ? (is_string($overrides['departure_time'])
                 ? $overrides['departure_time']
@@ -1077,16 +1080,16 @@ class StaffOperationsControllerTest extends TestCase
     }
 
     private function makeBooking(
-        Ride   $ride,
+        Ride $ride,
         string $status,
-        ?User  $passenger = null,
-        int    $seats     = 1,
+        ?User $passenger = null,
+        int $seats = 1,
     ): Booking {
         return Booking::create([
-            'user_id'              => ($passenger ?? $this->passenger)->id,
-            'ride_id'              => $ride->id,
-            'seats'                => $seats,
-            'status'               => $status,
+            'user_id' => ($passenger ?? $this->passenger)->id,
+            'ride_id' => $ride->id,
+            'seats' => $seats,
+            'status' => $status,
             'communication_number' => $this->passengerPhone,
         ]);
     }
@@ -1094,23 +1097,23 @@ class StaffOperationsControllerTest extends TestCase
     private function seedAdminWallets(): void
     {
         foreach (['system_admin', 'sycash'] as $type) {
-            $cfg  = config("admin.{$type}");
+            $cfg = config("admin.{$type}");
             $user = User::firstOrCreate(
                 ['email' => $cfg['email']],
                 [
                     'first_name' => $type,
-                    'last_name'  => 'Admin',
-                    'password'   => bcrypt($cfg['password']),
-                    'gender'     => 'M',
-                    'address'    => 'Damascus',
-                    'status'     => true,
+                    'last_name' => 'Admin',
+                    'password' => bcrypt($cfg['password']),
+                    'gender' => 'M',
+                    'address' => 'Damascus',
+                    'status' => true,
                 ]
             );
-            if (!Wallet::where('phone_number', $cfg['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
                 $w = Wallet::create([
-                    'user_id'      => $user->id,
+                    'user_id' => $user->id,
                     'phone_number' => $cfg['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                 ]);
                 $user->update(['wallet_id' => $w->id]);
             } else {
@@ -1124,7 +1127,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         return $this->postJson('/api/staff/login', [
             'identifier' => $identifier,
-            'password'   => $password,
+            'password' => $password,
         ])->json('tokens.access_token');
     }
 }

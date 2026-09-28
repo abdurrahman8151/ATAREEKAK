@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Validator;
 class SignupController extends Controller
 {
     public function __construct(
-        private readonly UserRepositoryInterface  $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
         private readonly EmailOtpServiceInterface $emailOtpService,
     ) {}
 
@@ -25,20 +25,20 @@ class SignupController extends Controller
         // ── Validation ────────────────────────────────────────────────────────
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
-            'last_name'  => 'required|string|max:255',
-            'email'      => 'required|email|max:255',
-            'password'   => 'required|string|confirmed|min:8',
-            'gender'     => 'required|in:M,F',
-            'address'    => 'required|in:دمشق,درعا,القنيطرة,السويداء,ريف دمشق,حمص,حماة,اللاذقية,طرطوس,حلب,ادلب,الحسكة,الرقة,دير الزور',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'password' => 'required|string|confirmed|min:8',
+            'gender' => 'required|in:M,F',
+            'address' => 'required|in:دمشق,درعا,القنيطرة,السويداء,ريف دمشق,حمص,حماة,اللاذقية,طرطوس,حلب,ادلب,الحسكة,الرقة,دير الزور',
         ], [
             'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -51,6 +51,7 @@ class SignupController extends Controller
                 'error' => $e->getMessage(),
                 'class' => get_class($e),
             ]);
+
             return $this->serverError($e);
         }
 
@@ -60,7 +61,7 @@ class SignupController extends Controller
             // Already fully verified → reject
             if ($existingUser->email_verified_at !== null) {
                 return response()->json([
-                    'status'  => 'error',
+                    'status' => 'error',
                     'message' => 'This email address is already registered. Please log in.',
                 ], 409);
             }
@@ -82,30 +83,31 @@ class SignupController extends Controller
             // (id/first_name/email) and no otp_code. The dev affordance for the
             // code is the existing Log::info in EmailOtpService::sendOtp().
             try {
-                $dto       = SendEmailOtpDTO::fromUser($existingUser);
+                $dto = SendEmailOtpDTO::fromUser($existingUser);
                 $otpResult = $this->emailOtpService->sendOtp($dto);
 
-                if (!$otpResult['success']) {
+                if (! $otpResult['success']) {
                     return response()->json([
-                        'status'  => 'error',
+                        'status' => 'error',
                         'message' => 'Could not send verification email. Please try again.',
                     ], 500);
                 }
 
                 return response()->json([
-                    'status'  => 'success',
+                    'status' => 'success',
                     'message' => 'A new verification code has been sent to your email.',
                 ], 200);
 
             } catch (\Throwable $e) {
                 Log::error('Signup: resend OTP failed (Path A)', [
                     'user_id' => $existingUser->id,
-                    'email'   => $existingUser->email,
-                    'error'   => $e->getMessage(),
-                    'class'   => get_class($e),
-                    'file'    => $e->getFile(),
-                    'line'    => $e->getLine(),
+                    'email' => $existingUser->email,
+                    'error' => $e->getMessage(),
+                    'class' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
                 ]);
+
                 return $this->serverError($e);
             }
         }
@@ -115,24 +117,25 @@ class SignupController extends Controller
         try {
             $user = $this->userRepository->createUser([
                 'first_name' => $request->first_name,
-                'last_name'  => $request->last_name,
-                'email'      => $request->email,
-                'password'   => Hash::make($request->password),
-                'gender'     => $request->gender,
-                'address'    => $request->address,
+                'last_name' => $request->last_name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'gender' => $request->gender,
+                'address' => $request->address,
                 // FIX: was 1 (active) — user must verify email before they can
                 // log in. LoginController now enforces email_verified_at, but
                 // starting at 0 adds a second layer of defence.
-                'status'     => 0,
+                'status' => 0,
             ]);
 
-            $dto       = SendEmailOtpDTO::fromUser($user);
+            $dto = SendEmailOtpDTO::fromUser($user);
             $otpResult = $this->emailOtpService->sendOtp($dto);
 
-            if (!$otpResult['success']) {
+            if (! $otpResult['success']) {
                 DB::rollBack();
+
                 return response()->json([
-                    'status'  => 'error',
+                    'status' => 'error',
                     'message' => 'Registration failed: could not send verification email.',
                 ], 500);
             }
@@ -145,12 +148,12 @@ class SignupController extends Controller
             // an instant account takeover. The code is delivered by email only;
             // the dev affordance is the Log::info in EmailOtpService::sendOtp().
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'Registration successful. Check your email for a verification code.',
-                'user'    => [
-                    'id'         => $user->id,
+                'user' => [
+                    'id' => $user->id,
                     'first_name' => $user->first_name,
-                    'email'      => $user->email,
+                    'email' => $user->email,
                 ],
             ], 201);
 
@@ -160,9 +163,10 @@ class SignupController extends Controller
                 'email' => $request->email,
                 'error' => $e->getMessage(),
                 'class' => get_class($e),
-                'file'  => $e->getFile(),
-                'line'  => $e->getLine(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
+
             return $this->serverError($e);
         }
     }
@@ -170,9 +174,9 @@ class SignupController extends Controller
     private function serverError(\Throwable $e): JsonResponse
     {
         return response()->json([
-            'status'  => 'error',
+            'status' => 'error',
             'message' => 'Registration failed',
-            'error'   => config('app.debug') ? $e->getMessage() : 'An error occurred',
+            'error' => config('app.debug') ? $e->getMessage() : 'An error occurred',
         ], 500);
     }
 }

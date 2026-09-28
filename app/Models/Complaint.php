@@ -22,8 +22,8 @@ class Complaint extends Model
     ];
 
     protected $casts = [
-        'status'      => ComplaintStatus::class,
-        'type'        => ComplaintType::class,
+        'status' => ComplaintStatus::class,
+        'type' => ComplaintType::class,
         'resolved_at' => 'datetime',
     ];
 
@@ -36,6 +36,7 @@ class Complaint extends Model
     {
         return $this->belongsTo(Employee::class, 'assigned_to');
     }
+
     public function attachments(): HasMany
     {
         return $this->hasMany(ComplaintAttachment::class);

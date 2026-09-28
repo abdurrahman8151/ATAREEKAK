@@ -16,9 +16,13 @@ class BookingTest extends TestCase
     use RefreshDatabase;
 
     private User $driver;
+
     private User $passenger;
+
     private Ride $ride;
+
     private string $driverToken;
+
     private string $passengerToken;
 
     protected function setUp(): void
@@ -26,16 +30,16 @@ class BookingTest extends TestCase
         parent::setUp();
 
         $this->driver = User::factory()->create([
-            'is_verified_driver'    => true,
+            'is_verified_driver' => true,
             'is_verified_passenger' => true,
-            'verification_status'   => 'approved',
-            'password'              => bcrypt('password123'),
+            'verification_status' => 'approved',
+            'password' => bcrypt('password123'),
         ]);
 
         $this->passenger = User::factory()->create([
             'is_verified_passenger' => true,
-            'verification_status'   => 'approved',
-            'password'              => bcrypt('password123'),
+            'verification_status' => 'approved',
+            'password' => bcrypt('password123'),
         ]);
 
         $this->seedAdminWallets();
@@ -46,8 +50,8 @@ class BookingTest extends TestCase
         $pw = Wallet::create(['user_id' => $this->passenger->id, 'phone_number' => '0911111111', 'wallet_number' => 'WLT-PAS-001', 'balance' => 1_000_000]);
         $this->passenger->update(['wallet_id' => $pw->id]);
 
-        $this->ride         = $this->insertRide($this->driver);
-        $this->driverToken  = $this->getToken($this->driver);
+        $this->ride = $this->insertRide($this->driver);
+        $this->driverToken = $this->getToken($this->driver);
         $this->passengerToken = $this->getToken($this->passenger);
     }
 
@@ -186,10 +190,10 @@ class BookingTest extends TestCase
 
     private function insertRide(User $driver, array $overrides = []): Ride
     {
-        $bookingType    = $overrides['booking_type']   ?? 'direct';
-        $paymentMethod  = $overrides['payment_method'] ?? 'cash';
-        $status         = $overrides['status']         ?? 'active';
-        $departureTime  = now()->addHours(3)->format('Y-m-d H:i:s');
+        $bookingType = $overrides['booking_type'] ?? 'direct';
+        $paymentMethod = $overrides['payment_method'] ?? 'cash';
+        $status = $overrides['status'] ?? 'active';
+        $departureTime = now()->addHours(3)->format('Y-m-d H:i:s');
 
         DB::statement("
             INSERT INTO rides
@@ -217,7 +221,7 @@ class BookingTest extends TestCase
             ['email' => 'twisrmann2002@gmail.com'],
             ['first_name' => 'Primary', 'last_name' => 'Admin', 'password' => bcrypt('admin123'), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
         );
-        if (!$admin->wallet_id) {
+        if (! $admin->wallet_id) {
             $w = Wallet::create(['user_id' => $admin->id, 'phone_number' => '0987654321', 'wallet_number' => 'WLT-ADMIN-001', 'balance' => 10_000_000]);
             $admin->update(['wallet_id' => $w->id]);
         }
@@ -225,7 +229,7 @@ class BookingTest extends TestCase
             ['email' => 'sycash-sim@gmail.com'],
             ['first_name' => 'SyCash', 'last_name' => 'Admin', 'password' => bcrypt('sycash123'), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
         );
-        if (!$sycash->wallet_id) {
+        if (! $sycash->wallet_id) {
             $w = Wallet::create(['user_id' => $sycash->id, 'phone_number' => '0987654322', 'wallet_number' => 'WLT-SYCASH-001', 'balance' => 10_000_000]);
             $sycash->update(['wallet_id' => $w->id]);
         }
@@ -234,6 +238,7 @@ class BookingTest extends TestCase
     private function getToken(User $user): string
     {
         $r = $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'password123']);
+
         return $r->json('tokens.access_token');
     }
 }

@@ -32,9 +32,12 @@ class StaffComplaintServiceTest extends TestCase
     use RefreshDatabase;
 
     private StaffComplaintService $service;
-    private Employee              $agent;
-    private Employee              $admin;
-    private User                  $user;
+
+    private Employee $agent;
+
+    private Employee $admin;
+
+    private User $user;
 
     protected function setUp(): void
     {
@@ -45,24 +48,24 @@ class StaffComplaintServiceTest extends TestCase
         $this->user = User::factory()->create();
 
         $this->agent = Employee::create([
-            'username'      => 'svc_test_agent',
-            'email'         => 'svc_agent@test.test',
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Service',
-            'last_name'     => 'Agent',
-            'role'          => StaffRole::SUPPORT_AGENT->value,
-            'is_active'     => true,
+            'username' => 'svc_test_agent',
+            'email' => 'svc_agent@test.test',
+            'password' => bcrypt('password123'),
+            'first_name' => 'Service',
+            'last_name' => 'Agent',
+            'role' => StaffRole::SUPPORT_AGENT->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
 
         $this->admin = Employee::create([
-            'username'      => 'svc_test_admin',
-            'email'         => 'svc_admin@test.test',
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Service',
-            'last_name'     => 'Admin',
-            'role'          => StaffRole::ADMIN->value,
-            'is_active'     => true,
+            'username' => 'svc_test_admin',
+            'email' => 'svc_admin@test.test',
+            'password' => bcrypt('password123'),
+            'first_name' => 'Service',
+            'last_name' => 'Admin',
+            'role' => StaffRole::ADMIN->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
@@ -222,7 +225,7 @@ class StaffComplaintServiceTest extends TestCase
         $this->service->openComplaint($complaint->id, $this->agent);
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::IN_REVIEW->value,
         ]);
     }
@@ -234,7 +237,7 @@ class StaffComplaintServiceTest extends TestCase
         $this->service->openComplaint($complaint->id, $this->agent);
 
         $this->assertDatabaseHas('complaints', [
-            'id'          => $complaint->id,
+            'id' => $complaint->id,
             'assigned_to' => $this->agent->id,
         ]);
     }
@@ -246,7 +249,7 @@ class StaffComplaintServiceTest extends TestCase
         $this->service->openComplaint($complaint->id, $this->agent);
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::IN_REVIEW->value,
         ]);
     }
@@ -258,7 +261,7 @@ class StaffComplaintServiceTest extends TestCase
         $this->service->openComplaint($complaint->id, $this->agent);
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::RESOLVED->value,
         ]);
     }
@@ -279,10 +282,10 @@ class StaffComplaintServiceTest extends TestCase
         $complaint = $this->makeComplaint(ComplaintStatus::IN_REVIEW);
 
         $result = $this->service->respond(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'We investigated and resolved this complaint.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            agent:           $this->agent,
+            newStatus: ComplaintStatus::RESOLVED,
+            agent: $this->agent,
         );
 
         $this->assertInstanceOf(Complaint::class, $result);
@@ -293,14 +296,14 @@ class StaffComplaintServiceTest extends TestCase
         $complaint = $this->makeComplaint(ComplaintStatus::IN_REVIEW);
 
         $this->service->respond(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'Resolved the complaint successfully.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            agent:           $this->agent,
+            newStatus: ComplaintStatus::RESOLVED,
+            agent: $this->agent,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::RESOLVED->value,
         ]);
     }
@@ -308,17 +311,17 @@ class StaffComplaintServiceTest extends TestCase
     public function test_respond_persists_resolution_notes_to_database(): void
     {
         $complaint = $this->makeComplaint(ComplaintStatus::IN_REVIEW);
-        $notes     = 'Complaint resolved after verifying passenger claim with driver.';
+        $notes = 'Complaint resolved after verifying passenger claim with driver.';
 
         $this->service->respond(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: $notes,
-            newStatus:       ComplaintStatus::RESOLVED,
-            agent:           $this->agent,
+            newStatus: ComplaintStatus::RESOLVED,
+            agent: $this->agent,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'               => $complaint->id,
+            'id' => $complaint->id,
             'resolution_notes' => $notes,
         ]);
     }
@@ -328,14 +331,14 @@ class StaffComplaintServiceTest extends TestCase
         $complaint = $this->makeComplaint(ComplaintStatus::IN_REVIEW);
 
         $this->service->respond(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'Closed complaint after review — no action required.',
-            newStatus:       ComplaintStatus::CLOSED,
-            agent:           $this->agent,
+            newStatus: ComplaintStatus::CLOSED,
+            agent: $this->agent,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::CLOSED->value,
         ]);
     }
@@ -345,10 +348,10 @@ class StaffComplaintServiceTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
 
         $this->service->respond(
-            complaintId:     999999,
+            complaintId: 999999,
             resolutionNotes: 'Trying to respond to a missing complaint.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            agent:           $this->agent,
+            newStatus: ComplaintStatus::RESOLVED,
+            agent: $this->agent,
         );
     }
 
@@ -362,8 +365,8 @@ class StaffComplaintServiceTest extends TestCase
 
         $result = $this->service->escalate(
             complaintId: $complaint->id,
-            reason:      'Requires admin review — case involves a financial dispute.',
-            agent:       $this->agent,
+            reason: 'Requires admin review — case involves a financial dispute.',
+            agent: $this->agent,
         );
 
         $this->assertInstanceOf(Complaint::class, $result);
@@ -375,12 +378,12 @@ class StaffComplaintServiceTest extends TestCase
 
         $this->service->escalate(
             complaintId: $complaint->id,
-            reason:      'Needs admin attention for this complex case.',
-            agent:       $this->agent,
+            reason: 'Needs admin attention for this complex case.',
+            agent: $this->agent,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::ESCALATED->value,
         ]);
     }
@@ -391,12 +394,12 @@ class StaffComplaintServiceTest extends TestCase
 
         $this->service->escalate(
             complaintId: $complaint->id,
-            reason:      'Pending complaint needs immediate admin review.',
-            agent:       $this->agent,
+            reason: 'Pending complaint needs immediate admin review.',
+            agent: $this->agent,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::ESCALATED->value,
         ]);
     }
@@ -409,8 +412,8 @@ class StaffComplaintServiceTest extends TestCase
 
         $this->service->escalate(
             complaintId: $complaint->id,
-            reason:      'Trying to escalate a resolved complaint.',
-            agent:       $this->agent,
+            reason: 'Trying to escalate a resolved complaint.',
+            agent: $this->agent,
         );
     }
 
@@ -422,8 +425,8 @@ class StaffComplaintServiceTest extends TestCase
 
         $this->service->escalate(
             complaintId: $complaint->id,
-            reason:      'Trying to escalate a closed complaint.',
-            agent:       $this->agent,
+            reason: 'Trying to escalate a closed complaint.',
+            agent: $this->agent,
         );
     }
 
@@ -435,8 +438,8 @@ class StaffComplaintServiceTest extends TestCase
 
         $this->service->escalate(
             complaintId: $complaint->id,
-            reason:      'Trying to escalate an already escalated complaint.',
-            agent:       $this->agent,
+            reason: 'Trying to escalate an already escalated complaint.',
+            agent: $this->agent,
         );
     }
 
@@ -446,8 +449,8 @@ class StaffComplaintServiceTest extends TestCase
 
         $this->service->escalate(
             complaintId: 999999,
-            reason:      'Valid reason.',
-            agent:       $this->agent,
+            reason: 'Valid reason.',
+            agent: $this->agent,
         );
     }
 
@@ -460,10 +463,10 @@ class StaffComplaintServiceTest extends TestCase
         $complaint = $this->makeComplaint(ComplaintStatus::ESCALATED);
 
         $result = $this->service->resolveEscalated(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'Admin has reviewed and resolved this escalated complaint.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            admin:           $this->admin,
+            newStatus: ComplaintStatus::RESOLVED,
+            admin: $this->admin,
         );
 
         $this->assertInstanceOf(Complaint::class, $result);
@@ -474,14 +477,14 @@ class StaffComplaintServiceTest extends TestCase
         $complaint = $this->makeComplaint(ComplaintStatus::ESCALATED);
 
         $this->service->resolveEscalated(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'Admin resolved the escalated complaint after investigation.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            admin:           $this->admin,
+            newStatus: ComplaintStatus::RESOLVED,
+            admin: $this->admin,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::RESOLVED->value,
         ]);
     }
@@ -491,14 +494,14 @@ class StaffComplaintServiceTest extends TestCase
         $complaint = $this->makeComplaint(ComplaintStatus::ESCALATED);
 
         $this->service->resolveEscalated(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'Admin closed the complaint after full investigation.',
-            newStatus:       ComplaintStatus::CLOSED,
-            admin:           $this->admin,
+            newStatus: ComplaintStatus::CLOSED,
+            admin: $this->admin,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::CLOSED->value,
         ]);
     }
@@ -506,17 +509,17 @@ class StaffComplaintServiceTest extends TestCase
     public function test_resolve_escalated_persists_resolution_notes(): void
     {
         $complaint = $this->makeComplaint(ComplaintStatus::ESCALATED);
-        $notes     = 'Admin resolution: refund issued to passenger after driver dispute.';
+        $notes = 'Admin resolution: refund issued to passenger after driver dispute.';
 
         $this->service->resolveEscalated(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: $notes,
-            newStatus:       ComplaintStatus::RESOLVED,
-            admin:           $this->admin,
+            newStatus: ComplaintStatus::RESOLVED,
+            admin: $this->admin,
         );
 
         $this->assertDatabaseHas('complaints', [
-            'id'               => $complaint->id,
+            'id' => $complaint->id,
             'resolution_notes' => $notes,
         ]);
     }
@@ -529,10 +532,10 @@ class StaffComplaintServiceTest extends TestCase
         $this->expectException(\DomainException::class);
 
         $this->service->resolveEscalated(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'Attempting to admin-resolve a non-escalated complaint.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            admin:           $this->admin,
+            newStatus: ComplaintStatus::RESOLVED,
+            admin: $this->admin,
         );
     }
 
@@ -543,10 +546,10 @@ class StaffComplaintServiceTest extends TestCase
         $this->expectException(\DomainException::class);
 
         $this->service->resolveEscalated(
-            complaintId:     $complaint->id,
+            complaintId: $complaint->id,
             resolutionNotes: 'Attempting to admin-resolve an in-review complaint.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            admin:           $this->admin,
+            newStatus: ComplaintStatus::RESOLVED,
+            admin: $this->admin,
         );
     }
 
@@ -555,10 +558,10 @@ class StaffComplaintServiceTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
 
         $this->service->resolveEscalated(
-            complaintId:     999999,
+            complaintId: 999999,
             resolutionNotes: 'Valid resolution note.',
-            newStatus:       ComplaintStatus::RESOLVED,
-            admin:           $this->admin,
+            newStatus: ComplaintStatus::RESOLVED,
+            admin: $this->admin,
         );
     }
 
@@ -629,15 +632,15 @@ class StaffComplaintServiceTest extends TestCase
 
     private function makeComplaint(
         ComplaintStatus $status = ComplaintStatus::PENDING,
-        ComplaintType   $type   = ComplaintType::OTHER,
-        ?User           $user   = null,
+        ComplaintType $type = ComplaintType::OTHER,
+        ?User $user = null,
     ): Complaint {
         return Complaint::create([
-            'user_id'     => ($user ?? $this->user)->id,
-            'title'       => 'Test Complaint',
+            'user_id' => ($user ?? $this->user)->id,
+            'title' => 'Test Complaint',
             'description' => 'A sufficiently detailed test complaint description.',
-            'type'        => $type->value,
-            'status'      => $status->value,
+            'type' => $type->value,
+            'status' => $status->value,
         ]);
     }
 }

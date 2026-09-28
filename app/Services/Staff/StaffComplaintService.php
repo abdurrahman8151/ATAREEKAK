@@ -2,15 +2,12 @@
 
 namespace App\Services\Staff;
 
-use Illuminate\Support\Facades\Log;
-
 use App\Enums\ComplaintStatus;
 use App\Models\Complaint;
 use App\Models\Employee;
-use App\Models\NotificationService;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Log;
 
 final class StaffComplaintService
 {
@@ -33,9 +30,9 @@ final class StaffComplaintService
         ?string $status,
         ?string $type,
         ?string $date,
-        ?int    $userId,
-        int     $perPage = 15,
-        int     $page    = 1,
+        ?int $userId,
+        int $perPage = 15,
+        int $page = 1,
     ): LengthAwarePaginator {
         $query = Complaint::with(self::WITH)
             // Never show escalated in the agent's queue
@@ -71,14 +68,14 @@ final class StaffComplaintService
     /**
      * Paginated list of escalated complaints for admin / system admin.
      *
-     * @param  string|null  $status   further filter (resolved|closed) for history
+     * @param  string|null  $status  further filter (resolved|closed) for history
      */
     public function listEscalated(
         ?string $status,
         ?string $type,
         ?string $date,
-        int     $perPage = 15,
-        int     $page    = 1,
+        int $perPage = 15,
+        int $page = 1,
     ): LengthAwarePaginator {
         $query = Complaint::with(self::WITH);
 
@@ -130,7 +127,7 @@ final class StaffComplaintService
             && is_null($complaint->assigned_to)
         ) {
             $complaint->update([
-                'status'      => ComplaintStatus::IN_REVIEW,
+                'status' => ComplaintStatus::IN_REVIEW,
                 'assigned_to' => $agent->id,
             ]);
         }
@@ -145,13 +142,13 @@ final class StaffComplaintService
     /**
      * Agent responds to a complaint and optionally changes its status.
      *
-     * @throws \DomainException  if the complaint is escalated or already closed.
+     * @throws \DomainException if the complaint is escalated or already closed.
      */
     public function respond(
-        int            $complaintId,
-        string         $resolutionNotes,
+        int $complaintId,
+        string $resolutionNotes,
         ComplaintStatus $newStatus,
-        Employee       $agent,
+        Employee $agent,
     ): Complaint {
         $complaint = Complaint::with(self::WITH)->findOrFail($complaintId);
 
@@ -161,16 +158,16 @@ final class StaffComplaintService
             );
         }
 
-        if (!$complaint->status->isAgentActionable()) {
+        if (! $complaint->status->isAgentActionable()) {
             throw new \DomainException(
                 "Cannot respond to a complaint with status '{$complaint->status->label()}'."
             );
         }
 
         $updates = [
-            'status'           => $newStatus,
+            'status' => $newStatus,
             'resolution_notes' => $resolutionNotes,
-            'assigned_to'      => $complaint->assigned_to ?? $agent->id,
+            'assigned_to' => $complaint->assigned_to ?? $agent->id,
         ];
 
         if (in_array($newStatus, [ComplaintStatus::RESOLVED, ComplaintStatus::CLOSED])) {
@@ -202,11 +199,11 @@ final class StaffComplaintService
      *   - assigned_to → null  (removed from agent queue)
      *   - resolution_notes prepended with escalation context
      *
-     * @throws \DomainException  if complaint cannot be escalated.
+     * @throws \DomainException if complaint cannot be escalated.
      */
     public function escalate(
-        int      $complaintId,
-        string   $reason,
+        int $complaintId,
+        string $reason,
         Employee $agent,
     ): Complaint {
         $complaint = Complaint::with(self::WITH)->findOrFail($complaintId);
@@ -215,18 +212,18 @@ final class StaffComplaintService
             throw new \DomainException('This complaint is already escalated.');
         }
 
-        if (!$complaint->status->isAgentActionable()) {
+        if (! $complaint->status->isAgentActionable()) {
             throw new \DomainException(
                 "Cannot escalate a complaint with status '{$complaint->status->label()}'."
             );
         }
 
-        $agentName    = $agent->fullName();
-        $escalationLog = "[ESCALATED by {$agentName} at " . now()->toDateTimeString() . "]\n{$reason}";
+        $agentName = $agent->fullName();
+        $escalationLog = "[ESCALATED by {$agentName} at ".now()->toDateTimeString()."]\n{$reason}";
 
         $complaint->update([
-            'status'           => ComplaintStatus::ESCALATED,
-            'assigned_to'      => null,         // leaves agent queue
+            'status' => ComplaintStatus::ESCALATED,
+            'assigned_to' => null,         // leaves agent queue
             'resolution_notes' => $escalationLog,
         ]);
 
@@ -240,13 +237,13 @@ final class StaffComplaintService
     /**
      * Admin resolves an escalated complaint.
      *
-     * @throws \DomainException  if the complaint is not in escalated status.
+     * @throws \DomainException if the complaint is not in escalated status.
      */
     public function resolveEscalated(
-        int            $complaintId,
-        string         $resolutionNotes,
+        int $complaintId,
+        string $resolutionNotes,
         ComplaintStatus $newStatus,
-        Employee       $admin,
+        Employee $admin,
     ): Complaint {
         $complaint = Complaint::with(self::WITH)->findOrFail($complaintId);
 
@@ -256,18 +253,18 @@ final class StaffComplaintService
             );
         }
 
-        if (!in_array($newStatus, [ComplaintStatus::RESOLVED, ComplaintStatus::CLOSED])) {
+        if (! in_array($newStatus, [ComplaintStatus::RESOLVED, ComplaintStatus::CLOSED])) {
             throw new \DomainException('Escalated complaints can only be set to resolved or closed.');
         }
 
-        $adminName  = $admin->fullName();
-        $adminLog   = "\n\n[RESOLVED by Admin {$adminName} at " . now()->toDateTimeString() . "]\n{$resolutionNotes}";
+        $adminName = $admin->fullName();
+        $adminLog = "\n\n[RESOLVED by Admin {$adminName} at ".now()->toDateTimeString()."]\n{$resolutionNotes}";
 
         $complaint->update([
-            'status'           => $newStatus,
-            'assigned_to'      => $admin->id,
-            'resolution_notes' => ($complaint->resolution_notes ?? '') . $adminLog,
-            'resolved_at'      => now(),
+            'status' => $newStatus,
+            'assigned_to' => $admin->id,
+            'resolution_notes' => ($complaint->resolution_notes ?? '').$adminLog,
+            'resolved_at' => now(),
         ]);
 
         // Notify the user
@@ -288,33 +285,33 @@ final class StaffComplaintService
     public function format(Complaint $complaint): array
     {
         return [
-            'id'               => $complaint->id,
-            'title'            => $complaint->title,
-            'description'      => $complaint->description,
-            'type'             => $complaint->type?->value,
-            'type_label'       => $complaint->type?->label(),
-            'status'           => $complaint->status->value,
-            'status_label'     => $complaint->status->label(),
-            'status_color'     => $complaint->status->color(),
-            'is_escalated'     => $complaint->status === ComplaintStatus::ESCALATED,
+            'id' => $complaint->id,
+            'title' => $complaint->title,
+            'description' => $complaint->description,
+            'type' => $complaint->type?->value,
+            'type_label' => $complaint->type?->label(),
+            'status' => $complaint->status->value,
+            'status_label' => $complaint->status->label(),
+            'status_color' => $complaint->status->color(),
+            'is_escalated' => $complaint->status === ComplaintStatus::ESCALATED,
             'resolution_notes' => $complaint->resolution_notes,
-            'resolved_at'      => $complaint->resolved_at?->toIso8601String(),
-            'assigned_to'      => $complaint->assignedAgent ? [
-                'id'   => $complaint->assignedAgent->id,
+            'resolved_at' => $complaint->resolved_at?->toIso8601String(),
+            'assigned_to' => $complaint->assignedAgent ? [
+                'id' => $complaint->assignedAgent->id,
                 'name' => $complaint->assignedAgent->fullName(),
                 'role' => $complaint->assignedAgent->role->value,
             ] : null,
             'user' => [
-                'id'    => $complaint->user?->id,
-                'name'  => trim(($complaint->user?->first_name ?? '') . ' ' . ($complaint->user?->last_name ?? '')),
+                'id' => $complaint->user?->id,
+                'name' => trim(($complaint->user?->first_name ?? '').' '.($complaint->user?->last_name ?? '')),
                 'email' => $complaint->user?->email,
             ],
             'attachments' => $complaint->attachments?->map(fn ($a) => [
-                    'id'            => $a->id,
-                    'url'           => $a->url,
-                    'original_name' => $a->original_name,
-                    'mime_type'     => $a->mime_type,
-                ])->values() ?? [],
+                'id' => $a->id,
+                'url' => $a->url,
+                'original_name' => $a->original_name,
+                'mime_type' => $a->mime_type,
+            ])->values() ?? [],
             'created_at' => $complaint->created_at->toIso8601String(),
             'updated_at' => $complaint->updated_at->toIso8601String(),
         ];
@@ -341,7 +338,7 @@ final class StaffComplaintService
             }
         } catch (\Throwable $e) {
             // T3-13: non-fatal by intent, but it must be visible.
-            Log::warning('staff complaint status notification failed (non-fatal): ' . $e->getMessage());
+            Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
         }
     }
 }

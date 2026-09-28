@@ -1,6 +1,7 @@
 <?php
 
 // ============== App/Models/Notification.php ==============
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,12 +17,12 @@ class Notification extends Model
         'type',
         'data',
         'user_id',
-        'sent_at'
+        'sent_at',
     ];
 
     protected $casts = [
         'data' => 'array',
-        'sent_at' => 'datetime'
+        'sent_at' => 'datetime',
     ];
 
     public function user()

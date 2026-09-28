@@ -2,25 +2,25 @@
 
 namespace App\Http\Controllers\API;
 
-use App\DTOs\Ride\CreateRideDTO;
 use App\DTOs\Ride\BookRideDTO;
+use App\DTOs\Ride\CreateRideDTO;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\CreateRideRequest;
 use App\Http\Requests\BookRideRequest;
-use App\Http\Resources\RideResource;
+use App\Http\Requests\CreateRideRequest;
 use App\Http\Resources\BookingResource;
+use App\Http\Resources\RideResource;
+use App\Models\Booking;
 use App\Services\Geocoding\GeocodingService;
 use App\Services\Geocoding\RouteCalculationService;
-use App\Services\Ride\RideService;
+use App\Services\NotificationService;
 use App\Services\Ride\BookingService;
+use App\Services\Ride\RideService;
+use App\Services\Score\ScoreService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Services\Score\ScoreService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
-use App\Services\NotificationService;
 
 /**
  * Ride Controller
@@ -43,11 +43,11 @@ use App\Services\NotificationService;
 class RideController extends Controller
 {
     public function __construct(
-        private readonly RideService             $rideService,
-        private readonly BookingService          $bookingService,
-        private readonly GeocodingService        $geocodingService,
+        private readonly RideService $rideService,
+        private readonly BookingService $bookingService,
+        private readonly GeocodingService $geocodingService,
         private readonly RouteCalculationService $routeService,
-        private readonly NotificationService     $notificationService,
+        private readonly NotificationService $notificationService,
     ) {}
 
     // =========================================================================
@@ -64,25 +64,26 @@ class RideController extends Controller
     public function create(CreateRideRequest $request): JsonResponse
     {
         try {
-            $dto   = CreateRideDTO::fromRequest($request->validated(), $request->user()->id);
-            $ride  = $this->rideService->createRide($dto, $request->user());
+            $dto = CreateRideDTO::fromRequest($request->validated(), $request->user()->id);
+            $ride = $this->rideService->createRide($dto, $request->user());
             $score = app(ScoreService::class)->getScore($request->user());
 
             return response()->json([
-                'success'      => true,
-                'data'         => new RideResource($ride),
-                'message'      => 'Ride created successfully',
+                'success' => true,
+                'data' => new RideResource($ride),
+                'message' => 'Ride created successfully',
                 'driver_score' => ScoreController::formatScore($score),
             ], 201);
 
         } catch (\Throwable $e) {
             Log::error('Ride creation failed', [
                 'user_id' => $request->user()->id,
-                'error'   => $e->getMessage(),
-                'class'   => get_class($e),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -102,8 +103,8 @@ class RideController extends Controller
     public function getRouteOptions(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'pickup_lat'      => 'required|numeric|between:-90,90',
-            'pickup_lng'      => 'required|numeric|between:-180,180',
+            'pickup_lat' => 'required|numeric|between:-90,90',
+            'pickup_lng' => 'required|numeric|between:-180,180',
             'destination_lat' => 'required|numeric|between:-90,90',
             'destination_lng' => 'required|numeric|between:-180,180',
         ]);
@@ -120,8 +121,8 @@ class RideController extends Controller
 
             $cacheKey = sprintf(
                 'route.options.%s.%s.%s.%s',
-                round($origin['lat'],      4),
-                round($origin['lng'],      4),
+                round($origin['lat'], 4),
+                round($origin['lng'], 4),
                 round($destination['lat'], 4),
                 round($destination['lng'], 4)
             );
@@ -132,21 +133,22 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data'    => [
-                    'routes'      => $routes,
-                    'pickup'      => $origin,
+                'data' => [
+                    'routes' => $routes,
+                    'pickup' => $origin,
                     'destination' => $destination,
                 ],
             ]);
 
         } catch (\Throwable $e) {
             Log::error('Route options failed', [
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
                 'request' => $request->all(),
             ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to get route options: ' . $e->getMessage(),
+                'message' => 'Failed to get route options: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -161,12 +163,12 @@ class RideController extends Controller
     public function bookRide(BookRideRequest $request, int $rideId): JsonResponse
     {
         try {
-            $dto     = BookRideDTO::fromRequest($request->validated(), $request->user()->id, $rideId);
+            $dto = BookRideDTO::fromRequest($request->validated(), $request->user()->id, $rideId);
             $booking = $this->bookingService->bookRide($dto, $request->user());
 
             return response()->json([
                 'success' => true,
-                'data'    => new BookingResource($booking),
+                'data' => new BookingResource($booking),
                 'message' => 'Ride booked successfully',
             ], 201);
 
@@ -188,8 +190,8 @@ class RideController extends Controller
      * NOT cached — total_booked_seats changes with every booking.
      */
     // =========================================================================
-// SHOW
-// =========================================================================
+    // SHOW
+    // =========================================================================
 
     /**
      * GET /rides/{rideId}
@@ -198,8 +200,8 @@ class RideController extends Controller
      * Returns the full ride data PLUS all bookings with passenger details.
      */
     // =========================================================================
-// SHOW — PUBLIC (passenger browsing a ride)
-// =========================================================================
+    // SHOW — PUBLIC (passenger browsing a ride)
+    // =========================================================================
 
     /**
      * GET /rides/{rideId}
@@ -220,16 +222,16 @@ class RideController extends Controller
                 ->pluck('total', 'status');
 
             $confirmedSeats = (int) ($seatsByStatus['confirmed'] ?? 0);
-            $pendingSeats   = (int) ($seatsByStatus['pending']   ?? 0);
+            $pendingSeats = (int) ($seatsByStatus['pending'] ?? 0);
 
             return response()->json([
-                'success'      => true,
-                'data'         => new RideResource($ride),
+                'success' => true,
+                'data' => new RideResource($ride),
                 'seat_summary' => [
                     'total_capacity' => $ride->available_seats + $confirmedSeats + $pendingSeats,
-                    'available'      => $ride->available_seats,
-                    'confirmed'      => $confirmedSeats,
-                    'pending'        => $pendingSeats,
+                    'available' => $ride->available_seats,
+                    'confirmed' => $confirmedSeats,
+                    'pending' => $pendingSeats,
                 ],
                 // !! NO 'bookings' key — passenger data never leaves this endpoint !!
             ]);
@@ -242,9 +244,9 @@ class RideController extends Controller
         }
     }
 
-// =========================================================================
-// DRIVER VIEW — PRIVATE (only the ride's own driver)
-// =========================================================================
+    // =========================================================================
+    // DRIVER VIEW — PRIVATE (only the ride's own driver)
+    // =========================================================================
 
     /**
      * GET /rides/{rideId}/driver-view
@@ -275,50 +277,49 @@ class RideController extends Controller
                     ->orderBy('created_at'),
             ]);
 
-            $ride->loadCount(['bookings as total_booked_seats' => fn ($q) =>
-            $q->select(DB::raw('COALESCE(SUM(seats), 0)'))
+            $ride->loadCount(['bookings as total_booked_seats' => fn ($q) => $q->select(DB::raw('COALESCE(SUM(seats), 0)')),
             ]);
 
             // ── Seat summary (in-memory, bookings already loaded) ─────────────
-            $seatsByStatus  = $ride->bookings
+            $seatsByStatus = $ride->bookings
                 ->groupBy('status')
                 ->map(fn ($group) => (int) $group->sum('seats'));
 
             $confirmedSeats = $seatsByStatus['confirmed'] ?? 0;
-            $pendingSeats   = $seatsByStatus['pending']   ?? 0;
+            $pendingSeats = $seatsByStatus['pending'] ?? 0;
 
             // ── Build passenger list ──────────────────────────────────────────
             $bookingList = $ride->bookings->map(function ($booking) {
                 $avatar = $booking->user?->profile?->profile_photo
-                    ? asset('storage/' . $booking->user->profile->profile_photo)
+                    ? asset('storage/'.$booking->user->profile->profile_photo)
                     : null;
 
                 return [
-                    'id'                   => $booking->id,
-                    'status'               => $booking->status,
-                    'seats'                => $booking->seats,
+                    'id' => $booking->id,
+                    'status' => $booking->status,
+                    'seats' => $booking->seats,
                     'communication_number' => $booking->communication_number, // safe: driver only
-                    'booked_at'            => $booking->created_at->toIso8601String(),
-                    'passenger'            => $booking->user ? [
-                        'id'     => $booking->user->id,
-                        'name'   => trim("{$booking->user->first_name} {$booking->user->last_name}"),
+                    'booked_at' => $booking->created_at->toIso8601String(),
+                    'passenger' => $booking->user ? [
+                        'id' => $booking->user->id,
+                        'name' => trim("{$booking->user->first_name} {$booking->user->last_name}"),
                         'avatar' => $avatar,
                     ] : null,
                 ];
             })->values();
 
             return response()->json([
-                'success'  => true,
-                'data'     => new RideResource($ride),
+                'success' => true,
+                'data' => new RideResource($ride),
                 'bookings' => [
                     'total_bookings' => $ride->bookings->count(),
-                    'seat_summary'   => [
+                    'seat_summary' => [
                         'total_capacity' => $ride->available_seats + $confirmedSeats + $pendingSeats,
-                        'available'      => $ride->available_seats,
-                        'confirmed'      => $confirmedSeats,
-                        'pending'        => $pendingSeats,
-                        'cancelled'      => $seatsByStatus['cancelled'] ?? 0,
-                        'completed'      => $seatsByStatus['completed'] ?? 0,
+                        'available' => $ride->available_seats,
+                        'confirmed' => $confirmedSeats,
+                        'pending' => $pendingSeats,
+                        'cancelled' => $seatsByStatus['cancelled'] ?? 0,
+                        'completed' => $seatsByStatus['completed'] ?? 0,
                     ],
                     'list' => $bookingList,
                 ],
@@ -343,21 +344,21 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data'    => $rides,
+                'data' => $rides,
             ]);
 
         } catch (\Throwable $e) {
             Log::error('Failed to fetch driver rides', [
                 'driver_id' => $request->user()->id,
-                'error'     => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch rides: ' . $e->getMessage(),
+                'message' => 'Failed to fetch rides: '.$e->getMessage(),
             ], 500);
         }
     }
-
 
     // =========================================================================
     // SEARCH
@@ -366,14 +367,14 @@ class RideController extends Controller
     public function searchRides(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'source_address'      => 'required_without_all:source_lat,source_lng|string|max:255',
-            'source_lat'          => 'required_with:source_lng|numeric',
-            'source_lng'          => 'required_with:source_lat|numeric',
+            'source_address' => 'required_without_all:source_lat,source_lng|string|max:255',
+            'source_lat' => 'required_with:source_lng|numeric',
+            'source_lng' => 'required_with:source_lat|numeric',
             'destination_address' => 'required_without_all:dest_lat,dest_lng|string|max:255',
-            'dest_lat'            => 'required_with:dest_lng|numeric',
-            'dest_lng'            => 'required_with:dest_lat|numeric',
-            'departure_date'      => 'required|date|after:yesterday',
-            'seats_required'      => 'required|integer|min:1',
+            'dest_lat' => 'required_with:dest_lng|numeric',
+            'dest_lng' => 'required_with:dest_lat|numeric',
+            'departure_date' => 'required|date|after:yesterday',
+            'seats_required' => 'required|integer|min:1',
         ]);
 
         try {
@@ -388,22 +389,23 @@ class RideController extends Controller
             $rides = $this->rideService->searchRides([
                 'departure_date' => $validated['departure_date'],
                 'seats_required' => $validated['seats_required'],
-                'source_lat'     => $source['lat'],
-                'source_lng'     => $source['lng'],
-                'dest_lat'       => $destination['lat'],
-                'dest_lng'       => $destination['lng'],
+                'source_lat' => $source['lat'],
+                'source_lng' => $source['lng'],
+                'dest_lat' => $destination['lat'],
+                'dest_lng' => $destination['lng'],
             ]);
 
             return response()->json([
                 'success' => true,
-                'data'    => $rides,
+                'data' => $rides,
             ]);
 
         } catch (\Throwable $e) {
             Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Search failed: ' . $e->getMessage(),
+                'message' => 'Search failed: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -424,14 +426,14 @@ class RideController extends Controller
         ]);
 
         try {
-            $cacheKey = 'geocode.autocomplete.' . strtolower(trim($validated['text']));
-            $results  = Cache::remember($cacheKey, 3600, function () use ($validated) {
+            $cacheKey = 'geocode.autocomplete.'.strtolower(trim($validated['text']));
+            $results = Cache::remember($cacheKey, 3600, function () use ($validated) {
                 return $this->geocodingService->autocomplete($validated['text']);
             });
 
             return response()->json([
                 'success' => true,
-                'data'    => $results,
+                'data' => $results,
             ]);
 
         } catch (\Throwable $e) {
@@ -456,17 +458,17 @@ class RideController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => RideResource::collection($rides),
+            'data' => RideResource::collection($rides),
         ]);
     }
 
     public function search(Request $request): JsonResponse
     {
         $request->validate([
-            'source_lat'     => 'required|numeric',
-            'source_lng'     => 'required|numeric',
-            'dest_lat'       => 'required|numeric',
-            'dest_lng'       => 'required|numeric',
+            'source_lat' => 'required|numeric',
+            'source_lng' => 'required|numeric',
+            'dest_lat' => 'required|numeric',
+            'dest_lng' => 'required|numeric',
             'departure_date' => 'required|date',
             'seats_required' => 'required|integer|min:1',
         ]);
@@ -479,8 +481,8 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data'    => RideResource::collection($rides),
-                'count'   => $rides->count(),
+                'data' => RideResource::collection($rides),
+                'count' => $rides->count(),
             ]);
 
         } catch (\Throwable $e) {
@@ -498,7 +500,7 @@ class RideController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => BookingResource::collection($bookings),
+            'data' => BookingResource::collection($bookings),
         ]);
     }
 
@@ -513,7 +515,7 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data'    => new RideResource($ride),
+                'data' => new RideResource($ride),
                 'message' => 'Ride cancelled successfully',
             ]);
 
@@ -531,9 +533,9 @@ class RideController extends Controller
             $ride = $this->rideService->cancelRide($rideId, $request->user());
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'Ride cancelled successfully.',
-                'ride'    => $ride,
+                'ride' => $ride,
             ]);
 
         } catch (\InvalidArgumentException $e) {
@@ -542,8 +544,9 @@ class RideController extends Controller
             Log::error('Ride cancellation failed', [
                 'ride_id' => $rideId,
                 'user_id' => $request->user()->id,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
@@ -566,11 +569,13 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
-                'data'    => new BookingResource($booking),
+                'data' => new BookingResource($booking),
                 'message' => 'Booking cancelled successfully',
             ]);
 
@@ -604,11 +609,13 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
-                'data'    => new BookingResource($booking),
+                'data' => new BookingResource($booking),
                 'message' => 'Booking accepted successfully',
             ]);
 
@@ -638,11 +645,13 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
-                'data'    => new BookingResource($booking),
+                'data' => new BookingResource($booking),
                 'message' => 'Booking rejected successfully',
             ]);
 
@@ -661,26 +670,26 @@ class RideController extends Controller
     public function createRideWithRoute(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'pickup_lat'           => 'required|numeric|between:-90,90',
-            'pickup_lng'           => 'required|numeric|between:-180,180',
-            'destination_lat'      => 'required|numeric|between:-90,90',
-            'destination_lng'      => 'required|numeric|between:-180,180',
-            'pickup_address'       => 'nullable|string|max:500',
-            'destination_address'  => 'nullable|string|max:500',
-            'departure_time'       => 'required|date|after:' . now()->addMinutes(5)->toDateTimeString(),
-            'available_seats'      => 'required|integer|min:1|max:8',
-            'price_per_seat'       => 'required|numeric|min:0',
-            'vehicle_type'         => 'required|string|max:100',
-            'payment_method'       => 'required|in:cash,e-pay',
-            'booking_type'         => 'required|in:direct,request',
+            'pickup_lat' => 'required|numeric|between:-90,90',
+            'pickup_lng' => 'required|numeric|between:-180,180',
+            'destination_lat' => 'required|numeric|between:-90,90',
+            'destination_lng' => 'required|numeric|between:-180,180',
+            'pickup_address' => 'nullable|string|max:500',
+            'destination_address' => 'nullable|string|max:500',
+            'departure_time' => 'required|date|after:'.now()->addMinutes(5)->toDateTimeString(),
+            'available_seats' => 'required|integer|min:1|max:8',
+            'price_per_seat' => 'required|numeric|min:0',
+            'vehicle_type' => 'required|string|max:100',
+            'payment_method' => 'required|in:cash,e-pay',
+            'booking_type' => 'required|in:direct,request',
             'communication_number' => 'required|string',
-            'notes'                => 'nullable|string|max:1000',
-            'route_geometry'       => 'nullable|array',
-            'route_geometry.type'  => 'nullable|string|in:LineString',
+            'notes' => 'nullable|string|max:1000',
+            'route_geometry' => 'nullable|array',
+            'route_geometry.type' => 'nullable|string|in:LineString',
             'route_geometry.coordinates' => 'nullable|array|min:2',
-            'route_index'          => 'nullable|integer|min:0',
-            'distance'             => 'nullable|numeric|min:0',
-            'duration'             => 'nullable|numeric|min:0',
+            'route_index' => 'nullable|integer|min:0',
+            'distance' => 'nullable|numeric|min:0',
+            'duration' => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -701,21 +710,21 @@ class RideController extends Controller
                     ['lat' => $validated['pickup_lat'],      'lng' => $validated['pickup_lng']],
                     ['lat' => $validated['destination_lat'], 'lng' => $validated['destination_lng']]
                 );
-                $validated['distance']       = $validated['distance']  ?? $route['distance'];
-                $validated['duration']       = $validated['duration']  ?? $route['duration'];
+                $validated['distance'] = $validated['distance'] ?? $route['distance'];
+                $validated['duration'] = $validated['duration'] ?? $route['duration'];
                 $validated['route_geometry'] = $validated['route_geometry'] ?? [
-                    'type'        => 'LineString',
+                    'type' => 'LineString',
                     'coordinates' => $route['geometry'],
                 ];
             }
 
-            $dto  = CreateRideDTO::fromRequest($validated, $request->user()->id);
+            $dto = CreateRideDTO::fromRequest($validated, $request->user()->id);
             $ride = $this->rideService->createRide($dto, $request->user());
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'Ride created successfully',
-                'ride'    => $ride,
+                'ride' => $ride,
             ], 201);
 
         } catch (\InvalidArgumentException $e) {
@@ -723,9 +732,10 @@ class RideController extends Controller
         } catch (\Throwable $e) {
             Log::error('Create ride with route failed', [
                 'user_id' => $request->user()->id,
-                'error'   => $e->getMessage(),
-                'class'   => get_class($e),
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
             ]);
+
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
@@ -742,29 +752,27 @@ class RideController extends Controller
     public function finishRide(Request $request, int $rideId): JsonResponse
     {
         return response()->json([
-            'status'  => 'info',
+            'status' => 'info',
             'message' => 'No driver action required. Once the departure time passes, '
-                . 'passengers can confirm their completion. The ride finishes '
-                . 'automatically when the last passenger confirms.',
-            'data'    => [
-                'ride_id'          => $rideId,
+                .'passengers can confirm their completion. The ride finishes '
+                .'automatically when the last passenger confirms.',
+            'data' => [
+                'ride_id' => $rideId,
                 'driver_confirmed' => false,          // nothing happened
-                'ride_status'      => 'active',       // unchanged
+                'ride_status' => 'active',       // unchanged
             ],
         ]);
     }
 
-
     public function driverConfirmCompletion(Request $request, int $rideId): JsonResponse
     {
         return response()->json([
-            'status'  => 'info',
+            'status' => 'info',
             'message' => 'Driver confirmation is no longer required. '
-                . 'Each passenger confirms individually. '
-                . 'The ride completes automatically when all passengers have confirmed.',
+                .'Each passenger confirms individually. '
+                .'The ride completes automatically when all passengers have confirmed.',
         ]);
     }
-
 
     // =========================================================================
     // PASSENGER CONFIRM COMPLETION
@@ -794,7 +802,7 @@ class RideController extends Controller
             // Always notify the driver that this passenger confirmed (and was paid).
             // If the ride is now fully finished, send a separate "all done" notice.
             try {
-                $b = \App\Models\Booking::with('ride.driver')->find($booking);
+                $b = Booking::with('ride.driver')->find($booking);
 
                 if ($b?->ride?->driver) {
                     if ($result['ride_finished']) {
@@ -811,8 +819,8 @@ class RideController extends Controller
                     } else {
                         // Partial — this passenger confirmed, others still pending
                         $passengerName = trim(
-                            ($request->user()->first_name ?? '') . ' ' .
-                            ($request->user()->last_name  ?? '')
+                            ($request->user()->first_name ?? '').' '.
+                            ($request->user()->last_name ?? '')
                         );
 
                         $this->notificationService->createNotification(
@@ -828,27 +836,27 @@ class RideController extends Controller
                 }
             } catch (\Throwable $e) {
                 // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('ride confirmation notification failed (non-fatal): ' . $e->getMessage());
+                Log::warning('ride confirmation notification failed (non-fatal): '.$e->getMessage());
             }
 
             return response()->json([
-                'status'        => 'success',
-                'message'       => $result['message'],
+                'status' => 'success',
+                'message' => $result['message'],
                 'ride_finished' => $result['ride_finished'],
             ]);
 
         } catch (\Throwable $e) {
             Log::error('Passenger confirmation failed', [
                 'booking_id' => $booking,
-                'user_id'    => $request->user()->id,
-                'error'      => $e->getMessage(),
-                'class'      => get_class($e),
-                'file'       => $e->getFile(),
-                'line'       => $e->getLine(),
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => $e->getMessage(),
             ], 500);
         }
@@ -872,7 +880,7 @@ class RideController extends Controller
             );
 
             try {
-                $booking = \App\Models\Booking::with('ride.driver')->find($bookingId);
+                $booking = Booking::with('ride.driver')->find($bookingId);
                 if ($booking?->ride?->driver) {
                     $this->notificationService->createNotification(
                         $booking->ride->driver,
@@ -884,12 +892,14 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            }
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => $result['message'],
-                'data'    => $result['data'],
+                'data' => $result['data'],
             ]);
 
         } catch (\InvalidArgumentException $e) {
@@ -897,10 +907,11 @@ class RideController extends Controller
         } catch (\Throwable $e) {
             Log::error('Partial seat cancellation failed', [
                 'booking_id' => $bookingId,
-                'user_id'    => $request->user()->id,
-                'error'      => $e->getMessage(),
-                'class'      => get_class($e),
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
             ]);
+
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 400);
         }
     }
@@ -915,7 +926,7 @@ class RideController extends Controller
             $result = $this->bookingService->reportPassengerNoShow($bookingId, $request->user());
 
             try {
-                $booking = \App\Models\Booking::with('user')->find($bookingId);
+                $booking = Booking::with('user')->find($bookingId);
                 if ($booking?->user) {
                     $this->notificationService->createNotification(
                         $booking->user,
@@ -927,7 +938,9 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            }
 
             return response()->json(['status' => 'success', 'message' => $result['message']]);
 
@@ -954,7 +967,9 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
+            } catch (\Throwable $e) {
+                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            }
 
             return response()->json(['status' => 'success', 'message' => $result['message']]);
 

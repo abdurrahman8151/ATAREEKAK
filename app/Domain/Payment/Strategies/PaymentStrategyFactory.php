@@ -22,7 +22,7 @@ final class PaymentStrategyFactory
         private readonly WalletTransactionService $walletService,
     ) {
         $this->strategies = [
-            new CashPaymentStrategy(),
+            new CashPaymentStrategy,
             new EPayPaymentStrategy($this->walletService),
         ];
     }
@@ -30,7 +30,6 @@ final class PaymentStrategyFactory
     /**
      * Create payment strategy for given payment method
      *
-     * @param string|PaymentMethod $paymentMethod
      * @throws InvalidArgumentException if no strategy found
      */
     public function make(string|PaymentMethod $paymentMethod): PaymentStrategy

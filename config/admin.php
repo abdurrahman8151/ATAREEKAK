@@ -8,12 +8,12 @@
 
 return [
     'system_admin' => [
-        'phone'         => env('ADMIN_WALLET_PHONE', '0912345678'),
+        'phone' => env('ADMIN_WALLET_PHONE', '0912345678'),
         'wallet_prefix' => 'ADM',
     ],
 
     'sycash' => [
-        'phone'         => env('SYCASH_WALLET_PHONE', '0987654321'),
+        'phone' => env('SYCASH_WALLET_PHONE', '0987654321'),
         'wallet_prefix' => 'SYC',
     ],
 ];

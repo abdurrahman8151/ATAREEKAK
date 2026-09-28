@@ -11,6 +11,7 @@ use InvalidArgumentException;
 class Location
 {
     private float $latitude;
+
     private float $longitude;
 
     private function __construct(float $latitude, float $longitude)
@@ -29,7 +30,7 @@ class Location
 
     public static function fromArray(array $data): self
     {
-        if (!isset($data['lat']) || !isset($data['lng'])) {
+        if (! isset($data['lat']) || ! isset($data['lng'])) {
             throw new InvalidArgumentException('Location array must contain lat and lng keys');
         }
 
@@ -74,7 +75,7 @@ class Location
     {
         return [
             'lat' => $this->latitude,
-            'lng' => $this->longitude
+            'lng' => $this->longitude,
         ];
     }
 

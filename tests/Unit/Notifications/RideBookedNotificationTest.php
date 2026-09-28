@@ -5,6 +5,7 @@ namespace Tests\Unit\Notifications;
 use App\Models\User;
 use App\Notifications\RideBookedNotification;
 use App\Notifications\RideCancelledNotification;
+use Illuminate\Bus\Queueable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Messages\MailMessage;
 use Tests\TestCase;
@@ -34,14 +35,15 @@ class RideBookedNotificationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User                  $user;
+    private User $user;
+
     private RideBookedNotification $notification;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user         = User::factory()->create();
-        $this->notification = new RideBookedNotification();
+        $this->user = User::factory()->create();
+        $this->notification = new RideBookedNotification;
     }
 
     public function test_can_be_instantiated(): void
@@ -89,9 +91,7 @@ class RideBookedNotificationTest extends TestCase
     public function test_notification_uses_queueable_trait(): void
     {
         $this->assertTrue(
-            in_array(\Illuminate\Bus\Queueable::class, class_uses_recursive(RideBookedNotification::class))
+            in_array(Queueable::class, class_uses_recursive(RideBookedNotification::class))
         );
     }
-
-
 }

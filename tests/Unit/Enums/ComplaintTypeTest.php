@@ -53,22 +53,22 @@ class ComplaintTypeTest extends TestCase
 
     public function test_enum_values_are_correct_strings(): void
     {
-        $this->assertEquals('trip_safety',        ComplaintType::TRIP_SAFETY->value);
-        $this->assertEquals('driver_behavior',    ComplaintType::DRIVER_BEHAVIOR->value);
+        $this->assertEquals('trip_safety', ComplaintType::TRIP_SAFETY->value);
+        $this->assertEquals('driver_behavior', ComplaintType::DRIVER_BEHAVIOR->value);
         $this->assertEquals('passenger_behavior', ComplaintType::PASSENGER_BEHAVIOR->value);
-        $this->assertEquals('ride_cancellation',  ComplaintType::RIDE_CANCELLATION->value);
-        $this->assertEquals('financial_issue',    ComplaintType::FINANCIAL_ISSUE->value);
-        $this->assertEquals('account_issue',      ComplaintType::ACCOUNT_ISSUE->value);
-        $this->assertEquals('technical_issue',    ComplaintType::TECHNICAL_ISSUE->value);
-        $this->assertEquals('other',              ComplaintType::OTHER->value);
+        $this->assertEquals('ride_cancellation', ComplaintType::RIDE_CANCELLATION->value);
+        $this->assertEquals('financial_issue', ComplaintType::FINANCIAL_ISSUE->value);
+        $this->assertEquals('account_issue', ComplaintType::ACCOUNT_ISSUE->value);
+        $this->assertEquals('technical_issue', ComplaintType::TECHNICAL_ISSUE->value);
+        $this->assertEquals('other', ComplaintType::OTHER->value);
     }
 
     public function test_from_string_resolves_correctly(): void
     {
-        $this->assertEquals(ComplaintType::TRIP_SAFETY,      ComplaintType::from('trip_safety'));
-        $this->assertEquals(ComplaintType::OTHER,             ComplaintType::from('other'));
-        $this->assertEquals(ComplaintType::FINANCIAL_ISSUE,  ComplaintType::from('financial_issue'));
-        $this->assertEquals(ComplaintType::DRIVER_BEHAVIOR,  ComplaintType::from('driver_behavior'));
+        $this->assertEquals(ComplaintType::TRIP_SAFETY, ComplaintType::from('trip_safety'));
+        $this->assertEquals(ComplaintType::OTHER, ComplaintType::from('other'));
+        $this->assertEquals(ComplaintType::FINANCIAL_ISSUE, ComplaintType::from('financial_issue'));
+        $this->assertEquals(ComplaintType::DRIVER_BEHAVIOR, ComplaintType::from('driver_behavior'));
     }
 
     public function test_all_cases_have_non_empty_labels(): void

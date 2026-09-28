@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\JwtService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -36,28 +37,28 @@ class ResetPasswordController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'reset_token'           => ['required', 'string', 'uuid'],
-            'password'              => ['required', 'string', 'confirmed', 'min:8'],
+            'reset_token' => ['required', 'string', 'uuid'],
+            'password' => ['required', 'string', 'confirmed', 'min:8'],
             'password_confirmation' => ['required', 'string'],
         ], [
-            'reset_token.required'  => 'A valid reset token is required.',
-            'reset_token.uuid'      => 'The reset token format is invalid.',
-            'password.confirmed'    => 'Password confirmation does not match.',
-            'password.min'          => 'Password must be at least 8 characters.',
+            'reset_token.required' => 'A valid reset token is required.',
+            'reset_token.uuid' => 'The reset token format is invalid.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'password.min' => 'Password must be at least 8 characters.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         // Retrieve the email that was stored when the OTP was verified
         $cacheKey = VerifyPasswordOtpController::cacheKey($request->input('reset_token'));
-        $email    = Cache::get($cacheKey);
+        $email = Cache::get($cacheKey);
 
-        if (!$email) {
+        if (! $email) {
             return response()->json([
                 'success' => false,
                 'message' => 'This reset link has expired or has already been used. Please request a new code.',
@@ -66,7 +67,7 @@ class ResetPasswordController extends Controller
 
         $user = User::where('email', $email)->first();
 
-        if (!$user) {
+        if (! $user) {
             // Defensive: should not happen if cache key is intact
             Cache::forget($cacheKey);
 
@@ -81,15 +82,15 @@ class ResetPasswordController extends Controller
         $user->password = Hash::make($request->input('password'));
         $user->save();
 
-// Consume the token — it must not be reusable
+        // Consume the token — it must not be reusable
         Cache::forget($cacheKey);
 
-// Revoke all JWT tokens (increments token_version + deletes refresh tokens)
-        app(\App\Services\JwtService::class)->revokeAllTokens($user->id);
+        // Revoke all JWT tokens (increments token_version + deletes refresh tokens)
+        app(JwtService::class)->revokeAllTokens($user->id);
         Log::info('Password reset via OTP flow', [
             'user_id' => $user->id,
-            'email'   => $user->email,
-            'ip'      => $request->ip(),
+            'email' => $user->email,
+            'ip' => $request->ip(),
         ]);
 
         return response()->json([

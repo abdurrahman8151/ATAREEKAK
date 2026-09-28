@@ -11,7 +11,7 @@ class UserObserver
 {
     public function __construct(
         private ProfileRepositoryInterface $profileRepo,
-        private ScoreService               $scoreService,
+        private ScoreService $scoreService,
     ) {}
 
     public function created(User $user): void
@@ -26,7 +26,7 @@ class UserObserver
         // No longer depends on a system_admin User row.
         UserRating::firstOrCreate(
             [
-                'rater_id'      => null,
+                'rater_id' => null,
                 'rated_user_id' => $user->id,
             ],
             [

@@ -25,7 +25,7 @@ class RideValidationServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new RideValidationService(new DocumentVerificationService());
+        $this->service = new RideValidationService(new DocumentVerificationService);
     }
 
     // ── validateDepartureTime ────────────────────────────────────────────────
@@ -123,7 +123,7 @@ class RideValidationServiceTest extends TestCase
     {
         $driver = User::factory()->create(['is_verified_driver' => true]);
 
-        if (!$driver->profile) {
+        if (! $driver->profile) {
             $driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
         }
 
@@ -139,7 +139,7 @@ class RideValidationServiceTest extends TestCase
     {
         $driver = User::factory()->create(['is_verified_driver' => true]);
 
-        if (!$driver->profile) {
+        if (! $driver->profile) {
             $driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
         }
 

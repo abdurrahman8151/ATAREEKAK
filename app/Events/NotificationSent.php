@@ -1,22 +1,21 @@
 <?php
+
 namespace App\Events;
 
-use App\Models\User;
 use App\Models\Notification;
-use Illuminate\Broadcasting\Channel;
+use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class NotificationSent implements  ShouldBroadcast
+class NotificationSent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $user;
+
     public $notification;
 
     public function __construct(User $user, Notification $notification)
@@ -28,7 +27,7 @@ class NotificationSent implements  ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('user.' . $this->user->id),
+            new PrivateChannel('user.'.$this->user->id),
         ];
     }
 
@@ -47,7 +46,7 @@ class NotificationSent implements  ShouldBroadcast
                 'type' => $this->notification->type,
                 'data' => $this->notification->data,
                 'sent_at' => $this->notification->sent_at->toISOString(),
-            ]
+            ],
         ];
     }
 }

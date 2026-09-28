@@ -21,7 +21,7 @@ class StaffRefreshToken extends Model
 
     protected $casts = [
         'expires_at' => 'datetime',
-        'revoked'    => 'boolean',
+        'revoked' => 'boolean',
     ];
 
     public function employee(): BelongsTo
@@ -36,6 +36,6 @@ class StaffRefreshToken extends Model
 
     public function isValid(): bool
     {
-        return !$this->revoked && !$this->isExpired();
+        return ! $this->revoked && ! $this->isExpired();
     }
 }

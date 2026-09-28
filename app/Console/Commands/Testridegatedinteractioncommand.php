@@ -24,14 +24,20 @@ use Illuminate\Support\Facades\Hash;
  */
 class Testridegatedinteractioncommand extends Command
 {
-    protected $signature   = 'syride:test-ride-interaction {--commit : Persist data instead of rolling back}';
+    protected $signature = 'syride:test-ride-interaction {--commit : Persist data instead of rolling back}';
+
     protected $description = '[DEV] End-to-end test: ride-gated comments & ratings';
 
-    private int  $pass     = 0;
-    private int  $fail     = 0;
+    private int $pass = 0;
+
+    private int $fail = 0;
+
     private bool $scenFail = false;
-    private int  $seq      = 0;   // increments per scenario — for unique emails
-    private int  $opSeq    = 0;   // increments per makeRide/makeBooking — for unique comm numbers
+
+    private int $seq = 0;   // increments per scenario — for unique emails
+
+    private int $opSeq = 0;   // increments per makeRide/makeBooking — for unique comm numbers
+
     private string $hash;
 
     public function handle(ProfileInteractionService $service): int
@@ -51,11 +57,11 @@ class Testridegatedinteractioncommand extends Command
 
             $result = $service->addComment($passenger->id, $driver->id, 'Great driver!', $ride->id);
 
-            $this->check('Returns a comment array',         true,            isset($result['id']));
-            $this->check('Comment text stored correctly',   'Great driver!', $result['comment']);
-            $this->check('ride_id stored on the comment',  $ride->id,        $result['ride_id']);
-            $this->check('Commenter ID in response',       $passenger->id,   $result['commenter']['id']);
-            $this->check('DB row created',                 1,
+            $this->check('Returns a comment array', true, isset($result['id']));
+            $this->check('Comment text stored correctly', 'Great driver!', $result['comment']);
+            $this->check('ride_id stored on the comment', $ride->id, $result['ride_id']);
+            $this->check('Commenter ID in response', $passenger->id, $result['commenter']['id']);
+            $this->check('DB row created', 1,
                 ProfileComment::where('user_id', $passenger->id)
                     ->where('ride_id', $ride->id)->count());
         });
@@ -67,13 +73,13 @@ class Testridegatedinteractioncommand extends Command
 
             $stats = $service->rateUser($passenger->id, $driver->id, 4.5, $ride->id);
 
-            $this->check('Returns stats array',   true, isset($stats['average']));
-            $this->check('Average is 3.75',       3.75,  (float) $stats['average']);
-            $this->check('total_ratings is 2',    2,    $stats['total_ratings']);
-            $this->check('DB row created',        1,
+            $this->check('Returns stats array', true, isset($stats['average']));
+            $this->check('Average is 3.75', 3.75, (float) $stats['average']);
+            $this->check('total_ratings is 2', 2, $stats['total_ratings']);
+            $this->check('DB row created', 1,
                 UserRating::where('rater_id', $passenger->id)
                     ->where('ride_id', $ride->id)->count());
-            $this->check('Rating value stored',   4.5,
+            $this->check('Rating value stored', 4.5,
                 (float) UserRating::where('rater_id', $passenger->id)
                     ->where('ride_id', $ride->id)->value('rating'));
         });
@@ -87,12 +93,12 @@ class Testridegatedinteractioncommand extends Command
             $this->makeBooking($ride2, $passenger, 'completed');
 
             $r1 = $service->addComment($passenger->id, $driver->id, 'First ride was great', $ride1->id);
-            $r2 = $service->addComment($passenger->id, $driver->id, 'Second ride too',      $ride2->id);
+            $r2 = $service->addComment($passenger->id, $driver->id, 'Second ride too', $ride2->id);
 
-            $this->check('First comment created',           true, isset($r1['id']));
-            $this->check('Second comment created',          true, isset($r2['id']));
+            $this->check('First comment created', true, isset($r1['id']));
+            $this->check('Second comment created', true, isset($r2['id']));
             $this->check('Comments have different ride_id', true, $r1['ride_id'] !== $r2['ride_id']);
-            $this->check('Two comments in DB',              2,
+            $this->check('Two comments in DB', 2,
                 ProfileComment::where('user_id', $passenger->id)->count());
         });
 
@@ -107,10 +113,10 @@ class Testridegatedinteractioncommand extends Command
             $stats1 = $service->rateUser($passenger->id, $driver->id, 5.0, $ride1->id);
             $stats2 = $service->rateUser($passenger->id, $driver->id, 3.0, $ride2->id);
 
-            $this->check('First rating saved',          true, $stats1['total_ratings'] === 2);
-            $this->check('Second rating saved',         true, $stats2['total_ratings'] === 3);
-            $this->check('Average of 5+3+seed=3.67',   3.67,  (float) $stats2['average']);
-            $this->check('Two rating rows in DB',       2,
+            $this->check('First rating saved', true, $stats1['total_ratings'] === 2);
+            $this->check('Second rating saved', true, $stats2['total_ratings'] === 3);
+            $this->check('Average of 5+3+seed=3.67', 3.67, (float) $stats2['average']);
+            $this->check('Two rating rows in DB', 2,
                 UserRating::where('rater_id', $passenger->id)->count());
         });
 
@@ -119,13 +125,17 @@ class Testridegatedinteractioncommand extends Command
             ['driver' => $driver, 'passenger' => $passenger, 'ride' => $ride] =
                 $this->makeScenario(null);
 
-            $blocked = false; $code = 0;
+            $blocked = false;
+            $code = 0;
             try {
                 $service->addComment($passenger->id, $driver->id, 'Should never appear', $ride->id);
-            } catch (\Exception $e) { $blocked = true; $code = $e->getCode(); }
+            } catch (\Exception $e) {
+                $blocked = true;
+                $code = $e->getCode();
+            }
 
-            $this->check('Exception thrown',     true, $blocked);
-            $this->check('HTTP code is 403',     403,  $code);
+            $this->check('Exception thrown', true, $blocked);
+            $this->check('HTTP code is 403', 403, $code);
             $this->check('Zero DB rows created', 0,
                 ProfileComment::where('user_id', $passenger->id)->count());
         });
@@ -135,14 +145,18 @@ class Testridegatedinteractioncommand extends Command
             ['driver' => $driver, 'passenger' => $passenger, 'ride' => $ride] =
                 $this->makeScenario('pending');
 
-            $blocked = false; $code = 0;
+            $blocked = false;
+            $code = 0;
             try {
                 $service->rateUser($passenger->id, $driver->id, 5.0, $ride->id);
-            } catch (\Exception $e) { $blocked = true; $code = $e->getCode(); }
+            } catch (\Exception $e) {
+                $blocked = true;
+                $code = $e->getCode();
+            }
 
-            $this->check('Exception thrown',        true, $blocked);
-            $this->check('HTTP code is 403',        403,  $code);
-            $this->check('Zero rating rows in DB',  0,
+            $this->check('Exception thrown', true, $blocked);
+            $this->check('HTTP code is 403', 403, $code);
+            $this->check('Zero rating rows in DB', 0,
                 UserRating::where('rater_id', $passenger->id)->count());
         });
 
@@ -151,13 +165,17 @@ class Testridegatedinteractioncommand extends Command
             ['driver' => $driver, 'passenger' => $passenger, 'ride' => $ride] =
                 $this->makeScenario('confirmed');
 
-            $blocked = false; $code = 0;
+            $blocked = false;
+            $code = 0;
             try {
                 $service->addComment($passenger->id, $driver->id, 'Too early', $ride->id);
-            } catch (\Exception $e) { $blocked = true; $code = $e->getCode(); }
+            } catch (\Exception $e) {
+                $blocked = true;
+                $code = $e->getCode();
+            }
 
             $this->check('Exception thrown for confirmed booking', true, $blocked);
-            $this->check('HTTP code is 403',                       403,  $code);
+            $this->check('HTTP code is 403', 403, $code);
         });
 
         // ── S8 ────────────────────────────────────────────────────────────────
@@ -165,13 +183,17 @@ class Testridegatedinteractioncommand extends Command
             ['driver' => $driver, 'passenger' => $passenger, 'ride' => $ride] =
                 $this->makeScenario('cancelled');
 
-            $blocked = false; $code = 0;
+            $blocked = false;
+            $code = 0;
             try {
                 $service->rateUser($passenger->id, $driver->id, 5.0, $ride->id);
-            } catch (\Exception $e) { $blocked = true; $code = $e->getCode(); }
+            } catch (\Exception $e) {
+                $blocked = true;
+                $code = $e->getCode();
+            }
 
             $this->check('Exception thrown for cancelled booking', true, $blocked);
-            $this->check('HTTP code is 403',                       403,  $code);
+            $this->check('HTTP code is 403', 403, $code);
         });
 
         // ── S9 ────────────────────────────────────────────────────────────────
@@ -182,14 +204,18 @@ class Testridegatedinteractioncommand extends Command
             $driverB = $this->makeUser('Unrelated-Driver');
             $this->makeProfile($driverB);
 
-            $blocked = false; $code = 0;
+            $blocked = false;
+            $code = 0;
             try {
                 $service->addComment($passenger->id, $driverB->id, 'Never rode with B', $ride->id);
-            } catch (\Exception $e) { $blocked = true; $code = $e->getCode(); }
+            } catch (\Exception $e) {
+                $blocked = true;
+                $code = $e->getCode();
+            }
 
             $this->check('Exception thrown (wrong driver)', true, $blocked);
-            $this->check('HTTP code is 403',                403,  $code);
-            $this->check('No comment on driverB profile',  0,
+            $this->check('HTTP code is 403', 403, $code);
+            $this->check('No comment on driverB profile', 0,
                 ProfileComment::where('user_id', $passenger->id)->count());
         });
 
@@ -201,14 +227,18 @@ class Testridegatedinteractioncommand extends Command
             $first = $service->addComment($passenger->id, $driver->id, 'First and only', $ride->id);
             $this->check('First comment saved', true, isset($first['id']));
 
-            $blocked = false; $code = 0;
+            $blocked = false;
+            $code = 0;
             try {
                 $service->addComment($passenger->id, $driver->id, 'Trying again', $ride->id);
-            } catch (\Exception $e) { $blocked = true; $code = $e->getCode(); }
+            } catch (\Exception $e) {
+                $blocked = true;
+                $code = $e->getCode();
+            }
 
-            $this->check('Duplicate blocked',       true,            $blocked);
-            $this->check('HTTP code is 409',        409,             $code);
-            $this->check('Still only 1 row in DB',  1,
+            $this->check('Duplicate blocked', true, $blocked);
+            $this->check('HTTP code is 409', 409, $code);
+            $this->check('Still only 1 row in DB', 1,
                 ProfileComment::where('user_id', $passenger->id)
                     ->where('ride_id', $ride->id)->count());
             $this->check('Original text preserved', 'First and only',
@@ -224,17 +254,21 @@ class Testridegatedinteractioncommand extends Command
             $stats1 = $service->rateUser($passenger->id, $driver->id, 4.0, $ride->id);
             $this->check('First rating (4.0) saved', 2, $stats1['total_ratings']);
 
-            $blocked = false; $code = 0;
+            $blocked = false;
+            $code = 0;
             try {
                 $service->rateUser($passenger->id, $driver->id, 5.0, $ride->id);
-            } catch (\Exception $e) { $blocked = true; $code = $e->getCode(); }
+            } catch (\Exception $e) {
+                $blocked = true;
+                $code = $e->getCode();
+            }
 
-            $this->check('Duplicate rating blocked',             true, $blocked);
-            $this->check('HTTP code is 409',                     409,  $code);
-            $this->check('Still only 1 rating row',              1,
+            $this->check('Duplicate rating blocked', true, $blocked);
+            $this->check('HTTP code is 409', 409, $code);
+            $this->check('Still only 1 rating row', 1,
                 UserRating::where('rater_id', $passenger->id)
                     ->where('ride_id', $ride->id)->count());
-            $this->check('Original rating 4.0 not overwritten',  4.0,
+            $this->check('Original rating 4.0 not overwritten', 4.0,
                 (float) UserRating::where('rater_id', $passenger->id)
                     ->where('ride_id', $ride->id)->value('rating'));
         });
@@ -242,9 +276,9 @@ class Testridegatedinteractioncommand extends Command
         // ── Summary ──────────────────────────────────────────────────────────
         $this->line('');
         $this->line('  ╔═══════════════════════════════════════════════════════╗');
-        $total  = $this->pass + $this->fail;
+        $total = $this->pass + $this->fail;
         $colour = $this->fail > 0 ? 'red' : 'green';
-        $badge  = $this->fail === 0 ? ' — all green ✅' : ", {$this->fail} FAILED ❌";
+        $badge = $this->fail === 0 ? ' — all green ✅' : ", {$this->fail} FAILED ❌";
         $this->line("  <fg={$colour}>  RESULTS: {$this->pass}/{$total} passed{$badge}</>");
         $this->line('  ╚═══════════════════════════════════════════════════════╝');
 
@@ -282,7 +316,7 @@ class Testridegatedinteractioncommand extends Command
             DB::rollBack();
         }
 
-        $this->line('  └─ ' . ($this->scenFail ? '<fg=red>FAIL</>' : '<fg=green>PASS</>'));
+        $this->line('  └─ '.($this->scenFail ? '<fg=red>FAIL</>' : '<fg=green>PASS</>'));
     }
 
     // =========================================================================
@@ -308,9 +342,16 @@ class Testridegatedinteractioncommand extends Command
 
     private function v(mixed $v): string
     {
-        if (is_bool($v))               return $v ? 'true' : 'false';
-        if (is_null($v))               return 'null';
-        if ($v instanceof \BackedEnum) return $v->value;
+        if (is_bool($v)) {
+            return $v ? 'true' : 'false';
+        }
+        if (is_null($v)) {
+            return 'null';
+        }
+        if ($v instanceof \BackedEnum) {
+            return $v->value;
+        }
+
         return (string) $v;
     }
 
@@ -321,12 +362,12 @@ class Testridegatedinteractioncommand extends Command
     private function makeScenario(?string $bookingStatus): array
     {
         $this->seq++;
-        $driver    = $this->makeUser("Driver-{$this->seq}");
+        $driver = $this->makeUser("Driver-{$this->seq}");
         $passenger = $this->makeUser("Passenger-{$this->seq}");
 
         $this->makeProfile($driver);
 
-        $ride    = $this->makeRide($driver);
+        $ride = $this->makeRide($driver);
         $booking = $bookingStatus !== null
             ? $this->makeBooking($ride, $passenger, $bookingStatus)
             : null;
@@ -337,11 +378,11 @@ class Testridegatedinteractioncommand extends Command
     private function makeUser(string $label): User
     {
         return User::forceCreate([
-            'first_name'    => 'Test',
-            'last_name'     => $label,
-            'email'         => strtolower("test.{$label}.{$this->seq}@test.local"),
-            'password'      => $this->hash,
-            'status'        => 1,
+            'first_name' => 'Test',
+            'last_name' => $label,
+            'email' => strtolower("test.{$label}.{$this->seq}@test.local"),
+            'password' => $this->hash,
+            'status' => 1,
             'token_version' => 1,   // remove this line if the column doesn't exist
         ]);
     }
@@ -351,14 +392,14 @@ class Testridegatedinteractioncommand extends Command
         return Profile::firstOrCreate(
             ['user_id' => $user->id],
             [
-                'description'     => null,
-                'address'         => null,
-                'gender'          => null,
-                'type_of_car'     => null,
-                'color_of_car'    => null,
+                'description' => null,
+                'address' => null,
+                'gender' => null,
+                'type_of_car' => null,
+                'color_of_car' => null,
                 'number_of_seats' => null,
-                'radio'           => false,
-                'smoking'         => false,
+                'radio' => false,
+                'smoking' => false,
                 'number_of_rides' => 0,
             ]
         );
@@ -370,23 +411,23 @@ class Testridegatedinteractioncommand extends Command
         $n = $this->opSeq;
 
         $rideId = DB::table('rides')->insertGetId([
-            'driver_id'            => $driver->id,
-            'pickup_address'       => 'Test Pickup — Damascus',
-            'destination_address'  => 'Test Destination — Aleppo',
-            'pickup_location'      => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
+            'driver_id' => $driver->id,
+            'pickup_address' => 'Test Pickup — Damascus',
+            'destination_address' => 'Test Destination — Aleppo',
+            'pickup_location' => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
             'destination_location' => DB::raw("ST_GeomFromText('POINT(37.1343 36.2021)')"),
-            'departure_time'       => now()->subHours(3),
-            'status'               => 'finished',
-            'available_seats'      => 3,
-            'price_per_seat'       => 5000,
-            'distance'             => 349.0,
-            'duration'             => 210,
-            'vehicle_type'         => 'sedan',
-            'payment_method'       => 'cash',
-            'booking_type'         => 'direct',
+            'departure_time' => now()->subHours(3),
+            'status' => 'finished',
+            'available_seats' => 3,
+            'price_per_seat' => 5000,
+            'distance' => 349.0,
+            'duration' => 210,
+            'vehicle_type' => 'sedan',
+            'payment_method' => 'cash',
+            'booking_type' => 'direct',
             'communication_number' => "091{$n}00001",
-            'created_at'           => now(),
-            'updated_at'           => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         return Ride::findOrFail($rideId);
@@ -398,10 +439,10 @@ class Testridegatedinteractioncommand extends Command
         $n = $this->opSeq;
 
         return Booking::create([
-            'ride_id'              => $ride->id,
-            'user_id'              => $passenger->id,
-            'seats'                => 1,
-            'status'               => $status,
+            'ride_id' => $ride->id,
+            'user_id' => $passenger->id,
+            'seats' => 1,
+            'status' => $status,
             'communication_number' => "091{$n}00002",
         ]);
     }

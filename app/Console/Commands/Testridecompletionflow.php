@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Enums\BookingStatus;
 use App\Enums\BookingType;
-use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Models\Booking;
 use App\Models\Ride;
@@ -32,9 +31,11 @@ class Testridecompletionflow extends Command
 
     protected $description = '[DEV] Test the passenger-driven ride completion flow end-to-end';
 
-    private ?int  $rideId       = null;
-    private array $bookingIds   = [];
-    private array $userIds      = [];
+    private ?int $rideId = null;
+
+    private array $bookingIds = [];
+
+    private array $userIds = [];
 
     // =========================================================================
     // MAIN
@@ -42,9 +43,9 @@ class Testridecompletionflow extends Command
 
     public function handle(BookingService $bookingService): int
     {
-        $payment   = $this->option('payment');
-        $numPass   = min(4, max(1, (int) $this->option('passengers')));
-        $doCommit  = (bool) $this->option('commit');
+        $payment = $this->option('payment');
+        $numPass = min(4, max(1, (int) $this->option('passengers')));
+        $doCommit = (bool) $this->option('commit');
 
         $this->banner($payment, $numPass);
 
@@ -52,10 +53,10 @@ class Testridecompletionflow extends Command
 
         try {
             $this->info('  [1/3] Creating test scenario…');
-            $driver     = $this->makeUser('Driver');
+            $driver = $this->makeUser('Driver');
             $passengers = array_map(fn ($i) => $this->makeUser("Passenger {$i}"), range(1, $numPass));
-            $ride       = $this->makeRide($driver, $payment, $numPass);
-            $bookings   = array_map(fn ($p) => $this->makeBooking($ride, $p), $passengers);
+            $ride = $this->makeRide($driver, $payment, $numPass);
+            $bookings = array_map(fn ($p) => $this->makeBooking($ride, $p), $passengers);
 
             $this->printState('INITIAL STATE', $ride->fresh(), array_map(fn ($b) => $b->fresh(), $bookings));
 
@@ -63,22 +64,22 @@ class Testridecompletionflow extends Command
             $allOk = true;
 
             foreach ($passengers as $i => $passenger) {
-                $n       = $i + 1;
+                $n = $i + 1;
                 $booking = $bookings[$i];
 
-                $this->line("\n  <fg=cyan>── Passenger {$n} confirms (" . $passenger->first_name . ' ' . $passenger->last_name . ") ──────────────────</>");
+                $this->line("\n  <fg=cyan>── Passenger {$n} confirms (".$passenger->first_name.' '.$passenger->last_name.') ──────────────────</>');
 
                 try {
                     $result = $bookingService->passengerConfirmCompletion($booking->id, $passenger);
 
-                    $icon  = $result['ride_finished'] ? '🏁' : '✅';
+                    $icon = $result['ride_finished'] ? '🏁' : '✅';
                     $label = $result['ride_finished'] ? '<fg=blue>YES — ride finished</>' : '<fg=yellow>NO — more passengers pending</>';
                     $this->line("  {$icon} {$result['message']}");
                     $this->line("     ride_complete → {$label}");
                 } catch (\Throwable $e) {
                     $this->error("\n  ✗ passengerConfirmCompletion() THREW:");
-                    $this->error("    " . get_class($e) . ': ' . $e->getMessage());
-                    $this->line("    File: " . $e->getFile() . ':' . $e->getLine());
+                    $this->error('    '.get_class($e).': '.$e->getMessage());
+                    $this->line('    File: '.$e->getFile().':'.$e->getLine());
                     $this->line("\n  Stack trace:");
                     foreach (array_slice(explode("\n", $e->getTraceAsString()), 0, 10) as $frame) {
                         $this->line("    {$frame}");
@@ -101,9 +102,9 @@ class Testridecompletionflow extends Command
                 DB::commit();
                 $this->newline();
                 $this->components->info('Data committed. To clean up:');
-                $this->line('  DELETE FROM bookings WHERE id IN (' . implode(', ', $this->bookingIds) . ');');
-                $this->line('  DELETE FROM rides    WHERE id  = ' . $this->rideId . ';');
-                $this->line('  DELETE FROM users    WHERE id IN (' . implode(', ', $this->userIds) . ');');
+                $this->line('  DELETE FROM bookings WHERE id IN ('.implode(', ', $this->bookingIds).');');
+                $this->line('  DELETE FROM rides    WHERE id  = '.$this->rideId.';');
+                $this->line('  DELETE FROM users    WHERE id IN ('.implode(', ', $this->userIds).');');
             } else {
                 DB::rollBack();
                 $this->newline();
@@ -114,9 +115,10 @@ class Testridecompletionflow extends Command
 
         } catch (\Throwable $e) {
             DB::rollBack();
-            $this->error('Test setup failed: ' . $e->getMessage());
-            $this->line($e->getFile() . ':' . $e->getLine());
+            $this->error('Test setup failed: '.$e->getMessage());
+            $this->line($e->getFile().':'.$e->getLine());
             $this->line($e->getTraceAsString());
+
             return self::FAILURE;
         }
     }
@@ -127,24 +129,25 @@ class Testridecompletionflow extends Command
 
     private function makeUser(string $label): User
     {
-        $slug = strtolower(str_replace(' ', '_', $label)) . '_' . now()->timestamp;
+        $slug = strtolower(str_replace(' ', '_', $label)).'_'.now()->timestamp;
 
         try {
             $user = User::factory()->create([
                 'first_name' => 'Test',
-                'last_name'  => $label,
+                'last_name' => $label,
             ]);
         } catch (\Throwable) {
             $user = User::create([
                 'first_name' => 'Test',
-                'last_name'  => $label,
-                'email'      => "{$slug}@syride.test",
-                'password'   => bcrypt('password'),
+                'last_name' => $label,
+                'email' => "{$slug}@syride.test",
+                'password' => bcrypt('password'),
             ]);
         }
 
         $this->userIds[] = $user->id;
         $this->line("    👤 {$label} → ID {$user->id}");
+
         return $user;
     }
 
@@ -156,32 +159,32 @@ class Testridecompletionflow extends Command
         // Damascus → Aleppo straight-line ≈ 349 km / ~3.5 h.
         // Adjust units below if your migration stores metres or seconds instead.
         $rideId = DB::table('rides')->insertGetId([
-            'driver_id'             => $driver->id,
-            'pickup_address'        => 'Test Pickup — Damascus',
-            'destination_address'   => 'Test Destination — Aleppo',
+            'driver_id' => $driver->id,
+            'pickup_address' => 'Test Pickup — Damascus',
+            'destination_address' => 'Test Destination — Aleppo',
 
             // Spatial POINT columns (lng lat order, no SRID).
             // Change to ST_GeomFromText('POINT(…)', 4326) if your migration uses SRID 4326.
-            'pickup_location'       => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
-            'destination_location'  => DB::raw("ST_GeomFromText('POINT(37.1343 36.2021)')"),
+            'pickup_location' => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
+            'destination_location' => DB::raw("ST_GeomFromText('POINT(37.1343 36.2021)')"),
 
             // ── Columns that are NOT NULL with no default ──────────────────────
             // Change the unit comments if your schema differs.
-            'distance'              => 349.0,          // km
-            'duration'              => 210,            // minutes (3 h 30 m) — remove if your column doesn't exist
+            'distance' => 349.0,          // km
+            'duration' => 210,            // minutes (3 h 30 m) — remove if your column doesn't exist
             // 'route'              => DB::raw("ST_GeomFromText('LINESTRING(36.2765 33.5138, 37.1343 36.2021)')"),
             //   ↑ Uncomment if your rides table has a NOT NULL 'route' geometry column.
 
-            'departure_time'        => $now->copy()->subHours(3),
-            'status'                => RideStatus::ACTIVE->value,
-            'available_seats'       => $seats,
-            'price_per_seat'        => 5000,
-            'vehicle_type'          => 'sedan',
-            'payment_method'        => $payment,
-            'booking_type'          => BookingType::DIRECT->value,
-            'communication_number'  => '0910000001',
-            'created_at'            => $now,
-            'updated_at'            => $now,
+            'departure_time' => $now->copy()->subHours(3),
+            'status' => RideStatus::ACTIVE->value,
+            'available_seats' => $seats,
+            'price_per_seat' => 5000,
+            'vehicle_type' => 'sedan',
+            'payment_method' => $payment,
+            'booking_type' => BookingType::DIRECT->value,
+            'communication_number' => '0910000001',
+            'created_at' => $now,
+            'updated_at' => $now,
 
             // ⚠ If you still hit "doesn't have a default value" for another column,
             //   add it here and tell me its name — I'll set the right dummy value.
@@ -191,22 +194,24 @@ class Testridecompletionflow extends Command
 
         $this->rideId = $rideId;
         $this->line("    🚗 Ride      → ID {$ride->id} | departure: {$ride->departure_time} | status: {$ride->status}");
+
         return $ride;
     }
 
     private function makeBooking(Ride $ride, User $passenger): Booking
     {
         $booking = Booking::create([
-            'user_id'              => $passenger->id,
-            'ride_id'              => $ride->id,
-            'seats'                => 1,
-            'status'               => BookingStatus::CONFIRMED->value,
+            'user_id' => $passenger->id,
+            'ride_id' => $ride->id,
+            'seats' => 1,
+            'status' => BookingStatus::CONFIRMED->value,
             'communication_number' => '0910000001',
             // ⚠ Add other required booking columns here if you get a DB error.
         ]);
 
         $this->bookingIds[] = $booking->id;
         $this->line("    📋 Booking   → ID {$booking->id} | passenger #{$passenger->id}");
+
         return $booking;
     }
 
@@ -220,19 +225,19 @@ class Testridecompletionflow extends Command
         $this->line("  <fg=yellow>▶ {$title}</>");
 
         $rc = match ($ride->status) {
-            'active'    => 'green',
-            'full'      => 'cyan',
-            'launched'  => 'yellow',
-            'finished'  => 'blue',
+            'active' => 'green',
+            'full' => 'cyan',
+            'launched' => 'yellow',
+            'finished' => 'blue',
             'cancelled' => 'red',
-            default     => 'white',
+            default => 'white',
         };
         $this->line("    Ride #{$ride->id}: <fg={$rc}>{$ride->status}</>");
 
         foreach ($bookings as $b) {
-            $bc        = $b->status === 'completed' ? 'green' : ($b->status === 'confirmed' ? 'yellow' : 'red');
+            $bc = $b->status === 'completed' ? 'green' : ($b->status === 'confirmed' ? 'yellow' : 'red');
             $confirmed = $b->completed_at
-                ? '<fg=green>' . Carbon::parse($b->completed_at)->format('H:i:s') . '</>'
+                ? '<fg=green>'.Carbon::parse($b->completed_at)->format('H:i:s').'</>'
                 : '<fg=gray>null</>';
             $this->line("    Booking #{$b->id} (pax #{$b->user_id}): <fg={$bc}>{$b->status}</>  confirmed_at: {$confirmed}");
         }
@@ -246,13 +251,13 @@ class Testridecompletionflow extends Command
         $this->line('  ═══════════════════════════════════════════════════════');
 
         $rideOk = $ride->status === RideStatus::FINISHED->value;
-        $this->line('    Ride status = ' . $ride->status . '  ' . ($rideOk ? '✅ PASS' : '❌ FAIL — expected: finished'));
+        $this->line('    Ride status = '.$ride->status.'  '.($rideOk ? '✅ PASS' : '❌ FAIL — expected: finished'));
 
         foreach ($bookings as $b) {
-            $statusOk    = $b->status === BookingStatus::COMPLETED->value;
+            $statusOk = $b->status === BookingStatus::COMPLETED->value;
             $confirmedOk = $b->completed_at !== null;
-            $ok          = $statusOk && $confirmedOk;
-            $this->line("    Booking #{$b->id}: status={$b->status}  confirmed_at={$b->completed_at}  " . ($ok ? '✅ PASS' : '❌ FAIL'));
+            $ok = $statusOk && $confirmedOk;
+            $this->line("    Booking #{$b->id}: status={$b->status}  confirmed_at={$b->completed_at}  ".($ok ? '✅ PASS' : '❌ FAIL'));
         }
 
         $this->line('  ═══════════════════════════════════════════════════════');

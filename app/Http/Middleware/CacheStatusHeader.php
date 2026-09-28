@@ -11,6 +11,7 @@ class CacheStatusHeader
     {
         $response = $next($request);
         $status = $request->attributes->get('cache_status', 'BYPASS');
+
         return $response->header('X-Cache-Status', $status);
     }
 }

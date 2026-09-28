@@ -5,7 +5,6 @@ namespace Tests\Feature\Staff;
 use App\Enums\StaffRole;
 use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -24,6 +23,7 @@ class EmployeeAuthServiceTest extends TestCase
     use RefreshDatabase;
 
     private Employee $adminEmployee;
+
     private Employee $agentEmployee;
 
     protected function setUp(): void
@@ -31,24 +31,24 @@ class EmployeeAuthServiceTest extends TestCase
         parent::setUp();
 
         $this->adminEmployee = Employee::create([
-            'username'      => 'admin_user',
-            'email'         => 'admin@staff.test',
-            'password'      => bcrypt('admin_pass'),
-            'first_name'    => 'Admin',
-            'last_name'     => 'Staff',
-            'role'          => StaffRole::ADMIN->value,
-            'is_active'     => true,
+            'username' => 'admin_user',
+            'email' => 'admin@staff.test',
+            'password' => bcrypt('admin_pass'),
+            'first_name' => 'Admin',
+            'last_name' => 'Staff',
+            'role' => StaffRole::ADMIN->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
 
         $this->agentEmployee = Employee::create([
-            'username'      => 'agent_user',
-            'email'         => 'agent@staff.test',
-            'password'      => bcrypt('agent_pass'),
-            'first_name'    => 'Agent',
-            'last_name'     => 'Staff',
-            'role'          => StaffRole::SUPPORT_AGENT->value,
-            'is_active'     => true,
+            'username' => 'agent_user',
+            'email' => 'agent@staff.test',
+            'password' => bcrypt('agent_pass'),
+            'first_name' => 'Agent',
+            'last_name' => 'Staff',
+            'role' => StaffRole::SUPPORT_AGENT->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
@@ -59,7 +59,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'admin_user',
-            'password'   => 'admin_pass',
+            'password' => 'admin_pass',
         ])->assertStatus(200)
             ->assertJsonPath('status', 'success')
             ->assertJsonStructure([
@@ -72,7 +72,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'admin@staff.test',
-            'password'   => 'admin_pass',
+            'password' => 'admin_pass',
         ])->assertStatus(200)
             ->assertJsonPath('status', 'success');
     }
@@ -81,7 +81,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'admin_user',
-            'password'   => 'wrong_password',
+            'password' => 'wrong_password',
         ])->assertStatus(401)
             ->assertJsonPath('code', 'INVALID_CREDENTIALS');
     }
@@ -90,7 +90,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'nobody',
-            'password'   => 'password',
+            'password' => 'password',
         ])->assertStatus(401)
             ->assertJsonPath('code', 'INVALID_CREDENTIALS');
     }
@@ -101,7 +101,7 @@ class EmployeeAuthServiceTest extends TestCase
 
         $this->postJson('/api/staff/login', [
             'identifier' => 'admin_user',
-            'password'   => 'admin_pass',
+            'password' => 'admin_pass',
         ])->assertStatus(401);
     }
 
@@ -116,7 +116,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'agent_user',
-            'password'   => 'agent_pass',
+            'password' => 'agent_pass',
         ])->assertStatus(200)
             ->assertJsonPath('status', 'success');
     }
@@ -125,7 +125,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         $response = $this->postJson('/api/staff/login', [
             'identifier' => 'admin_user',
-            'password'   => 'admin_pass',
+            'password' => 'admin_pass',
         ]);
 
         $response->assertStatus(200);
@@ -138,7 +138,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         $loginResponse = $this->postJson('/api/staff/login', [
             'identifier' => 'admin_user',
-            'password'   => 'admin_pass',
+            'password' => 'admin_pass',
         ]);
 
         $refreshToken = $loginResponse->json('tokens.refresh_token');
@@ -200,7 +200,7 @@ class EmployeeAuthServiceTest extends TestCase
     {
         return $this->postJson('/api/staff/login', [
             'identifier' => $employee->username,
-            'password'   => $password,
+            'password' => $password,
         ])->json('tokens.access_token');
     }
 }

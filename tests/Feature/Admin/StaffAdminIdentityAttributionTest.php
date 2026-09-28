@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
+use App\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -43,19 +44,19 @@ class StaffAdminIdentityAttributionTest extends TestCase
     private function staff(string $role = 'system_admin'): array
     {
         $employee = Employee::create([
-            'username'      => 't21_' . uniqid(),
-            'email'         => 't21_' . uniqid() . '@test.com',
-            'password'      => 'Password123!',
-            'first_name'    => 'Attr',
-            'last_name'     => 'Tester',
-            'role'          => $role,
-            'is_active'     => true,
+            'username' => 't21_'.uniqid(),
+            'email' => 't21_'.uniqid().'@test.com',
+            'password' => 'Password123!',
+            'first_name' => 'Attr',
+            'last_name' => 'Tester',
+            'role' => $role,
+            'is_active' => true,
             'token_version' => 0,
         ]);
 
         $token = $this->postJson('/api/staff/login', [
             'identifier' => $employee->username,
-            'password'   => 'Password123!',
+            'password' => 'Password123!',
         ])->json('tokens.access_token');
 
         $this->assertNotEmpty($token, 'staff login must return an access token');
@@ -66,18 +67,18 @@ class StaffAdminIdentityAttributionTest extends TestCase
     private function walletRequestFor(User $user): WalletRequest
     {
         $wallet = Wallet::create([
-            'user_id'       => $user->id,
-            'phone_number'  => '09' . rand(10000000, 99999999),
-            'wallet_number' => 'WLT-' . Str::random(10),
-            'balance'       => 0,
+            'user_id' => $user->id,
+            'phone_number' => '09'.rand(10000000, 99999999),
+            'wallet_number' => 'WLT-'.Str::random(10),
+            'balance' => 0,
         ]);
 
         return WalletRequest::create([
-            'user_id'   => $user->id,
+            'user_id' => $user->id,
             'wallet_id' => $wallet->id,
-            'type'      => 'charge',
-            'amount'    => 50000,
-            'status'    => 'pending',
+            'type' => 'charge',
+            'amount' => 50000,
+            'status' => 'pending',
         ]);
     }
 
@@ -91,7 +92,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
         [$employee, $token] = $this->staff('system_admin');
 
         $passenger = User::factory()->create(['status' => 1]);
-        $request   = $this->walletRequestFor($passenger);
+        $request = $this->walletRequestFor($passenger);
 
         $this->withToken($token)
             ->postJson("/api/admin/wallet/requests/{$request->id}/approve", [
@@ -123,7 +124,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
         [$employee, $token] = $this->staff('system_admin');
 
         $passenger = User::factory()->create(['status' => 1]);
-        $request   = $this->walletRequestFor($passenger);
+        $request = $this->walletRequestFor($passenger);
 
         $this->withToken($token)
             ->postJson("/api/admin/wallet/requests/{$request->id}/reject", [
@@ -154,7 +155,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
         $this->withToken($token)
             ->postJson("/api/admin/users/{$target->id}/ban", [
                 'reason' => 'Repeated spam behaviour',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ])
             ->assertStatus(200);
 
@@ -177,17 +178,17 @@ class StaffAdminIdentityAttributionTest extends TestCase
         [$employee, $token] = $this->staff('system_admin');
 
         $passenger = User::factory()->create(['status' => 1]);
-        $wallet    = Wallet::create([
-            'user_id'       => $passenger->id,
-            'phone_number'  => '09' . rand(10000000, 99999999),
-            'wallet_number' => 'WLT-' . Str::random(10),
-            'balance'       => 0,
+        $wallet = Wallet::create([
+            'user_id' => $passenger->id,
+            'phone_number' => '09'.rand(10000000, 99999999),
+            'wallet_number' => 'WLT-'.Str::random(10),
+            'balance' => 0,
         ]);
         $passenger->update(['wallet_id' => $wallet->id]);
 
         $this->withToken($token)
             ->postJson("/api/admin/passengers/{$passenger->id}/charge-wallet", [
-                'amount'      => 25000,
+                'amount' => 25000,
                 'admin_notes' => 'goodwill credit',
             ])
             ->assertStatus(200);
@@ -214,7 +215,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
         [$employee, $token] = $this->staff('system_admin');
 
         $passenger = User::factory()->create(['status' => 1]);
-        $request   = $this->walletRequestFor($passenger);
+        $request = $this->walletRequestFor($passenger);
 
         $this->withToken($token)
             ->postJson("/api/admin/wallet/requests/{$request->id}/approve")
@@ -234,7 +235,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
     public function test_unauthenticated_admin_request_is_rejected(): void
     {
         $passenger = User::factory()->create(['status' => 1]);
-        $request   = $this->walletRequestFor($passenger);
+        $request = $this->walletRequestFor($passenger);
 
         $this->postJson("/api/admin/wallet/requests/{$request->id}/approve")
             ->assertStatus(401);
@@ -246,7 +247,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
     public function test_invalid_token_is_rejected(): void
     {
         $passenger = User::factory()->create(['status' => 1]);
-        $request   = $this->walletRequestFor($passenger);
+        $request = $this->walletRequestFor($passenger);
 
         $this->withToken('not.a.real.token')
             ->postJson("/api/admin/wallet/requests/{$request->id}/approve")
@@ -265,7 +266,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
         [$employee, $token] = $this->staff('support_agent');
 
         $passenger = User::factory()->create(['status' => 1]);
-        $request   = $this->walletRequestFor($passenger);
+        $request = $this->walletRequestFor($passenger);
 
         $this->withToken($token)
             ->postJson("/api/admin/wallet/requests/{$request->id}/approve")
@@ -290,7 +291,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
         [$employee] = $this->staff('system_admin');
 
         $passenger = User::factory()->create(['status' => 1]);
-        $userToken = app(\App\Services\JwtService::class)
+        $userToken = app(JwtService::class)
             ->generateTokenPair($passenger)['access_token'];
 
         $request = $this->walletRequestFor($passenger);
@@ -312,7 +313,7 @@ class StaffAdminIdentityAttributionTest extends TestCase
         $employee->update(['is_active' => false]);
 
         $passenger = User::factory()->create(['status' => 1]);
-        $request   = $this->walletRequestFor($passenger);
+        $request = $this->walletRequestFor($passenger);
 
         $this->withToken($token)
             ->postJson("/api/admin/wallet/requests/{$request->id}/approve")

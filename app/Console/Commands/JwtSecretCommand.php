@@ -31,12 +31,13 @@ class JwtSecretCommand extends Command
         $key = $this->generateRandomKey();
 
         if ($this->option('show')) {
-            $this->line('<comment>' . $key . '</comment>');
+            $this->line('<comment>'.$key.'</comment>');
+
             return 0;
         }
 
         // Next, we will replace the application key in the environment file.
-        if (!$this->setKeyInEnvironmentFile($key)) {
+        if (! $this->setKeyInEnvironmentFile($key)) {
             return 1;
         }
 
@@ -67,7 +68,7 @@ class JwtSecretCommand extends Command
     {
         $currentKey = $this->laravel['config']['jwt.secret'];
 
-        if (strlen($currentKey) !== 0 && (!$this->confirmToProceed())) {
+        if (strlen($currentKey) !== 0 && (! $this->confirmToProceed())) {
             return false;
         }
 
@@ -91,12 +92,12 @@ class JwtSecretCommand extends Command
         if (preg_match('/^JWT_SECRET=.*$/m', $contents)) {
             $contents = preg_replace(
                 '/^JWT_SECRET=.*$/m',
-                'JWT_SECRET=' . $key,
+                'JWT_SECRET='.$key,
                 $contents
             );
         } else {
             // Add JWT_SECRET if it doesn't exist
-            $contents .= "\nJWT_SECRET=" . $key;
+            $contents .= "\nJWT_SECRET=".$key;
         }
 
         file_put_contents($envFile, $contents);

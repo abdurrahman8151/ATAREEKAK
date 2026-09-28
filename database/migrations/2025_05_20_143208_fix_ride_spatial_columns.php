@@ -9,7 +9,7 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-// database/migrations/xxxx_fix_ride_spatial_columns.php
+    // database/migrations/xxxx_fix_ride_spatial_columns.php
 
     public function up()
     {
@@ -25,6 +25,7 @@ return new class extends Migration
             $table->geometry('destination_location')->after('pickup_location');
         });
     }
+
     /**
      * Reverse the migrations.
      */

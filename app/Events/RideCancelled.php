@@ -7,7 +7,6 @@ use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -16,7 +15,7 @@ use Illuminate\Queue\SerializesModels;
  *
  * FIXED: Explicit data arrays
  */
-class RideCancelled implements  ShouldBroadcast
+class RideCancelled implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -35,12 +34,12 @@ class RideCancelled implements  ShouldBroadcast
             // T2-7: was a public Channel('rides'); private so the client must
             // authorize through /broadcasting/auth (jwt) before subscribing.
             new PrivateChannel('rides'),
-            new PrivateChannel('user.' . $this->driver->id)
+            new PrivateChannel('user.'.$this->driver->id),
         ];
 
         // Add private channels for each affected passenger
         foreach ($this->bookings as $booking) {
-            $channels[] = new PrivateChannel('user.' . $booking['user_id']);
+            $channels[] = new PrivateChannel('user.'.$booking['user_id']);
         }
 
         return $channels;
@@ -68,7 +67,7 @@ class RideCancelled implements  ShouldBroadcast
             ],
             'driver' => [
                 'id' => $this->driver->id,
-                'name' => $this->driver->first_name . ' ' . $this->driver->last_name,
+                'name' => $this->driver->first_name.' '.$this->driver->last_name,
             ],
             'affected_bookings_count' => count($this->bookings),
             'cancellation_time' => now()->toIso8601String(),

@@ -1,0 +1,99 @@
+name: Architecture gate (boundary + audit suites)
+
+# AF-2' (app-future audit): machine-checked modularity.
+#
+#   1. BoundaryDependencyTest enforces the bounded-context rules of
+#      docs/audit/ARCHITECTURE_MAP.md as a RATCHET: a new cross-context edge
+#      (Controller->Model, Domain->Service, Request below the HTTP layer, ...)
+#      fails CI; and fixing an old one fails CI too *until the baseline number
+#      is lowered in the test file*, so debt can only shrink deliberately.
+#   2. The audit suites below are the fully-green regression floor. This list is
+#      INTENTIONALLY not "the whole suite": 374 pre-existing broad-suite errors
+#      (fixture/schema debt recorded in the bug audit) make a blanket
+#      `php artisan test` gate permanently red — and an always-red gate is the
+#      same disease as the `|| true` removed under T3-11. The list grows as that
+#      debt burns down; each addition is a small PR.
+#
+# MySQL service matches the Sonar workflow: the money/geo suites skip when the
+# connection is not mysql, so this must run against real MySQL to mean anything.
+
+on:
+  push:
+    branches: [ main, Agentic ]
+  pull_request:
+
+jobs:
+  architecture:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ''
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: 4th_year_project_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_mysql
+
+      - name: Create .env (fresh JWT per run — same policy as T3-11)
+        run: |
+          echo "APP_NAME=Laravel" > .env
+          echo "APP_ENV=testing" >> .env
+          echo "APP_DEBUG=true" >> .env
+          echo "DB_CONNECTION=mysql" >> .env
+          echo "DB_HOST=127.0.0.1" >> .env
+          echo "DB_PORT=3306" >> .env
+          echo "DB_DATABASE=4th_year_project_test" >> .env
+          echo "DB_USERNAME=root" >> .env
+          echo "DB_PASSWORD=" >> .env
+          echo "CACHE_DRIVER=array" >> .env
+          echo "SESSION_DRIVER=array" >> .env
+          echo "QUEUE_CONNECTION=sync" >> .env
+          echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+          echo "JWT_TTL=600" >> .env
+          echo "OTP_BYPASS_ENABLED=true" >> .env
+          echo "WALLET_OTP_MODE=testing" >> .env
+          echo "FIREBASE_CREDENTIALS=" >> .env
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Generate app key
+        run: php artisan key:generate
+
+      - name: Boundary ratchet + audit suites (green floor, grows as debt burns)
+        # `php artisan test` accepts ONE path argument, so this iterates. GitHub's
+        # default bash runs with -e: the first failing path fails the job.
+        run: |
+          for p in \
+            tests/Feature/AppFuture \
+            tests/Feature/T3Batch \
+            tests/Feature/T4Batch \
+            tests/Feature/RateLimiting \
+            tests/Feature/Rides/PassengerConfirmCompletionTest.php \
+            tests/Feature/Auth/GoogleOauthTokenTest.php \
+            tests/Feature/Auth/SignupPasswordOverwriteTest.php \
+            tests/Feature/Security/SessionCookieAndCorsTest.php \
+            tests/Feature/Security/DebugEndpointDisclosureTest.php \
+            tests/Feature/Staff/StaffRefreshTokenHashingTest.php \
+            tests/Feature/Broadcast/RideChannelAuthorizationTest.php \
+            tests/Feature/Config/PusherCredentialFallbackTest.php \
+            tests/Feature/Admin/StaffAdminIdentityAttributionTest.php \
+            tests/Feature/Admin/AdminFinancialSurfaceAuthorizationTest.php \
+            tests/Feature/Admin/AdminFinancialReportEscrowTest.php \
+            tests/Feature/Notifications/NotificationTest.php \
+            tests/Unit/Providers/RouteServiceProviderTest.php \
+          ; do
+            php artisan test --no-coverage "$p"
+          done

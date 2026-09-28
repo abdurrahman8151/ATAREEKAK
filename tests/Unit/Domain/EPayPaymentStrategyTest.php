@@ -10,7 +10,6 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Payment\WalletTransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -22,10 +21,14 @@ class EPayPaymentStrategyTest extends TestCase
     use RefreshDatabase;
 
     private EPayPaymentStrategy $strategy;
-    private User   $driver;
-    private User   $passenger;
+
+    private User $driver;
+
+    private User $passenger;
+
     private Wallet $passengerWallet;
-    private Ride   $ride;
+
+    private Ride $ride;
 
     protected function setUp(): void
     {
@@ -34,58 +37,58 @@ class EPayPaymentStrategyTest extends TestCase
         $this->strategy = app(EPayPaymentStrategy::class);
 
         Config::set('admin.system_admin', [
-            'email'         => 'sysadm@epay.test',
-            'password'      => 'pass',
-            'first_name'    => 'System',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000010',
+            'email' => 'sysadm@epay.test',
+            'password' => 'pass',
+            'first_name' => 'System',
+            'last_name' => 'Admin',
+            'phone' => '0910000010',
             'wallet_prefix' => 'SYS',
-            'permissions'   => ['*'],
+            'permissions' => ['*'],
         ]);
         Config::set('admin.sycash', [
-            'email'         => 'sycash@epay.test',
-            'password'      => 'pass',
-            'first_name'    => 'SyCash',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000011',
+            'email' => 'sycash@epay.test',
+            'password' => 'pass',
+            'first_name' => 'SyCash',
+            'last_name' => 'Admin',
+            'phone' => '0910000011',
             'wallet_prefix' => 'SYC',
-            'permissions'   => ['view_wallet'],
+            'permissions' => ['view_wallet'],
         ]);
 
         // Admin wallets
         foreach (['system_admin', 'sycash'] as $type) {
-            $cfg  = config("admin.{$type}");
+            $cfg = config("admin.{$type}");
             $user = User::firstOrCreate(
                 ['email' => $cfg['email']],
                 ['first_name' => $type, 'last_name' => 'Admin',
                     'password' => bcrypt($cfg['password']), 'gender' => 'M',
                     'address' => 'دمشق', 'status' => 1]
             );
-            if (!$user->wallet_id) {
+            if (! $user->wallet_id) {
                 $w = Wallet::create([
-                    'user_id'      => $user->id,
+                    'user_id' => $user->id,
                     'phone_number' => $cfg['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                 ]);
                 $user->update(['wallet_id' => $w->id]);
             }
         }
 
-        $this->driver    = User::factory()->create(['is_verified_driver' => true]);
-        $driverWallet    = Wallet::create([
-            'user_id'       => $this->driver->id,
-            'phone_number'  => '091' . rand(1000000, 9999999),
-            'wallet_number' => 'WLT-' . Str::random(8),
-            'balance'       => 500_000,
+        $this->driver = User::factory()->create(['is_verified_driver' => true]);
+        $driverWallet = Wallet::create([
+            'user_id' => $this->driver->id,
+            'phone_number' => '091'.rand(1000000, 9999999),
+            'wallet_number' => 'WLT-'.Str::random(8),
+            'balance' => 500_000,
         ]);
         $this->driver->update(['wallet_id' => $driverWallet->id]);
 
         $this->passenger = User::factory()->create(['is_verified_passenger' => true]);
         $this->passengerWallet = Wallet::create([
-            'user_id'       => $this->passenger->id,
-            'phone_number'  => '092' . rand(1000000, 9999999),
-            'wallet_number' => 'WLT-' . Str::random(8),
-            'balance'       => 1_000_000,
+            'user_id' => $this->passenger->id,
+            'phone_number' => '092'.rand(1000000, 9999999),
+            'wallet_number' => 'WLT-'.Str::random(8),
+            'balance' => 1_000_000,
         ]);
         $this->passenger->update(['wallet_id' => $this->passengerWallet->id]);
 
@@ -136,8 +139,8 @@ class EPayPaymentStrategyTest extends TestCase
     public function test_process_booking_payment_deducts_from_passenger_wallet(): void
     {
         $booking = $this->makeBooking(2);
-        $amount  = $booking->seats * $this->ride->price_per_seat;
-        $before  = (float) $this->passengerWallet->fresh()->balance;
+        $amount = $booking->seats * $this->ride->price_per_seat;
+        $before = (float) $this->passengerWallet->fresh()->balance;
 
         $this->strategy->processBookingPayment($booking, $this->ride, $this->passenger);
 
@@ -157,7 +160,7 @@ class EPayPaymentStrategyTest extends TestCase
     public function test_process_booking_payment_returns_failure_when_no_wallet(): void
     {
         $noWalletPassenger = User::factory()->create();
-        $booking           = $this->makeBooking(1);
+        $booking = $this->makeBooking(1);
 
         $result = $this->strategy->processBookingPayment($booking, $this->ride, $noWalletPassenger);
 
@@ -222,10 +225,10 @@ class EPayPaymentStrategyTest extends TestCase
     private function makeBooking(int $seats = 1, string $status = 'confirmed'): Booking
     {
         return Booking::create([
-            'user_id'              => $this->passenger->id,
-            'ride_id'              => $this->ride->id,
-            'seats'                => $seats,
-            'status'               => $status,
+            'user_id' => $this->passenger->id,
+            'ride_id' => $this->ride->id,
+            'seats' => $seats,
+            'status' => $status,
             'communication_number' => '0912345678',
         ]);
     }

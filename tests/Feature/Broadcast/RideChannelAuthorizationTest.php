@@ -8,6 +8,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Services\JwtService;
 use Illuminate\Broadcasting\Broadcasters\Broadcaster;
+use Illuminate\Broadcasting\BroadcastManager;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,7 +52,7 @@ class RideChannelAuthorizationTest extends TestCase
         // which stores the callbacks in its protected $channels map. Resolve the
         // same memoized instance the /broadcasting/auth route uses.
         /** @var Broadcaster $broadcaster */
-        $broadcaster = app(\Illuminate\Broadcasting\BroadcastManager::class)->driver();
+        $broadcaster = app(BroadcastManager::class)->driver();
         $prop = new ReflectionProperty(Broadcaster::class, 'channels');
         $prop->setAccessible(true);
         $channels = $prop->getValue($broadcaster);
@@ -64,7 +65,7 @@ class RideChannelAuthorizationTest extends TestCase
     private function authenticatedUser(): array
     {
         $u = User::factory()->create([
-            'status'            => 1,
+            'status' => 1,
             'email_verified_at' => now(),
         ]);
 
@@ -86,8 +87,8 @@ class RideChannelAuthorizationTest extends TestCase
 
     public function test_ride_cancelled_broadcasts_the_rides_channel_as_private(): void
     {
-        $ride    = new Ride(['driver_id' => 1]);
-        $driver  = new User();
+        $ride = new Ride(['driver_id' => 1]);
+        $driver = new User;
         $channels = (new RideCancelled($ride, [], $driver))->broadcastOn();
 
         $this->assertNotEmpty(array_values(array_filter(
@@ -99,14 +100,14 @@ class RideChannelAuthorizationTest extends TestCase
     public function test_ride_events_do_not_broadcast_on_any_public_channel(): void
     {
         foreach ([new RideCreated(new Ride(['driver_id' => 1])),
-                  new RideCancelled(new Ride(['driver_id' => 1]), [], new User())] as $event) {
+            new RideCancelled(new Ride(['driver_id' => 1]), [], new User)] as $event) {
             foreach ($event->broadcastOn() as $channel) {
                 // A public channel is a Channel that is NOT a PrivateChannel/PresenceChannel.
                 $isPublic = $channel instanceof Channel
                     && ! ($channel instanceof PrivateChannel);
                 $this->assertFalse(
                     $isPublic,
-                    get_class($event) . ' must not expose a public channel.'
+                    get_class($event).' must not expose a public channel.'
                 );
             }
         }
@@ -150,7 +151,7 @@ class RideChannelAuthorizationTest extends TestCase
         // control, so the HTTP success path is not needed to prove the fix.
         $this->postJson('/broadcasting/auth', [
             'channel_name' => 'private-rides',
-            'socket_id'    => '1234.5678',
+            'socket_id' => '1234.5678',
         ])->assertStatus(401);
     }
 }

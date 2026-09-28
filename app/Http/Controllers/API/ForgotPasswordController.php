@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\API;
 
-use App\DTOs\Auth\SendEmailOtpDTO;
 use App\Domain\ValueObjects\Email;
+use App\DTOs\Auth\SendEmailOtpDTO;
 use App\Http\Controllers\Controller;
 use App\Interfaces\EmailOtpServiceInterface;
 use App\Interfaces\UserRepositoryInterface;
@@ -23,7 +23,7 @@ class ForgotPasswordController extends Controller
 {
     public function __construct(
         private readonly EmailOtpServiceInterface $emailOtpService,
-        private readonly UserRepositoryInterface  $userRepository,
+        private readonly UserRepositoryInterface $userRepository,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -32,21 +32,21 @@ class ForgotPasswordController extends Controller
             'email' => ['required', 'string', 'email', 'max:255'],
         ], [
             'email.required' => 'Email address is required.',
-            'email.email'    => 'Please enter a valid email address.',
+            'email.email' => 'Please enter a valid email address.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $email = $request->input('email');
-        $user  = $this->userRepository->findByEmail($email);
+        $user = $this->userRepository->findByEmail($email);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'No account found with this email address.',
@@ -54,14 +54,14 @@ class ForgotPasswordController extends Controller
         }
 
         $dto = new SendEmailOtpDTO(
-            email:    Email::from($email),
+            email: Email::from($email),
             userName: $user->first_name,
-            type:     'PASSWORD_RESET',
+            type: 'PASSWORD_RESET',
         );
 
         $result = $this->emailOtpService->sendOtp($dto);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to send the verification code. Please try again.',
@@ -70,7 +70,7 @@ class ForgotPasswordController extends Controller
 
         $response = [
             'success' => true,
-            'message' => 'A 6-digit verification code has been sent to ' . $email . '. It expires in 10 minutes.',
+            'message' => 'A 6-digit verification code has been sent to '.$email.'. It expires in 10 minutes.',
         ];
 
         // Expose OTP only in local/testing environments

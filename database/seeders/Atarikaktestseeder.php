@@ -10,6 +10,7 @@ use App\DTOs\Ride\CreateRideDTO;
 use App\Enums\BookingType;
 use App\Enums\PaymentMethod;
 use App\Models\Booking;
+use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
@@ -20,6 +21,7 @@ use App\Services\Ride\BookingService;
 use App\Services\Ride\RideService;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -46,7 +48,8 @@ class Atarikaktestseeder extends Seeder
 
     private array $vehicleTypes = ['sedan', 'suv', 'minivan', 'pickup'];
 
-    private RideService    $rideService;
+    private RideService $rideService;
+
     private BookingService $bookingService;
 
     // =========================================================================
@@ -56,27 +59,28 @@ class Atarikaktestseeder extends Seeder
     public function run(): void
     {
         config(['broadcasting.default' => 'log']);
-        config(['mail.default'         => 'log']);
+        config(['mail.default' => 'log']);
 
-        \App\Models\User::flushEventListeners();
+        User::flushEventListeners();
 
         $this->command->info('🚀 Atarikak Test Seeder starting...');
 
         // Verify system wallets exist (SystemWalletSeeder must run first)
-        $syCash  = Wallet::where('phone_number', config('admin.sycash.phone'))->first();
+        $syCash = Wallet::where('phone_number', config('admin.sycash.phone'))->first();
         $primary = Wallet::where('phone_number', config('admin.system_admin.phone'))->first();
 
-        if (!$syCash || !$primary) {
+        if (! $syCash || ! $primary) {
             $this->command->error('System wallets not found. Run SystemWalletSeeder first.');
+
             return;
         }
 
-        $this->rideService    = app(RideService::class);
+        $this->rideService = app(RideService::class);
         $this->bookingService = app(BookingService::class);
 
         // ── 1. Seed base users ───────────────────────────────────────────────
         $this->command->info('Creating users...');
-        $drivers    = $this->createDrivers(10);
+        $drivers = $this->createDrivers(10);
         $passengers = $this->createPassengers(20);
         $this->createUnverifiedUsers(5);
 
@@ -118,77 +122,77 @@ class Atarikaktestseeder extends Seeder
 
         $this->command->info('');
         $this->command->info('✅ Seeder complete!');
-        $this->command->info('   Users:      ' . User::count());
-        $this->command->info('   Rides:      ' . Ride::count());
-        $this->command->info('   Bookings:   ' . Booking::count());
-        $this->command->info('   Wallets:    ' . Wallet::count());
+        $this->command->info('   Users:      '.User::count());
+        $this->command->info('   Rides:      '.Ride::count());
+        $this->command->info('   Bookings:   '.Booking::count());
+        $this->command->info('   Wallets:    '.Wallet::count());
     }
 
     // =========================================================================
     // USER CREATION
     // =========================================================================
 
-    private function createDrivers(int $count): \Illuminate\Support\Collection
+    private function createDrivers(int $count): Collection
     {
-        $drivers   = collect();
+        $drivers = collect();
         $adminUser = User::where('email', config('admin.system_admin.email'))->first();
 
         for ($i = 1; $i <= $count; $i++) {
             $user = User::create([
-                'first_name'            => "Driver{$i}",
-                'last_name'             => 'Test',
-                'email'                 => "driver{$i}@test.com",
-                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
-                'gender'                => $i % 2 === 0 ? 'M' : 'F',
-                'address'               => $this->cities[array_rand($this->cities)],
-                'status'                => 1,
-                'is_verified_driver'    => true,
+                'first_name' => "Driver{$i}",
+                'last_name' => 'Test',
+                'email' => "driver{$i}@test.com",
+                'password' => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
+                'gender' => $i % 2 === 0 ? 'M' : 'F',
+                'address' => $this->cities[array_rand($this->cities)],
+                'status' => 1,
+                'is_verified_driver' => true,
                 'is_verified_passenger' => true,
-                'verification_status'   => 'approved',
-                'email_verified_at'     => now(),
+                'verification_status' => 'approved',
+                'email_verified_at' => now(),
             ]);
 
             Profile::create([
-                'user_id'         => $user->id,
-                'full_name'       => "Driver{$i} Test",
-                'address'         => $user->address,
-                'gender'          => $user->gender,
-                'type_of_car'     => $this->vehicleTypes[array_rand($this->vehicleTypes)],
-                'color_of_car'    => ['white', 'black', 'silver', 'red'][array_rand(['white', 'black', 'silver', 'red'])],
+                'user_id' => $user->id,
+                'full_name' => "Driver{$i} Test",
+                'address' => $user->address,
+                'gender' => $user->gender,
+                'type_of_car' => $this->vehicleTypes[array_rand($this->vehicleTypes)],
+                'color_of_car' => ['white', 'black', 'silver', 'red'][array_rand(['white', 'black', 'silver', 'red'])],
                 'number_of_seats' => rand(4, 7),
                 'number_of_rides' => 0,
-                'radio'           => (bool) rand(0, 1),
-                'smoking'         => false,
-                'profile_photo'   => 'profiles/profile_photo/default-profile-photo.jpg',
+                'radio' => (bool) rand(0, 1),
+                'smoking' => false,
+                'profile_photo' => 'profiles/profile_photo/default-profile-photo.jpg',
             ]);
 
             $wallet = Wallet::create([
-                'user_id'      => $user->id,
-                'phone_number' => '+9639' . str_pad($i, 8, '0', STR_PAD_LEFT),
-                'balance'      => 2_000_000,
+                'user_id' => $user->id,
+                'phone_number' => '+9639'.str_pad($i, 8, '0', STR_PAD_LEFT),
+                'balance' => 2_000_000,
             ]);
             $user->wallet_id = $wallet->id;
             $user->save();
 
             UserScore::create([
-                'user_id'             => $user->id,
-                'score'               => 70,
-                'total_rides'         => 0,
+                'user_id' => $user->id,
+                'score' => 70,
+                'total_rides' => 0,
                 'total_cancellations' => 0,
             ]);
 
             if ($adminUser) {
                 UserRating::firstOrCreate(
                     ['rater_id' => $adminUser->id, 'rated_user_id' => $user->id],
-                    ['rating'   => 3.0]
+                    ['rating' => 3.0]
                 );
             }
 
             foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $docType) {
-                \App\Models\Photo::create([
+                Photo::create([
                     'user_id' => $user->id,
-                    'type'    => $docType,
-                    'path'    => "verifications/{$docType}/seeded_{$user->id}.jpg",
+                    'type' => $docType,
+                    'path' => "verifications/{$docType}/seeded_{$user->id}.jpg",
                 ]);
             }
 
@@ -196,67 +200,68 @@ class Atarikaktestseeder extends Seeder
         }
 
         $this->command->info("  ✅ {$count} drivers created with 3.0 base rating.");
+
         return $drivers;
     }
 
-    private function createPassengers(int $count): \Illuminate\Support\Collection
+    private function createPassengers(int $count): Collection
     {
         $passengers = collect();
-        $adminUser  = User::where('email', config('admin.system_admin.email'))->first();
+        $adminUser = User::where('email', config('admin.system_admin.email'))->first();
 
         for ($i = 1; $i <= $count; $i++) {
             $user = User::create([
-                'first_name'            => "Passenger{$i}",
-                'last_name'             => 'Test',
-                'email'                 => "passenger{$i}@test.com",
-                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
-                'gender'                => $i % 2 === 0 ? 'M' : 'F',
-                'address'               => $this->cities[array_rand($this->cities)],
-                'status'                => 1,
-                'is_verified_driver'    => false,
+                'first_name' => "Passenger{$i}",
+                'last_name' => 'Test',
+                'email' => "passenger{$i}@test.com",
+                'password' => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
+                'gender' => $i % 2 === 0 ? 'M' : 'F',
+                'address' => $this->cities[array_rand($this->cities)],
+                'status' => 1,
+                'is_verified_driver' => false,
                 'is_verified_passenger' => true,
-                'verification_status'   => 'approved',
-                'email_verified_at'     => now(),
+                'verification_status' => 'approved',
+                'email_verified_at' => now(),
             ]);
 
             Profile::create([
-                'user_id'         => $user->id,
-                'full_name'       => "Passenger{$i} Test",
-                'address'         => $user->address,
-                'gender'          => $user->gender,
+                'user_id' => $user->id,
+                'full_name' => "Passenger{$i} Test",
+                'address' => $user->address,
+                'gender' => $user->gender,
                 'number_of_rides' => 0,
-                'radio'           => false,
-                'smoking'         => false,
-                'profile_photo'   => 'profiles/profile_photo/default-profile-photo.jpg',
+                'radio' => false,
+                'smoking' => false,
+                'profile_photo' => 'profiles/profile_photo/default-profile-photo.jpg',
             ]);
 
             $wallet = Wallet::create([
-                'user_id'      => $user->id,
-                'phone_number' => '+9639' . str_pad(100 + $i, 8, '0', STR_PAD_LEFT),
-                'balance'      => 5_000_000,
+                'user_id' => $user->id,
+                'phone_number' => '+9639'.str_pad(100 + $i, 8, '0', STR_PAD_LEFT),
+                'balance' => 5_000_000,
             ]);
             $user->wallet_id = $wallet->id;
             $user->save();
 
             UserScore::create([
-                'user_id'             => $user->id,
-                'score'               => 70,
-                'total_rides'         => 0,
+                'user_id' => $user->id,
+                'score' => 70,
+                'total_rides' => 0,
                 'total_cancellations' => 0,
             ]);
 
             if ($adminUser) {
                 UserRating::firstOrCreate(
                     ['rater_id' => $adminUser->id, 'rated_user_id' => $user->id],
-                    ['rating'   => 3.0]
+                    ['rating' => 3.0]
                 );
             }
 
             foreach (['face_id', 'back_id'] as $docType) {
-                \App\Models\Photo::create([
+                Photo::create([
                     'user_id' => $user->id,
-                    'type'    => $docType,
-                    'path'    => "verifications/{$docType}/seeded_{$user->id}.jpg",
+                    'type' => $docType,
+                    'path' => "verifications/{$docType}/seeded_{$user->id}.jpg",
                 ]);
             }
 
@@ -264,51 +269,52 @@ class Atarikaktestseeder extends Seeder
         }
 
         $this->command->info("  ✅ {$count} passengers created with 3.0 base rating.");
+
         return $passengers;
     }
 
     private function createUnverifiedUsers(int $count): void
     {
-        $statuses  = ['pending', 'none', 'pending', 'none', 'rejected'];
+        $statuses = ['pending', 'none', 'pending', 'none', 'rejected'];
         $adminUser = User::where('email', config('admin.system_admin.email'))->first();
 
         for ($i = 1; $i <= $count; $i++) {
             $user = User::create([
-                'first_name'            => "Unverified{$i}",
-                'last_name'             => 'User',
-                'email'                 => "unverified{$i}@test.com",
-                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
-                'gender'                => 'M',
-                'address'               => $this->cities[array_rand($this->cities)],
-                'status'                => 1,
-                'is_verified_driver'    => false,
+                'first_name' => "Unverified{$i}",
+                'last_name' => 'User',
+                'email' => "unverified{$i}@test.com",
+                'password' => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
+                'gender' => 'M',
+                'address' => $this->cities[array_rand($this->cities)],
+                'status' => 1,
+                'is_verified_driver' => false,
                 'is_verified_passenger' => false,
-                'verification_status'   => $statuses[$i - 1],
-                'email_verified_at'     => now(),
+                'verification_status' => $statuses[$i - 1],
+                'email_verified_at' => now(),
             ]);
 
             Profile::create([
-                'user_id'         => $user->id,
-                'full_name'       => "Unverified{$i} User",
-                'address'         => $user->address,
-                'gender'          => $user->gender,
+                'user_id' => $user->id,
+                'full_name' => "Unverified{$i} User",
+                'address' => $user->address,
+                'gender' => $user->gender,
                 'number_of_rides' => 0,
-                'radio'           => false,
-                'smoking'         => false,
-                'profile_photo'   => 'profiles/profile_photo/default-profile-photo.jpg',
+                'radio' => false,
+                'smoking' => false,
+                'profile_photo' => 'profiles/profile_photo/default-profile-photo.jpg',
             ]);
 
             UserScore::create([
-                'user_id'             => $user->id,
-                'score'               => 70,
-                'total_rides'         => 0,
+                'user_id' => $user->id,
+                'score' => 70,
+                'total_rides' => 0,
                 'total_cancellations' => 0,
             ]);
 
             if ($adminUser) {
                 UserRating::firstOrCreate(
                     ['rater_id' => $adminUser->id, 'rated_user_id' => $user->id],
-                    ['rating'   => 3.0]
+                    ['rating' => 3.0]
                 );
             }
         }
@@ -324,7 +330,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 8; $i++) {
             try {
-                $driver    = $drivers[$i % $drivers->count()];
+                $driver = $drivers[$i % $drivers->count()];
                 $passenger = $passengers[$i % $passengers->count()];
 
                 Carbon::setTestNow(Carbon::now()->subDays(10 + $i));
@@ -351,7 +357,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Completed ride #{$ride->id}");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario A [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario A [{$i}]: ".$e->getMessage());
             } finally {
                 Carbon::setTestNow(null);
             }
@@ -366,7 +372,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 4; $i++) {
             try {
-                $driver    = $drivers[($i + 3) % $drivers->count()];
+                $driver = $drivers[($i + 3) % $drivers->count()];
                 $passenger = $passengers[($i + 5) % $passengers->count()];
 
                 Carbon::setTestNow(Carbon::now()->subHours(6));
@@ -391,7 +397,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Ride #{$ride->id} awaiting passenger confirmation");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario B [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario B [{$i}]: ".$e->getMessage());
             } finally {
                 Carbon::setTestNow(null);
             }
@@ -406,8 +412,8 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 15; $i++) {
             try {
-                $driver    = $drivers[$i % $drivers->count()];
-                $method    = $i % 3 === 0 ? 'cash' : 'e-pay';
+                $driver = $drivers[$i % $drivers->count()];
+                $method = $i % 3 === 0 ? 'cash' : 'e-pay';
                 $departure = Carbon::now()->addHours(rand(2, 168));
 
                 $ride = $this->rideService->createRide(
@@ -426,7 +432,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Scheduled ride #{$ride->id} ({$method})");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario C [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario C [{$i}]: ".$e->getMessage());
             }
         }
     }
@@ -439,7 +445,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 5; $i++) {
             try {
-                $driver    = $drivers[($i + 5) % $drivers->count()];
+                $driver = $drivers[($i + 5) % $drivers->count()];
                 $passenger = $passengers[($i + 10) % $passengers->count()];
 
                 Carbon::setTestNow(Carbon::now()->subHours(3));
@@ -458,7 +464,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Active ride #{$ride->id} (departed, not finished)");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario D [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario D [{$i}]: ".$e->getMessage());
             } finally {
                 Carbon::setTestNow(null);
             }
@@ -473,7 +479,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 5; $i++) {
             try {
-                $driver    = $drivers[$i % $drivers->count()];
+                $driver = $drivers[$i % $drivers->count()];
                 $passenger = $passengers[($i + 3) % $passengers->count()];
                 $departure = Carbon::now()->addHours(rand(3, 48));
 
@@ -492,7 +498,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Driver cancelled ride #{$ride->id} (passenger refunded)");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario E [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario E [{$i}]: ".$e->getMessage());
             }
         }
     }
@@ -511,7 +517,7 @@ class Atarikaktestseeder extends Seeder
 
         foreach ($tiers as $idx => $tier) {
             try {
-                $driver    = $drivers[($idx + 7) % $drivers->count()];
+                $driver = $drivers[($idx + 7) % $drivers->count()];
                 $passenger = $passengers[($idx + 7) % $passengers->count()];
 
                 Carbon::setTestNow(Carbon::now()->subHours($tier['total_hours']));
@@ -534,7 +540,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Passenger cancelled ({$tier['label']}) booking #{$booking->id}");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario F [{$idx}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario F [{$idx}]: ".$e->getMessage());
             } finally {
                 Carbon::setTestNow(null);
             }
@@ -549,7 +555,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 3; $i++) {
             try {
-                $driver    = $drivers[$i % $drivers->count()];
+                $driver = $drivers[$i % $drivers->count()];
                 $passenger = $passengers[($i + 15) % $passengers->count()];
                 $departure = Carbon::now()->addHours(rand(6, 72));
 
@@ -568,13 +574,13 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Request booking #{$booking->id} accepted");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario G (accept) [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario G (accept) [{$i}]: ".$e->getMessage());
             }
         }
 
         for ($i = 0; $i < 2; $i++) {
             try {
-                $driver    = $drivers[($i + 3) % $drivers->count()];
+                $driver = $drivers[($i + 3) % $drivers->count()];
                 $passenger = $passengers[($i + 18) % $passengers->count()];
                 $departure = Carbon::now()->addHours(rand(6, 72));
 
@@ -593,13 +599,13 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Request booking #{$booking->id} rejected");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario G (reject) [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario G (reject) [{$i}]: ".$e->getMessage());
             }
         }
 
         for ($i = 0; $i < 3; $i++) {
             try {
-                $driver    = $drivers[($i + 5) % $drivers->count()];
+                $driver = $drivers[($i + 5) % $drivers->count()];
                 $passenger = $passengers[$i % $passengers->count()];
                 $departure = Carbon::now()->addHours(rand(6, 72));
 
@@ -616,7 +622,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Request booking #{$booking->id} pending (no driver action)");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario G (pending) [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario G (pending) [{$i}]: ".$e->getMessage());
             }
         }
     }
@@ -629,7 +635,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 4; $i++) {
             try {
-                $driver    = $drivers[$i % $drivers->count()];
+                $driver = $drivers[$i % $drivers->count()];
                 $passenger = $passengers[($i + 12) % $passengers->count()];
 
                 Carbon::setTestNow(Carbon::now()->subHours(5));
@@ -652,7 +658,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Passenger no-show on booking #{$booking->id}");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario H [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario H [{$i}]: ".$e->getMessage());
             } finally {
                 Carbon::setTestNow(null);
             }
@@ -667,7 +673,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 3; $i++) {
             try {
-                $driver    = $drivers[($i + 6) % $drivers->count()];
+                $driver = $drivers[($i + 6) % $drivers->count()];
                 $passenger = $passengers[($i + 8) % $passengers->count()];
 
                 Carbon::setTestNow(Carbon::now()->subHours(5));
@@ -690,7 +696,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Driver no-show on ride #{$ride->id}");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario I [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario I [{$i}]: ".$e->getMessage());
             } finally {
                 Carbon::setTestNow(null);
             }
@@ -705,7 +711,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 6; $i++) {
             try {
-                $driver    = $drivers[$i % $drivers->count()];
+                $driver = $drivers[$i % $drivers->count()];
                 $passenger = $passengers[$i % $passengers->count()];
 
                 Carbon::setTestNow(Carbon::now()->subDays(5 + $i));
@@ -731,7 +737,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Completed cash ride #{$ride->id}");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario J (completed) [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario J (completed) [{$i}]: ".$e->getMessage());
             } finally {
                 Carbon::setTestNow(null);
             }
@@ -739,7 +745,7 @@ class Atarikaktestseeder extends Seeder
 
         for ($i = 0; $i < 6; $i++) {
             try {
-                $driver    = $drivers[($i + 4) % $drivers->count()];
+                $driver = $drivers[($i + 4) % $drivers->count()];
                 $departure = Carbon::now()->addHours(rand(2, 72));
 
                 $ride = $this->rideService->createRide(
@@ -750,7 +756,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Scheduled cash ride #{$ride->id}");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario J (scheduled) [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario J (scheduled) [{$i}]: ".$e->getMessage());
             }
         }
     }
@@ -763,7 +769,7 @@ class Atarikaktestseeder extends Seeder
     {
         for ($i = 0; $i < 4; $i++) {
             try {
-                $driver    = $drivers[($i + 6) % $drivers->count()];
+                $driver = $drivers[($i + 6) % $drivers->count()];
                 $passenger = $passengers[($i + 16) % $passengers->count()];
                 $departure = Carbon::now()->addHours(rand(12, 48));
 
@@ -782,7 +788,7 @@ class Atarikaktestseeder extends Seeder
                 $this->command->line("  ✓ Partial cancel on booking #{$booking->id} (3→2 seats)");
 
             } catch (\Throwable $e) {
-                $this->command->warn("  ✗ Scenario K [{$i}]: " . $e->getMessage());
+                $this->command->warn("  ✗ Scenario K [{$i}]: ".$e->getMessage());
             }
         }
     }
@@ -792,44 +798,44 @@ class Atarikaktestseeder extends Seeder
     // =========================================================================
 
     private function makeRideDTO(
-        User   $driver,
+        User $driver,
         Carbon $departure,
         string $paymentMethod,
         string $bookingType,
-        int    $availableSeats = 0
+        int $availableSeats = 0
     ): CreateRideDTO {
-        $loc   = $this->randomRoute();
+        $loc = $this->randomRoute();
         $seats = $availableSeats > 0 ? $availableSeats : rand(3, 6);
 
         return new CreateRideDTO(
-            driverId:            $driver->id,
-            pickupLocation:      Location::fromCoordinates($loc['from']['lat'], $loc['from']['lng']),
+            driverId: $driver->id,
+            pickupLocation: Location::fromCoordinates($loc['from']['lat'], $loc['from']['lng']),
             destinationLocation: Location::fromCoordinates($loc['to']['lat'], $loc['to']['lng']),
-            pickupAddress:       $loc['from']['address'],
-            destinationAddress:  $loc['to']['address'],
-            departureTime:       $departure,
-            availableSeats:      $seats,
-            pricePerSeat:        Money::from(rand(5, 50) * 1000),
-            vehicleType:         $this->vehicleTypes[array_rand($this->vehicleTypes)],
-            paymentMethod:       PaymentMethod::from($paymentMethod),
-            bookingType:         BookingType::from($bookingType),
+            pickupAddress: $loc['from']['address'],
+            destinationAddress: $loc['to']['address'],
+            departureTime: $departure,
+            availableSeats: $seats,
+            pricePerSeat: Money::from(rand(5, 50) * 1000),
+            vehicleType: $this->vehicleTypes[array_rand($this->vehicleTypes)],
+            paymentMethod: PaymentMethod::from($paymentMethod),
+            bookingType: BookingType::from($bookingType),
             communicationNumber: PhoneNumber::from('0983337214'),
-            notes:               'Seeded test ride',
-            routeGeometry:       ['type' => 'LineString', 'coordinates' => []],
-            chosenRouteIndex:    0,
-            distance:            rand(10000, 500000),
-            duration:            rand(600, 18000),
+            notes: 'Seeded test ride',
+            routeGeometry: ['type' => 'LineString', 'coordinates' => []],
+            chosenRouteIndex: 0,
+            distance: rand(10000, 500000),
+            duration: rand(600, 18000),
         );
     }
 
     private function makeBookDTO(User $passenger, int $rideId, int $seats): BookRideDTO
     {
         return new BookRideDTO(
-            passengerId:         $passenger->id,
-            rideId:              $rideId,
-            seats:               $seats,
+            passengerId: $passenger->id,
+            rideId: $rideId,
+            seats: $seats,
             communicationNumber: PhoneNumber::from('0983337214'),
-            idempotencyKey:      (string) Str::uuid(),
+            idempotencyKey: (string) Str::uuid(),
         );
     }
 

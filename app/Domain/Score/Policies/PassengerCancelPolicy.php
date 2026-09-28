@@ -27,12 +27,13 @@ use App\Models\UserScore;
 final class PassengerCancelPolicy implements ScorePolicyInterface
 {
     private const HIGH_RATE_THRESHOLD = 50.0; // > 50 % triggers the penalty tier
-    private const MIN_CANCELLATIONS   = 3;    // override only kicks in after this many cancellations
+
+    private const MIN_CANCELLATIONS = 3;    // override only kicks in after this many cancellations
 
     private const BASE_POINTS = [
         'passenger_cancel_early' => 0,
-        'passenger_cancel_mid'   => -5,
-        'passenger_cancel_late'  => -10,
+        'passenger_cancel_mid' => -5,
+        'passenger_cancel_late' => -10,
     ];
 
     private const HIGH_RATE_POINTS = -10;
@@ -65,7 +66,7 @@ final class PassengerCancelPolicy implements ScorePolicyInterface
         return ScoreResult::of(
             points: $points,
             action: $action,
-            reason: "Passenger cancelled ({$action->label()})" . ($points === 0 ? ' – no penalty' : ''),
+            reason: "Passenger cancelled ({$action->label()})".($points === 0 ? ' – no penalty' : ''),
         );
     }
 }

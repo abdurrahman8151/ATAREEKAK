@@ -13,11 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Maintains each user's live score state.
  * ScoreTransaction holds the full audit trail.
  *
- * @property int   $user_id
- * @property int   $score                 Current score (starts at 100)
- * @property int   $total_rides           Completed rides (driver + passenger)
- * @property int   $total_cancellations   Cancelled bookings / rides
- * @property float $cancel_rate           Computed: total_cancellations / max(1, total_rides+total_cancellations) * 100
+ * @property int $user_id
+ * @property int $score Current score (starts at 100)
+ * @property int $total_rides Completed rides (driver + passenger)
+ * @property int $total_cancellations Cancelled bookings / rides
+ * @property float $cancel_rate Computed: total_cancellations / max(1, total_rides+total_cancellations) * 100
  */
 class UserScore extends Model
 {
@@ -32,13 +32,13 @@ class UserScore extends Model
     ];
 
     protected $casts = [
-        'score'               => 'integer',
-        'total_rides'         => 'integer',
+        'score' => 'integer',
+        'total_rides' => 'integer',
         'total_cancellations' => 'integer',
-        'total_no_shows'      => 'integer',   // ← add this
+        'total_no_shows' => 'integer',   // ← add this
     ];
 
-// Add this helper method
+    // Add this helper method
     public function incrementNoShows(): void
     {
         $this->increment('total_no_shows');
@@ -76,10 +76,10 @@ class UserScore extends Model
     public function getTierAttribute(): string
     {
         return match (true) {
-            $this->score >= 80  => 'Gold',
-            $this->score >= 60  => 'Silver',
-            $this->score >= 40  => 'Bronze',
-            default             => 'Restricted',
+            $this->score >= 80 => 'Gold',
+            $this->score >= 60 => 'Silver',
+            $this->score >= 40 => 'Bronze',
+            default => 'Restricted',
         };
     }
 

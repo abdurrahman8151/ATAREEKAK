@@ -28,8 +28,8 @@ class RouteServiceProvider extends ServiceProvider
 
     protected function configureRateLimiting(): void
     {
-        $enabled   = config('rate-limiting.enabled', true);
-        $limits    = config('rate-limiting.limits', []);
+        $enabled = config('rate-limiting.enabled', true);
+        $limits = config('rate-limiting.limits', []);
         $multiplier = max(1, (int) config('rate-limiting.ip_backstop_multiplier', 4));
 
         foreach ($limits as $name => $perMinute) {
@@ -55,7 +55,7 @@ class RouteServiceProvider extends ServiceProvider
                 //   3. Public without identity (e.g. /auth/refresh, which carries
                 //      only a token) -> per-IP at the category limit (unchanged).
                 if ($user = $request->user()) {
-                    return Limit::perMinute($perMinute)->by('user:' . $user->getAuthIdentifier());
+                    return Limit::perMinute($perMinute)->by('user:'.$user->getAuthIdentifier());
                 }
 
                 $identity = $this->identityKey($request);
@@ -65,14 +65,14 @@ class RouteServiceProvider extends ServiceProvider
                         // Strict, stable, shared across every source address the
                         // attacker rotates through — this is what actually caps
                         // brute force against one account.
-                        Limit::perMinute($perMinute)->by('account:' . $identity),
+                        Limit::perMinute($perMinute)->by('account:'.$identity),
                         // Looser per-address ceiling so a busy shared gateway is
                         // not starved, while a single-IP hammer is still bounded.
-                        Limit::perMinute($perMinute * $multiplier)->by('ip:' . ($request->ip() ?: 'noip')),
+                        Limit::perMinute($perMinute * $multiplier)->by('ip:'.($request->ip() ?: 'noip')),
                     ];
                 }
 
-                return Limit::perMinute($perMinute)->by('ip:' . ($request->ip() ?: 'noip'));
+                return Limit::perMinute($perMinute)->by('ip:'.($request->ip() ?: 'noip'));
             });
         }
     }
@@ -96,18 +96,18 @@ class RouteServiceProvider extends ServiceProvider
         // OTP phone field, then the staff/admin "identifier"/"username" fields.
         $email = trim((string) $request->input('email', ''));
         if ($email !== '' && str_contains($email, '@')) {
-            return 'email:' . strtolower($email);
+            return 'email:'.strtolower($email);
         }
 
         $phone = preg_replace('/\D/', '', (string) $request->input('phone_number', ''));
         if ($phone !== '' && $phone !== null) {
-            return 'phone:' . substr($phone, -9);
+            return 'phone:'.substr($phone, -9);
         }
 
         foreach (['identifier', 'username'] as $field) {
             $value = trim((string) $request->input($field, ''));
             if ($value !== '') {
-                return $field . ':' . strtolower($value);
+                return $field.':'.strtolower($value);
             }
         }
 

@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
@@ -11,19 +9,20 @@ return new class extends Migration
     {
         // T3-6: raw MySQL-only statement(s) below. Skip cleanly on other
         // drivers instead of fataling a fresh migrate (no-op on MySQL).
-        if (\Illuminate\Support\Facades\DB::connection()->getDriverName() !== 'mysql') {
+        if (DB::connection()->getDriverName() !== 'mysql') {
             return;
         }
 
         // Drop any indexes on phone_number first
         try {
             DB::statement('ALTER TABLE otps DROP INDEX otps_phone_number_index');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may have a different name, try common alternatives
         }
         try {
             DB::statement('ALTER TABLE otps DROP INDEX phone_number');
-        } catch (\Exception $e) {}
+        } catch (Exception $e) {
+        }
 
         // Resize the column
         DB::statement('ALTER TABLE otps MODIFY phone_number VARCHAR(191) NOT NULL');
@@ -36,7 +35,8 @@ return new class extends Migration
     {
         try {
             DB::statement('ALTER TABLE otps DROP INDEX otps_phone_number_index');
-        } catch (\Exception $e) {}
+        } catch (Exception $e) {
+        }
 
         DB::statement('ALTER TABLE otps MODIFY phone_number VARCHAR(20) NOT NULL');
 

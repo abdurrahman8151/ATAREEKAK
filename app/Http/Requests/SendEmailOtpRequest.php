@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,7 +15,7 @@ class SendEmailOtpRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email', 'max:255'],
-            'type'  => ['sometimes', 'in:EMAIL_VERIFICATION,PASSWORD_RESET'],
+            'type' => ['sometimes', 'in:EMAIL_VERIFICATION,PASSWORD_RESET'],
         ];
     }
 
@@ -22,7 +23,7 @@ class SendEmailOtpRequest extends FormRequest
     {
         return [
             'email.required' => 'Email address is required.',
-            'email.email'    => 'Please provide a valid email address.',
+            'email.email' => 'Please provide a valid email address.',
         ];
     }
 }

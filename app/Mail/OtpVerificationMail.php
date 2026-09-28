@@ -13,7 +13,7 @@ final class OtpVerificationMail extends Mailable
     public function __construct(
         private readonly string $otpCode,
         private readonly string $userName,
-        private readonly int    $expiryMinutes = 10,
+        private readonly int $expiryMinutes = 10,
     ) {}
 
     // app/Mail/OtpVerificationMail.php
@@ -24,8 +24,8 @@ final class OtpVerificationMail extends Mailable
             ->subject('Your Atarikak Verification Code')
             ->view('emails.otp-verification')
             ->with([                          // ← ADD THIS
-                'otpCode'       => $this->otpCode,
-                'userName'      => $this->userName,
+                'otpCode' => $this->otpCode,
+                'userName' => $this->userName,
                 'expiryMinutes' => $this->expiryMinutes,
             ]);
     }

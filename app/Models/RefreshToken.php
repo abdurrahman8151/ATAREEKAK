@@ -16,12 +16,12 @@ class RefreshToken extends Model
         'expires_at',
         'revoked',
         'user_agent',
-        'ip_address'
+        'ip_address',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
-        'revoked' => 'boolean'
+        'revoked' => 'boolean',
     ];
 
     /**
@@ -45,6 +45,6 @@ class RefreshToken extends Model
      */
     public function isValid(): bool
     {
-        return !$this->revoked && !$this->isExpired();
+        return ! $this->revoked && ! $this->isExpired();
     }
 }

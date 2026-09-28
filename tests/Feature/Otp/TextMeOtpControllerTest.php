@@ -39,16 +39,16 @@ class TextMeOtpControllerTest extends TestCase
     {
         Otp::create([
             'phone_number' => '+963983337214',
-            'otp_code'     => '112233',
-            'type'         => 'E-PAYMENT',
-            'expires_at'   => Carbon::now()->addMinutes(5),
-            'is_verified'  => false,
-            'attempts'     => 0,
+            'otp_code' => '112233',
+            'type' => 'E-PAYMENT',
+            'expires_at' => Carbon::now()->addMinutes(5),
+            'is_verified' => false,
+            'attempts' => 0,
         ]);
 
         $this->postJson('/api/textme-otp/verify', [
             'phone_number' => '0983337214',
-            'otp_code'     => '112233',
+            'otp_code' => '112233',
         ])->assertStatus(200)->assertJsonPath('success', true);
     }
 
@@ -56,16 +56,16 @@ class TextMeOtpControllerTest extends TestCase
     {
         Otp::create([
             'phone_number' => '+963983337214',
-            'otp_code'     => '112233',
-            'type'         => 'E-PAYMENT',
-            'expires_at'   => Carbon::now()->addMinutes(5),
-            'is_verified'  => false,
-            'attempts'     => 0,
+            'otp_code' => '112233',
+            'type' => 'E-PAYMENT',
+            'expires_at' => Carbon::now()->addMinutes(5),
+            'is_verified' => false,
+            'attempts' => 0,
         ]);
 
         $this->postJson('/api/textme-otp/verify', [
             'phone_number' => '0983337214',
-            'otp_code'     => '000000',
+            'otp_code' => '000000',
         ])->assertStatus(400)->assertJsonPath('success', false);
     }
 
@@ -76,11 +76,11 @@ class TextMeOtpControllerTest extends TestCase
         // We verify the data model is correct instead.
         $otp = Otp::create([
             'phone_number' => '+963983337214',
-            'otp_code'     => '334455',
-            'type'         => 'E-PAYMENT',
-            'expires_at'   => Carbon::now()->subHours(2),
-            'is_verified'  => false,
-            'attempts'     => 0,
+            'otp_code' => '334455',
+            'type' => 'E-PAYMENT',
+            'expires_at' => Carbon::now()->subHours(2),
+            'is_verified' => false,
+            'attempts' => 0,
         ]);
 
         $fresh = Otp::find($otp->id);
@@ -99,7 +99,7 @@ class TextMeOtpControllerTest extends TestCase
     {
         $this->postJson('/api/textme-otp/verify', [
             'phone_number' => '0983337214',
-            'otp_code'     => '123',
+            'otp_code' => '123',
         ])->assertStatus(422);
     }
 
@@ -107,16 +107,16 @@ class TextMeOtpControllerTest extends TestCase
     {
         Otp::create([
             'phone_number' => '+963983337214',
-            'otp_code'     => '445566',
-            'type'         => 'E-PAYMENT',
-            'expires_at'   => Carbon::now()->addMinutes(5),
-            'is_verified'  => false,
-            'attempts'     => 0,
+            'otp_code' => '445566',
+            'type' => 'E-PAYMENT',
+            'expires_at' => Carbon::now()->addMinutes(5),
+            'is_verified' => false,
+            'attempts' => 0,
         ]);
 
         $this->postJson('/api/textme-otp/verify', [
             'phone_number' => '0983337214',
-            'otp_code'     => '445566',
+            'otp_code' => '445566',
         ]);
 
         $this->assertTrue((bool) Otp::where('otp_code', '445566')->first()->is_verified);

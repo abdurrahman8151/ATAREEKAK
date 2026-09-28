@@ -2,10 +2,12 @@
 
 namespace App\Services\PushNotification;
 
+use Illuminate\Support\Facades\Log;
+use Kreait\Firebase\Exception\Messaging\InvalidMessage;
+use Kreait\Firebase\Exception\Messaging\NotFound;
 use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
-use Illuminate\Support\Facades\Log;
 
 /**
  * FCM Sender Service (V1 API)
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 final class FcmSenderService
 {
     private $messaging;
+
     private bool $isConfigured;
 
     public function __construct()
@@ -22,12 +25,13 @@ final class FcmSenderService
         try {
             $credentialsPath = config('services.fcm.credentials');
 
-            if (!$credentialsPath || !file_exists(base_path($credentialsPath))) {
+            if (! $credentialsPath || ! file_exists(base_path($credentialsPath))) {
                 Log::warning('Firebase credentials file not found', [
                     'path' => $credentialsPath,
-                    'full_path' => base_path($credentialsPath)
+                    'full_path' => base_path($credentialsPath),
                 ]);
                 $this->isConfigured = false;
+
                 return;
             }
 
@@ -37,7 +41,7 @@ final class FcmSenderService
 
             Log::info('FCM V1 service initialized successfully');
         } catch (\Exception $e) {
-            Log::error('Failed to initialize FCM: ' . $e->getMessage());
+            Log::error('Failed to initialize FCM: '.$e->getMessage());
             $this->isConfigured = false;
         }
     }
@@ -57,13 +61,15 @@ final class FcmSenderService
      */
     public function sendToTokens(array $tokens, array $data): array|false
     {
-        if (!$this->isConfigured) {
+        if (! $this->isConfigured) {
             Log::warning('Cannot send FCM: service not configured');
+
             return false;
         }
 
         if (empty($tokens)) {
             Log::warning('Cannot send FCM: no tokens provided');
+
             return false;
         }
 
@@ -71,7 +77,7 @@ final class FcmSenderService
             'success' => 0,
             'failure' => 0,
             'results' => [],
-            'invalid_tokens' => []
+            'invalid_tokens' => [],
         ];
 
         foreach ($tokens as $token) {
@@ -82,30 +88,30 @@ final class FcmSenderService
                 $aggregatedResults['success']++;
                 $aggregatedResults['results'][] = ['token' => $token, 'status' => 'sent'];
 
-                Log::info('FCM notification sent', ['token' => substr($token, 0, 20) . '...']);
-            } catch (\Kreait\Firebase\Exception\Messaging\NotFound $e) {
+                Log::info('FCM notification sent', ['token' => substr($token, 0, 20).'...']);
+            } catch (NotFound $e) {
                 // Token not found - mark as invalid
                 $aggregatedResults['failure']++;
                 $aggregatedResults['invalid_tokens'][] = $token;
-                Log::warning('FCM token not found', ['token' => substr($token, 0, 20) . '...']);
-            } catch (\Kreait\Firebase\Exception\Messaging\InvalidMessage $e) {
+                Log::warning('FCM token not found', ['token' => substr($token, 0, 20).'...']);
+            } catch (InvalidMessage $e) {
                 $aggregatedResults['failure']++;
                 Log::error('Invalid FCM message', [
-                    'token' => substr($token, 0, 20) . '...',
-                    'error' => $e->getMessage()
+                    'token' => substr($token, 0, 20).'...',
+                    'error' => $e->getMessage(),
                 ]);
             } catch (\Exception $e) {
                 $aggregatedResults['failure']++;
                 Log::error('FCM send failed', [
-                    'token' => substr($token, 0, 20) . '...',
-                    'error' => $e->getMessage()
+                    'token' => substr($token, 0, 20).'...',
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
 
         Log::info('FCM batch sent', [
             'success' => $aggregatedResults['success'],
-            'failure' => $aggregatedResults['failure']
+            'failure' => $aggregatedResults['failure'],
         ]);
 
         return $aggregatedResults;
@@ -116,8 +122,9 @@ final class FcmSenderService
      */
     public function sendToTopic(string $topic, array $data): bool
     {
-        if (!$this->isConfigured) {
+        if (! $this->isConfigured) {
             Log::warning('FCM not configured');
+
             return false;
         }
 
@@ -131,12 +138,14 @@ final class FcmSenderService
             $this->messaging->send($message);
 
             Log::info('FCM topic notification sent', ['topic' => $topic]);
+
             return true;
         } catch (\Exception $e) {
             Log::error('FCM topic send failed', [
                 'topic' => $topic,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -146,7 +155,7 @@ final class FcmSenderService
      */
     public function subscribeToTopic(array $tokens, string $topic): bool
     {
-        if (!$this->isConfigured || empty($tokens)) {
+        if (! $this->isConfigured || empty($tokens)) {
             return false;
         }
 
@@ -154,14 +163,16 @@ final class FcmSenderService
             $this->messaging->subscribeToTopic($topic, $tokens);
             Log::info('Tokens subscribed to topic', [
                 'topic' => $topic,
-                'count' => count($tokens)
+                'count' => count($tokens),
             ]);
+
             return true;
         } catch (\Exception $e) {
             Log::error('Failed to subscribe to topic', [
                 'topic' => $topic,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -171,7 +182,7 @@ final class FcmSenderService
      */
     public function unsubscribeFromTopic(array $tokens, string $topic): bool
     {
-        if (!$this->isConfigured || empty($tokens)) {
+        if (! $this->isConfigured || empty($tokens)) {
             return false;
         }
 
@@ -179,14 +190,16 @@ final class FcmSenderService
             $this->messaging->unsubscribeFromTopic($topic, $tokens);
             Log::info('Tokens unsubscribed from topic', [
                 'topic' => $topic,
-                'count' => count($tokens)
+                'count' => count($tokens),
             ]);
+
             return true;
         } catch (\Exception $e) {
             Log::error('Failed to unsubscribe from topic', [
                 'topic' => $topic,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -210,7 +223,7 @@ final class FcmSenderService
                     'icon' => $data['icon'] ?? null,
                     'sound' => $data['sound'] ?? 'default',
                     'click_action' => $data['click_action'] ?? null,
-                ])
+                ]),
             ];
             $message = $message->withAndroidConfig($androidConfig);
         }
@@ -222,8 +235,8 @@ final class FcmSenderService
                     'aps' => [
                         'badge' => $data['badge'],
                         'sound' => $data['sound'] ?? 'default',
-                    ]
-                ]
+                    ],
+                ],
             ];
             $message = $message->withApnsConfig($apnsConfig);
         }
@@ -236,7 +249,7 @@ final class FcmSenderService
      */
     public function validateToken(string $token): bool
     {
-        if (!$this->isConfigured) {
+        if (! $this->isConfigured) {
             return false;
         }
 
@@ -245,12 +258,14 @@ final class FcmSenderService
                 ->withData(['test' => 'validation']);
 
             $this->messaging->validate($message);
+
             return true;
         } catch (\Exception $e) {
             Log::warning('Token validation failed', [
-                'token' => substr($token, 0, 20) . '...',
-                'error' => $e->getMessage()
+                'token' => substr($token, 0, 20).'...',
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }

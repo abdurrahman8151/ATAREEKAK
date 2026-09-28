@@ -5,9 +5,11 @@ namespace App\Http\Controllers\API;
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Interfaces\ChatRepositoryInterface;
+use App\Models\User;
 use App\Services\Chat\ChatMessageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * Chat Controller (REFACTORED)
@@ -38,12 +40,12 @@ class ChatController extends Controller
                 'success' => true,
                 'data' => $conversations->map(function ($conversation) use ($request) {
                     return $this->formatConversation($conversation, $request->user());
-                })
+                }),
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch conversations: ' . $e->getMessage()
+                'message' => 'Failed to fetch conversations: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -54,7 +56,7 @@ class ChatController extends Controller
     public function startConversation(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id|different:' . $request->user()->id,
+            'user_id' => 'required|exists:users,id|different:'.$request->user()->id,
         ]);
 
         if ($validator->fails()) {
@@ -66,7 +68,7 @@ class ChatController extends Controller
 
         try {
             $currentUser = $request->user();
-            $otherUser = \App\Models\User::find($request->user_id);
+            $otherUser = User::find($request->user_id);
 
             // Check if conversation already exists
             $existingConversation = $this->chatRepository->findPrivateConversation(
@@ -79,8 +81,8 @@ class ChatController extends Controller
                     'success' => true,
                     'data' => [
                         'conversation_id' => $existingConversation->id,
-                        'message' => 'Conversation already exists'
-                    ]
+                        'message' => 'Conversation already exists',
+                    ],
                 ]);
             }
 
@@ -94,13 +96,13 @@ class ChatController extends Controller
                 'success' => true,
                 'data' => [
                     'conversation_id' => $conversation->id,
-                    'message' => 'Conversation created successfully'
-                ]
+                    'message' => 'Conversation created successfully',
+                ],
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create conversation: ' . $e->getMessage()
+                'message' => 'Failed to create conversation: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -113,10 +115,10 @@ class ChatController extends Controller
         try {
             $conversation = $this->chatRepository->findConversation($conversationId);
 
-            if (!$conversation || !$conversation->isParticipant($request->user())) {
+            if (! $conversation || ! $conversation->isParticipant($request->user())) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Conversation not found or access denied'
+                    'message' => 'Conversation not found or access denied',
                 ], 404);
             }
 
@@ -132,12 +134,12 @@ class ChatController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $formattedMessages
+                'data' => $formattedMessages,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch messages: ' . $e->getMessage()
+                'message' => 'Failed to fetch messages: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -163,17 +165,17 @@ class ChatController extends Controller
             // Format and return
             return response()->json([
                 'success' => true,
-                'data' => $this->messageHandler->formatMessage($message)
+                'data' => $this->messageHandler->formatMessage($message),
             ], 201);
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], $e->getStatusCode());
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send message: ' . $e->getMessage()
+                'message' => 'Failed to send message: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -189,21 +191,21 @@ class ChatController extends Controller
                 $request->user()
             );
 
-            if (!$success) {
+            if (! $success) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Message not found or permission denied'
+                    'message' => 'Message not found or permission denied',
                 ], 404);
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Message deleted successfully'
+                'message' => 'Message deleted successfully',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete message: ' . $e->getMessage()
+                'message' => 'Failed to delete message: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -223,27 +225,26 @@ class ChatController extends Controller
         // Zero DB queries — profile already loaded via participants.profile
         // Storage::exists() removed — return URL directly, let client handle missing image
         $profilePhoto = $otherParticipant?->profile?->profile_photo
-            ? asset('storage/' . $otherParticipant->profile->profile_photo)
+            ? asset('storage/'.$otherParticipant->profile->profile_photo)
             : null;
 
         return [
-            'id'                => $conversation->id,
-            'type'              => $conversation->type,
-            'title'             => $conversation->title,
+            'id' => $conversation->id,
+            'type' => $conversation->type,
+            'title' => $conversation->title,
             'other_participant' => $otherParticipant ? [
-                'id'            => $otherParticipant->id,
-                'name'          => $otherParticipant->first_name . ' ' . $otherParticipant->last_name,
+                'id' => $otherParticipant->id,
+                'name' => $otherParticipant->first_name.' '.$otherParticipant->last_name,
                 'profile_photo' => $profilePhoto,
             ] : null,
             'last_message' => $lastMessage ? [
-                'content'     => $lastMessage->type === 'image'
-                    ? asset('storage/' . $lastMessage->content)
+                'content' => $lastMessage->type === 'image'
+                    ? asset('storage/'.$lastMessage->content)
                     : $lastMessage->content,
                 'sender_name' => $lastMessage->sender->first_name, // already eager-loaded
-                'created_at'  => $lastMessage->created_at->diffForHumans(),
+                'created_at' => $lastMessage->created_at->diffForHumans(),
             ] : null,
             'updated_at' => $conversation->updated_at->toIso8601String(),
         ];
     }
-
 }

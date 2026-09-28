@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,12 +15,12 @@ class ConversationParticipant extends Model
         'user_id',
         'role',
         'joined_at',
-        'last_read_at'
+        'last_read_at',
     ];
 
     protected $casts = [
         'joined_at' => 'datetime',
-        'last_read_at' => 'datetime'
+        'last_read_at' => 'datetime',
     ];
 
     public function conversation(): BelongsTo

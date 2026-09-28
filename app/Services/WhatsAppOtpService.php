@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Domain\ValueObjects\PhoneNumber;
 use App\Interfaces\OtpRepositoryInterface;
 use App\Models\Otp;
 use Carbon\Carbon;
@@ -12,14 +13,16 @@ use Illuminate\Support\Facades\Log;
 class WhatsAppOtpService
 {
     protected $otpRepository;
+
     protected $client;
+
     protected $apiKey;
 
     public function __construct(OtpRepositoryInterface $otpRepository)
     {
         $this->otpRepository = $otpRepository;
-        $this->client        = new Client();
-        $this->apiKey        = env('CALLMEBOT_API_KEY');
+        $this->client = new Client;
+        $this->apiKey = env('CALLMEBOT_API_KEY');
     }
 
     /**
@@ -30,7 +33,7 @@ class WhatsAppOtpService
         try {
             $validatedPhone = $this->validateSyrianPhone($phoneNumber);
 
-            if (!$this->canSendOtp($validatedPhone)) {
+            if (! $this->canSendOtp($validatedPhone)) {
                 return [
                     'success' => false,
                     'message' => 'Too many OTP requests. Please try again later.',
@@ -43,11 +46,11 @@ class WhatsAppOtpService
 
             $otp = $this->otpRepository->create([
                 'phone_number' => $validatedPhone,
-                'otp_code'     => $otpCode,
-                'type'         => $type,
-                'expires_at'   => Carbon::now()->addMinutes(10),
-                'is_verified'  => false,
-                'attempts'     => 0,
+                'otp_code' => $otpCode,
+                'type' => $type,
+                'expires_at' => Carbon::now()->addMinutes(10),
+                'is_verified' => false,
+                'attempts' => 0,
             ]);
 
             // ── TESTING MODE ─────────────────────────────────────────────────────
@@ -57,9 +60,9 @@ class WhatsAppOtpService
                 Log::info("OTP (testing mode) for $validatedPhone: $otpCode");
 
                 return [
-                    'success'    => true,
-                    'message'    => 'OTP generated (testing mode — use the code below)',
-                    'otp_code'   => $otpCode,
+                    'success' => true,
+                    'message' => 'OTP generated (testing mode — use the code below)',
+                    'otp_code' => $otpCode,
                     'expires_at' => $otp->expires_at->toDateTimeString(),
                 ];
             }
@@ -74,7 +77,7 @@ class WhatsAppOtpService
 
             $sent = $this->sendViaCallMeBot($validatedPhone, $otpCode);
 
-            if (!$sent) {
+            if (! $sent) {
                 Log::error("Failed to send OTP to $validatedPhone");
 
                 return [
@@ -86,12 +89,12 @@ class WhatsAppOtpService
             Log::info("OTP sent (production) to $validatedPhone");
 
             return [
-                'success'    => true,
-                'message'    => 'OTP sent successfully via WhatsApp',
+                'success' => true,
+                'message' => 'OTP sent successfully via WhatsApp',
                 'expires_at' => $otp->expires_at->toDateTimeString(),
             ];
         } catch (\Exception $e) {
-            Log::error('OTP send error: ' . $e->getMessage());
+            Log::error('OTP send error: '.$e->getMessage());
 
             return ['success' => false, 'message' => 'Failed to send OTP. Please try again.'];
         }
@@ -110,15 +113,15 @@ class WhatsAppOtpService
             // ever recorded and Otp::isValid()'s 3-attempt cap was unreachable.
             $otp = $this->otpRepository->findLatestByPhone($validatedPhone);
 
-            if (!$otp) {
+            if (! $otp) {
                 return ['success' => false, 'message' => 'Invalid or expired OTP'];
             }
 
-            if (!$otp->isValid()) {
+            if (! $otp->isValid()) {
                 return ['success' => false, 'message' => 'OTP has expired or exceeded maximum attempts'];
             }
 
-            if (!$otp->matchesCode($code)) {
+            if (! $otp->matchesCode($code)) {
                 $otp->registerFailedAttempt();
 
                 return ['success' => false, 'message' => 'Invalid or expired OTP'];
@@ -129,13 +132,13 @@ class WhatsAppOtpService
             return [
                 'success' => true,
                 'message' => 'OTP verified successfully',
-                'data'    => [
+                'data' => [
                     'phone_number' => $validatedPhone,
-                    'verified_at'  => $otp->verified_at->toDateTimeString(),
+                    'verified_at' => $otp->verified_at->toDateTimeString(),
                 ],
             ];
         } catch (\Exception $e) {
-            Log::error('OTP verification error: ' . $e->getMessage());
+            Log::error('OTP verification error: '.$e->getMessage());
 
             return ['success' => false, 'message' => 'OTP verification failed'];
         }
@@ -181,15 +184,15 @@ class WhatsAppOtpService
 
             $this->otpRepository->create([
                 'phone_number' => $phoneNumber,
-                'otp_code'     => $code,
-                'type'         => 'BYPASS',
-                'expires_at'   => Carbon::now()->addHour(),
-                'is_verified'  => true,
-                'verified_at'  => Carbon::now(),
-                'attempts'     => 0,
+                'otp_code' => $code,
+                'type' => 'BYPASS',
+                'expires_at' => Carbon::now()->addHour(),
+                'is_verified' => true,
+                'verified_at' => Carbon::now(),
+                'attempts' => 0,
             ]);
         } catch (\Exception $e) {
-            Log::warning('Failed to create bypass OTP record: ' . $e->getMessage());
+            Log::warning('Failed to create bypass OTP record: '.$e->getMessage());
         }
     }
 
@@ -203,11 +206,11 @@ class WhatsAppOtpService
 
             $message = "Your verification code is: $otpCode\n\nThis code will expire in 5 minutes.\n\nDo not share this code with anyone.";
 
-            $url = "https://api.callmebot.com/whatsapp.php?" . http_build_query([
-                    'phone'  => $normalizedPhone,
-                    'text'   => $message,
-                    'apikey' => $this->apiKey,
-                ]);
+            $url = 'https://api.callmebot.com/whatsapp.php?'.http_build_query([
+                'phone' => $normalizedPhone,
+                'text' => $message,
+                'apikey' => $this->apiKey,
+            ]);
 
             // AF-1 (app-future audit): this built a SEPARATE Guzzle client with
             // ['verify' => false] — disabled TLS peer verification on an
@@ -216,9 +219,9 @@ class WhatsAppOtpService
             // insecure one existed only as a dev-box CA workaround. Verified
             // HTTPS to api.callmebot.com was proven working from this machine,
             // so the workaround had outlived its excuse.
-            $response       = $this->client->get($url);
-            $statusCode     = $response->getStatusCode();
-            $responseBody   = $response->getBody()->getContents();
+            $response = $this->client->get($url);
+            $statusCode = $response->getStatusCode();
+            $responseBody = $response->getBody()->getContents();
 
             if ($statusCode === 200 || $statusCode === 203) {
                 Log::info("OTP sent successfully to $phoneNumber. Response status: $statusCode");
@@ -230,7 +233,7 @@ class WhatsAppOtpService
 
             return false;
         } catch (RequestException $e) {
-            Log::error('CallMeBot API error: ' . $e->getMessage());
+            Log::error('CallMeBot API error: '.$e->getMessage());
 
             return false;
         }
@@ -249,7 +252,7 @@ class WhatsAppOtpService
         }
 
         if (str_starts_with($clean, '9') && strlen($clean) === 9) {
-            return '963' . $clean;
+            return '963'.$clean;
         }
 
         return $clean;
@@ -260,7 +263,7 @@ class WhatsAppOtpService
      */
     private function validateSyrianPhone(string $phoneNumber): string
     {
-        return (string) \App\Domain\ValueObjects\PhoneNumber::from($phoneNumber);
+        return (string) PhoneNumber::from($phoneNumber);
     }
 
     /**

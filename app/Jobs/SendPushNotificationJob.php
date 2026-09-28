@@ -15,6 +15,7 @@ class SendPushNotificationJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $backoff = 10;
 
     public function __construct(
@@ -28,9 +29,10 @@ class SendPushNotificationJob implements ShouldQueue
     {
         return [
             'push-notification',
-            'user:' . $this->userId,
+            'user:'.$this->userId,
         ];
     }
+
     public function handle(PushNotificationService $pushService): void
     {
         if ($user = User::find($this->userId)) {

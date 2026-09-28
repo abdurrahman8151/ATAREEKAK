@@ -5,7 +5,6 @@ namespace App\Services\Profile;
 use App\Models\Booking;
 use App\Models\Profile;
 use App\Models\ProfileComment;
-use App\Models\User;
 use App\Models\UserRating;
 
 /**
@@ -20,17 +19,17 @@ class ProfileInteractionService
     // =========================================================================
 
     public function addComment(
-        int    $commenterId,
-        int    $profileUserId,
+        int $commenterId,
+        int $profileUserId,
         string $comment,
-        int    $rideId,
+        int $rideId,
     ): array {
         $this->assertEligible($commenterId, $profileUserId, $rideId, 'comment on');
 
         $profile = Profile::where('user_id', $profileUserId)->firstOrFail();
 
         $alreadyCommented = ProfileComment::where('user_id', $commenterId)   // ← was commenter_id
-        ->where('profile_id', $profile->id)
+            ->where('profile_id', $profile->id)
             ->where('ride_id', $rideId)
             ->exists();
 
@@ -39,23 +38,23 @@ class ProfileInteractionService
         }
 
         $profileComment = ProfileComment::create([
-            'user_id'    => $commenterId,   // ← was commenter_id
+            'user_id' => $commenterId,   // ← was commenter_id
             'profile_id' => $profile->id,
-            'comment'    => $comment,
-            'ride_id'    => $rideId,
+            'comment' => $comment,
+            'ride_id' => $rideId,
         ]);
 
         $profileComment->load('commenter:id,first_name,last_name');
 
         return [
-            'id'         => $profileComment->id,
-            'comment'    => $profileComment->comment,
-            'ride_id'    => $profileComment->ride_id,
-            'commenter'  => [
-                'id'   => $profileComment->commenter->id,
+            'id' => $profileComment->id,
+            'comment' => $profileComment->comment,
+            'ride_id' => $profileComment->ride_id,
+            'commenter' => [
+                'id' => $profileComment->commenter->id,
                 'name' => trim(
                     "{$profileComment->commenter->first_name} "
-                    . "{$profileComment->commenter->last_name}"
+                    ."{$profileComment->commenter->last_name}"
                 ),
             ],
             'created_at' => $profileComment->created_at->toIso8601String(),
@@ -75,15 +74,15 @@ class ProfileInteractionService
             ->orderByDesc('created_at')
             ->get()
             ->map(fn ($c) => [
-                'id'         => $c->id,
-                'comment'    => $c->comment,
-                'ride_id'    => $c->ride_id,
-                'commenter'  => [
-                    'id'   => $c->commenter?->id,
+                'id' => $c->id,
+                'comment' => $c->comment,
+                'ride_id' => $c->ride_id,
+                'commenter' => [
+                    'id' => $c->commenter?->id,
                     'name' => trim(
                         ($c->commenter?->first_name ?? '')
-                        . ' '
-                        . ($c->commenter?->last_name ?? '')
+                        .' '
+                        .($c->commenter?->last_name ?? '')
                     ),
                 ],
                 'created_at' => $c->created_at->toIso8601String(),
@@ -97,15 +96,15 @@ class ProfileInteractionService
     // =========================================================================
 
     public function rateUser(
-        int   $raterId,
-        int   $ratedUserId,
+        int $raterId,
+        int $ratedUserId,
         float $rating,
-        int   $rideId,
+        int $rideId,
     ): array {
         $this->assertEligible($raterId, $ratedUserId, $rideId, 'rate');
 
         $alreadyRated = UserRating::where('rater_id', $raterId)   // ← was user_id
-        ->where('rated_user_id', $ratedUserId)
+            ->where('rated_user_id', $ratedUserId)
             ->where('ride_id', $rideId)
             ->exists();
 
@@ -114,10 +113,10 @@ class ProfileInteractionService
         }
 
         UserRating::create([
-            'rater_id'      => $raterId,    // ← was user_id
+            'rater_id' => $raterId,    // ← was user_id
             'rated_user_id' => $ratedUserId,
-            'rating'        => $rating,
-            'ride_id'       => $rideId,
+            'rating' => $rating,
+            'ride_id' => $rideId,
         ]);
 
         return $this->getRatingStats($ratedUserId);
@@ -130,8 +129,8 @@ class ProfileInteractionService
             ->first();
 
         return [
-            'average'       => (float) ($stats->average ?? 0),
-            'total_ratings' => (int)   ($stats->total   ?? 0),
+            'average' => (float) ($stats->average ?? 0),
+            'total_ratings' => (int) ($stats->total ?? 0),
         ];
     }
 
@@ -140,9 +139,9 @@ class ProfileInteractionService
     // =========================================================================
 
     private function assertEligible(
-        int    $actorId,
-        int    $driverId,
-        int    $rideId,
+        int $actorId,
+        int $driverId,
+        int $rideId,
         string $action,
     ): void {
         $eligible = Booking::query()

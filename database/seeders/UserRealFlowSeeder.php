@@ -46,27 +46,35 @@ class UserRealFlowSeeder extends Seeder
 {
     use ResolvesSeedCredentials;
 
-    private const TARGET_USER_ID  = 36;
+    private const TARGET_USER_ID = 36;
+
     private const PASSENGER_PHONE = '0991110036';
-    private const DUMMY_PHONE     = '0991110099';
-    private const PRICE_PER_SEAT  = 2500;          // SYP
-    private const WALLET_TOP_UP   = 100000;        // enough for all e-pay bookings
+
+    private const DUMMY_PHONE = '0991110099';
+
+    private const PRICE_PER_SEAT = 2500;          // SYP
+
+    private const WALLET_TOP_UP = 100000;        // enough for all e-pay bookings
 
     // Valid Syrian coordinates
     private const PICKUP = ['lat' => 33.5102, 'lng' => 36.2765];
-    private const DEST   = ['lat' => 32.6244, 'lng' => 36.1021];
 
-    private RideRepository     $rideRepo;
-    private RideService        $rideService;
-    private BookingService     $bookingService;
+    private const DEST = ['lat' => 32.6244, 'lng' => 36.1021];
+
+    private RideRepository $rideRepo;
+
+    private RideService $rideService;
+
+    private BookingService $bookingService;
+
     private AdminWalletService $walletService;
 
     public function run(): void
     {
-        $this->rideRepo       = app(RideRepository::class);
-        $this->rideService    = app(RideService::class);
+        $this->rideRepo = app(RideRepository::class);
+        $this->rideService = app(RideService::class);
         $this->bookingService = app(BookingService::class);
-        $this->walletService  = app(AdminWalletService::class);
+        $this->walletService = app(AdminWalletService::class);
 
         $target = $this->prepareUser(self::TARGET_USER_ID, self::PASSENGER_PHONE);
         $this->info("User #{$target->id} ({$target->first_name}) ready.");
@@ -78,7 +86,7 @@ class UserRealFlowSeeder extends Seeder
         $this->seedPassengerBookings($target, $dummy);
 
         $this->info('');
-        $this->info('Done. Call GET /profile/' . self::TARGET_USER_ID . ' and verify ride_history.');
+        $this->info('Done. Call GET /profile/'.self::TARGET_USER_ID.' and verify ride_history.');
     }
 
     // =========================================================================
@@ -105,7 +113,7 @@ class UserRealFlowSeeder extends Seeder
 
         // ── 1 × awaiting_confirmation ─────────────────────────────────────────
         // Departure past → driver can finish, but ghost passenger never confirms
-        $ride  = $this->createCashRide($driver, departurePast: true);
+        $ride = $this->createCashRide($driver, departurePast: true);
         $ghost = $this->ghostPassenger();
         $this->forceConfirmedBooking($ghost->id, $ride->id);
 
@@ -125,7 +133,7 @@ class UserRealFlowSeeder extends Seeder
         // ── 3 × completed ─────────────────────────────────────────────────────
         // Departure past so finishRide is valid; full confirm loop
         for ($i = 0; $i < 3; $i++) {
-            $ride    = $this->createEpayRide($dummyDriver, departurePast: true);
+            $ride = $this->createEpayRide($dummyDriver, departurePast: true);
             $booking = $this->bookEpay($passenger, $ride);
 
             $this->rideService->finishRide($ride->id, $dummyDriver);
@@ -138,7 +146,7 @@ class UserRealFlowSeeder extends Seeder
         // ── 2 × cancelled ─────────────────────────────────────────────────────
         // Departure FUTURE so the refund policy has time elapsed = 0% → full refund
         for ($i = 0; $i < 2; $i++) {
-            $ride    = $this->createEpayRide($dummyDriver, departurePast: false);
+            $ride = $this->createEpayRide($dummyDriver, departurePast: false);
             $booking = $this->bookEpay($passenger, $ride);
 
             $this->bookingService->cancelBooking($booking->id, $passenger);
@@ -147,7 +155,7 @@ class UserRealFlowSeeder extends Seeder
 
         // ── 1 × no_show ───────────────────────────────────────────────────────
         // Departure past so driver can report no-show after departure time
-        $ride    = $this->createEpayRide($dummyDriver, departurePast: true);
+        $ride = $this->createEpayRide($dummyDriver, departurePast: true);
         $booking = $this->bookEpay($passenger, $ride);
 
         $this->bookingService->reportPassengerNoShow($booking->id, $dummyDriver);
@@ -159,7 +167,7 @@ class UserRealFlowSeeder extends Seeder
     // =========================================================================
 
     /**
-     * @param bool $departurePast  true → past (finished/no-show), false → future (cancel)
+     * @param  bool  $departurePast  true → past (finished/no-show), false → future (cancel)
      */
     private function createCashRide(User $driver, bool $departurePast): Ride
     {
@@ -168,23 +176,23 @@ class UserRealFlowSeeder extends Seeder
             : Carbon::now()->addHours(rand(3, 48));  // well in the future
 
         return $this->rideRepo->createRideWithGeometry([
-            'driver_id'            => $driver->id,
-            'pickup_location'      => self::PICKUP,
+            'driver_id' => $driver->id,
+            'pickup_location' => self::PICKUP,
             'destination_location' => self::DEST,
-            'pickup_address'       => 'دمشق - ساحة الأمويين',
-            'destination_address'  => 'درعا - المحطة المركزية',
-            'departure_time'       => $departure->toDateTimeString(),
-            'available_seats'      => 3,
-            'price_per_seat'       => self::PRICE_PER_SEAT,
-            'vehicle_type'         => 'سيدان',
-            'payment_method'       => 'cash',
-            'booking_type'         => 'direct',
+            'pickup_address' => 'دمشق - ساحة الأمويين',
+            'destination_address' => 'درعا - المحطة المركزية',
+            'departure_time' => $departure->toDateTimeString(),
+            'available_seats' => 3,
+            'price_per_seat' => self::PRICE_PER_SEAT,
+            'vehicle_type' => 'سيدان',
+            'payment_method' => 'cash',
+            'booking_type' => 'direct',
             'communication_number' => '0991234567',
-            'distance'             => 120000,
-            'duration'             => 5400,
-            'route_geometry'       => $this->lineString(),
-            'chosen_route_index'   => 0,
-            'notes'                => null,
+            'distance' => 120000,
+            'duration' => 5400,
+            'route_geometry' => $this->lineString(),
+            'chosen_route_index' => 0,
+            'notes' => null,
         ]);
     }
 
@@ -195,30 +203,30 @@ class UserRealFlowSeeder extends Seeder
             : Carbon::now()->addHours(rand(3, 48));
 
         return $this->rideRepo->createRideWithGeometry([
-            'driver_id'            => $driver->id,
-            'pickup_location'      => self::PICKUP,
+            'driver_id' => $driver->id,
+            'pickup_location' => self::PICKUP,
             'destination_location' => self::DEST,
-            'pickup_address'       => 'دمشق - ساحة الأمويين',
-            'destination_address'  => 'درعا - المحطة المركزية',
-            'departure_time'       => $departure->toDateTimeString(),
-            'available_seats'      => 3,
-            'price_per_seat'       => self::PRICE_PER_SEAT,
-            'vehicle_type'         => 'سيدان',
-            'payment_method'       => 'e-pay',
-            'booking_type'         => 'direct',
+            'pickup_address' => 'دمشق - ساحة الأمويين',
+            'destination_address' => 'درعا - المحطة المركزية',
+            'departure_time' => $departure->toDateTimeString(),
+            'available_seats' => 3,
+            'price_per_seat' => self::PRICE_PER_SEAT,
+            'vehicle_type' => 'سيدان',
+            'payment_method' => 'e-pay',
+            'booking_type' => 'direct',
             'communication_number' => '0991234568',
-            'distance'             => 120000,
-            'duration'             => 5400,
-            'route_geometry'       => $this->lineString(),
-            'chosen_route_index'   => 0,
-            'notes'                => null,
+            'distance' => 120000,
+            'duration' => 5400,
+            'route_geometry' => $this->lineString(),
+            'chosen_route_index' => 0,
+            'notes' => null,
         ]);
     }
 
     private function lineString(): array
     {
         return [
-            'type'        => 'LineString',
+            'type' => 'LineString',
             'coordinates' => [
                 [self::PICKUP['lng'], self::PICKUP['lat']],
                 [self::DEST['lng'],   self::DEST['lat']],
@@ -233,11 +241,11 @@ class UserRealFlowSeeder extends Seeder
     private function bookEpay(User $passenger, Ride $ride): Booking
     {
         $dto = new BookRideDTO(
-            passengerId:         $passenger->id,
-            rideId:              $ride->id,
-            seats:               1,
+            passengerId: $passenger->id,
+            rideId: $ride->id,
+            seats: 1,
             communicationNumber: PhoneNumber::from(self::PASSENGER_PHONE),
-            idempotencyKey:      (string) Str::uuid(),
+            idempotencyKey: (string) Str::uuid(),
         );
 
         return $this->bookingService->bookRide($dto, $passenger);
@@ -250,10 +258,10 @@ class UserRealFlowSeeder extends Seeder
     private function forceConfirmedBooking(int $userId, int $rideId): Booking
     {
         $booking = Booking::create([
-            'user_id'              => $userId,
-            'ride_id'              => $rideId,
-            'seats'                => 1,
-            'status'               => 'confirmed',
+            'user_id' => $userId,
+            'ride_id' => $rideId,
+            'seats' => 1,
+            'status' => 'confirmed',
             'communication_number' => '0990000000',
         ]);
 
@@ -271,9 +279,9 @@ class UserRealFlowSeeder extends Seeder
         $user = User::findOrFail($userId);
 
         $user->update([
-            'is_verified_driver'    => true,
+            'is_verified_driver' => true,
             'is_verified_passenger' => true,
-            'verification_status'   => 'approved',
+            'verification_status' => 'approved',
         ]);
 
         UserScore::firstOrCreate(
@@ -297,7 +305,7 @@ class UserRealFlowSeeder extends Seeder
             $adminConfig
         );
 
-        $this->info("  Wallet #{$wallet->id} topped up with " . self::WALLET_TOP_UP . " SYP.");
+        $this->info("  Wallet #{$wallet->id} topped up with ".self::WALLET_TOP_UP.' SYP.');
 
         return $user->fresh();
     }
@@ -307,15 +315,15 @@ class UserRealFlowSeeder extends Seeder
         $driver = User::firstOrCreate(
             ['email' => 'seed.driver.real@syride.test'],
             [
-                'first_name'            => 'Test',
-                'last_name'             => 'Driver',
-                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
-                'gender'                => 'M',
-                'address'               => 'دمشق',
-                'status'                => 1,
-                'is_verified_driver'    => true,
+                'first_name' => 'Test',
+                'last_name' => 'Driver',
+                'password' => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
+                'gender' => 'M',
+                'address' => 'دمشق',
+                'status' => 1,
+                'is_verified_driver' => true,
                 'is_verified_passenger' => true,
-                'verification_status'   => 'approved',
+                'verification_status' => 'approved',
             ]
         );
 
@@ -345,14 +353,14 @@ class UserRealFlowSeeder extends Seeder
         $ghost = User::firstOrCreate(
             ['email' => 'seed.ghost.passenger@syride.test'],
             [
-                'first_name'            => 'Ghost',
-                'last_name'             => 'Passenger',
-                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
-                'gender'                => 'M',
-                'address'               => 'دمشق',
-                'status'                => 1,
+                'first_name' => 'Ghost',
+                'last_name' => 'Passenger',
+                'password' => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
+                'gender' => 'M',
+                'address' => 'دمشق',
+                'status' => 1,
                 'is_verified_passenger' => true,
-                'verification_status'   => 'approved',
+                'verification_status' => 'approved',
             ]
         );
 

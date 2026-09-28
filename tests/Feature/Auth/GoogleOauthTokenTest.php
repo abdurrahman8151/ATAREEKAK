@@ -5,8 +5,8 @@ namespace Tests\Feature\Auth;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\GoogleProvider;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Mockery;
 use Tests\TestCase;
@@ -32,6 +32,7 @@ class GoogleOauthTokenTest extends TestCase
     use RefreshDatabase;
 
     private const GOOGLE_ID = 'g-1234567890';
+
     private const EMAIL = 'someone@gmail.com';
 
     // ── Socialite stubbing (mirrors GoogleControllerTest) ──────────────────────
@@ -45,7 +46,7 @@ class GoogleOauthTokenTest extends TestCase
         $su->shouldReceive('getAvatar')->andReturn('https://example.com/a.jpg');
         $su->user = ['given_name' => 'Someone', 'family_name' => 'Famous'];
 
-        $driver = Mockery::mock(\Laravel\Socialite\Two\GoogleProvider::class);
+        $driver = Mockery::mock(GoogleProvider::class);
         $driver->shouldReceive('setHttpClient')->andReturnSelf();
         $driver->shouldReceive('user')->andReturn($su);
 
@@ -143,9 +144,9 @@ class GoogleOauthTokenTest extends TestCase
     public function test_a_banned_account_gets_no_credential(): void
     {
         $victim = User::factory()->create([
-            'email'     => self::EMAIL,
-            'status'    => -1,
-            'ban_type'  => 'permanent',
+            'email' => self::EMAIL,
+            'status' => -1,
+            'ban_type' => 'permanent',
             'ban_reason' => 'Repeated spam behaviour',
         ]);
 
@@ -172,9 +173,9 @@ class GoogleOauthTokenTest extends TestCase
         // so an OAuth sign-in that did not reactivate would 401 with
         // USER_INACTIVE on the very next request.
         User::factory()->create([
-            'email'     => self::EMAIL,
+            'email' => self::EMAIL,
             'google_id' => self::GOOGLE_ID,
-            'status'    => 0,
+            'status' => 0,
         ]);
 
         $this->mockGoogleUser();
@@ -190,10 +191,10 @@ class GoogleOauthTokenTest extends TestCase
     public function test_an_existing_user_links_google_id_without_creating_a_duplicate(): void
     {
         $existing = User::factory()->create([
-            'email'             => self::EMAIL,
-            'google_id'         => null,
+            'email' => self::EMAIL,
+            'google_id' => null,
             'email_verified_at' => now(),
-            'status'            => 1,
+            'status' => 1,
         ]);
 
         $this->mockGoogleUser();

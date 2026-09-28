@@ -1,0 +1,29 @@
+name: Style (Pint)
+
+# AF-2' (app-future audit): the whole tree was made Pint-compliant in one
+# style-only sweep (392 files, semantics-preserving per Laravel's preset), and
+# this gate keeps it that way. It runs on every branch/PR so the audit branch
+# itself is gated, not just main.
+
+on:
+  push:
+    branches: [ main, Agentic ]
+  pull_request:
+
+jobs:
+  pint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_mysql
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Check formatting (no writes)
+        run: vendor/bin/pint --test

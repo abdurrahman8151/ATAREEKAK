@@ -11,14 +11,16 @@ class ChatTest extends TestCase
     use RefreshDatabase;
 
     private User $user1;
+
     private User $user2;
+
     private string $token1;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user1  = User::factory()->create(['password' => bcrypt('password123')]);
-        $this->user2  = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user1 = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user2 = User::factory()->create(['password' => bcrypt('password123')]);
         $this->token1 = $this->getToken($this->user1);
     }
 
@@ -69,7 +71,7 @@ class ChatTest extends TestCase
 
         $this->withToken($this->token1)
             ->postJson("/api/chat/conversations/{$convId}/messages", [
-                'type'    => 'text',
+                'type' => 'text',
                 'content' => 'Hello!',
             ])->assertStatus(201);
     }
@@ -93,9 +95,10 @@ class ChatTest extends TestCase
     private function getToken(User $user): string
     {
         $response = $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ]);
+
         return $response->json('tokens.access_token');
     }
 }

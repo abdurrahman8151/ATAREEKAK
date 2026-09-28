@@ -24,7 +24,7 @@ return new class extends Migration
                     ENUM('system_admin','sycash','admin','support_agent')
                     NOT NULL
             ");
-        } catch (\Exception) {
+        } catch (Exception) {
             // Column is VARCHAR — nothing to do.
         }
     }
@@ -48,7 +48,7 @@ return new class extends Migration
                     ENUM('system_admin','admin','support_agent')
                     NOT NULL
             ");
-        } catch (\Exception) {
+        } catch (Exception) {
             // VARCHAR — nothing to do.
         }
     }

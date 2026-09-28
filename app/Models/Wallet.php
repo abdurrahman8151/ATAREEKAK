@@ -21,7 +21,7 @@ class Wallet extends Model
     ];
 
     protected $casts = [
-        'balance'        => 'decimal:2',
+        'balance' => 'decimal:2',
         'cash_ride_debt' => 'decimal:2',
     ];
 
@@ -56,6 +56,7 @@ class Wallet extends Model
     {
         return $this->belongsTo(User::class);
     }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(WalletTransaction::class)->latest();

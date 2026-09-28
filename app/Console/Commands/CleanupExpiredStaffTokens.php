@@ -21,6 +21,7 @@ class CleanupExpiredStaffTokens extends Command
         $this->info('Cleaning up expired staff tokens...');
         $deleted = $this->jwtService->cleanupExpiredTokens();
         $this->info("Deleted {$deleted} expired/revoked staff tokens.");
+
         return 0;
     }
 }

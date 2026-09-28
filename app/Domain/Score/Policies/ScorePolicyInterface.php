@@ -22,9 +22,9 @@ interface ScorePolicyInterface
     /**
      * Calculate the ScoreResult for this action.
      *
-     * @param UserScore $userScore  Current score stats (used for cancel-rate check)
-     * @param array     $context    Additional data the policy may need
-     *                              (e.g. ['elapsed_pct' => 35.0])
+     * @param  UserScore  $userScore  Current score stats (used for cancel-rate check)
+     * @param  array  $context  Additional data the policy may need
+     *                          (e.g. ['elapsed_pct' => 35.0])
      */
     public function calculate(ScoreAction $action, UserScore $userScore, array $context = []): ScoreResult;
 }

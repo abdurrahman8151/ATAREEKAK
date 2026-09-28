@@ -116,8 +116,8 @@ return [
     'rate_limit' => [
         'refresh' => [
             'max_attempts' => 5,
-            'decay_minutes' => 1
-        ]
+            'decay_minutes' => 1,
+        ],
     ],
 
     /*
@@ -130,6 +130,6 @@ return [
     */
     'cleanup' => [
         'enabled' => env('JWT_CLEANUP_ENABLED', true),
-        'older_than_days' => env('JWT_CLEANUP_DAYS', 30)
-    ]
+        'older_than_days' => env('JWT_CLEANUP_DAYS', 30),
+    ],
 ];

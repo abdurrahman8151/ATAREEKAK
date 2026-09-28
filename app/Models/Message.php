@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,14 +18,14 @@ class Message extends Model
         'metadata',
         'read_at',
         'is_edited',
-        'edited_at'
+        'edited_at',
     ];
 
     protected $casts = [
         'metadata' => 'array',
         'read_at' => 'datetime',
         'is_edited' => 'boolean',
-        'edited_at' => 'datetime'
+        'edited_at' => 'datetime',
     ];
 
     public function conversation(): BelongsTo
@@ -39,7 +40,7 @@ class Message extends Model
 
     public function markAsRead(): void
     {
-        if (!$this->read_at) {
+        if (! $this->read_at) {
             $this->update(['read_at' => now()]);
         }
     }

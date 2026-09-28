@@ -19,7 +19,7 @@ class WalletTransaction extends Model
         'description',
         'transaction_id',
         'status',
-        'reference'
+        'reference',
     ];
 
     protected $casts = [
@@ -27,7 +27,7 @@ class WalletTransaction extends Model
         'previous_balance' => 'decimal:2',
         'new_balance' => 'decimal:2',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime'
+        'updated_at' => 'datetime',
     ];
 
     /**

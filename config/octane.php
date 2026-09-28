@@ -242,4 +242,3 @@ return [
     'state_file' => env('OCTANE_STATE_FILE', storage_path('logs/octane-server-state.json')),
 
 ];
-

@@ -19,7 +19,7 @@ enum BookingStatus: string
      */
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::PENDING => 'Pending Approval',
             self::CONFIRMED => 'Confirmed',
             self::CANCELLED => 'Cancelled',
@@ -48,7 +48,7 @@ enum BookingStatus: string
      */
     public function color(): string
     {
-        return match($this) {
+        return match ($this) {
             self::PENDING => 'yellow',
             self::CONFIRMED => 'green',
             self::CANCELLED => 'red',

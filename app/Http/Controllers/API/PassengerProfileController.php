@@ -2,21 +2,22 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Enums\ComplaintStatus;
+use App\Enums\ComplaintType;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\Profile;
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
+use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\JwtService;
 use App\Services\NotificationService;
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;      // ← added
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;      // ← added
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -57,8 +58,8 @@ use Illuminate\Support\Str;
 final class PassengerProfileController extends Controller
 {
     public function __construct(
-        private readonly JwtService           $jwtService,
-        private readonly NotificationService  $notificationService,
+        private readonly JwtService $jwtService,
+        private readonly NotificationService $notificationService,
     ) {}
 
     // =========================================================================
@@ -81,23 +82,24 @@ final class PassengerProfileController extends Controller
                 $user = User::with(['profile', 'wallet', 'photos'])->findOrFail($userId);
 
                 return [
-                    'user'           => $this->formatUser($user),
-                    'stats'          => $this->buildStats($user),
-                    'monthly_trips'  => $this->buildMonthlyTrips($userId),
-                    'recent_trips'   => $this->buildRecentTrips($userId),
-                    'complaints'     => $this->buildComplaints($userId),
+                    'user' => $this->formatUser($user),
+                    'stats' => $this->buildStats($user),
+                    'monthly_trips' => $this->buildMonthlyTrips($userId),
+                    'recent_trips' => $this->buildRecentTrips($userId),
+                    'complaints' => $this->buildComplaints($userId),
                     'wallet_charges' => $this->buildWalletCharges($userId),
                 ];
             });
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
             Log::error('PassengerProfile: fullProfile failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+
             return $this->serverError();
         }
     }
@@ -119,6 +121,7 @@ final class PassengerProfileController extends Controller
         try {
             $data = Cache::remember("admin.passenger.stats.{$userId}", 300, function () use ($userId) {
                 $user = User::with('wallet')->findOrFail($userId);
+
                 return $this->buildStats($user);
             });
 
@@ -149,7 +152,7 @@ final class PassengerProfileController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data,
+            'data' => $data,
         ]);
     }
 
@@ -174,7 +177,7 @@ final class PassengerProfileController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data,
+            'data' => $data,
         ]);
     }
 
@@ -197,10 +200,10 @@ final class PassengerProfileController extends Controller
     public function complaints(int $userId, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'status'   => 'sometimes|in:all,pending,in_review,resolved,closed,escalated',
-            'type'     => 'sometimes|in:all,trip_safety,driver_behavior,passenger_behavior,ride_cancellation,financial_issue,account_issue,technical_issue,no_show,other',
+            'status' => 'sometimes|in:all,pending,in_review,resolved,closed,escalated',
+            'type' => 'sometimes|in:all,trip_safety,driver_behavior,passenger_behavior,ride_cancellation,financial_issue,account_issue,technical_issue,no_show,other',
             'per_page' => 'sometimes|integer|min:1|max:50',
-            'page'     => 'sometimes|integer|min:1',
+            'page' => 'sometimes|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -231,14 +234,14 @@ final class PassengerProfileController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $paginator->getCollection()
-                ->map(fn($c) => $this->formatComplaint($c))
+            'data' => $paginator->getCollection()
+                ->map(fn ($c) => $this->formatComplaint($c))
                 ->values(),
-            'meta'   => [
+            'meta' => [
                 'current_page' => $paginator->currentPage(),
-                'last_page'    => $paginator->lastPage(),
-                'per_page'     => $paginator->perPage(),
-                'total'        => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
             ],
             // Tab badge counts for this user only
             'counts' => $this->complaintCounts($userId),
@@ -257,11 +260,11 @@ final class PassengerProfileController extends Controller
     public function walletCharges(int $userId, Request $request): JsonResponse
     {
         $user = User::with('wallet')->find($userId);
-        if (!$user || !$user->wallet) {
+        if (! $user || ! $user->wallet) {
             return response()->json(['status' => 'success', 'data' => [], 'meta' => []]);
         }
 
-        $paginator = \App\Models\WalletTransaction::with([
+        $paginator = WalletTransaction::with([
             'user:id,first_name,last_name',
             'user.profile:user_id,profile_photo',
         ])
@@ -277,14 +280,14 @@ final class PassengerProfileController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $paginator->getCollection()
-                ->map(fn($tx) => $this->formatWalletCharge($tx))
+            'data' => $paginator->getCollection()
+                ->map(fn ($tx) => $this->formatWalletCharge($tx))
                 ->values(),
-            'meta'   => [
+            'meta' => [
                 'current_page' => $paginator->currentPage(),
-                'last_page'    => $paginator->lastPage(),
-                'per_page'     => $paginator->perPage(),
-                'total'        => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
             ],
         ]);
     }
@@ -308,7 +311,7 @@ final class PassengerProfileController extends Controller
     public function chargeWallet(int $userId, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'amount'      => 'required|numeric|min:1|max:10000000',
+            'amount' => 'required|numeric|min:1|max:10000000',
             'admin_notes' => 'nullable|string|max:500',
         ]);
 
@@ -319,9 +322,9 @@ final class PassengerProfileController extends Controller
         try {
             $user = User::with('wallet')->findOrFail($userId);
 
-            if (!$user->wallet) {
+            if (! $user->wallet) {
                 return response()->json([
-                    'status'  => 'error',
+                    'status' => 'error',
                     'message' => 'This user does not have a wallet yet.',
                 ], 422);
             }
@@ -329,38 +332,38 @@ final class PassengerProfileController extends Controller
             $amount = (float) $request->input('amount');
 
             DB::transaction(function () use ($user, $amount, $request) {
-                $wallet = \App\Models\Wallet::lockForUpdate()->findOrFail($user->wallet->id);
+                $wallet = Wallet::lockForUpdate()->findOrFail($user->wallet->id);
 
                 $previousBalance = (float) $wallet->balance;
-                $newBalance      = $previousBalance + $amount;
+                $newBalance = $previousBalance + $amount;
                 $wallet->balance = $newBalance;
                 $wallet->save();
 
-                \App\Models\WalletTransaction::create([
-                    'wallet_id'        => $wallet->id,
-                    'user_id'          => $request->user()?->id,  // the admin
-                    'type'             => 'admin_charge',
-                    'amount'           => $amount,
+                WalletTransaction::create([
+                    'wallet_id' => $wallet->id,
+                    'user_id' => $request->user()?->id,  // the admin
+                    'type' => 'admin_charge',
+                    'amount' => $amount,
                     'previous_balance' => $previousBalance,
-                    'new_balance'      => $newBalance,
-                    'description'      => $request->input('admin_notes') ?? 'Admin wallet charge',
+                    'new_balance' => $newBalance,
+                    'description' => $request->input('admin_notes') ?? 'Admin wallet charge',
                     // T3-1: was 'ADM-'.$user->id.'-'.now()->timestamp, i.e.
                     // unique only per-second per-user. wallet_transactions
                     // .transaction_id is UNIQUE, so two charges for the same
                     // passenger inside one second threw and rolled back a
                     // legitimate money movement. UUID makes it collision-free;
                     // the readable prefix is kept for ops.
-                    'transaction_id'   => 'ADM-' . $user->id . '-' . (string) Str::uuid(),
-                    'status'           => 'completed',
-                    'reference'        => 'admin_charge:' . $user->id,
+                    'transaction_id' => 'ADM-'.$user->id.'-'.(string) Str::uuid(),
+                    'status' => 'completed',
+                    'reference' => 'admin_charge:'.$user->id,
                 ]);
 
                 Log::info('Admin charged passenger wallet', [
-                    'passenger_id'     => $user->id,
-                    'admin_id'         => $request->user()?->id,
-                    'amount'           => $amount,
+                    'passenger_id' => $user->id,
+                    'admin_id' => $request->user()?->id,
+                    'amount' => $amount,
                     'previous_balance' => $previousBalance,
-                    'new_balance'      => $newBalance,
+                    'new_balance' => $newBalance,
                 ]);
             });
 
@@ -376,22 +379,22 @@ final class PassengerProfileController extends Controller
                     $user,
                     'wallet_charged',
                     'تم شحن محفظتك',
-                    "تم إضافة {$amount} ر.س إلى محفظتك بواسطة الإدارة." .
-                    ($request->input('admin_notes') ? ' ملاحظة: ' . $request->input('admin_notes') : ''),
+                    "تم إضافة {$amount} ر.س إلى محفظتك بواسطة الإدارة.".
+                    ($request->input('admin_notes') ? ' ملاحظة: '.$request->input('admin_notes') : ''),
                     ['amount' => $amount],
                     'normal',
                     'system'
                 );
             } catch (\Throwable $e) {
                 // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('wallet charge notification failed (non-fatal): ' . $e->getMessage());
+                Log::warning('wallet charge notification failed (non-fatal): '.$e->getMessage());
             }
 
             $user->wallet->refresh();
 
             return response()->json([
-                'status'      => 'success',
-                'message'     => "Wallet charged successfully. New balance: {$user->wallet->balance} SYP.",
+                'status' => 'success',
+                'message' => "Wallet charged successfully. New balance: {$user->wallet->balance} SYP.",
                 'new_balance' => (float) $user->wallet->balance,
             ]);
         } catch (ModelNotFoundException) {
@@ -399,8 +402,9 @@ final class PassengerProfileController extends Controller
         } catch (\Exception $e) {
             Log::error('PassengerProfile: chargeWallet failed', [
                 'user_id' => $userId,
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return $this->serverError();
         }
     }
@@ -428,9 +432,9 @@ final class PassengerProfileController extends Controller
         $walletBalance = $user->wallet?->balance ?? 0.0;
 
         return [
-            'total_rides'    => $totalRides,
+            'total_rides' => $totalRides,
             'total_spending' => round((float) $totalSpending, 2),
-            'avg_rating'     => round((float) $avgRating, 1),
+            'avg_rating' => round((float) $avgRating, 1),
             'wallet_balance' => round((float) $walletBalance, 2),
         ];
     }
@@ -456,16 +460,17 @@ final class PassengerProfileController extends Controller
 
         $result = [];
         for ($i = $months - 1; $i >= 0; $i--) {
-            $date     = now()->subMonths($i)->startOfMonth();
-            $key      = $date->format('Y-m');
-            $row      = $rows->get($key);
+            $date = now()->subMonths($i)->startOfMonth();
+            $key = $date->format('Y-m');
+            $row = $rows->get($key);
             $result[] = [
-                'month'      => $date->locale('ar')->isoFormat('MMMM'),
-                'month_key'  => $key,
-                'trips'      => $row ? (int) $row->trips : 0,
+                'month' => $date->locale('ar')->isoFormat('MMMM'),
+                'month_key' => $key,
+                'trips' => $row ? (int) $row->trips : 0,
                 'total_cost' => $row ? round((float) $row->total_cost, 2) : 0.0,
             ];
         }
+
         return $result;
     }
 
@@ -482,18 +487,18 @@ final class PassengerProfileController extends Controller
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get()
-            ->map(fn($b) => [
-                'id'             => $b->id,
-                'date'           => $b->created_at->toDateString(),
-                'route_from'     => $b->ride?->pickup_address,
-                'route_to'       => $b->ride?->destination_address,
-                'driver'         => $b->ride?->driver
+            ->map(fn ($b) => [
+                'id' => $b->id,
+                'date' => $b->created_at->toDateString(),
+                'route_from' => $b->ride?->pickup_address,
+                'route_to' => $b->ride?->destination_address,
+                'driver' => $b->ride?->driver
                     ? trim("{$b->ride->driver->first_name} {$b->ride->driver->last_name}")
                     : null,
-                'seats'          => $b->seats,
+                'seats' => $b->seats,
                 'price_per_seat' => (float) ($b->ride?->price_per_seat ?? 0),
-                'total_cost'     => round($b->seats * (float) ($b->ride?->price_per_seat ?? 0), 2),
-                'status'         => $b->status,
+                'total_cost' => round($b->seats * (float) ($b->ride?->price_per_seat ?? 0), 2),
+                'status' => $b->status,
                 'departure_time' => $b->ride?->departure_time?->toIso8601String(),
             ])
             ->values()
@@ -520,7 +525,7 @@ final class PassengerProfileController extends Controller
             ->orderByDesc('created_at')
             ->limit(20)
             ->get()
-            ->map(fn($c) => $this->formatComplaint($c))
+            ->map(fn ($c) => $this->formatComplaint($c))
             ->values()
             ->all();
     }
@@ -531,9 +536,11 @@ final class PassengerProfileController extends Controller
     private function buildWalletCharges(int $userId): array
     {
         $user = User::with('wallet')->find($userId);
-        if (!$user?->wallet) return [];
+        if (! $user?->wallet) {
+            return [];
+        }
 
-        return \App\Models\WalletTransaction::with([
+        return WalletTransaction::with([
             'user:id,first_name,last_name',
             'user.profile:user_id,profile_photo',
         ])
@@ -542,7 +549,7 @@ final class PassengerProfileController extends Controller
             ->orderByDesc('created_at')
             ->limit(20)
             ->get()
-            ->map(fn($tx) => $this->formatWalletCharge($tx))
+            ->map(fn ($tx) => $this->formatWalletCharge($tx))
             ->values()
             ->all();
     }
@@ -554,80 +561,81 @@ final class PassengerProfileController extends Controller
     private function formatUser(User $user): array
     {
         $profile = $user->profile;
+
         return [
-            'id'                    => $user->id,
-            'full_name'             => trim("{$user->first_name} {$user->last_name}"),
-            'email'                 => $user->email,
-            'phone'                 => $profile?->phone ?? null,
-            'address'               => $user->address,
-            'gender'                => $user->gender,
-            'joined_at'             => $user->created_at->toIso8601String(),
-            'profile_photo'         => $profile?->profile_photo
+            'id' => $user->id,
+            'full_name' => trim("{$user->first_name} {$user->last_name}"),
+            'email' => $user->email,
+            'phone' => $profile?->phone ?? null,
+            'address' => $user->address,
+            'gender' => $user->gender,
+            'joined_at' => $user->created_at->toIso8601String(),
+            'profile_photo' => $profile?->profile_photo
                 ? asset("storage/{$profile->profile_photo}") : null,
-            'verification_status'   => $user->verification_status,
+            'verification_status' => $user->verification_status,
             'is_verified_passenger' => (bool) $user->is_verified_passenger,
-            'account_status'        => $user->account_status,
+            'account_status' => $user->account_status,
             'ban' => $user->status == -1 ? [
-                'reason'     => $user->ban_reason,
-                'type'       => $user->ban_type,
+                'reason' => $user->ban_reason,
+                'type' => $user->ban_type,
                 'expires_at' => $user->ban_expires_at?->toIso8601String(),
-                'banned_at'  => $user->banned_at?->toIso8601String(),
+                'banned_at' => $user->banned_at?->toIso8601String(),
             ] : null,
         ];
     }
 
-    private function formatComplaint(\App\Models\Complaint $c): array
+    private function formatComplaint(Complaint $c): array
     {
         $typeLabels = [
-            'trip_safety'        => 'أمان الرحلة',
-            'driver_behavior'    => 'سلوك السائق',
+            'trip_safety' => 'أمان الرحلة',
+            'driver_behavior' => 'سلوك السائق',
             'passenger_behavior' => 'سلوك الراكب',
-            'ride_cancellation'  => 'إلغاء الرحلة',
-            'financial_issue'    => 'مشكلة مالية',
-            'account_issue'      => 'مشكلة في الحساب',
-            'technical_issue'    => 'عطل تقني',
-            'no_show'            => 'تعارض تقارير الغياب',
-            'other'              => 'أخرى',
+            'ride_cancellation' => 'إلغاء الرحلة',
+            'financial_issue' => 'مشكلة مالية',
+            'account_issue' => 'مشكلة في الحساب',
+            'technical_issue' => 'عطل تقني',
+            'no_show' => 'تعارض تقارير الغياب',
+            'other' => 'أخرى',
         ];
 
-        $typeValue = $c->type instanceof \App\Enums\ComplaintType
+        $typeValue = $c->type instanceof ComplaintType
             ? $c->type->value : (string) $c->type;
 
-        $statusValue = $c->status instanceof \App\Enums\ComplaintStatus
+        $statusValue = $c->status instanceof ComplaintStatus
             ? $c->status->value : (string) $c->status;
 
         return [
-            'id'          => $c->id,
-            'type'        => $typeValue,
-            'type_label'  => $typeLabels[$typeValue] ?? $typeValue,
-            'status'      => $statusValue,
-            'created_at'  => $c->created_at->toDateString(),
+            'id' => $c->id,
+            'type' => $typeValue,
+            'type_label' => $typeLabels[$typeValue] ?? $typeValue,
+            'status' => $statusValue,
+            'created_at' => $c->created_at->toDateString(),
             'assigned_to' => $c->assignedAgent
                 ? trim("{$c->assignedAgent->first_name} {$c->assignedAgent->last_name}")
                 : null,
         ];
     }
 
-    private function formatWalletCharge(\App\Models\WalletTransaction $tx): array
+    private function formatWalletCharge(WalletTransaction $tx): array
     {
         $admin = $tx->user;
 
         return [
-            'id'                 => $tx->id,
-            'transaction_id'     => $tx->transaction_id,
-            'amount'             => (float) $tx->amount,
-            'previous_balance'   => (float) $tx->previous_balance,
-            'new_balance'        => (float) $tx->new_balance,
-            'status'             => $tx->status,
-            'notes'              => $tx->description,
-            'date'               => $tx->created_at->toDateString(),
-            'created_at'         => $tx->created_at->toIso8601String(),
-            'processed_by_id'    => $admin?->id,
-            'processed_by_name'  => $admin
+            'id' => $tx->id,
+            'transaction_id' => $tx->transaction_id,
+            'amount' => (float) $tx->amount,
+            'previous_balance' => (float) $tx->previous_balance,
+            'new_balance' => (float) $tx->new_balance,
+            'status' => $tx->status,
+            'notes' => $tx->description,
+            'date' => $tx->created_at->toDateString(),
+            'created_at' => $tx->created_at->toIso8601String(),
+            'processed_by_id' => $admin?->id,
+            'processed_by_name' => $admin
                 ? trim("{$admin->first_name} {$admin->last_name}")
                 : null,
             'processed_by_photo' => $admin?->profile?->profile_photo
-                ? asset('storage/' . $admin->profile->profile_photo)
+                ? asset('storage/'.$admin->profile->profile_photo)
                 : null,
         ];
     }
@@ -641,12 +649,12 @@ final class PassengerProfileController extends Controller
             ->toArray();
 
         return [
-            'all'       => array_sum($rows),
-            'pending'   => $rows['pending']   ?? 0,
+            'all' => array_sum($rows),
+            'pending' => $rows['pending'] ?? 0,
             'in_review' => $rows['in_review'] ?? 0,
             'escalated' => $rows['escalated'] ?? 0,
-            'resolved'  => $rows['resolved']  ?? 0,
-            'closed'    => $rows['closed']    ?? 0,
+            'resolved' => $rows['resolved'] ?? 0,
+            'closed' => $rows['closed'] ?? 0,
         ];
     }
 
@@ -657,7 +665,7 @@ final class PassengerProfileController extends Controller
     private function serverError(): JsonResponse
     {
         return response()->json([
-            'status'  => 'error',
+            'status' => 'error',
             'message' => 'An unexpected error occurred. Please try again.',
         ], 500);
     }

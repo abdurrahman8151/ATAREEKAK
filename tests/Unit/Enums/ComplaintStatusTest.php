@@ -120,20 +120,20 @@ class ComplaintStatusTest extends TestCase
 
     public function test_enum_values_are_correct_strings(): void
     {
-        $this->assertEquals('pending',   ComplaintStatus::PENDING->value);
+        $this->assertEquals('pending', ComplaintStatus::PENDING->value);
         $this->assertEquals('in_review', ComplaintStatus::IN_REVIEW->value);
         $this->assertEquals('escalated', ComplaintStatus::ESCALATED->value);
-        $this->assertEquals('resolved',  ComplaintStatus::RESOLVED->value);
-        $this->assertEquals('closed',    ComplaintStatus::CLOSED->value);
+        $this->assertEquals('resolved', ComplaintStatus::RESOLVED->value);
+        $this->assertEquals('closed', ComplaintStatus::CLOSED->value);
     }
 
     public function test_from_string_resolves_correctly(): void
     {
-        $this->assertEquals(ComplaintStatus::PENDING,   ComplaintStatus::from('pending'));
+        $this->assertEquals(ComplaintStatus::PENDING, ComplaintStatus::from('pending'));
         $this->assertEquals(ComplaintStatus::IN_REVIEW, ComplaintStatus::from('in_review'));
         $this->assertEquals(ComplaintStatus::ESCALATED, ComplaintStatus::from('escalated'));
-        $this->assertEquals(ComplaintStatus::RESOLVED,  ComplaintStatus::from('resolved'));
-        $this->assertEquals(ComplaintStatus::CLOSED,    ComplaintStatus::from('closed'));
+        $this->assertEquals(ComplaintStatus::RESOLVED, ComplaintStatus::from('resolved'));
+        $this->assertEquals(ComplaintStatus::CLOSED, ComplaintStatus::from('closed'));
     }
 
     public function test_all_cases_have_non_empty_labels(): void

@@ -1,5 +1,11 @@
 <?php
 
+use App\Providers\AppServiceProvider;
+use App\Providers\AuthServiceProvider;
+use App\Providers\BroadcastServiceProvider;
+use App\Providers\EventServiceProvider;
+use App\Providers\HorizonServiceProvider;
+use App\Providers\RouteServiceProvider;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\ServiceProvider;
 
@@ -72,12 +78,12 @@ return [
     |--------------------------------------------------------------------------
     */
     'providers' => ServiceProvider::defaultProviders()->merge([
-        App\Providers\AppServiceProvider::class,
-        App\Providers\AuthServiceProvider::class,
-        App\Providers\EventServiceProvider::class,
-        App\Providers\RouteServiceProvider::class,
-        App\Providers\BroadcastServiceProvider::class,
-        App\Providers\HorizonServiceProvider::class,
+        AppServiceProvider::class,
+        AuthServiceProvider::class,
+        EventServiceProvider::class,
+        RouteServiceProvider::class,
+        BroadcastServiceProvider::class,
+        HorizonServiceProvider::class,
     ])->toArray(),
 
     /*
@@ -96,10 +102,10 @@ return [
     */
     'services' => [
         'openroute' => [
-            'key'                  => env('OPENROUTE_API_KEY'),
-            'cache_ttl'            => env('OPENROUTE_CACHE_TTL', 86400),
-            'geocode_endpoint'     => 'https://api.openrouteservice.org/geocode/search',
-            'directions_endpoint'  => 'https://api.openrouteservice.org/v2/directions/driving-car'
-        ]
-    ]
+            'key' => env('OPENROUTE_API_KEY'),
+            'cache_ttl' => env('OPENROUTE_CACHE_TTL', 86400),
+            'geocode_endpoint' => 'https://api.openrouteservice.org/geocode/search',
+            'directions_endpoint' => 'https://api.openrouteservice.org/v2/directions/driving-car',
+        ],
+    ],
 ];

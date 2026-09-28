@@ -27,12 +27,13 @@ use App\Models\UserScore;
 final class DriverCancelRidePolicy implements ScorePolicyInterface
 {
     private const HIGH_RATE_THRESHOLD = 50.0; // ≥ 50 % triggers the override
-    private const MIN_CANCELLATIONS   = 3;    // override only kicks in after this many cancellations
+
+    private const MIN_CANCELLATIONS = 3;    // override only kicks in after this many cancellations
 
     private const BASE_POINTS = [
         'driver_cancel_ride_early' => 0,
-        'driver_cancel_ride_mid'   => -7,
-        'driver_cancel_ride_late'  => -12,
+        'driver_cancel_ride_mid' => -7,
+        'driver_cancel_ride_late' => -12,
     ];
 
     private const HIGH_RATE_POINTS = -15;
@@ -65,7 +66,7 @@ final class DriverCancelRidePolicy implements ScorePolicyInterface
         return ScoreResult::of(
             points: $points,
             action: $action,
-            reason: "Driver cancelled ride ({$action->label()})" . ($points === 0 ? ' – no penalty' : ''),
+            reason: "Driver cancelled ride ({$action->label()})".($points === 0 ? ' – no penalty' : ''),
         );
     }
 }

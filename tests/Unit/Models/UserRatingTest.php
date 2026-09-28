@@ -13,27 +13,27 @@ class UserRatingTest extends TestCase
 
     public function test_fillable_contains_expected_fields(): void
     {
-        $model = new UserRating();
+        $model = new UserRating;
 
-        $this->assertContains('rater_id',      $model->getFillable());
+        $this->assertContains('rater_id', $model->getFillable());
         $this->assertContains('rated_user_id', $model->getFillable());
-        $this->assertContains('rating',        $model->getFillable());
+        $this->assertContains('rating', $model->getFillable());
     }
 
     public function test_rating_is_cast_to_float(): void
     {
-        $this->assertEquals('float', (new UserRating())->getCasts()['rating']);
+        $this->assertEquals('float', (new UserRating)->getCasts()['rating']);
     }
 
     public function test_rater_relationship_returns_correct_user(): void
     {
-        $rater  = User::factory()->create();
-        $rated  = User::factory()->create();
+        $rater = User::factory()->create();
+        $rated = User::factory()->create();
 
         $rating = UserRating::create([
-            'rater_id'      => $rater->id,
+            'rater_id' => $rater->id,
             'rated_user_id' => $rated->id,
-            'rating'        => 4.5,
+            'rating' => 4.5,
         ]);
 
         $this->assertEquals($rater->id, $rating->rater->id);
@@ -45,9 +45,9 @@ class UserRatingTest extends TestCase
         $rated = User::factory()->create();
 
         $rating = UserRating::create([
-            'rater_id'      => $rater->id,
+            'rater_id' => $rater->id,
             'rated_user_id' => $rated->id,
-            'rating'        => 3.0,
+            'rating' => 3.0,
         ]);
 
         $this->assertEquals($rated->id, $rating->ratedUser->id);

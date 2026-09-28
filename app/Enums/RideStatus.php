@@ -16,13 +16,13 @@ namespace App\Enums;
  */
 enum RideStatus: string
 {
-    case ACTIVE                = 'active';
-    case FULL                  = 'full';
-    case CANCELLED             = 'cancelled';
-    case FINISHED              = 'finished';
+    case ACTIVE = 'active';
+    case FULL = 'full';
+    case CANCELLED = 'cancelled';
+    case FINISHED = 'finished';
 
     /** Ride has departed; passengers can now confirm. Replaces awaiting_confirmation. */
-    case LAUNCHED              = 'launched';
+    case LAUNCHED = 'launched';
 
     /** @deprecated – kept so old DB rows still deserialize correctly. Use LAUNCHED. */
     case AWAITING_CONFIRMATION = 'awaiting_confirmation';
@@ -32,11 +32,11 @@ enum RideStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::ACTIVE                => 'Active',
-            self::FULL                  => 'Full',
-            self::CANCELLED             => 'Cancelled',
-            self::FINISHED              => 'Finished',
-            self::LAUNCHED              => 'Launched',
+            self::ACTIVE => 'Active',
+            self::FULL => 'Full',
+            self::CANCELLED => 'Cancelled',
+            self::FINISHED => 'Finished',
+            self::LAUNCHED => 'Launched',
             self::AWAITING_CONFIRMATION => 'Awaiting Confirmation',
         };
     }
@@ -68,11 +68,11 @@ enum RideStatus: string
     public function color(): string
     {
         return match ($this) {
-            self::ACTIVE                => 'green',
-            self::FULL                  => 'orange',
-            self::CANCELLED             => 'red',
-            self::FINISHED              => 'blue',
-            self::LAUNCHED              => 'purple',
+            self::ACTIVE => 'green',
+            self::FULL => 'orange',
+            self::CANCELLED => 'red',
+            self::FINISHED => 'blue',
+            self::LAUNCHED => 'purple',
             self::AWAITING_CONFIRMATION => 'yellow',
         };
     }

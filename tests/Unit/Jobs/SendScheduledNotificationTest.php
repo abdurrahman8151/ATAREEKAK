@@ -5,7 +5,11 @@ namespace Tests\Unit\Jobs;
 use App\Jobs\SendScheduledNotification;
 use App\Models\UserNotification;
 use App\Services\NotificationService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\SerializesModels;
 use Mockery;
 use Tests\TestCase;
 
@@ -22,9 +26,9 @@ class SendScheduledNotificationTest extends TestCase
     use RefreshDatabase;
 
     private array $sampleData = [
-        'title'   => 'Scheduled Notification',
+        'title' => 'Scheduled Notification',
         'message' => 'This is a scheduled message.',
-        'type'    => 'general',
+        'type' => 'general',
         'user_id' => 1,
     ];
 
@@ -46,9 +50,9 @@ class SendScheduledNotificationTest extends TestCase
     public function test_stores_notification_data_passed_to_constructor(): void
     {
         $data = ['title' => 'Hello', 'message' => 'World', 'type' => 'test', 'user_id' => 42];
-        $job  = new SendScheduledNotification($data);
+        $job = new SendScheduledNotification($data);
 
-        $ref  = new \ReflectionClass($job);
+        $ref = new \ReflectionClass($job);
         $prop = $ref->getProperty('notificationData');
         $prop->setAccessible(true);
 
@@ -60,7 +64,7 @@ class SendScheduledNotificationTest extends TestCase
     public function test_handle_calls_notification_service_create_once(): void
     {
         $service = Mockery::mock(NotificationService::class);
-        $service->shouldReceive('create')->once()->andReturn(new UserNotification());
+        $service->shouldReceive('create')->once()->andReturn(new UserNotification);
 
         (new SendScheduledNotification($this->sampleData))->handle($service);
     }
@@ -71,7 +75,7 @@ class SendScheduledNotificationTest extends TestCase
         $service->shouldReceive('create')
             ->once()
             ->with($this->sampleData)
-            ->andReturn(new UserNotification());
+            ->andReturn(new UserNotification);
 
         (new SendScheduledNotification($this->sampleData))->handle($service);
     }
@@ -94,7 +98,7 @@ class SendScheduledNotificationTest extends TestCase
     public function test_uses_queueable_trait(): void
     {
         $this->assertTrue(
-            in_array(\Illuminate\Bus\Queueable::class,
+            in_array(Queueable::class,
                 class_uses_recursive(SendScheduledNotification::class))
         );
     }
@@ -102,7 +106,7 @@ class SendScheduledNotificationTest extends TestCase
     public function test_uses_serializes_models_trait(): void
     {
         $this->assertTrue(
-            in_array(\Illuminate\Queue\SerializesModels::class,
+            in_array(SerializesModels::class,
                 class_uses_recursive(SendScheduledNotification::class))
         );
     }
@@ -110,7 +114,7 @@ class SendScheduledNotificationTest extends TestCase
     public function test_uses_dispatchable_trait(): void
     {
         $this->assertTrue(
-            in_array(\Illuminate\Foundation\Bus\Dispatchable::class,
+            in_array(Dispatchable::class,
                 class_uses_recursive(SendScheduledNotification::class))
         );
     }
@@ -118,7 +122,7 @@ class SendScheduledNotificationTest extends TestCase
     public function test_implements_should_queue_interface(): void
     {
         $this->assertInstanceOf(
-            \Illuminate\Contracts\Queue\ShouldQueue::class,
+            ShouldQueue::class,
             new SendScheduledNotification($this->sampleData)
         );
     }

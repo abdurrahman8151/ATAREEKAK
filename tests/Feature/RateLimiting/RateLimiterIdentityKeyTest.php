@@ -3,10 +3,11 @@
 namespace Tests\Feature\RateLimiting;
 
 use App\Models\User;
+use App\Providers\RouteServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Cache\RateLimiting\Unlimited;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
-use ReflectionProperty;
 use Tests\TestCase;
 
 /**
@@ -69,6 +70,7 @@ class RateLimiterIdentityKeyTest extends TestCase
         if ($user !== null) {
             $req->setUserResolver(fn () => $user);
         }
+
         return $req;
     }
 
@@ -147,7 +149,7 @@ class RateLimiterIdentityKeyTest extends TestCase
         foreach ($spellings as $phone) {
             $keys = $this->keys($this->buckets($this->requestWith(['phone_number' => $phone])));
             $this->assertContains(
-                'account:phone:' . $last9,
+                'account:phone:'.$last9,
                 $keys,
                 "phone spelling '{$phone}' must land in the shared national-digit bucket"
             );
@@ -202,7 +204,7 @@ class RateLimiterIdentityKeyTest extends TestCase
         $user = User::factory()->create();
         $keys = $this->keys($this->buckets($this->requestWith([], '203.0.113.7', $user)));
 
-        $this->assertSame(['user:' . $user->getAuthIdentifier()], $keys);
+        $this->assertSame(['user:'.$user->getAuthIdentifier()], $keys);
     }
 
     public function test_authenticated_user_overrides_any_email_field(): void
@@ -214,7 +216,7 @@ class RateLimiterIdentityKeyTest extends TestCase
         $keys = $this->keys($this->buckets($this->requestWith(['email' => 'someone@example.com'], '1.2.3.4', $user)));
 
         $this->assertNotContains('account:email:someone@example.com', $keys);
-        $this->assertSame(['user:' . $user->getAuthIdentifier()], $keys);
+        $this->assertSame(['user:'.$user->getAuthIdentifier()], $keys);
     }
 
     // ── the resolver must never throw on hostile/garbage input ──────────────────
@@ -261,10 +263,10 @@ class RateLimiterIdentityKeyTest extends TestCase
         $this->rebindLimiters();
 
         $closure = RateLimiter::limiter('auth');
-        $result  = $closure($this->requestWith(['email' => 'a@b.co']));
+        $result = $closure($this->requestWith(['email' => 'a@b.co']));
 
         // Limit::none() returns an Unlimited marker consumed by the middleware.
-        $this->assertInstanceOf(\Illuminate\Cache\RateLimiting\Unlimited::class, $result);
+        $this->assertInstanceOf(Unlimited::class, $result);
 
         config(['rate-limiting.enabled' => true]);
         $this->rebindLimiters();
@@ -272,7 +274,7 @@ class RateLimiterIdentityKeyTest extends TestCase
 
     private function rebindLimiters(): void
     {
-        $provider = new \App\Providers\RouteServiceProvider($this->app);
+        $provider = new RouteServiceProvider($this->app);
         $method = new \ReflectionMethod($provider, 'configureRateLimiting');
         $method->setAccessible(true);
         $method->invoke($provider);

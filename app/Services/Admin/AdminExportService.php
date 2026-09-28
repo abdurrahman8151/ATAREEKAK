@@ -2,11 +2,10 @@
 
 namespace App\Services\Admin;
 
-use App\Domain\ValueObjects\Money;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
  * AdminExportService
@@ -46,14 +45,14 @@ final class AdminExportService
      * Build a PDF binary string for the dashboard report.
      *
      * @param  string|null  $startDate  Y-m-d
-     * @param  string|null  $endDate    Y-m-d
-     * @param  string[]     $sections   Subset of AVAILABLE_SECTIONS (empty = all)
-     * @return string  Raw PDF bytes ready for streaming
+     * @param  string|null  $endDate  Y-m-d
+     * @param  string[]  $sections  Subset of AVAILABLE_SECTIONS (empty = all)
+     * @return string Raw PDF bytes ready for streaming
      */
     public function exportDashboardPdf(
         ?string $startDate,
         ?string $endDate,
-        array   $sections = [],
+        array $sections = [],
     ): string {
         $sections = $this->resolveSections($sections);
 
@@ -68,9 +67,9 @@ final class AdminExportService
             ->setOption('defaultFont', 'DejaVu Sans');
 
         Log::info('Admin PDF export generated', [
-            'sections'   => $sections,
+            'sections' => $sections,
             'start_date' => $startDate,
-            'end_date'   => $endDate,
+            'end_date' => $endDate,
         ]);
 
         return $pdf->output();
@@ -82,9 +81,9 @@ final class AdminExportService
     public function buildFilename(?string $startDate, ?string $endDate): string
     {
         $from = $startDate ? Carbon::parse($startDate)->format('Ymd') : 'all';
-        $to   = $endDate   ? Carbon::parse($endDate)->format('Ymd')   : 'all';
+        $to = $endDate ? Carbon::parse($endDate)->format('Ymd') : 'all';
 
-        return "syride-report_{$from}_{$to}_" . now()->format('His') . '.pdf';
+        return "syride-report_{$from}_{$to}_".now()->format('His').'.pdf';
     }
 
     // =========================================================================
@@ -113,22 +112,22 @@ final class AdminExportService
     private function buildPayload(
         ?string $startDate,
         ?string $endDate,
-        array   $sections,
+        array $sections,
     ): array {
         $payload = [
             'generatedAt' => now()->format('Y-m-d H:i:s'),
-            'dateRange'   => [
+            'dateRange' => [
                 'start' => $startDate ?? 'All time',
-                'end'   => $endDate   ?? 'All time',
+                'end' => $endDate ?? 'All time',
             ],
-            'sections'    => $sections,
+            'sections' => $sections,
 
             // Always present (used in the header/footer)
-            'stats'    => null,
-            'financial'=> null,
-            'growth'   => null,
-            'cities'   => null,
-            'recent'   => null,
+            'stats' => null,
+            'financial' => null,
+            'growth' => null,
+            'cities' => null,
+            'recent' => null,
         ];
 
         if (in_array('stats', $sections, true)) {

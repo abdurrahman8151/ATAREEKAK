@@ -26,9 +26,9 @@ class TestNotificationCommandTest extends TestCase
         $this->user = User::factory()->create();
 
         // Profile is auto-created by UserObserver; only create manually as fallback.
-        if (!$this->user->profile) {
+        if (! $this->user->profile) {
             $this->user->profile()->create([
-                'full_name'       => 'Test User',
+                'full_name' => 'Test User',
                 'number_of_rides' => 0,
             ]);
         }
@@ -64,7 +64,7 @@ class TestNotificationCommandTest extends TestCase
         // including 'welcome' — it now returns exit code 0.
         $this->artisan('notification:test', [
             'user_id' => $this->user->id,
-            '--type'  => 'welcome',
+            '--type' => 'welcome',
         ])->assertExitCode(0);
     }
 
@@ -72,7 +72,7 @@ class TestNotificationCommandTest extends TestCase
     {
         $this->artisan('notification:test', [
             'user_id' => $this->user->id,
-            '--type'  => 'system',
+            '--type' => 'system',
         ])->assertExitCode(0);
     }
 
@@ -80,7 +80,7 @@ class TestNotificationCommandTest extends TestCase
     {
         $this->artisan('notification:test', [
             'user_id' => $this->user->id,
-            '--type'  => 'test',
+            '--type' => 'test',
         ])->assertExitCode(0);
     }
 

@@ -5,8 +5,8 @@ namespace App\Repositories;
 use App\Interfaces\UserRepositoryInterface;
 use App\Models\User;
 
-class UserRepository implements UserRepositoryInterface {
-
+class UserRepository implements UserRepositoryInterface
+{
     protected $model;
 
     public function __construct(User $user)
@@ -35,20 +35,23 @@ class UserRepository implements UserRepositoryInterface {
             'address' => $data['address'] ?? null,
             'google_id' => $data['google_id'] ?? null, // Handle missing key
             'avatar' => $data['avatar'] ?? null,       // Handle missing key
-            'status' => 1
+            'status' => 1,
         ]);
     }
+
     // app/Repositories/UserRepository.php
-    public function updateUserStatus($userId, $status) {
+    public function updateUserStatus($userId, $status)
+    {
         $user = $this->model->findOrFail($userId);
         $user->status = $status;
         $user->save();
+
         return $user;
     }
+
     // app/Repositories/UserRepository.php
-    public function findByEmail($email) {
+    public function findByEmail($email)
+    {
         return $this->model->where('email', $email)->first();
     }
-
-
 }

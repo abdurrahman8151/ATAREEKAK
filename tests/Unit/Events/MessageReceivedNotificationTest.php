@@ -4,22 +4,25 @@ namespace Tests\Unit\Notifications;
 
 use App\Models\User;
 use App\Notifications\MessageReceivedNotification;
+use Illuminate\Bus\Queueable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Notifications\Notification;
 use Tests\TestCase;
 
 class MessageReceivedNotificationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User                       $user;
+    private User $user;
+
     private MessageReceivedNotification $notification;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user         = User::factory()->create();
-        $this->notification = new MessageReceivedNotification();
+        $this->user = User::factory()->create();
+        $this->notification = new MessageReceivedNotification;
     }
 
     // ─── Instantiation ────────────────────────────────────────────────────────────
@@ -83,7 +86,7 @@ class MessageReceivedNotificationTest extends TestCase
     {
         $this->assertTrue(
             in_array(
-                \Illuminate\Bus\Queueable::class,
+                Queueable::class,
                 class_uses_recursive(MessageReceivedNotification::class)
             )
         );
@@ -92,7 +95,7 @@ class MessageReceivedNotificationTest extends TestCase
     public function test_notification_extends_laravel_notification(): void
     {
         $this->assertInstanceOf(
-            \Illuminate\Notifications\Notification::class,
+            Notification::class,
             $this->notification
         );
     }

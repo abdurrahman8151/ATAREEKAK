@@ -12,14 +12,15 @@ class UserVerifiedNotificationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User                    $user;
+    private User $user;
+
     private UserVerifiedNotification $notification;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user         = User::factory()->create();
-        $this->notification = new UserVerifiedNotification();
+        $this->user = User::factory()->create();
+        $this->notification = new UserVerifiedNotification;
     }
 
     public function test_via_returns_mail_channel(): void

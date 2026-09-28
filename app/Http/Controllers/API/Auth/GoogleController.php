@@ -4,26 +4,31 @@ namespace App\Http\Controllers\API\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Interfaces\UserRepositoryInterface;
-use App\Services\JwtService;
-use Illuminate\Http\Request; // Ensure this is imported
+use App\Models\User;
+use App\Services\JwtService; // Ensure this is imported
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\RequestException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
-use App\Models\User;
+use Laravel\Socialite\Two\InvalidStateException;
 
-class                                        GoogleController extends Controller
+class GoogleController extends Controller
 {
     private UserRepositoryInterface $userRepo;
+
     private JwtService $jwtService;
 
     public function __construct(UserRepositoryInterface $userRepo, JwtService $jwtService)
     {
-        $this->userRepo   = $userRepo;
+        $this->userRepo = $userRepo;
         $this->jwtService = $jwtService;
     }
 
-
-    public function redirect() {
+    public function redirect()
+    {
         return Socialite::driver('google')->redirect();
     }
 
@@ -41,23 +46,23 @@ class                                        GoogleController extends Controller
                 Log::warning('Google OAuth: SSL verification is DISABLED for Guzzle client. FOR TESTING ONLY.');
                 $guzzleClientOptions['verify'] = false;
             }
-            $client = new \GuzzleHttp\Client($guzzleClientOptions);
+            $client = new Client($guzzleClientOptions);
 
             // Socialite should automatically pick up the 'code' from the $request
             $googleUser = Socialite::driver('google')
                 ->setHttpClient($client)
                 ->user();
 
-
             // ... (rest of your existing logic from the previous version)
-            if (!$googleUser || !$googleUser->getEmail()) {
+            if (! $googleUser || ! $googleUser->getEmail()) {
                 Log::error('Google OAuth Callback: Google user data or email not received.', ['google_user_dump' => $googleUser]);
+
                 return response()->json(['error' => 'Could not retrieve user information from Google.'], 401);
             }
 
             $user = $this->userRepo->findByGoogleId($googleUser->getId());
 
-            if (!$user) {
+            if (! $user) {
                 $user = $this->userRepo->findByEmail($googleUser->getEmail());
 
                 if ($user) {
@@ -74,7 +79,7 @@ class                                        GoogleController extends Controller
                     $firstName = $googleUser->user['given_name'] ?? null;
                     $lastName = $googleUser->user['family_name'] ?? null;
 
-                    if (is_null($firstName) && !is_null($googleUser->getName())) {
+                    if (is_null($firstName) && ! is_null($googleUser->getName())) {
                         $nameParts = explode(' ', $googleUser->getName(), 2);
                         $firstName = $nameParts[0];
                         $lastName = $nameParts[1] ?? '';
@@ -88,7 +93,7 @@ class                                        GoogleController extends Controller
                         'google_id' => $googleUser->getId(),
                         'avatar' => $googleUser->getAvatar(),
                         'email_verified_at' => now(),
-                        'status' => 1
+                        'status' => 1,
                     ];
                     $user = $this->userRepo->createUser($userData);
                 }
@@ -97,7 +102,7 @@ class                                        GoogleController extends Controller
                 if ($user->avatar !== $googleUser->getAvatar() && $googleUser->getAvatar()) {
                     $updateData['avatar'] = $googleUser->getAvatar();
                 }
-                if (!empty($updateData)) {
+                if (! empty($updateData)) {
                     $userModel = User::find($user->id);
                     if ($userModel) {
                         $userModel->update($updateData);
@@ -106,8 +111,9 @@ class                                        GoogleController extends Controller
                 }
             }
 
-            if (!$user) {
+            if (! $user) {
                 Log::error('Google OAuth Callback: User object is null after create/find.', ['google_user_id' => $googleUser->getId()]);
+
                 return response()->json(['error' => 'User processing failed after Google authentication.'], 500);
             }
 
@@ -125,9 +131,9 @@ class                                        GoogleController extends Controller
                 ]);
 
                 return response()->json([
-                    'status'  => 'error',
+                    'status' => 'error',
                     'message' => 'Your account has been suspended. Please contact support.',
-                    'code'    => 'ACCOUNT_BANNED',
+                    'code' => 'ACCOUNT_BANNED',
                 ], 403);
             }
 
@@ -164,44 +170,46 @@ class                                        GoogleController extends Controller
                 'tokens' => $tokens,
             ]);
 
-
-        } catch (\Laravel\Socialite\Two\InvalidStateException $e) {
-            Log::warning('Google OAuth Callback Invalid State: ' . $e->getMessage(), [
+        } catch (InvalidStateException $e) {
+            Log::warning('Google OAuth Callback Invalid State: '.$e->getMessage(), [
                 'exception' => $e,
-                'incoming_state' => $request->input('state') // Log the state Socialite received
+                'incoming_state' => $request->input('state'), // Log the state Socialite received
             ]);
+
             return response()->json(['error' => 'Invalid state. Please try logging in again.'], 401);
-        } catch (\GuzzleHttp\Exception\ClientException $e) {
+        } catch (ClientException $e) {
             $responseBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : 'No response body';
-            Log::error('Google OAuth Callback Guzzle Client Error: ' . $e->getMessage(), [
+            Log::error('Google OAuth Callback Guzzle Client Error: '.$e->getMessage(), [
                 'exception' => $e,
-                'response_body' => $responseBody
+                'response_body' => $responseBody,
             ]);
             $errorMessage = 'Authentication failed due to a communication error with Google.';
             if (config('app.debug')) {
-                $errorMessage .= ' Guzzle Error: ' . $e->getMessage() . ' | Response: ' . $responseBody;
+                $errorMessage .= ' Guzzle Error: '.$e->getMessage().' | Response: '.$responseBody;
             }
+
             return response()->json(['error' => $errorMessage], 401);
-        } catch (\GuzzleHttp\Exception\RequestException $e) {
-            Log::error('Google OAuth Callback Guzzle Request (cURL) Error: ' . $e->getMessage(), [
+        } catch (RequestException $e) {
+            Log::error('Google OAuth Callback Guzzle Request (cURL) Error: '.$e->getMessage(), [
                 'exception' => $e,
-                'handler_context' => method_exists($e, 'getHandlerContext') ? $e->getHandlerContext() : 'N/A'
+                'handler_context' => method_exists($e, 'getHandlerContext') ? $e->getHandlerContext() : 'N/A',
             ]);
             $errorMessage = 'Authentication failed due to a network issue (cURL).';
             if (config('app.debug')) {
-                $errorMessage .= ' Details: ' . $e->getMessage();
+                $errorMessage .= ' Details: '.$e->getMessage();
             }
+
             return response()->json(['error' => $errorMessage], 401);
-        }
-        catch (\Exception $e) {
-            Log::error('Google OAuth Callback General Error: ' . $e->getMessage(), [
+        } catch (\Exception $e) {
+            Log::error('Google OAuth Callback General Error: '.$e->getMessage(), [
                 'exception' => $e,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             $errorMessage = 'Authentication failed. Please try again later.';
             if (config('app.debug')) {
-                $errorMessage .= ' Details: ' . get_class($e) . ' - ' . $e->getMessage();
+                $errorMessage .= ' Details: '.get_class($e).' - '.$e->getMessage();
             }
+
             return response()->json(['error' => $errorMessage], 401);
         }
     }

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Docs;
 
 /**
@@ -8,6 +9,7 @@ namespace App\Docs;
  *     tags={"Bookings"},
  *     summary="List current user's bookings",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Bookings list"),
  *     @OA\Response(response=401, description="Unauthenticated")
  * )
@@ -18,9 +20,12 @@ namespace App\Docs;
  *     tags={"Bookings"},
  *     summary="Accept a booking request (driver)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="bookingId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Booking accepted")
  * )
  *
@@ -30,9 +35,12 @@ namespace App\Docs;
  *     tags={"Bookings"},
  *     summary="Reject a booking request (driver)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="bookingId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Booking rejected")
  * )
  *
@@ -42,9 +50,12 @@ namespace App\Docs;
  *     tags={"Bookings"},
  *     summary="Cancel a booking (passenger)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="bookingId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Booking cancelled")
  * )
  *
@@ -54,14 +65,20 @@ namespace App\Docs;
  *     tags={"Bookings"},
  *     summary="Cancel partial seats in a booking",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="bookingId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"seats"},
+ *
  *             @OA\Property(property="seats", type="integer", minimum=1)
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Seats cancelled")
  * )
  *
@@ -71,9 +88,12 @@ namespace App\Docs;
  *     tags={"Bookings"},
  *     summary="Passenger confirms ride completion",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="bookingId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Confirmed")
  * )
  *
@@ -83,9 +103,12 @@ namespace App\Docs;
  *     tags={"Bookings"},
  *     summary="Report passenger no-show (driver)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="bookingId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Report submitted")
  * )
  */

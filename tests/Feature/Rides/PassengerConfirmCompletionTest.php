@@ -32,12 +32,19 @@ class PassengerConfirmCompletionTest extends TestCase
     use RefreshDatabase;
 
     private User $driver;
+
     private User $p1;
+
     private User $p2;
+
     private Wallet $driverWallet;
+
     private Wallet $syCash;
+
     private Wallet $primary;
+
     private string $p1Token;
+
     private string $p2Token;
 
     protected function setUp(): void
@@ -65,8 +72,8 @@ class PassengerConfirmCompletionTest extends TestCase
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
         $this->driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
         $this->driverWallet = Wallet::create([
-            'user_id' => $this->driver->id, 'phone_number' => '0911' . rand(100000, 999999),
-            'wallet_number' => 'WLT-' . Str::random(10), 'balance' => 0,
+            'user_id' => $this->driver->id, 'phone_number' => '0911'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 0,
         ]);
         $this->driver->update(['wallet_id' => $this->driverWallet->id]);
 
@@ -74,11 +81,11 @@ class PassengerConfirmCompletionTest extends TestCase
             $u = User::factory()->create(['is_verified_passenger' => true]);
             $u->profile()->create(['full_name' => $prop, 'number_of_rides' => 0]);
             $w = Wallet::create([
-                'user_id' => $u->id, 'phone_number' => $prefix . rand(100000, 999999),
-                'wallet_number' => 'WLT-' . Str::random(10), 'balance' => 1_000_000,
+                'user_id' => $u->id, 'phone_number' => $prefix.rand(100000, 999999),
+                'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 1_000_000,
             ]);
             $u->update(['wallet_id' => $w->id]);
-            $this->{$prop}      = $u;
+            $this->{$prop} = $u;
             $this->{$tokenProp} = app(JwtService::class)->generateTokenPair($u)['access_token'];
         }
     }
@@ -136,8 +143,8 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_each_passenger_releases_their_own_escrow_on_confirm(): void
     {
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
-        $b2   = $this->book($ride, $this->p2);
+        $b1 = $this->book($ride, $this->p1);
+        $b2 = $this->book($ride, $this->p2);
 
         // Escrow holds both fares; driver has nothing yet
         $this->assertEquals(100_000.0, (float) $this->syCash->fresh()->balance);
@@ -170,8 +177,8 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_ride_finishes_only_after_the_last_passenger_confirms(): void
     {
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
-        $b2   = $this->book($ride, $this->p2);
+        $b1 = $this->book($ride, $this->p1);
+        $b2 = $this->book($ride, $this->p2);
 
         $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(200);
         $this->assertNotEquals('finished', $ride->fresh()->status);
@@ -185,7 +192,7 @@ class PassengerConfirmCompletionTest extends TestCase
         // Rows created before LAUNCHED replaced awaiting_confirmation must remain
         // confirmable — otherwise those passengers can never release their escrow.
         $ride = $this->insertRide(['status' => 'awaiting_confirmation']);
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
@@ -201,7 +208,7 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_confirming_twice_pays_the_driver_only_once(): void
     {
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(200);
         $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(500);
@@ -217,8 +224,8 @@ class PassengerConfirmCompletionTest extends TestCase
         // ride-wide payout that would double-pay a booking already released
         // per-passenger, so it must stay unreachable.
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
-        $b2   = $this->book($ride, $this->p2);
+        $b1 = $this->book($ride, $this->p1);
+        $b2 = $this->book($ride, $this->p2);
 
         $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(200);
         $this->withToken($this->p2Token)->postJson("/api/bookings/{$b2->id}/passenger-confirm")->assertStatus(200);
@@ -233,7 +240,7 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_confirm_requires_authentication(): void
     {
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(401);
 
@@ -244,7 +251,7 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_another_passenger_cannot_confirm_someone_elses_booking(): void
     {
         $ride = $this->insertRide();
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p2Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
@@ -257,7 +264,7 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_confirm_before_departure_is_rejected(): void
     {
         $ride = $this->insertRide(['departure_time' => now()->addHours(2)]);
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
@@ -269,7 +276,7 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_cancelled_ride_cannot_be_confirmed(): void
     {
         $ride = $this->insertRide(['status' => 'cancelled']);
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
@@ -281,7 +288,7 @@ class PassengerConfirmCompletionTest extends TestCase
     public function test_finished_ride_cannot_be_confirmed_again(): void
     {
         $ride = $this->insertRide(['status' => 'finished']);
-        $b1   = $this->book($ride, $this->p1);
+        $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")

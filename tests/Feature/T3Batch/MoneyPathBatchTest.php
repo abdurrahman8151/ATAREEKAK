@@ -3,16 +3,17 @@
 namespace Tests\Feature\T3Batch;
 
 use App\Models\Booking;
+use App\Models\Employee;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Models\WalletRequest;
 use App\Models\WalletTransaction;
 use App\Services\Payment\WalletTransactionService;
 use App\Services\Ride\Noshowservice;
 use App\Services\Wallet\WalletRequestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -31,10 +32,15 @@ class MoneyPathBatchTest extends TestCase
     use RefreshDatabase;
 
     private User $driver;
+
     private User $passenger;
+
     private Wallet $driverWallet;
+
     private Wallet $passengerWallet;
+
     private Wallet $syCash;
+
     private Wallet $primary;
 
     protected function setUp(): void
@@ -44,22 +50,22 @@ class MoneyPathBatchTest extends TestCase
         }
         parent::setUp();
 
-        $this->syCash  = Wallet::create(['user_id' => null, 'phone_number' => config('admin.sycash.phone'), 'balance' => 0]);
+        $this->syCash = Wallet::create(['user_id' => null, 'phone_number' => config('admin.sycash.phone'), 'balance' => 0]);
         $this->primary = Wallet::create(['user_id' => null, 'phone_number' => config('admin.system_admin.phone'), 'balance' => 0]);
 
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
         $this->driver->profile()->create(['full_name' => 'D', 'number_of_rides' => 0]);
         $this->driverWallet = Wallet::create([
-            'user_id' => $this->driver->id, 'phone_number' => '0911' . rand(100000, 999999),
-            'wallet_number' => 'WLT-' . Str::random(10), 'balance' => 0,
+            'user_id' => $this->driver->id, 'phone_number' => '0911'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 0,
         ]);
         $this->driver->update(['wallet_id' => $this->driverWallet->id]);
 
         $this->passenger = User::factory()->create(['is_verified_passenger' => true]);
         $this->passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
         $this->passengerWallet = Wallet::create([
-            'user_id' => $this->passenger->id, 'phone_number' => '0922' . rand(100000, 999999),
-            'wallet_number' => 'WLT-' . Str::random(10), 'balance' => 1000000,
+            'user_id' => $this->passenger->id, 'phone_number' => '0922'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 1000000,
         ]);
         $this->passenger->update(['wallet_id' => $this->passengerWallet->id]);
     }
@@ -83,6 +89,7 @@ class MoneyPathBatchTest extends TestCase
                 $o['booking_type'] ?? 'direct',
             ]
         );
+
         return Ride::latest('id')->first();
     }
 
@@ -94,6 +101,7 @@ class MoneyPathBatchTest extends TestCase
             'status' => 'confirmed', 'communication_number' => '0900000000',
         ]);
         app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $this->passenger);
+
         return [$ride, $booking];
     }
 
@@ -103,7 +111,7 @@ class MoneyPathBatchTest extends TestCase
         // Freeze the clock so both charges compute an IDENTICAL now()->timestamp.
         // Pre-fix the id was 'ADM-'.user->id.'-'.timestamp -> the second insert
         // hit the UNIQUE transaction_id and the whole charge rolled back (500).
-        \Illuminate\Support\Carbon::setTestNow(\Illuminate\Support\Carbon::now());
+        Carbon::setTestNow(Carbon::now());
 
         $admin = $this->systemAdmin();
 
@@ -128,7 +136,7 @@ class MoneyPathBatchTest extends TestCase
             $this->assertMatchesRegularExpression('/^ADM-\d+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $id);
         }
 
-        \Illuminate\Support\Carbon::setTestNow();
+        Carbon::setTestNow();
     }
 
     // ── T3-15 ────────────────────────────────────────────────────────────────
@@ -195,7 +203,7 @@ class MoneyPathBatchTest extends TestCase
 
         $svc = app(Noshowservice::class);
 
-        $first  = $svc->resolveExpiredReports();
+        $first = $svc->resolveExpiredReports();
         $driverBalAfterFirst = (float) $this->driverWallet->fresh()->balance;
 
         $this->assertSame(1, $first, 'exactly one report resolved');
@@ -262,7 +270,7 @@ class MoneyPathBatchTest extends TestCase
 
         app(Noshowservice::class)->resolveExpiredReports();
 
-        $lockAt  = null;
+        $lockAt = null;
         $firstTx = null;
         foreach ($captured as $i => $sql) {
             if ($lockAt === null && str_contains($sql, 'from `noshow_reports`') && str_contains($sql, 'for update')) {
@@ -285,11 +293,12 @@ class MoneyPathBatchTest extends TestCase
     // ── helper ────────────────────────────────────────────────────────────────
     private function systemAdmin(): string
     {
-        $e = \App\Models\Employee::create([
-            'username' => 'sysadmin_' . uniqid(), 'email' => 'sa_' . uniqid() . '@t.com',
+        $e = Employee::create([
+            'username' => 'sysadmin_'.uniqid(), 'email' => 'sa_'.uniqid().'@t.com',
             'password' => 'Password123!', 'first_name' => 'S', 'last_name' => 'A',
             'role' => 'system_admin', 'is_active' => true, 'token_version' => 0,
         ]);
+
         return (string) $this->postJson('/api/admin/login', [
             'username' => $e->username, 'password' => 'Password123!',
         ])->json('tokens.access_token');

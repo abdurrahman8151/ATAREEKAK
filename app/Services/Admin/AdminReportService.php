@@ -4,12 +4,12 @@ namespace App\Services\Admin;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
+use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Carbon\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -51,16 +51,16 @@ final class AdminReportService
     {
         $photoUrl = null;
         if ($adminUserId) {
-            $profile = \App\Models\Profile::where('user_id', $adminUserId)->first();
+            $profile = Profile::where('user_id', $adminUserId)->first();
             if ($profile && $profile->profile_photo) {
-                $photoUrl = asset('storage/' . $profile->profile_photo);
+                $photoUrl = asset('storage/'.$profile->profile_photo);
             }
         }
 
         return [
-            'admin_photo'       => $photoUrl,
-            'stats'             => $this->getStats(),
-            'growth_chart'      => $this->getGrowthChart(6),
+            'admin_photo' => $photoUrl,
+            'stats' => $this->getStats(),
+            'growth_chart' => $this->getGrowthChart(6),
             'city_distribution' => $this->getCityDistribution(),
             'recent_activities' => $this->getRecentActivities(10),
         ];
@@ -79,14 +79,14 @@ final class AdminReportService
         $primaryBalance = $primaryWallet ? (float) $primaryWallet->balance : 0.0;
 
         return [
-            'total_users'           => User::count(),
-            'active_trips'          => Ride::where('status', 'active')->count(),
-            'completed_trips'       => Ride::where('status', 'finished')->count(),
-            'total_revenue'         => [
-                'raw'       => $primaryBalance,
+            'total_users' => User::count(),
+            'active_trips' => Ride::where('status', 'active')->count(),
+            'completed_trips' => Ride::where('status', 'finished')->count(),
+            'total_revenue' => [
+                'raw' => $primaryBalance,
                 'formatted' => Money::from($primaryBalance)->formatted(),
             ],
-            'pending_complaints'    => 0,
+            'pending_complaints' => 0,
             'verification_requests' => User::where('verification_status', 'pending')->count(),
         ];
     }
@@ -108,7 +108,7 @@ final class AdminReportService
 
         for ($i = $months - 1; $i >= 0; $i--) {
             $start = Carbon::now()->startOfMonth()->subMonths($i);
-            $end   = $start->copy()->endOfMonth();
+            $end = $start->copy()->endOfMonth();
 
             $completedTrips = Ride::where('status', 'finished')
                 ->whereBetween('finished_at', [$start, $end])
@@ -117,16 +117,16 @@ final class AdminReportService
             $newUsers = User::whereBetween('created_at', [$start, $end])->count();
 
             $data[] = [
-                'month'           => $start->format('M'),        // 'Jan'
-                'label'           => $start->format('M Y'),      // 'Jan 2025'
+                'month' => $start->format('M'),        // 'Jan'
+                'label' => $start->format('M Y'),      // 'Jan 2025'
                 'completed_trips' => $completedTrips,
-                'new_users'       => $newUsers,
+                'new_users' => $newUsers,
             ];
         }
 
         return [
             'period' => "last_{$months}_months",
-            'data'   => $data,
+            'data' => $data,
         ];
     }
 
@@ -147,23 +147,23 @@ final class AdminReportService
     {
         // English display names mapped from Arabic stored values
         $nameMap = [
-            'دمشق'       => 'Damascus',
-            'حلب'        => 'Aleppo',
-            'حمص'        => 'Homs',
-            'اللاذقية'   => 'Latakia',
-            'درعا'       => "Daraa",
-            'حماة'       => 'Hama',
-            'ريف دمشق'   => 'Rural Damascus',
-            'طرطوس'      => 'Tartus',
-            'السويداء'   => 'As-Suwayda',
-            'القنيطرة'   => 'Quneitra',
-            'ادلب'       => 'Idlib',
-            'الحسكة'     => 'Al-Hasakah',
-            'الرقة'      => 'Ar-Raqqah',
-            'دير الزور'  => 'Deir ez-Zor',
+            'دمشق' => 'Damascus',
+            'حلب' => 'Aleppo',
+            'حمص' => 'Homs',
+            'اللاذقية' => 'Latakia',
+            'درعا' => 'Daraa',
+            'حماة' => 'Hama',
+            'ريف دمشق' => 'Rural Damascus',
+            'طرطوس' => 'Tartus',
+            'السويداء' => 'As-Suwayda',
+            'القنيطرة' => 'Quneitra',
+            'ادلب' => 'Idlib',
+            'الحسكة' => 'Al-Hasakah',
+            'الرقة' => 'Ar-Raqqah',
+            'دير الزور' => 'Deir ez-Zor',
         ];
 
-        $rows  = User::select('address', DB::raw('COUNT(*) as count'))
+        $rows = User::select('address', DB::raw('COUNT(*) as count'))
             ->whereNotNull('address')
             ->groupBy('address')
             ->orderByDesc('count')
@@ -174,9 +174,9 @@ final class AdminReportService
 
         return $rows->map(function ($row) use ($nameMap, $total) {
             return [
-                'city'       => $row->address,
-                'city_en'    => $nameMap[$row->address] ?? $row->address,
-                'count'      => $row->count,
+                'city' => $row->address,
+                'city_en' => $nameMap[$row->address] ?? $row->address,
+                'count' => $row->count,
                 'percentage' => (int) round(($row->count / $total) * 100),
             ];
         })->values()->toArray();
@@ -209,33 +209,33 @@ final class AdminReportService
             ->get();
 
         return $bookings->map(function (Booking $booking) {
-            $ride        = $booking->ride;
-            $driver      = $ride?->driver;
-            $totalValue  = $booking->seats * ($ride?->price_per_seat ?? 0);
+            $ride = $booking->ride;
+            $driver = $ride?->driver;
+            $totalValue = $booking->seats * ($ride?->price_per_seat ?? 0);
             $isCancelled = in_array($booking->status, ['cancelled', 'no_show']);
 
             return [
                 'booking_id' => $booking->id,
-                'user'       => [
-                    'name'   => trim("{$booking->user?->first_name} {$booking->user?->last_name}"),
-                    'number' => 'XXX-XXX-' . substr($booking->communication_number ?? '', -4),
+                'user' => [
+                    'name' => trim("{$booking->user?->first_name} {$booking->user?->last_name}"),
+                    'number' => 'XXX-XXX-'.substr($booking->communication_number ?? '', -4),
                 ],
-                'driver'     => $driver
+                'driver' => $driver
                     ? trim("{$driver->first_name} {$driver->last_name}")
                     : '—',
-                'route'      => $ride
+                'route' => $ride
                     ? "{$ride->pickup_address} ← {$ride->destination_address}"
                     : '—',
-                'date'       => [
-                    'raw'   => $booking->created_at->toIso8601String(),
+                'date' => [
+                    'raw' => $booking->created_at->toIso8601String(),
                     'human' => $booking->created_at->isToday()
-                        ? 'Today, ' . $booking->created_at->format('H:i')
+                        ? 'Today, '.$booking->created_at->format('H:i')
                         : ($booking->created_at->isYesterday()
-                            ? 'Yesterday, ' . $booking->created_at->format('H:i')
+                            ? 'Yesterday, '.$booking->created_at->format('H:i')
                             : $booking->created_at->format('d M, H:i')),
                 ],
-                'status'     => $booking->status,
-                'value'      => $isCancelled
+                'status' => $booking->status,
+                'value' => $isCancelled
                     ? '---'
                     : Money::from($totalValue)->formatted(),
             ];
@@ -249,14 +249,14 @@ final class AdminReportService
     public function generateReport(?string $startDate, ?string $endDate): array
     {
         $start = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
-        $end   = $endDate   ? Carbon::parse($endDate)->endOfDay()     : null;
+        $end = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
 
         return [
-            'ride_stats'      => $this->getRideStatistics($start, $end),
+            'ride_stats' => $this->getRideStatistics($start, $end),
             'financial_stats' => $this->getFinancialStatistics($start, $end),
-            'date_range'      => [
+            'date_range' => [
                 'start' => $start?->format('Y-m-d H:i:s'),
-                'end'   => $end?->format('Y-m-d H:i:s'),
+                'end' => $end?->format('Y-m-d H:i:s'),
             ],
         ];
     }
@@ -265,11 +265,11 @@ final class AdminReportService
     // PRIVATE HELPERS
     // =========================================================================
 
-// AFTER (qualified with table name)
+    // AFTER (qualified with table name)
     private function getTotalRevenue(): float
     {
         return (float) Booking::where('bookings.status', 'completed')  // ← add 'bookings.'
-        ->join('rides', 'bookings.ride_id', '=', 'rides.id')
+            ->join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->selectRaw('SUM(bookings.seats * rides.price_per_seat) as total')
             ->value('total');
     }
@@ -283,21 +283,21 @@ final class AdminReportService
         }
 
         return [
-            'total'                  => $q->count(),
-            'active'                 => (clone $q)->where('status', 'active')->count(),
-            'completed'              => (clone $q)->where('status', 'finished')->count(),
-            'cancelled'              => (clone $q)->where('status', 'cancelled')->count(),
-            'awaiting_confirmation'  => (clone $q)->where('status', 'awaiting_confirmation')->count(),
+            'total' => $q->count(),
+            'active' => (clone $q)->where('status', 'active')->count(),
+            'completed' => (clone $q)->where('status', 'finished')->count(),
+            'cancelled' => (clone $q)->where('status', 'cancelled')->count(),
+            'awaiting_confirmation' => (clone $q)->where('status', 'awaiting_confirmation')->count(),
         ];
     }
 
     private function getFinancialStatistics(?Carbon $start, ?Carbon $end): array
     {
-        $adminConfigs  = config('admin');
-        $syCashWallet  = Wallet::where('phone_number', $adminConfigs['sycash']['phone'])->first();
+        $adminConfigs = config('admin');
+        $syCashWallet = Wallet::where('phone_number', $adminConfigs['sycash']['phone'])->first();
         $primaryWallet = Wallet::where('phone_number', $adminConfigs['system_admin']['phone'])->first();
 
-        if (!$syCashWallet || !$primaryWallet) {
+        if (! $syCashWallet || ! $primaryWallet) {
             return ['error' => 'Admin wallets not yet initialised'];
         }
 
@@ -328,19 +328,19 @@ final class AdminReportService
         if ($start && $end) {
             $escrowReceivedQ->whereBetween('created_at', [$start, $end]);
             $escrowReleasedQ->whereBetween('created_at', [$start, $end]);
-            $refundsQ->whereBetween('created_at',        [$start, $end]);
-            $platformFeesQ->whereBetween('created_at',   [$start, $end]);
+            $refundsQ->whereBetween('created_at', [$start, $end]);
+            $platformFeesQ->whereBetween('created_at', [$start, $end]);
         }
 
         return [
             'sycash' => [
-                'current_balance'     => Money::from($syCashWallet->balance)->formatted(),
-                'total_escrow_in'     => Money::from($escrowReceivedQ->sum('amount'))->formatted(),
-                'total_escrow_out'    => Money::from(abs((float) $escrowReleasedQ->sum('amount')))->formatted(),
-                'total_refunds_paid'  => Money::from(abs((float) $refundsQ->sum('amount')))->formatted(),
+                'current_balance' => Money::from($syCashWallet->balance)->formatted(),
+                'total_escrow_in' => Money::from($escrowReceivedQ->sum('amount'))->formatted(),
+                'total_escrow_out' => Money::from(abs((float) $escrowReleasedQ->sum('amount')))->formatted(),
+                'total_refunds_paid' => Money::from(abs((float) $refundsQ->sum('amount')))->formatted(),
             ],
             'primary_admin' => [
-                'current_balance'     => Money::from($primaryWallet->balance)->formatted(),
+                'current_balance' => Money::from($primaryWallet->balance)->formatted(),
                 'total_platform_fees' => Money::from($platformFeesQ->sum('amount'))->formatted(),
                 // Primary never disburses in the new model
             ],
@@ -350,8 +350,7 @@ final class AdminReportService
 
     private function calculateLockedFunds(): float
     {
-        return (float) Booking::whereHas('ride', fn($q) =>
-        $q->whereIn('status', ['active', 'full', 'awaiting_confirmation'])
+        return (float) Booking::whereHas('ride', fn ($q) => $q->whereIn('status', ['active', 'full', 'awaiting_confirmation'])
         )
             ->join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->where('bookings.status', 'confirmed')

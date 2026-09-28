@@ -19,7 +19,7 @@ class SendEmailOtpRequestTest extends TestCase
 {
     private function rules(): array
     {
-        return (new SendEmailOtpRequest())->rules();
+        return (new SendEmailOtpRequest)->rules();
     }
 
     private function valid(array $overrides = []): array
@@ -31,7 +31,7 @@ class SendEmailOtpRequestTest extends TestCase
 
     public function test_authorize_always_returns_true(): void
     {
-        $this->assertTrue((new SendEmailOtpRequest())->authorize());
+        $this->assertTrue((new SendEmailOtpRequest)->authorize());
     }
 
     // ─── email – required|string|email|max:255 ────────────────────────────────
@@ -63,7 +63,7 @@ class SendEmailOtpRequestTest extends TestCase
         // so the validator passed and the test failed.
         // 251 + '@b.co' (5) = 256 characters, which exceeds max:255.
         $v = Validator::make(
-            $this->valid(['email' => str_repeat('a', 251) . '@b.co']),
+            $this->valid(['email' => str_repeat('a', 251).'@b.co']),
             $this->rules()
         );
         $this->assertTrue($v->fails());
@@ -128,22 +128,22 @@ class SendEmailOtpRequestTest extends TestCase
 
     public function test_messages_returns_array(): void
     {
-        $this->assertIsArray((new SendEmailOtpRequest())->messages());
+        $this->assertIsArray((new SendEmailOtpRequest)->messages());
     }
 
     public function test_messages_contains_email_required_key(): void
     {
-        $this->assertArrayHasKey('email.required', (new SendEmailOtpRequest())->messages());
+        $this->assertArrayHasKey('email.required', (new SendEmailOtpRequest)->messages());
     }
 
     public function test_messages_contains_email_format_key(): void
     {
-        $this->assertArrayHasKey('email.email', (new SendEmailOtpRequest())->messages());
+        $this->assertArrayHasKey('email.email', (new SendEmailOtpRequest)->messages());
     }
 
     public function test_email_required_message_is_not_empty(): void
     {
-        $messages = (new SendEmailOtpRequest())->messages();
+        $messages = (new SendEmailOtpRequest)->messages();
         $this->assertNotEmpty($messages['email.required']);
     }
 }

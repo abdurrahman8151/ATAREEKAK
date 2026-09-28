@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\T3Batch;
 
+use Symfony\Component\Yaml\Yaml;
 use Tests\TestCase;
 
 /**
@@ -72,7 +73,7 @@ class CiWorkflowBatchTest extends TestCase
 
     public function test_the_workflow_yaml_still_parses(): void
     {
-        $data = \Symfony\Component\Yaml\Yaml::parseFile(base_path('.github/workflows/sonar.yml'));
+        $data = Yaml::parseFile(base_path('.github/workflows/sonar.yml'));
 
         $this->assertIsArray($data);
         $this->assertSame('SonarQube Analysis', $data['name'] ?? null);

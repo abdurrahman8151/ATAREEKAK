@@ -36,10 +36,11 @@ class RedirectIfAuthenticatedTest extends TestCase
     {
         $called = false;
 
-        (new RedirectIfAuthenticated())->handle(
+        (new RedirectIfAuthenticated)->handle(
             Request::create('/home', 'GET'),
             function () use (&$called) {
                 $called = true;
+
                 return response('ok');
             }
         );
@@ -49,7 +50,7 @@ class RedirectIfAuthenticatedTest extends TestCase
 
     public function test_unauthenticated_request_returns_next_response(): void
     {
-        $response = (new RedirectIfAuthenticated())->handle(
+        $response = (new RedirectIfAuthenticated)->handle(
             Request::create('/home', 'GET'),
             fn () => response('passed', 200)
         );
@@ -62,8 +63,9 @@ class RedirectIfAuthenticatedTest extends TestCase
         $original = Request::create('/home', 'GET');
         $received = null;
 
-        (new RedirectIfAuthenticated())->handle($original, function ($req) use (&$received) {
+        (new RedirectIfAuthenticated)->handle($original, function ($req) use (&$received) {
             $received = $req;
+
             return response('ok');
         });
 
@@ -74,14 +76,15 @@ class RedirectIfAuthenticatedTest extends TestCase
 
     public function test_authenticated_user_does_not_pass_through(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         Auth::login($user);
 
         $called = false;
-        (new RedirectIfAuthenticated())->handle(
+        (new RedirectIfAuthenticated)->handle(
             Request::create('/home', 'GET'),
             function () use (&$called) {
                 $called = true;
+
                 return response('ok');
             }
         );
@@ -94,7 +97,7 @@ class RedirectIfAuthenticatedTest extends TestCase
         $user = User::factory()->create();
         Auth::login($user);
 
-        $response = (new RedirectIfAuthenticated())->handle(
+        $response = (new RedirectIfAuthenticated)->handle(
             Request::create('/home', 'GET'),
             fn () => response('ok')
         );
@@ -107,7 +110,7 @@ class RedirectIfAuthenticatedTest extends TestCase
         $user = User::factory()->create();
         Auth::login($user);
 
-        $response = (new RedirectIfAuthenticated())->handle(
+        $response = (new RedirectIfAuthenticated)->handle(
             Request::create('/home', 'GET'),
             fn () => response('ok')
         );
@@ -121,10 +124,11 @@ class RedirectIfAuthenticatedTest extends TestCase
     {
         $called = false;
 
-        (new RedirectIfAuthenticated())->handle(
+        (new RedirectIfAuthenticated)->handle(
             Request::create('/home', 'GET'),
             function () use (&$called) {
                 $called = true;
+
                 return response('ok');
             },
             'web'
@@ -139,10 +143,11 @@ class RedirectIfAuthenticatedTest extends TestCase
         Auth::guard('web')->login($user);
 
         $called = false;
-        (new RedirectIfAuthenticated())->handle(
+        (new RedirectIfAuthenticated)->handle(
             Request::create('/home', 'GET'),
             function () use (&$called) {
                 $called = true;
+
                 return response('ok');
             },
             'web'

@@ -85,11 +85,11 @@ class OtpTest extends TestCase
     {
         $otp = Otp::create([
             'phone_number' => '+963983337214',
-            'otp_code'     => '654321',
-            'type'         => 'E-PAYMENT',
-            'expires_at'   => now()->addMinutes(10),
-            'is_verified'  => false,
-            'attempts'     => 0,
+            'otp_code' => '654321',
+            'type' => 'E-PAYMENT',
+            'expires_at' => now()->addMinutes(10),
+            'is_verified' => false,
+            'attempts' => 0,
         ]);
 
         $this->postJson('/api/otp/verify', ['phone_number' => '0983337214', 'otp_code' => '654321'])

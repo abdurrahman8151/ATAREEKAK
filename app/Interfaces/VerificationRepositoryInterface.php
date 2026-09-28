@@ -1,7 +1,10 @@
 <?php
+
 namespace App\Interfaces;
 
-interface VerificationRepositoryInterface {
+interface VerificationRepositoryInterface
+{
     public function verifyPassenger($userId);
+
     public function verifyDriver($userId);
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\T3Batch;
 
+use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -147,8 +148,8 @@ class MigrationEffectsBatchTest extends TestCase
             ];
 
             foreach ($files as $f) {
-                /** @var \Illuminate\Database\Migrations\Migration $m */
-                $m = require base_path('database/migrations/' . $f);
+                /** @var Migration $m */
+                $m = require base_path('database/migrations/'.$f);
                 $m->up(); // must skip via the driver guard, never reach raw SQL
                 $this->addToAssertionCount(1);
             }

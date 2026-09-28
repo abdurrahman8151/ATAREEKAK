@@ -38,8 +38,10 @@ class StaffComplaintControllerTest extends TestCase
     use RefreshDatabase;
 
     private Employee $agent;
-    private string   $agentToken;
-    private User     $complaintUser;
+
+    private string $agentToken;
+
+    private User $complaintUser;
 
     protected function setUp(): void
     {
@@ -51,8 +53,8 @@ class StaffComplaintControllerTest extends TestCase
         $this->seedAdminWallets();
 
         $this->complaintUser = User::factory()->create(['password' => bcrypt('password123')]);
-        $this->agent         = $this->makeEmployee(StaffRole::SUPPORT_AGENT, 'agent@staff.test', 'support_agent_1');
-        $this->agentToken    = $this->getStaffToken('agent@staff.test', 'password123');
+        $this->agent = $this->makeEmployee(StaffRole::SUPPORT_AGENT, 'agent@staff.test', 'support_agent_1');
+        $this->agentToken = $this->getStaffToken('agent@staff.test', 'password123');
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -198,7 +200,7 @@ class StaffComplaintControllerTest extends TestCase
             ->getJson("/api/staff/complaints/{$complaint->id}")
             ->assertStatus(200);
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::IN_REVIEW->value,
         ]);
     }
@@ -210,7 +212,7 @@ class StaffComplaintControllerTest extends TestCase
             ->getJson("/api/staff/complaints/{$complaint->id}")
             ->assertStatus(200);
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::IN_REVIEW->value,
         ]);
     }
@@ -239,11 +241,11 @@ class StaffComplaintControllerTest extends TestCase
         $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
                 'resolution_notes' => 'We have investigated and fully resolved this issue.',
-                'status'           => 'resolved',
+                'status' => 'resolved',
             ])->assertStatus(200)
             ->assertJsonPath('status', 'success');
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::RESOLVED->value,
         ]);
     }
@@ -254,10 +256,10 @@ class StaffComplaintControllerTest extends TestCase
         $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
                 'resolution_notes' => 'Complaint reviewed and closed per policy guidelines.',
-                'status'           => 'closed',
+                'status' => 'closed',
             ])->assertStatus(200);
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::CLOSED->value,
         ]);
     }
@@ -268,10 +270,10 @@ class StaffComplaintControllerTest extends TestCase
         $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
                 'resolution_notes' => 'Still actively investigating the reported issue.',
-                'status'           => 'in_review',
+                'status' => 'in_review',
             ])->assertStatus(200);
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::IN_REVIEW->value,
         ]);
     }
@@ -279,14 +281,14 @@ class StaffComplaintControllerTest extends TestCase
     public function test_respond_persists_resolution_notes(): void
     {
         $complaint = $this->makeComplaint(ComplaintStatus::IN_REVIEW);
-        $notes     = 'Detailed resolution note confirming the issue has been addressed.';
+        $notes = 'Detailed resolution note confirming the issue has been addressed.';
         $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
                 'resolution_notes' => $notes,
-                'status'           => 'resolved',
+                'status' => 'resolved',
             ])->assertStatus(200);
         $this->assertDatabaseHas('complaints', [
-            'id'               => $complaint->id,
+            'id' => $complaint->id,
             'resolution_notes' => $notes,
         ]);
     }
@@ -307,7 +309,7 @@ class StaffComplaintControllerTest extends TestCase
         $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
                 'resolution_notes' => 'Short',   // 5 chars — below min:10
-                'status'           => 'resolved',
+                'status' => 'resolved',
             ])->assertStatus(422);
     }
 
@@ -328,7 +330,7 @@ class StaffComplaintControllerTest extends TestCase
         $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
                 'resolution_notes' => 'Valid resolution note for this complaint.',
-                'status'           => 'escalated',
+                'status' => 'escalated',
             ])->assertStatus(422);
     }
 
@@ -337,7 +339,7 @@ class StaffComplaintControllerTest extends TestCase
         $this->withToken($this->agentToken)
             ->patchJson('/api/staff/complaints/999999/respond', [
                 'resolution_notes' => 'Valid resolution note for this complaint.',
-                'status'           => 'resolved',
+                'status' => 'resolved',
             ])->assertStatus(404);
     }
 
@@ -346,7 +348,7 @@ class StaffComplaintControllerTest extends TestCase
         $complaint = $this->makeComplaint(ComplaintStatus::IN_REVIEW);
         $this->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
             'resolution_notes' => 'Valid resolution note here.',
-            'status'           => 'resolved',
+            'status' => 'resolved',
         ])->assertStatus(401);
     }
 
@@ -356,7 +358,7 @@ class StaffComplaintControllerTest extends TestCase
         $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/respond", [
                 'resolution_notes' => 'Resolved the complaint successfully for the user.',
-                'status'           => 'resolved',
+                'status' => 'resolved',
             ])->assertStatus(200)
             ->assertJsonStructure(['data']);
     }
@@ -374,7 +376,7 @@ class StaffComplaintControllerTest extends TestCase
             ])->assertStatus(200)
             ->assertJsonPath('status', 'success');
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::ESCALATED->value,
         ]);
     }
@@ -387,7 +389,7 @@ class StaffComplaintControllerTest extends TestCase
                 'reason' => 'Pending complaint needs immediate admin attention.',
             ])->assertStatus(200);
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::ESCALATED->value,
         ]);
     }
@@ -429,7 +431,7 @@ class StaffComplaintControllerTest extends TestCase
     public function test_cannot_escalate_an_already_resolved_complaint(): void
     {
         $complaint = $this->makeComplaint(ComplaintStatus::RESOLVED);
-        $response  = $this->withToken($this->agentToken)
+        $response = $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/escalate", [
                 'reason' => 'Attempting to escalate a resolved complaint.',
             ]);
@@ -440,7 +442,7 @@ class StaffComplaintControllerTest extends TestCase
     public function test_cannot_escalate_an_already_escalated_complaint(): void
     {
         $complaint = $this->makeComplaint(ComplaintStatus::ESCALATED);
-        $response  = $this->withToken($this->agentToken)
+        $response = $this->withToken($this->agentToken)
             ->patchJson("/api/staff/complaints/{$complaint->id}/escalate", [
                 'reason' => 'Attempting to escalate an already escalated complaint.',
             ]);
@@ -463,28 +465,28 @@ class StaffComplaintControllerTest extends TestCase
     private function makeEmployee(StaffRole $role, string $email, string $username): Employee
     {
         return Employee::create([
-            'username'      => $username,
-            'email'         => $email,
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Staff',
-            'last_name'     => 'Member',
-            'role'          => $role->value,
-            'is_active'     => true,
+            'username' => $username,
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'first_name' => 'Staff',
+            'last_name' => 'Member',
+            'role' => $role->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
 
     private function makeComplaint(
         ComplaintStatus $status = ComplaintStatus::PENDING,
-        ComplaintType   $type   = ComplaintType::OTHER,
-        ?User           $user   = null,
+        ComplaintType $type = ComplaintType::OTHER,
+        ?User $user = null,
     ): Complaint {
         return Complaint::create([
-            'user_id'     => ($user ?? $this->complaintUser)->id,
-            'title'       => 'Test Complaint',
+            'user_id' => ($user ?? $this->complaintUser)->id,
+            'title' => 'Test Complaint',
             'description' => 'A detailed test complaint description.',
-            'type'        => $type->value,
-            'status'      => $status->value,
+            'type' => $type->value,
+            'status' => $status->value,
         ]);
     }
 
@@ -492,7 +494,7 @@ class StaffComplaintControllerTest extends TestCase
     {
         $token = $this->postJson('/api/staff/login', [
             'identifier' => $identifier,
-            'password'   => $password,
+            'password' => $password,
         ])->json('tokens.access_token');
 
         // Fail with a clear message rather than a cryptic TypeError if the
@@ -500,7 +502,7 @@ class StaffComplaintControllerTest extends TestCase
         // satisfy the login success handler).
         $this->assertNotNull(
             $token,
-            "getStaffToken('{$identifier}'): login returned null — verify that " .
+            "getStaffToken('{$identifier}'): login returned null — verify that ".
             'seedAdminWallets() creates all rows the login success handler requires.'
         );
 
@@ -525,21 +527,21 @@ class StaffComplaintControllerTest extends TestCase
             $adminUser = User::firstOrCreate(
                 ['email' => $cfg['email']],
                 [
-                    'first_name'        => $cfg['first_name'],
-                    'last_name'         => $cfg['last_name'],
-                    'password'          => bcrypt($cfg['password']),
-                    'gender'            => 'M',
-                    'address'           => 'دمشق',
-                    'status'            => 1,
+                    'first_name' => $cfg['first_name'],
+                    'last_name' => $cfg['last_name'],
+                    'password' => bcrypt($cfg['password']),
+                    'gender' => 'M',
+                    'address' => 'دمشق',
+                    'status' => 1,
                     'email_verified_at' => now(),
                 ]
             );
 
-            if (!Wallet::where('phone_number', $cfg['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
                 $wallet = Wallet::create([
-                    'user_id'      => $adminUser->id,
+                    'user_id' => $adminUser->id,
                     'phone_number' => $cfg['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                 ]);
                 $adminUser->update(['wallet_id' => $wallet->id]);
             }

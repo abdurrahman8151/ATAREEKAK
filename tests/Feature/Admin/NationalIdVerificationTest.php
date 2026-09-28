@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Events\UserVerified;
 use App\Models\Employee;
 use App\Models\Photo;
 use App\Models\User;
@@ -31,7 +32,7 @@ class NationalIdVerificationTest extends TestCase
         parent::setUp();
 
         // UserVerified is ShouldBroadcastNow; fake it so tests don't need Pusher.
-        Event::fake([\App\Events\UserVerified::class]);
+        Event::fake([UserVerified::class]);
     }
 
     // ── Auth helpers ──────────────────────────────────────────────────────────
@@ -43,19 +44,19 @@ class NationalIdVerificationTest extends TestCase
     private function staffToken(string $role = 'admin'): string
     {
         $employee = Employee::create([
-            'username'      => 'teststaff_' . uniqid(),
-            'email'         => 'staff_' . uniqid() . '@test.com',
-            'password'      => 'Password123!',
-            'first_name'    => 'Test',
-            'last_name'     => 'Staff',
-            'role'          => $role,
-            'is_active'     => true,
+            'username' => 'teststaff_'.uniqid(),
+            'email' => 'staff_'.uniqid().'@test.com',
+            'password' => 'Password123!',
+            'first_name' => 'Test',
+            'last_name' => 'Staff',
+            'role' => $role,
+            'is_active' => true,
             'token_version' => 0,
         ]);
 
         $response = $this->postJson('/api/staff/login', [
             'identifier' => $employee->username,
-            'password'   => 'Password123!',
+            'password' => 'Password123!',
         ]);
 
         return $response->json('tokens.access_token');
@@ -67,11 +68,11 @@ class NationalIdVerificationTest extends TestCase
      */
     private function adminToken(): string
     {
-        $email = 'testadmin_' . uniqid() . '@sysride.test';
+        $email = 'testadmin_'.uniqid().'@sysride.test';
 
         config(['admin.system_admin.email' => $email]);
 
-        $admin  = User::factory()->create(['email' => $email, 'status' => 1]);
+        $admin = User::factory()->create(['email' => $email, 'status' => 1]);
         $tokens = app(JwtService::class)->generateTokenPair($admin);
 
         return $tokens['access_token'];
@@ -86,13 +87,13 @@ class NationalIdVerificationTest extends TestCase
     {
         $user = User::factory()->create([
             'verification_status' => 'pending',
-            'status'              => 1,
+            'status' => 1,
         ]);
 
         Photo::create([
             'user_id' => $user->id,
-            'type'    => 'license',
-            'path'    => 'verifications/license/test.jpg',
+            'type' => 'license',
+            'path' => 'verifications/license/test.jpg',
         ]);
 
         return $user;
@@ -123,7 +124,7 @@ class NationalIdVerificationTest extends TestCase
         $response->assertOk();
 
         $this->assertDatabaseHas('users', [
-            'id'          => $driver->id,
+            'id' => $driver->id,
             'national_id' => 'SY-12345678',
         ]);
     }
@@ -134,7 +135,7 @@ class NationalIdVerificationTest extends TestCase
         // Another already-verified user holds this national_id.
         User::factory()->create([
             'national_id' => 'SY-99999999',
-            'status'      => 1,
+            'status' => 1,
         ]);
 
         $driver = $this->pendingDriver();
@@ -147,7 +148,7 @@ class NationalIdVerificationTest extends TestCase
         $response->assertStatus(422);
 
         $this->assertDatabaseHas('users', [
-            'id'                  => $driver->id,
+            'id' => $driver->id,
             'verification_status' => 'pending',
         ]);
     }
@@ -157,7 +158,7 @@ class NationalIdVerificationTest extends TestCase
     {
         User::factory()->create([
             'national_id' => 'SY-11111111',
-            'status'      => 1,
+            'status' => 1,
         ]);
 
         $driver = $this->pendingDriver();
@@ -168,7 +169,7 @@ class NationalIdVerificationTest extends TestCase
             ]);
 
         $this->assertDatabaseHas('users', [
-            'id'                  => $driver->id,
+            'id' => $driver->id,
             'verification_status' => 'pending',
         ]);
     }
@@ -179,7 +180,7 @@ class NationalIdVerificationTest extends TestCase
         // Store in lowercase.
         User::factory()->create([
             'national_id' => 'sy-12345678',
-            'status'      => 1,
+            'status' => 1,
         ]);
 
         $driver = $this->pendingDriver();
@@ -198,7 +199,7 @@ class NationalIdVerificationTest extends TestCase
     {
         User::factory()->create([
             'national_id' => 'SY-12345678',
-            'status'      => 1,
+            'status' => 1,
         ]);
 
         $driver = $this->pendingDriver();
@@ -224,7 +225,7 @@ class NationalIdVerificationTest extends TestCase
         $response->assertOk();
 
         $this->assertDatabaseHas('users', [
-            'id'          => $driver->id,
+            'id' => $driver->id,
             'national_id' => 'SY-99999999',
         ]);
     }

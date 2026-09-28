@@ -9,6 +9,7 @@ use App\Models\Complaint;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ComplaintRepositoryTest extends TestCase
@@ -27,7 +28,7 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_create_returns_complaint_instance(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $result = $this->repo->create($this->data($user->id));
 
         $this->assertInstanceOf(Complaint::class, $result);
@@ -35,34 +36,34 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_create_persists_to_database(): void
     {
-        $user      = User::factory()->create();
+        $user = User::factory()->create();
         $complaint = $this->repo->create($this->data($user->id, 'Unique title for test'));
 
         $this->assertDatabaseHas('complaints', [
-            'id'      => $complaint->id,
+            'id' => $complaint->id,
             'user_id' => $user->id,
-            'title'   => 'Unique title for test',
+            'title' => 'Unique title for test',
         ]);
     }
 
     public function test_create_sets_provided_type(): void
     {
-        $user      = User::factory()->create();
+        $user = User::factory()->create();
         $complaint = $this->repo->create($this->data($user->id, 'Title', ComplaintType::FINANCIAL_ISSUE));
 
         $this->assertDatabaseHas('complaints', [
-            'id'   => $complaint->id,
+            'id' => $complaint->id,
             'type' => ComplaintType::FINANCIAL_ISSUE->value,
         ]);
     }
 
     public function test_create_sets_provided_status(): void
     {
-        $user      = User::factory()->create();
+        $user = User::factory()->create();
         $complaint = $this->repo->create($this->data($user->id));
 
         $this->assertDatabaseHas('complaints', [
-            'id'     => $complaint->id,
+            'id' => $complaint->id,
             'status' => ComplaintStatus::PENDING->value,
         ]);
     }
@@ -71,7 +72,7 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_find_by_id_returns_complaint_when_it_exists(): void
     {
-        $user      = User::factory()->create();
+        $user = User::factory()->create();
         $complaint = Complaint::create($this->data($user->id));
 
         $found = $this->repo->findById($complaint->id);
@@ -88,7 +89,7 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_find_by_id_eager_loads_assigned_agent(): void
     {
-        $user      = User::factory()->create();
+        $user = User::factory()->create();
         $complaint = Complaint::create($this->data($user->id));
 
         $found = $this->repo->findById($complaint->id);
@@ -99,7 +100,7 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_find_by_id_eager_loads_attachments(): void
     {
-        $user      = User::factory()->create();
+        $user = User::factory()->create();
         $complaint = Complaint::create($this->data($user->id));
 
         $found = $this->repo->findById($complaint->id);
@@ -111,7 +112,7 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_get_user_complaints_returns_collection(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $result = $this->repo->getUserComplaints($user->id);
 
         $this->assertInstanceOf(Collection::class, $result);
@@ -144,7 +145,7 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_get_user_complaints_returns_empty_collection_when_none(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $result = $this->repo->getUserComplaints($user->id);
 
         $this->assertEmpty($result);
@@ -152,9 +153,9 @@ class ComplaintRepositoryTest extends TestCase
 
     public function test_get_user_complaints_ordered_newest_first(): void
     {
-        $user  = User::factory()->create();
+        $user = User::factory()->create();
         $older = Complaint::create($this->data($user->id, 'Older'));
-        \Illuminate\Support\Facades\DB::table('complaints')
+        DB::table('complaints')
             ->where('id', $older->id)
             ->update(['created_at' => now()->subDays(2)]);
 
@@ -169,16 +170,16 @@ class ComplaintRepositoryTest extends TestCase
     // ─── Helper ───────────────────────────────────────────────────────────────
 
     private function data(
-        int          $userId,
-        string       $title  = 'Default Title',
-        ComplaintType $type   = ComplaintType::OTHER,
+        int $userId,
+        string $title = 'Default Title',
+        ComplaintType $type = ComplaintType::OTHER,
     ): array {
         return [
-            'user_id'     => $userId,
-            'title'       => $title,
+            'user_id' => $userId,
+            'title' => $title,
             'description' => 'Default description for this complaint in tests.',
-            'type'        => $type->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => $type->value,
+            'status' => ComplaintStatus::PENDING->value,
         ];
     }
 }

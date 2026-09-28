@@ -3,32 +3,35 @@
 namespace Tests\Unit\Events;
 
 use App\Events\MessageReceived;
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
 use PHPUnit\Framework\TestCase;
 
 class MessageReceivedTest extends TestCase
 {
     public function test_event_can_be_instantiated(): void
     {
-        $event = new MessageReceived();
+        $event = new MessageReceived;
         $this->assertInstanceOf(MessageReceived::class, $event);
     }
 
     public function test_broadcast_on_returns_array(): void
     {
-        $channels = (new MessageReceived())->broadcastOn();
+        $channels = (new MessageReceived)->broadcastOn();
         $this->assertIsArray($channels);
     }
 
     public function test_broadcast_on_returns_non_empty_array(): void
     {
-        $channels = (new MessageReceived())->broadcastOn();
+        $channels = (new MessageReceived)->broadcastOn();
         $this->assertNotEmpty($channels);
     }
 
     public function test_broadcast_on_returns_private_channel(): void
     {
-        $channels = (new MessageReceived())->broadcastOn();
+        $channels = (new MessageReceived)->broadcastOn();
         $this->assertInstanceOf(PrivateChannel::class, $channels[0]);
     }
 
@@ -36,7 +39,7 @@ class MessageReceivedTest extends TestCase
     {
         $this->assertTrue(
             in_array(
-                \Illuminate\Foundation\Events\Dispatchable::class,
+                Dispatchable::class,
                 class_uses_recursive(MessageReceived::class)
             )
         );
@@ -46,7 +49,7 @@ class MessageReceivedTest extends TestCase
     {
         $this->assertTrue(
             in_array(
-                \Illuminate\Queue\SerializesModels::class,
+                SerializesModels::class,
                 class_uses_recursive(MessageReceived::class)
             )
         );
@@ -56,7 +59,7 @@ class MessageReceivedTest extends TestCase
     {
         $this->assertTrue(
             in_array(
-                \Illuminate\Broadcasting\InteractsWithSockets::class,
+                InteractsWithSockets::class,
                 class_uses_recursive(MessageReceived::class)
             )
         );

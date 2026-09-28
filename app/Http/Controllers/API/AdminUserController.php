@@ -48,12 +48,12 @@ final class AdminUserController extends Controller
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'type'     => 'sometimes|in:all,driver,passenger',
-            'status'   => 'sometimes|in:all,verified,pending,suspended',
-            'date'     => 'sometimes|in:all,last_30_days,last_3_months,last_6_months,last_12_months',
+            'type' => 'sometimes|in:all,driver,passenger',
+            'status' => 'sometimes|in:all,verified,pending,suspended',
+            'date' => 'sometimes|in:all,last_30_days,last_3_months,last_6_months,last_12_months',
             'per_page' => 'sometimes|integer|min:1|max:50',
-            'page'     => 'sometimes|integer|min:1',
-            'search'   => 'sometimes|string|max:100',
+            'page' => 'sometimes|integer|min:1',
+            'search' => 'sometimes|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -65,24 +65,24 @@ final class AdminUserController extends Controller
 
         try {
             $data = $this->userService->getPageData(
-                adminUserId:  $request->user()?->id,
-                typeFilter:   $request->get('type',     'all'),
-                statusFilter: $request->get('status',   'all'),
-                dateFilter:   $request->get('date',     'all'),
-                perPage:      (int) $request->get('per_page', 10),
-                page:         (int) $request->get('page',     1),
-                search:       $request->get('search'),
+                adminUserId: $request->user()?->id,
+                typeFilter: $request->get('type', 'all'),
+                statusFilter: $request->get('status', 'all'),
+                dateFilter: $request->get('date', 'all'),
+                perPage: (int) $request->get('per_page', 10),
+                page: (int) $request->get('page', 1),
+                search: $request->get('search'),
             );
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Admin user index failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load users',
             ], 500);
         }

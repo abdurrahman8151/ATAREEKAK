@@ -23,7 +23,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new WalletTransactionService();
+        $this->service = new WalletTransactionService;
     }
 
     // ─── Tier 1: 0–30% elapsed → 100% refund ────────────────────────────────
@@ -35,7 +35,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     public function test_full_refund_when_just_booked(): void
     {
         $bookingCreatedAt = Carbon::now()->subMinutes(5);
-        $departureTime    = Carbon::now()->addHours(48); // 2 days away
+        $departureTime = Carbon::now()->addHours(48); // 2 days away
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 
@@ -47,7 +47,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     {
         // Total window = 100 minutes, elapsed = 25 minutes = 25%
         $bookingCreatedAt = Carbon::now()->subMinutes(25);
-        $departureTime    = Carbon::now()->addMinutes(75);
+        $departureTime = Carbon::now()->addMinutes(75);
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 
@@ -60,7 +60,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     {
         // Total window = 100 minutes, elapsed = 40 minutes = 40%
         $bookingCreatedAt = Carbon::now()->subMinutes(40);
-        $departureTime    = Carbon::now()->addMinutes(60);
+        $departureTime = Carbon::now()->addMinutes(60);
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 
@@ -74,7 +74,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     {
         // Total window = 100 minutes, elapsed = 60 minutes = 60%
         $bookingCreatedAt = Carbon::now()->subMinutes(60);
-        $departureTime    = Carbon::now()->addMinutes(40);
+        $departureTime = Carbon::now()->addMinutes(40);
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 
@@ -88,7 +88,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     {
         // Total window = 100 minutes, elapsed = 80 minutes = 80%
         $bookingCreatedAt = Carbon::now()->subMinutes(80);
-        $departureTime    = Carbon::now()->addMinutes(20);
+        $departureTime = Carbon::now()->addMinutes(20);
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 
@@ -101,7 +101,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     public function test_no_refund_when_departure_already_passed(): void
     {
         $bookingCreatedAt = Carbon::now()->subHours(5);
-        $departureTime    = Carbon::now()->subHours(1); // already departed
+        $departureTime = Carbon::now()->subHours(1); // already departed
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 
@@ -112,7 +112,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     public function test_policy_includes_elapsed_percentage(): void
     {
         $bookingCreatedAt = Carbon::now()->subMinutes(50);
-        $departureTime    = Carbon::now()->addMinutes(50);
+        $departureTime = Carbon::now()->addMinutes(50);
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 
@@ -125,7 +125,7 @@ class WalletTransactionServiceRefundPolicyTest extends TestCase
     public function test_elapsed_percentage_is_approximately_50(): void
     {
         $bookingCreatedAt = Carbon::now()->subMinutes(50);
-        $departureTime    = Carbon::now()->addMinutes(50);
+        $departureTime = Carbon::now()->addMinutes(50);
 
         $policy = $this->service->calculateRefundPolicy($departureTime, $bookingCreatedAt);
 

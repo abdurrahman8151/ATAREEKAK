@@ -11,25 +11,26 @@ use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-
 final class StaffJwtService
 {
-    private const ALGORITHM        = 'HS256';
+    private const ALGORITHM = 'HS256';
+
     private const REFRESH_TTL_DAYS = 30;
-    private const SUB_TYPE         = 'employee';
+
+    private const SUB_TYPE = 'employee';
 
     // ── Token generation ──────────────────────────────────────────────────────
 
     public function generateTokenPair(Employee $employee): array
     {
-        $accessToken  = $this->generateAccessToken($employee);
+        $accessToken = $this->generateAccessToken($employee);
         $refreshEntry = $this->generateRefreshToken($employee);
 
         return [
-            'access_token'  => $accessToken,
+            'access_token' => $accessToken,
             'refresh_token' => $refreshEntry['token'],
-            'token_type'    => 'Bearer',
-            'expires_in'    => $this->accessTtlSeconds(),
+            'token_type' => 'Bearer',
+            'expires_in' => $this->accessTtlSeconds(),
         ];
     }
 
@@ -65,12 +66,15 @@ final class StaffJwtService
             return $payload;
         } catch (ExpiredException $e) {
             Log::debug('Staff access token expired', ['error' => $e->getMessage()]);
+
             return null;
         } catch (SignatureInvalidException $e) {
             Log::warning('Staff JWT signature invalid', ['error' => $e->getMessage()]);
+
             return null;
         } catch (\Throwable $e) {
             Log::warning('Staff JWT decode error', ['error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -97,13 +101,13 @@ final class StaffJwtService
             ->with('employee')
             ->first();
 
-        if (!$tokenRecord || !$tokenRecord->isValid()) {
+        if (! $tokenRecord || ! $tokenRecord->isValid()) {
             return null;
         }
 
         $employee = $tokenRecord->employee;
 
-        if (!$employee || !$employee->is_active) {
+        if (! $employee || ! $employee->is_active) {
             return null;
         }
 
@@ -143,7 +147,7 @@ final class StaffJwtService
         return StaffRefreshToken::query()
             ->where(static function ($q): void {
                 $q->where('expires_at', '<', now())
-                  ->orWhere('revoked', true);
+                    ->orWhere('revoked', true);
             })
             ->delete();
     }
@@ -155,14 +159,14 @@ final class StaffJwtService
         $now = time();
 
         $payload = [
-            'iss'      => config('app.name'),
-            'sub'      => $employee->id,
+            'iss' => config('app.name'),
+            'sub' => $employee->id,
             'sub_type' => self::SUB_TYPE,
-            'role'     => $employee->role->value,
-            'type'     => 'access',
-            'ver'      => $employee->token_version,
-            'iat'      => $now,
-            'exp'      => $now + $this->accessTtlSeconds(),
+            'role' => $employee->role->value,
+            'type' => 'access',
+            'ver' => $employee->token_version,
+            'iat' => $now,
+            'exp' => $now + $this->accessTtlSeconds(),
         ];
 
         return JWT::encode($payload, $this->secret(), self::ALGORITHM);
@@ -179,11 +183,11 @@ final class StaffJwtService
         // The raw value is returned to the client and is never persisted.
         $record = StaffRefreshToken::create([
             'employee_id' => $employee->id,
-            'token'       => $this->hashToken($token),
-            'expires_at'  => now()->addDays(self::REFRESH_TTL_DAYS),
-            'revoked'     => false,
-            'user_agent'  => request()->userAgent(),
-            'ip_address'  => request()->ip(),
+            'token' => $this->hashToken($token),
+            'expires_at' => now()->addDays(self::REFRESH_TTL_DAYS),
+            'revoked' => false,
+            'user_agent' => request()->userAgent(),
+            'ip_address' => request()->ip(),
         ]);
 
         return ['token' => $token, 'record' => $record];

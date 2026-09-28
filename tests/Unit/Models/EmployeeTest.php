@@ -4,7 +4,6 @@ namespace Tests\Unit\Models;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
-use App\Models\StaffRefreshToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -16,51 +15,51 @@ class EmployeeTest extends TestCase
 
     public function test_fillable_contains_username(): void
     {
-        $this->assertContains('username', (new Employee())->getFillable());
+        $this->assertContains('username', (new Employee)->getFillable());
     }
 
     public function test_fillable_contains_email(): void
     {
-        $this->assertContains('email', (new Employee())->getFillable());
+        $this->assertContains('email', (new Employee)->getFillable());
     }
 
     public function test_fillable_contains_role(): void
     {
-        $this->assertContains('role', (new Employee())->getFillable());
+        $this->assertContains('role', (new Employee)->getFillable());
     }
 
     public function test_fillable_contains_is_active(): void
     {
-        $this->assertContains('is_active', (new Employee())->getFillable());
+        $this->assertContains('is_active', (new Employee)->getFillable());
     }
 
     public function test_fillable_contains_token_version(): void
     {
-        $this->assertContains('token_version', (new Employee())->getFillable());
+        $this->assertContains('token_version', (new Employee)->getFillable());
     }
 
     // ─── Casts ─────────────────────────────────────────────────────────────
 
     public function test_role_is_cast_to_staff_role_enum(): void
     {
-        $casts = (new Employee())->getCasts();
+        $casts = (new Employee)->getCasts();
         $this->assertArrayHasKey('role', $casts);
         $this->assertEquals(StaffRole::class, $casts['role']);
     }
 
     public function test_is_active_is_cast_to_boolean(): void
     {
-        $this->assertEquals('boolean', (new Employee())->getCasts()['is_active']);
+        $this->assertEquals('boolean', (new Employee)->getCasts()['is_active']);
     }
 
     public function test_token_version_is_cast_to_integer(): void
     {
-        $this->assertEquals('integer', (new Employee())->getCasts()['token_version']);
+        $this->assertEquals('integer', (new Employee)->getCasts()['token_version']);
     }
 
     public function test_last_login_at_is_cast_to_datetime(): void
     {
-        $this->assertEquals('datetime', (new Employee())->getCasts()['last_login_at']);
+        $this->assertEquals('datetime', (new Employee)->getCasts()['last_login_at']);
     }
 
     // ─── Relationships ─────────────────────────────────────────────────────
@@ -83,7 +82,7 @@ class EmployeeTest extends TestCase
     public function test_creator_relationship_points_to_employee(): void
     {
         $manager = $this->makeEmployee(StaffRole::SYSTEM_ADMIN);
-        $agent   = $this->makeEmployee(StaffRole::SUPPORT_AGENT, $manager->id);
+        $agent = $this->makeEmployee(StaffRole::SUPPORT_AGENT, $manager->id);
 
         $this->assertEquals($manager->id, $agent->creator->id);
     }
@@ -91,7 +90,7 @@ class EmployeeTest extends TestCase
     public function test_managed_employees_returns_correct_employees(): void
     {
         $manager = $this->makeEmployee(StaffRole::ADMIN);
-        $agent   = $this->makeEmployee(StaffRole::SUPPORT_AGENT, $manager->id);
+        $agent = $this->makeEmployee(StaffRole::SUPPORT_AGENT, $manager->id);
 
         $this->assertTrue($manager->managedEmployees->contains($agent));
     }
@@ -139,7 +138,7 @@ class EmployeeTest extends TestCase
     public function test_system_admin_can_manage_admin(): void
     {
         $sysAdmin = $this->makeEmployee(StaffRole::SYSTEM_ADMIN);
-        $admin    = $this->makeEmployee(StaffRole::ADMIN);
+        $admin = $this->makeEmployee(StaffRole::ADMIN);
 
         $this->assertTrue($sysAdmin->canManage($admin));
     }
@@ -147,7 +146,7 @@ class EmployeeTest extends TestCase
     public function test_system_admin_can_manage_support_agent(): void
     {
         $sysAdmin = $this->makeEmployee(StaffRole::SYSTEM_ADMIN);
-        $agent    = $this->makeEmployee(StaffRole::SUPPORT_AGENT);
+        $agent = $this->makeEmployee(StaffRole::SUPPORT_AGENT);
 
         $this->assertTrue($sysAdmin->canManage($agent));
     }
@@ -162,7 +161,7 @@ class EmployeeTest extends TestCase
 
     public function test_admin_cannot_manage_system_admin(): void
     {
-        $admin    = $this->makeEmployee(StaffRole::ADMIN);
+        $admin = $this->makeEmployee(StaffRole::ADMIN);
         $sysAdmin = $this->makeEmployee(StaffRole::SYSTEM_ADMIN);
 
         $this->assertFalse($admin->canManage($sysAdmin));
@@ -206,7 +205,7 @@ class EmployeeTest extends TestCase
         $emp = $this->makeEmployee(StaffRole::SUPPORT_AGENT);
 
         $this->assertDatabaseHas('employees', [
-            'id'       => $emp->id,
+            'id' => $emp->id,
             'username' => $emp->username,
         ]);
     }
@@ -222,23 +221,23 @@ class EmployeeTest extends TestCase
 
     private function makeEmployee(
         StaffRole $role,
-        ?int      $createdBy = null,
-        string    $firstName = 'Test',
-        string    $lastName  = 'Employee'
+        ?int $createdBy = null,
+        string $firstName = 'Test',
+        string $lastName = 'Employee'
     ): Employee {
         static $counter = 0;
         $counter++;
 
         return Employee::create([
-            'username'      => "user_{$counter}",
-            'email'         => "emp{$counter}@test.com",
-            'password'      => bcrypt('password123'),
-            'first_name'    => $firstName,
-            'last_name'     => $lastName,
-            'role'          => $role->value,
-            'is_active'     => true,
+            'username' => "user_{$counter}",
+            'email' => "emp{$counter}@test.com",
+            'password' => bcrypt('password123'),
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'role' => $role->value,
+            'is_active' => true,
             'token_version' => 0,
-            'created_by'    => $createdBy,
+            'created_by' => $createdBy,
         ]);
     }
 }

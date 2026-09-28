@@ -41,7 +41,7 @@ class RefundResultTest extends TestCase
 
     public function test_success_with_transaction_ids(): void
     {
-        $ids    = ['TX_001', 'TX_002'];
+        $ids = ['TX_001', 'TX_002'];
         $result = RefundResult::success('Done', $ids);
         $this->assertEquals($ids, $result->transactionIds);
     }
@@ -104,14 +104,14 @@ class RefundResultTest extends TestCase
 
     public function test_failure_message_preserves_special_characters(): void
     {
-        $msg    = 'Wallet #123 insufficient: requires 1,000 SYP';
+        $msg = 'Wallet #123 insufficient: requires 1,000 SYP';
         $result = RefundResult::failure($msg);
         $this->assertEquals($msg, $result->message);
     }
 
     public function test_success_message_preserves_arabic_text(): void
     {
-        $msg    = 'تم استرداد المبلغ بنجاح';
+        $msg = 'تم استرداد المبلغ بنجاح';
         $result = RefundResult::success($msg);
         $this->assertEquals($msg, $result->message);
     }

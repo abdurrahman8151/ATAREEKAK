@@ -2,8 +2,6 @@
 
 namespace App\Services\MessageTypes;
 
-use App\Services\MessageTypes\TextMessageType;
-use App\Services\MessageTypes\ImageMessageType;
 use App\Interfaces\MessageTypeInterface;
 use InvalidArgumentException;
 
@@ -21,8 +19,8 @@ class MessageTypeFactory
     public function create(string $type): MessageTypeInterface
     {
         return match ($type) {
-            'text' => new TextMessageType(),
-            'image' => new ImageMessageType(),
+            'text' => new TextMessageType,
+            'image' => new ImageMessageType,
             default => throw new InvalidArgumentException("Unsupported message type: {$type}")
         };
     }

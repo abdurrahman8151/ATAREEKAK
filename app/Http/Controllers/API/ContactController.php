@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 final class ContactController extends Controller
 {
     public function __construct(
-        private readonly ChatRepositoryInterface   $chatRepository,
+        private readonly ChatRepositoryInterface $chatRepository,
         private readonly EmployeeManagementService $managementService,
     ) {}
 
@@ -37,21 +37,21 @@ final class ContactController extends Controller
             ) ASC')
             ->first();
 
-        if (!$agent) {
+        if (! $agent) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'No support agents are available at the moment.',
             ], 503);
         }
 
         // Ensure the agent's shadow User account exists (permanent self-heal).
-        $agentUser   = $this->managementService->ensureShadowUser($agent);
+        $agentUser = $this->managementService->ensureShadowUser($agent);
         $currentUser = $request->user();
 
         // Edge case: authenticated user IS the agent.
         if ($currentUser->id === $agentUser->id) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Cannot open support chat.',
             ], 422);
         }
@@ -61,11 +61,11 @@ final class ContactController extends Controller
 
         if ($existing) {
             return response()->json([
-                'status'          => 'success',
+                'status' => 'success',
                 'conversation_id' => $existing->id,
-                'message'         => 'Support chat ready.',
-                'agent'           => [
-                    'name' => $agent->first_name . ' ' . $agent->last_name,
+                'message' => 'Support chat ready.',
+                'agent' => [
+                    'name' => $agent->first_name.' '.$agent->last_name,
                 ],
             ]);
         }
@@ -73,20 +73,20 @@ final class ContactController extends Controller
         // Create a new support conversation with correct type and per-role.
         $conversation = $this->chatRepository->createConversation(
             participants: [$currentUser->id, $agentUser->id],
-            type:         'support',
-            title:        null,
-            roles:        [
+            type: 'support',
+            title: null,
+            roles: [
                 $currentUser->id => 'customer',
-                $agentUser->id   => 'agent',
+                $agentUser->id => 'agent',
             ],
         );
 
         return response()->json([
-            'status'          => 'success',
+            'status' => 'success',
             'conversation_id' => $conversation->id,
-            'message'         => 'Support chat started.',
-            'agent'           => [
-                'name' => $agent->first_name . ' ' . $agent->last_name,
+            'message' => 'Support chat started.',
+            'agent' => [
+                'name' => $agent->first_name.' '.$agent->last_name,
             ],
         ], 201);
     }

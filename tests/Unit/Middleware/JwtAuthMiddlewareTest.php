@@ -58,7 +58,7 @@ class JwtAuthMiddlewareTest extends TestCase
 
     public function test_valid_token_passes_through_to_route(): void
     {
-        $user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $user = User::factory()->create(['password' => bcrypt('password123')]);
         $token = $this->loginAndGetToken($user);
 
         $this->withToken($token)
@@ -71,7 +71,7 @@ class JwtAuthMiddlewareTest extends TestCase
 
     public function test_banned_user_receives_403_on_protected_routes(): void
     {
-        $user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $user = User::factory()->create(['password' => bcrypt('password123')]);
         $token = $this->loginAndGetToken($user);
 
         $user->update(['status' => -1]);
@@ -84,7 +84,7 @@ class JwtAuthMiddlewareTest extends TestCase
 
     public function test_banned_user_response_includes_ban_details(): void
     {
-        $user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $user = User::factory()->create(['password' => bcrypt('password123')]);
         $token = $this->loginAndGetToken($user);
 
         $user->update(['status' => -1, 'ban_reason' => 'Violation of terms']);
@@ -99,7 +99,7 @@ class JwtAuthMiddlewareTest extends TestCase
 
     public function test_logged_out_user_receives_401_user_inactive(): void
     {
-        $user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $user = User::factory()->create(['password' => bcrypt('password123')]);
         $token = $this->loginAndGetToken($user);
 
         $user->update(['status' => 0]);
@@ -114,7 +114,7 @@ class JwtAuthMiddlewareTest extends TestCase
 
     public function test_old_token_rejected_after_token_version_bump(): void
     {
-        $user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $user = User::factory()->create(['password' => bcrypt('password123')]);
         $token = $this->loginAndGetToken($user);
 
         // Simulate logout-all: bump token_version so old tokens are stale
@@ -133,7 +133,7 @@ class JwtAuthMiddlewareTest extends TestCase
         $user = User::factory()->create(['password' => bcrypt('password123')]);
 
         $refreshToken = $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.refresh_token');
 
@@ -150,7 +150,7 @@ class JwtAuthMiddlewareTest extends TestCase
         $user->update(['password' => bcrypt('password123')]);
 
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }

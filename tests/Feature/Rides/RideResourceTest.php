@@ -2,13 +2,9 @@
 
 namespace Tests\Feature\Rides;
 
-use App\Models\Booking;
-use App\Models\Photo;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Ride\RideSearchService;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -34,25 +30,27 @@ class RideResourceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $driver;
+    private User $driver;
+
     private string $token;
+
     private string $driverPhone;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->driverPhone = '091' . rand(1000000, 9999999);
+        $this->driverPhone = '091'.rand(1000000, 9999999);
 
         $this->driver = User::factory()->create([
-            'is_verified_driver'  => true,
+            'is_verified_driver' => true,
             'verification_status' => 'approved',
-            'password'            => bcrypt('password123'),
+            'password' => bcrypt('password123'),
         ]);
 
-        if (!$this->driver->profile) {
+        if (! $this->driver->profile) {
             $this->driver->profile()->create([
-                'full_name'       => 'Test Driver',
+                'full_name' => 'Test Driver',
                 'number_of_rides' => 0,
             ]);
         }
@@ -60,10 +58,10 @@ class RideResourceTest extends TestCase
         $this->seedAdminWallets();
 
         $wallet = Wallet::create([
-            'user_id'       => $this->driver->id,
-            'phone_number'  => $this->driverPhone,
-            'wallet_number' => 'WLT-' . Str::random(8),
-            'balance'       => 1_000_000,
+            'user_id' => $this->driver->id,
+            'phone_number' => $this->driverPhone,
+            'wallet_number' => 'WLT-'.Str::random(8),
+            'balance' => 1_000_000,
         ]);
         $this->driver->update(['wallet_id' => $wallet->id]);
 
@@ -253,9 +251,9 @@ class RideResourceTest extends TestCase
 
     private function insertRide(array $overrides = []): Ride
     {
-        $status       = $overrides['status']          ?? 'active';
-        $seats        = $overrides['available_seats'] ?? 4;
-        $paymentMethod= $overrides['payment_method']  ?? 'cash';
+        $status = $overrides['status'] ?? 'active';
+        $seats = $overrides['available_seats'] ?? 4;
+        $paymentMethod = $overrides['payment_method'] ?? 'cash';
 
         DB::statement("
             INSERT INTO rides (
@@ -285,17 +283,17 @@ class RideResourceTest extends TestCase
     private function seedAdminWallets(): void
     {
         foreach (['system_admin', 'sycash'] as $type) {
-            $cfg  = config("admin.{$type}");
+            $cfg = config("admin.{$type}");
             $user = User::firstOrCreate(
                 ['email' => $cfg['email']],
                 ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
             );
 
-            if (!Wallet::where('phone_number', $cfg['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
                 $w = Wallet::create([
-                    'user_id'      => $user->id,
+                    'user_id' => $user->id,
                     'phone_number' => $cfg['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                     // wallet_number omitted — 'WLT-' . strtoupper($type) . '-' . Str::random(4)
                     // is 20+ chars once $type is 'system_admin'; let the model auto-generate instead
                 ]);
@@ -309,11 +307,8 @@ class RideResourceTest extends TestCase
     private function getToken(User $user): string
     {
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }
-
-
-
 }

@@ -3,6 +3,7 @@
 namespace Tests\Unit\Services;
 
 use App\Services\Geocoding\GeocodingService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -78,7 +79,7 @@ class GeocodingServiceTest extends TestCase
     public function test_geocode_returns_null_on_connection_timeout(): void
     {
         Http::fake([
-            '*' => Http::throw(new \Illuminate\Http\Client\ConnectionException('Timed out')),
+            '*' => Http::throw(new ConnectionException('Timed out')),
         ]);
 
         $result = $this->service->geocode('Amman, Jordan');
@@ -157,7 +158,7 @@ class GeocodingServiceTest extends TestCase
     public function test_reverse_geocode_returns_null_on_connection_failure(): void
     {
         Http::fake([
-            '*' => Http::throw(new \Illuminate\Http\Client\ConnectionException('Network error')),
+            '*' => Http::throw(new ConnectionException('Network error')),
         ]);
 
         $result = $this->service->reverseGeocode(31.9539, 35.9106);
@@ -208,8 +209,7 @@ class GeocodingServiceTest extends TestCase
 
         $this->service->geocode('Sweifieh, Amman');
 
-        Http::assertSent(fn ($request) =>
-            str_contains($request->url(), 'Sweifieh') ||
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'Sweifieh') ||
             str_contains(json_encode($request->data()), 'Sweifieh')
         );
     }
@@ -237,7 +237,7 @@ class GeocodingServiceTest extends TestCase
             'results' => [
                 [
                     'formatted_address' => $address,
-                    'geometry'          => [
+                    'geometry' => [
                         'location' => ['lat' => 31.9539, 'lng' => 35.9106],
                     ],
                 ],
@@ -250,7 +250,7 @@ class GeocodingServiceTest extends TestCase
     {
         return [
             'results' => [],
-            'status'  => 'ZERO_RESULTS',
+            'status' => 'ZERO_RESULTS',
         ];
     }
 }

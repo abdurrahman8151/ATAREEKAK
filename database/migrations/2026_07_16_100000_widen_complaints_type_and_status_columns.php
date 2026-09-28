@@ -20,11 +20,11 @@ return new class extends Migration
     {
         // T3-6: raw MySQL-only statement(s) below. Skip cleanly on other
         // drivers instead of fataling a fresh migrate (no-op on MySQL).
-        if (\Illuminate\Support\Facades\DB::connection()->getDriverName() !== 'mysql') {
+        if (DB::connection()->getDriverName() !== 'mysql') {
             return;
         }
 
-        if (!Schema::hasTable('complaints')) {
+        if (! Schema::hasTable('complaints')) {
             return;
         }
 
@@ -60,7 +60,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (!Schema::hasTable('complaints')) {
+        if (! Schema::hasTable('complaints')) {
             return;
         }
 

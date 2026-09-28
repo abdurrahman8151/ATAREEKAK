@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Carbon\Carbon;
 
 class Otp extends Model
 {
@@ -20,7 +20,7 @@ class Otp extends Model
         'expires_at',
         'is_verified',
         'verified_at',
-        'attempts'
+        'attempts',
     ];
 
     protected $casts = [
@@ -42,7 +42,7 @@ class Otp extends Model
      */
     public function isValid(): bool
     {
-        return !$this->is_verified && !$this->isExpired() && $this->attempts < self::MAX_ATTEMPTS;
+        return ! $this->is_verified && ! $this->isExpired() && $this->attempts < self::MAX_ATTEMPTS;
     }
 
     /**
@@ -76,7 +76,7 @@ class Otp extends Model
     {
         $this->update([
             'is_verified' => true,
-            'verified_at' => Carbon::now()
+            'verified_at' => Carbon::now(),
         ]);
     }
 

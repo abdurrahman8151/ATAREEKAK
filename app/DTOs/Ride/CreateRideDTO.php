@@ -5,8 +5,8 @@ namespace App\DTOs\Ride;
 use App\Domain\ValueObjects\Location;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\PhoneNumber;
-use App\Enums\PaymentMethod;
 use App\Enums\BookingType;
+use App\Enums\PaymentMethod;
 use Carbon\Carbon;
 
 /**

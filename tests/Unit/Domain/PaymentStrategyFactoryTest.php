@@ -4,7 +4,6 @@ namespace Tests\Unit\Domain;
 
 use App\Domain\Payment\Strategies\CashPaymentStrategy;
 use App\Domain\Payment\Strategies\EPayPaymentStrategy;
-use App\Domain\Payment\Strategies\PaymentStrategy;
 use App\Domain\Payment\Strategies\PaymentStrategyFactory;
 use App\Enums\PaymentMethod;
 use InvalidArgumentException;
@@ -34,7 +33,7 @@ class PaymentStrategyFactoryTest extends TestCase
         // FIX: EPayPaymentStrategy requires WalletTransactionService but
         // PaymentStrategyFactory creates it with `new`, bypassing the container.
         $this->expectException(\Throwable::class); // ArgumentCountError or TypeError
-        new PaymentStrategyFactory();
+        new PaymentStrategyFactory;
     }
 
     // ─── getAvailablePaymentMethods() ─────────────────────────────────────────────
@@ -61,8 +60,8 @@ class PaymentStrategyFactoryTest extends TestCase
 
     public function test_register_adds_strategy_and_make_resolves_cash(): void
     {
-        $factory  = $this->makeEmptyFactory();
-        $strategy = new CashPaymentStrategy();
+        $factory = $this->makeEmptyFactory();
+        $strategy = new CashPaymentStrategy;
         $factory->register($strategy);
 
         $resolved = $factory->make('cash');
@@ -71,8 +70,8 @@ class PaymentStrategyFactoryTest extends TestCase
 
     public function test_register_adds_strategy_and_make_resolves_via_enum(): void
     {
-        $factory  = $this->makeEmptyFactory();
-        $factory->register(new CashPaymentStrategy());
+        $factory = $this->makeEmptyFactory();
+        $factory->register(new CashPaymentStrategy);
 
         $resolved = $factory->make(PaymentMethod::CASH);
         $this->assertInstanceOf(CashPaymentStrategy::class, $resolved);
@@ -81,7 +80,7 @@ class PaymentStrategyFactoryTest extends TestCase
     public function test_make_throws_for_unknown_payment_method(): void
     {
         $factory = $this->makeEmptyFactory();
-        $factory->register(new CashPaymentStrategy());
+        $factory->register(new CashPaymentStrategy);
 
         $this->expectException(InvalidArgumentException::class);
         $factory->make('bitcoin');
@@ -97,8 +96,8 @@ class PaymentStrategyFactoryTest extends TestCase
 
     public function test_register_can_add_multiple_strategies(): void
     {
-        $factory  = $this->makeEmptyFactory();
-        $strategy = new CashPaymentStrategy();
+        $factory = $this->makeEmptyFactory();
+        $strategy = new CashPaymentStrategy;
 
         $factory->register($strategy);
         $factory->register($strategy); // same strategy twice is allowed
@@ -110,7 +109,7 @@ class PaymentStrategyFactoryTest extends TestCase
     public function test_make_with_enum_string_value_resolves_correctly(): void
     {
         $factory = $this->makeEmptyFactory();
-        $factory->register(new CashPaymentStrategy());
+        $factory->register(new CashPaymentStrategy);
 
         $this->assertInstanceOf(CashPaymentStrategy::class, $factory->make('cash'));
     }
@@ -119,13 +118,13 @@ class PaymentStrategyFactoryTest extends TestCase
 
     public function test_cash_strategy_can_process_cash(): void
     {
-        $strategy = new CashPaymentStrategy();
+        $strategy = new CashPaymentStrategy;
         $this->assertTrue($strategy->canProcess('cash'));
     }
 
     public function test_cash_strategy_cannot_process_epay(): void
     {
-        $strategy = new CashPaymentStrategy();
+        $strategy = new CashPaymentStrategy;
         $this->assertFalse($strategy->canProcess('e-pay'));
     }
 

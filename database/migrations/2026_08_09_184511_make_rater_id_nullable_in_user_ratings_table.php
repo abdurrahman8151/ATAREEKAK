@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\UserRating;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -18,7 +19,7 @@ return new class extends Migration
     public function down(): void
     {
         // Delete system rows first so the NOT NULL constraint can be restored.
-        \App\Models\UserRating::whereNull('rater_id')->delete();
+        UserRating::whereNull('rater_id')->delete();
 
         Schema::table('user_ratings', function (Blueprint $table) {
             $table->unsignedBigInteger('rater_id')->nullable(false)->change();

@@ -19,7 +19,7 @@ enum BookingType: string
      */
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::DIRECT => 'Instant Booking',
             self::REQUEST => 'Request Approval',
         };
@@ -46,7 +46,7 @@ enum BookingType: string
      */
     public function initialBookingStatus(): BookingStatus
     {
-        return match($this) {
+        return match ($this) {
             self::DIRECT => BookingStatus::CONFIRMED,
             self::REQUEST => BookingStatus::PENDING,
         };

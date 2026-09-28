@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\RateLimiting;
 
+use App\Providers\RouteServiceProvider;
 use Illuminate\Routing\Middleware\ThrottleRequests;
-use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 /**
@@ -65,7 +65,7 @@ class RateLimitEnforcementTest extends TestCase
     /** A unique-but-well-formed email so this test never shares a bucket with another. */
     private function freshEmail(): string
     {
-        return 'rl_' . uniqid() . '@example.test';
+        return 'rl_'.uniqid().'@example.test';
     }
 
     public function test_auth_endpoint_returns_429_once_the_account_limit_is_exceeded(): void
@@ -74,7 +74,7 @@ class RateLimitEnforcementTest extends TestCase
         $this->assertGreaterThan(0, $limit, 'auth limit must be configured');
 
         $email = $this->freshEmail();
-        $body  = ['email' => $email, 'password' => 'wrong-password-always'];
+        $body = ['email' => $email, 'password' => 'wrong-password-always'];
 
         // The configured number of attempts all get a non-429 (they may be 401/422
         // — we only care that they were NOT rate-limited).
@@ -83,7 +83,7 @@ class RateLimitEnforcementTest extends TestCase
             $this->assertNotSame(
                 429,
                 $r->getStatusCode(),
-                "attempt " . ($i + 1) . " of $limit must not be throttled"
+                'attempt '.($i + 1)." of $limit must not be throttled"
             );
         }
 
@@ -96,7 +96,7 @@ class RateLimitEnforcementTest extends TestCase
     {
         $limit = (int) config('rate-limiting.limits.auth');
         $email = $this->freshEmail();
-        $body  = ['email' => $email, 'password' => 'x'];
+        $body = ['email' => $email, 'password' => 'x'];
 
         for ($i = 0; $i <= $limit; $i++) {
             $r = $this->postJson('/api/auth/login', $body);
@@ -160,13 +160,13 @@ class RateLimitEnforcementTest extends TestCase
         // re-register the limiters with the toggle off and confirm no 429 appears
         // even past the limit. We rebind via the provider like the real boot does.
         config(['rate-limiting.enabled' => false]);
-        $provider = new \App\Providers\RouteServiceProvider($this->app);
+        $provider = new RouteServiceProvider($this->app);
         $ref = new \ReflectionMethod($provider, 'configureRateLimiting');
         $ref->setAccessible(true);
         $ref->invoke($provider);
 
         $email = $this->freshEmail();
-        $body  = ['email' => $email, 'password' => 'x'];
+        $body = ['email' => $email, 'password' => 'x'];
         $limit = (int) config('rate-limiting.limits.auth');
 
         for ($i = 0; $i < $limit + 5; $i++) {

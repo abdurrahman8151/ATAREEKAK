@@ -5,8 +5,7 @@ namespace Tests\Feature\T3Batch;
 use App\Http\Middleware\GateDocumentation;
 use App\Providers\AppServiceProvider;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Illuminate\Http\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
@@ -39,7 +38,7 @@ class EnvironmentGuardsBatchTest extends TestCase
 
         $request = Request::create('/docs', 'GET', [], [], [], ['REMOTE_ADDR' => $ip]);
 
-        (new GateDocumentation())->handle($request, fn ($r) => new \Illuminate\Http\Response('ok'));
+        (new GateDocumentation)->handle($request, fn ($r) => new Response('ok'));
     }
 
     // ── T3-12 ───────────────────────────────────────────────────────────────

@@ -29,15 +29,15 @@ class SpecialAccountSeeder extends Seeder
     public function run(): void
     {
         $this->seed(
-            role:      StaffRole::SYSTEM_ADMIN,
+            role: StaffRole::SYSTEM_ADMIN,
             envPrefix: 'SYSTEM_ADMIN',
-            defaults:  ['username' => 'system_admin', 'first' => 'System', 'last' => 'Admin'],
+            defaults: ['username' => 'system_admin', 'first' => 'System', 'last' => 'Admin'],
         );
 
         $this->seed(
-            role:      StaffRole::SYCASH,
+            role: StaffRole::SYCASH,
             envPrefix: 'SYCASH',
-            defaults:  ['username' => 'sycash', 'first' => 'SyCash', 'last' => 'Admin'],
+            defaults: ['username' => 'sycash', 'first' => 'SyCash', 'last' => 'Admin'],
         );
     }
 
@@ -46,7 +46,7 @@ class SpecialAccountSeeder extends Seeder
     private function seed(StaffRole $role, string $envPrefix, array $defaults): void
     {
         $username = env("{$envPrefix}_USERNAME", $defaults['username']);
-        $email    = env("{$envPrefix}_EMAIL");
+        $email = env("{$envPrefix}_EMAIL");
         $password = env("{$envPrefix}_PASSWORD");
 
         // Hard-stop: credentials must come from .env, never from defaults
@@ -55,18 +55,19 @@ class SpecialAccountSeeder extends Seeder
                 "[SpecialAccountSeeder] Skipping {$role->label()}: ".
                 "{$envPrefix}_EMAIL and {$envPrefix}_PASSWORD must be set in .env"
             );
+
             return;
         }
 
         $employee = Employee::firstOrCreate(
             ['username' => $username],
             [
-                'email'         => $email,
-                'password'      => Hash::make($password),
-                'first_name'    => env("{$envPrefix}_FIRST_NAME", $defaults['first']),
-                'last_name'     => env("{$envPrefix}_LAST_NAME",  $defaults['last']),
-                'role'          => $role->value,
-                'is_active'     => true,
+                'email' => $email,
+                'password' => Hash::make($password),
+                'first_name' => env("{$envPrefix}_FIRST_NAME", $defaults['first']),
+                'last_name' => env("{$envPrefix}_LAST_NAME", $defaults['last']),
+                'role' => $role->value,
+                'is_active' => true,
                 'token_version' => 0,
             ]
         );

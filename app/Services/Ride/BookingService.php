@@ -12,13 +12,16 @@ use App\Enums\ScoreAction;
 use App\Events\RideBooked;
 use App\Interfaces\RideRepositoryInterface;
 use App\Models\Booking;
+use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\NotificationService;
 use App\Services\Payment\WalletTransactionService;
 use App\Services\Score\ScoreService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -26,14 +29,13 @@ use Illuminate\Support\Facades\Log;
 final class BookingService
 {
     public function __construct(
-        private readonly RideRepositoryInterface  $rideRepository,
+        private readonly RideRepositoryInterface $rideRepository,
         private readonly WalletTransactionService $walletService,
-        private readonly NotificationService      $notificationService,
-        private readonly RideValidationService    $validationService,
-        private readonly ScoreService             $scoreService,
-        private readonly PaymentStrategyFactory   $paymentFactory,   // ← NEW
+        private readonly NotificationService $notificationService,
+        private readonly RideValidationService $validationService,
+        private readonly ScoreService $scoreService,
+        private readonly PaymentStrategyFactory $paymentFactory,   // ← NEW
     ) {}
-
 
     // =========================================================================
     // BOOK RIDE
@@ -53,7 +55,7 @@ final class BookingService
      *
      * Score gate: passenger score must be ≥ 40 (validated in RideValidationService).
      */
-    public function bookRide(BookRideDTO $dto, User $passenger): \Illuminate\Database\Eloquent\Builder|array|Collection|\Illuminate\Database\Eloquent\Model
+    public function bookRide(BookRideDTO $dto, User $passenger): Builder|array|Collection|Model
     {
         // 1. Validate passenger (verified + score gate ≥ 40)
         $this->validationService->validatePassengerCanBook($passenger);
@@ -62,9 +64,10 @@ final class BookingService
         $cacheKey = "booking:idem:{$dto->idempotencyKey}";
         if ($existingId = Cache::get($cacheKey)) {
             Log::info('Duplicate booking request detected', [
-                'idempotency_key'     => $dto->idempotencyKey,
+                'idempotency_key' => $dto->idempotencyKey,
                 'existing_booking_id' => $existingId,
             ]);
+
             return Booking::with(['ride', 'user'])->findOrFail($existingId);
         }
 
@@ -76,15 +79,15 @@ final class BookingService
             $this->assertBookingRules($dto, $ride, $passenger);
 
             // 5. Determine initial booking status from the ride's booking type
-            $bookingType   = BookingType::from($ride->booking_type);
+            $bookingType = BookingType::from($ride->booking_type);
             $initialStatus = $bookingType->initialBookingStatus(); // CONFIRMED or PENDING
 
             // 6. Create the booking record
             $booking = Booking::create([
-                'user_id'              => $dto->passengerId,
-                'ride_id'              => $dto->rideId,
-                'seats'                => $dto->seats,
-                'status'               => $initialStatus->value,
+                'user_id' => $dto->passengerId,
+                'ride_id' => $dto->rideId,
+                'seats' => $dto->seats,
+                'status' => $initialStatus->value,
                 'communication_number' => $dto->communicationNumber->number(),
             ]);
 
@@ -111,10 +114,10 @@ final class BookingService
             broadcast(new RideBooked($ride, $booking, $passenger));
 
             Log::info('Ride booked successfully', [
-                'ride_id'        => $ride->id,
-                'booking_id'     => $booking->id,
-                'passenger_id'   => $passenger->id,
-                'status'         => $initialStatus->value,
+                'ride_id' => $ride->id,
+                'booking_id' => $booking->id,
+                'passenger_id' => $passenger->id,
+                'status' => $initialStatus->value,
                 'payment_method' => $ride->payment_method,
             ]);
 
@@ -136,7 +139,7 @@ final class BookingService
     {
         return DB::transaction(function () use ($bookingId, $driver) {
             $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
-            $ride    = $booking->ride;
+            $ride = $booking->ride;
 
             if ($ride->driver_id !== $driver->id) {
                 throw new \InvalidArgumentException('Only the ride driver can accept bookings');
@@ -176,7 +179,7 @@ final class BookingService
 
             Log::info('Booking accepted by driver', [
                 'booking_id' => $booking->id,
-                'driver_id'  => $driver->id,
+                'driver_id' => $driver->id,
             ]);
 
             return $booking->refresh();
@@ -196,7 +199,7 @@ final class BookingService
     {
         return DB::transaction(function () use ($bookingId, $driver) {
             $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
-            $ride    = $booking->ride;
+            $ride = $booking->ride;
 
             if ($ride->driver_id !== $driver->id) {
                 throw new \InvalidArgumentException('Only the ride driver can reject bookings');
@@ -216,14 +219,14 @@ final class BookingService
                 'booking_rejected',
                 'Booking Request Declined',
                 "Your request for {$booking->seats} seat(s) on the ride from "
-                . "{$ride->pickup_address} to {$ride->destination_address} was declined by the driver.",
+                ."{$ride->pickup_address} to {$ride->destination_address} was declined by the driver.",
                 ['booking_id' => $booking->id, 'ride_id' => $ride->id],
                 'normal', 'ride'
             );
 
             Log::info('Booking rejected by driver', [
                 'booking_id' => $booking->id,
-                'driver_id'  => $driver->id,
+                'driver_id' => $driver->id,
             ]);
 
             return $booking->refresh();
@@ -254,14 +257,14 @@ final class BookingService
     {
         return DB::transaction(function () use ($bookingId, $passenger) {
             $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
-            $ride    = $booking->ride;
+            $ride = $booking->ride;
 
             if ($booking->user_id !== $passenger->id) {
                 throw new \InvalidArgumentException('You can only cancel your own bookings');
             }
 
             $status = BookingStatus::from($booking->status);
-            if (!$status->canBeCancelled()) {
+            if (! $status->canBeCancelled()) {
                 throw new \InvalidArgumentException(
                     "Cannot cancel a booking with status: {$status->label()}"
                 );
@@ -306,11 +309,11 @@ final class BookingService
             $this->notifyCancellation($booking, $ride, $booking->seats, $refundPolicy, $wasConfirmed);
 
             Log::info('Booking cancelled by passenger', [
-                'booking_id'    => $booking->id,
-                'passenger_id'  => $passenger->id,
+                'booking_id' => $booking->id,
+                'passenger_id' => $passenger->id,
                 'was_confirmed' => $wasConfirmed,
-                'payment'       => $ride->payment_method,
-                'elapsed_pct'   => $refundPolicy['time_elapsed_percentage'],
+                'payment' => $ride->payment_method,
+                'elapsed_pct' => $refundPolicy['time_elapsed_percentage'],
             ]);
 
             return $booking->refresh();
@@ -330,12 +333,12 @@ final class BookingService
     {
         return DB::transaction(function () use ($bookingId, $seatsToCancel, $passenger) {
             $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
-            $ride    = $booking->ride;
+            $ride = $booking->ride;
 
             if ($booking->user_id !== $passenger->id) {
                 throw new \InvalidArgumentException('You can only cancel your own bookings');
             }
-            if (!in_array($booking->status, [BookingStatus::PENDING->value, BookingStatus::CONFIRMED->value])) {
+            if (! in_array($booking->status, [BookingStatus::PENDING->value, BookingStatus::CONFIRMED->value])) {
                 throw new \InvalidArgumentException('This booking cannot be partially cancelled');
             }
             if ($seatsToCancel < 1 || $seatsToCancel > $booking->seats) {
@@ -344,14 +347,14 @@ final class BookingService
                 );
             }
 
-            $wasConfirmed   = ($booking->status === BookingStatus::CONFIRMED->value);
+            $wasConfirmed = ($booking->status === BookingStatus::CONFIRMED->value);
             $remainingSeats = $booking->seats - $seatsToCancel;
 
             $refundPolicy = $this->walletService->calculateRefundPolicy(
                 Carbon::parse($ride->departure_time),
                 $booking->created_at
             );
-            $totalPaid    = $seatsToCancel * $ride->price_per_seat;
+            $totalPaid = $seatsToCancel * $ride->price_per_seat;
             $refundAmount = ($totalPaid * $refundPolicy['refund_percentage']) / 100;
 
             if ($wasConfirmed) {
@@ -377,7 +380,7 @@ final class BookingService
                 $booking->save();
                 $message = "Cancelled {$seatsToCancel} seat(s). You still have {$remainingSeats} seat(s) booked.";
             } else {
-                $booking->seats  = 0;
+                $booking->seats = 0;
                 $booking->status = BookingStatus::CANCELLED->value;
                 $booking->save();
                 $message = 'All seats cancelled. Your booking has been fully cancelled.';
@@ -395,24 +398,24 @@ final class BookingService
             $this->notifyCancellation($booking, $ride, $seatsToCancel, $refundPolicy, $wasConfirmed);
 
             Log::info('Partial seats cancelled', [
-                'booking_id'      => $booking->id,
+                'booking_id' => $booking->id,
                 'seats_cancelled' => $seatsToCancel,
-                'remaining'       => $remainingSeats,
+                'remaining' => $remainingSeats,
             ]);
 
             return [
                 'message' => $message,
-                'data'    => [
-                    'booking_id'      => $booking->id,
+                'data' => [
+                    'booking_id' => $booking->id,
                     'seats_cancelled' => $seatsToCancel,
                     'remaining_seats' => $remainingSeats,
-                    'booking_status'  => $booking->status,
-                    'refund_policy'   => [
-                        'refund_percentage'       => $refundPolicy['refund_percentage'],
-                        'refund_amount'           => $refundAmount,
-                        'non_refundable_amount'   => $totalPaid - $refundAmount,
+                    'booking_status' => $booking->status,
+                    'refund_policy' => [
+                        'refund_percentage' => $refundPolicy['refund_percentage'],
+                        'refund_amount' => $refundAmount,
+                        'non_refundable_amount' => $totalPaid - $refundAmount,
                         'time_elapsed_percentage' => round($refundPolicy['time_elapsed_percentage'], 2),
-                        'policy_tier'             => $refundPolicy['policy_tier'],
+                        'policy_tier' => $refundPolicy['policy_tier'],
                     ],
                 ],
             ];
@@ -435,7 +438,7 @@ final class BookingService
      */
     public function reportPassengerNoShow(int $bookingId, User $driver): array
     {
-        return app(\App\Services\Ride\Noshowservice::class)
+        return app(Noshowservice::class)
             ->reportPassengerNoShow($bookingId, $driver);
     }
 
@@ -448,7 +451,6 @@ final class BookingService
      * Once the driver AND all confirmed passengers have confirmed,
      * RideService::checkAndCompleteRide() releases payment and records scores.
      */
-
     public function passengerConfirmCompletion(int $bookingId, User $passenger): array
     {
         return DB::transaction(function () use ($bookingId, $passenger) {
@@ -463,8 +465,8 @@ final class BookingService
                 $msg = match ($booking->status) {
                     BookingStatus::COMPLETED->value => 'You have already confirmed this ride.',
                     BookingStatus::CANCELLED->value => 'This booking has been cancelled.',
-                    'no_show'                       => 'This booking was marked as a no-show.',
-                    default                         => 'This booking cannot be confirmed in its current state.',
+                    'no_show' => 'This booking was marked as a no-show.',
+                    default => 'This booking cannot be confirmed in its current state.',
                 };
                 throw new \InvalidArgumentException($msg);
             }
@@ -472,7 +474,7 @@ final class BookingService
             // ── NO-SHOW MUTUAL EXCLUSION ──────────────────────────────────────────
             // A passenger who filed a driver-no-show report cannot simultaneously
             // confirm the ride. The two actions are mutually exclusive.
-            $hasPendingNoShow = \App\Models\NoshowReport::where('ride_id', $booking->ride_id)
+            $hasPendingNoShow = NoshowReport::where('ride_id', $booking->ride_id)
                 ->where('reporter_id', $passenger->id)
                 ->where('reporter_role', 'passenger')
                 ->whereIn('status', ['pending', 'disputed'])
@@ -513,20 +515,20 @@ final class BookingService
             }
 
             $booking->update([
-                'status'       => BookingStatus::COMPLETED->value,
+                'status' => BookingStatus::COMPLETED->value,
                 'completed_at' => now(),
             ]);
 
-            $strategy      = $this->paymentFactory->make($ride->payment_method);
+            $strategy = $this->paymentFactory->make($ride->payment_method);
             $paymentResult = $strategy->processRideCompletionPayment($booking, $ride, $passenger);
 
-            if (!$paymentResult->success) {
-                throw new \RuntimeException('Payment release failed: ' . $paymentResult->message);
+            if (! $paymentResult->success) {
+                throw new \RuntimeException('Payment release failed: '.$paymentResult->message);
             }
 
             $this->scoreService->applyAction(
-                user:      $passenger,
-                action:    ScoreAction::RIDE_COMPLETED,
+                user: $passenger,
+                action: ScoreAction::RIDE_COMPLETED,
                 reference: $booking,
             );
 
@@ -547,22 +549,21 @@ final class BookingService
                 $driver = User::find($ride->driver_id);
                 if ($driver) {
                     $this->scoreService->applyAction(
-                        user:      $driver,
-                        action:    ScoreAction::RIDE_COMPLETED,
+                        user: $driver,
+                        action: ScoreAction::RIDE_COMPLETED,
                         reference: $ride,
                     );
                 }
             }
 
             return [
-                'message'       => $rideNowFinished
+                'message' => $rideNowFinished
                     ? 'Confirmed. All passengers done — ride is now finished.'
                     : 'Confirmed successfully.',
                 'ride_finished' => $rideNowFinished,
             ];
         });
     }
-
 
     // =========================================================================
     // GETTERS
@@ -598,7 +599,7 @@ final class BookingService
 
         // Ride must be in a bookable state (ACTIVE or FULL with available seats)
         $rideStatus = RideStatus::from($ride->status);
-        if (!$rideStatus->canBeBooked()) {
+        if (! $rideStatus->canBeBooked()) {
             throw new \InvalidArgumentException(
                 "This ride is not available for booking (status: {$rideStatus->label()})"
             );
@@ -636,9 +637,9 @@ final class BookingService
      * Send creation notifications to both driver and passenger.
      */
     private function notifyOnBookingCreated(
-        Booking     $booking,
-        Ride        $ride,
-        User        $passenger,
+        Booking $booking,
+        Ride $ride,
+        User $passenger,
         BookingType $bookingType
     ): void {
         $isDirect = $bookingType === BookingType::DIRECT;
@@ -652,10 +653,10 @@ final class BookingService
                 ? "{$passenger->first_name} {$passenger->last_name} booked {$booking->seats} seat(s) on your ride."
                 : "{$passenger->first_name} {$passenger->last_name} requested {$booking->seats} seat(s). Please accept or reject.",
             [
-                'ride_id'      => $ride->id,
-                'booking_id'   => $booking->id,
+                'ride_id' => $ride->id,
+                'booking_id' => $booking->id,
                 'passenger_id' => $passenger->id,
-                'seats'        => $booking->seats,
+                'seats' => $booking->seats,
             ],
             'high', 'ride'
         );
@@ -678,25 +679,25 @@ final class BookingService
      */
     private function notifyCancellation(
         Booking $booking,
-        Ride    $ride,
-        int     $seatsCancelled,
-        array   $refundPolicy,
-        bool    $wasConfirmed
+        Ride $ride,
+        int $seatsCancelled,
+        array $refundPolicy,
+        bool $wasConfirmed
     ): void {
-        $totalPaid    = $seatsCancelled * $ride->price_per_seat;
+        $totalPaid = $seatsCancelled * $ride->price_per_seat;
         $refundAmount = ($totalPaid * $refundPolicy['refund_percentage']) / 100;
         $driverAmount = $totalPaid - $refundAmount;
-        $isEpay       = $ride->payment_method === PaymentMethod::E_PAY->value;
+        $isEpay = $ride->payment_method === PaymentMethod::E_PAY->value;
 
         // Passenger message
         if ($wasConfirmed && $isEpay) {
             $passengerDetail = $refundAmount > 0
-                ? "Refund of " . number_format($refundAmount, 0) . " SYP ({$refundPolicy['refund_percentage']}%) issued. ({$refundPolicy['policy_tier']})"
+                ? 'Refund of '.number_format($refundAmount, 0)." SYP ({$refundPolicy['refund_percentage']}%) issued. ({$refundPolicy['policy_tier']})"
                 : "No refund — {$refundPolicy['policy_tier']}.";
         } elseif ($wasConfirmed) {
-            $passengerDetail = "Cash ride — no wallet transaction needed.";
+            $passengerDetail = 'Cash ride — no wallet transaction needed.';
         } else {
-            $passengerDetail = "Pending request cancelled — no payment was taken.";
+            $passengerDetail = 'Pending request cancelled — no payment was taken.';
         }
 
         $this->notificationService->createNotification(
@@ -704,10 +705,10 @@ final class BookingService
             'booking_cancelled',
             'Booking Cancelled',
             "Cancelled {$seatsCancelled} seat(s) on the ride from {$ride->pickup_address} "
-            . "to {$ride->destination_address}. {$passengerDetail}",
+            ."to {$ride->destination_address}. {$passengerDetail}",
             [
-                'booking_id'      => $booking->id,
-                'ride_id'         => $ride->id,
+                'booking_id' => $booking->id,
+                'ride_id' => $ride->id,
                 'seats_cancelled' => $seatsCancelled,
             ],
             'normal', 'ride'
@@ -717,7 +718,7 @@ final class BookingService
         if ($wasConfirmed) {
             $driverDetail = ($isEpay && $driverAmount > 0)
                 ? "{$booking->user->first_name} cancelled {$seatsCancelled} seat(s). You received "
-                . number_format($driverAmount, 0) . " SYP cancellation fee ({$refundPolicy['policy_tier']})."
+                .number_format($driverAmount, 0)." SYP cancellation fee ({$refundPolicy['policy_tier']})."
                 : "{$booking->user->first_name} cancelled {$seatsCancelled} seat(s) (cash ride — no wallet impact).";
 
             $this->notificationService->createNotification(
@@ -726,8 +727,8 @@ final class BookingService
                 'Passenger Cancelled Seats',
                 $driverDetail,
                 [
-                    'booking_id'      => $booking->id,
-                    'ride_id'         => $ride->id,
+                    'booking_id' => $booking->id,
+                    'ride_id' => $ride->id,
                     'seats_cancelled' => $seatsCancelled,
                 ],
                 'normal', 'ride'

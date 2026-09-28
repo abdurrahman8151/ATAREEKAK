@@ -11,9 +11,9 @@ namespace App\Domain\Payment\Strategies;
 final class RefundResult
 {
     public function __construct(
-        public readonly bool    $success,
-        public readonly string  $message,
-        public readonly ?array  $transactionIds = null,
+        public readonly bool $success,
+        public readonly string $message,
+        public readonly ?array $transactionIds = null,
     ) {}
 
     public static function success(

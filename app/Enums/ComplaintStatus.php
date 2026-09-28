@@ -4,31 +4,31 @@ namespace App\Enums;
 
 enum ComplaintStatus: string
 {
-    case PENDING   = 'pending';
+    case PENDING = 'pending';
     case IN_REVIEW = 'in_review';
     case ESCALATED = 'escalated';   // ← NEW: transferred from agent → admin
-    case RESOLVED  = 'resolved';
-    case CLOSED    = 'closed';
+    case RESOLVED = 'resolved';
+    case CLOSED = 'closed';
 
     public function label(): string
     {
         return match ($this) {
-            self::PENDING   => 'Pending',
+            self::PENDING => 'Pending',
             self::IN_REVIEW => 'In Review',
             self::ESCALATED => 'Escalated',
-            self::RESOLVED  => 'Resolved',
-            self::CLOSED    => 'Closed',
+            self::RESOLVED => 'Resolved',
+            self::CLOSED => 'Closed',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::PENDING   => 'yellow',
+            self::PENDING => 'yellow',
             self::IN_REVIEW => 'blue',
             self::ESCALATED => 'orange',
-            self::RESOLVED  => 'green',
-            self::CLOSED    => 'gray',
+            self::RESOLVED => 'green',
+            self::CLOSED => 'gray',
         };
     }
 

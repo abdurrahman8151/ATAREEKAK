@@ -2,9 +2,10 @@
 
 namespace App\Repositories;
 
+use App\Interfaces\ProfileRepositoryInterface;
 use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\User;
-use App\Interfaces\ProfileRepositoryInterface;
+use App\Models\UserRating;
 
 class VerificationRepository implements VerificationRepositoryInterface
 {
@@ -20,6 +21,7 @@ class VerificationRepository implements VerificationRepositoryInterface
      *
      * @param  mixed  $userId
      * @return User
+     *
      * @throws \Exception if not in pending state
      */
     public function verifyPassenger($userId)
@@ -33,7 +35,7 @@ class VerificationRepository implements VerificationRepositoryInterface
 
         $user->update([
             'is_verified_passenger' => true,
-            'verification_status'   => 'approved',
+            'verification_status' => 'approved',
         ]);
 
         return $user;
@@ -44,6 +46,7 @@ class VerificationRepository implements VerificationRepositoryInterface
      *
      * @param  mixed  $userId
      * @return User
+     *
      * @throws \Exception if not in pending state
      */
     public function verifyDriver($userId)
@@ -56,19 +59,19 @@ class VerificationRepository implements VerificationRepositoryInterface
 
         $user->update([
             'is_verified_passenger' => true,
-            'is_verified_driver'    => true,
-            'verification_status'   => 'approved',
+            'is_verified_driver' => true,
+            'verification_status' => 'approved',
         ]);
 
         // ── Seed initial 3-star rating for new drivers ─────────────────
         // Uses the primary admin account as the rater so foreign key is valid.
         // firstOrCreate ensures re-approving the same driver never duplicates it.
-        $adminUser = \App\Models\User::where('email', config('system_admin.email'))->first();
+        $adminUser = User::where('email', config('system_admin.email'))->first();
 
         if ($adminUser) {
-            \App\Models\UserRating::firstOrCreate(
+            UserRating::firstOrCreate(
                 [
-                    'rater_id'      => $adminUser->id,
+                    'rater_id' => $adminUser->id,
                     'rated_user_id' => $userId,
                 ],
                 [

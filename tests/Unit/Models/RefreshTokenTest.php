@@ -38,7 +38,7 @@ class RefreshTokenTest extends TestCase
 
     public function test_fillable_contains_expected_fields(): void
     {
-        $model    = new RefreshToken();
+        $model = new RefreshToken;
         $fillable = $model->getFillable();
 
         foreach (['user_id', 'token', 'expires_at', 'revoked', 'user_agent', 'ip_address'] as $field) {
@@ -50,14 +50,14 @@ class RefreshTokenTest extends TestCase
 
     public function test_expires_at_is_cast_to_datetime(): void
     {
-        $casts = (new RefreshToken())->getCasts();
+        $casts = (new RefreshToken)->getCasts();
         $this->assertArrayHasKey('expires_at', $casts);
         $this->assertEquals('datetime', $casts['expires_at']);
     }
 
     public function test_revoked_is_cast_to_boolean(): void
     {
-        $casts = (new RefreshToken())->getCasts();
+        $casts = (new RefreshToken)->getCasts();
         $this->assertArrayHasKey('revoked', $casts);
         $this->assertEquals('boolean', $casts['revoked']);
     }
@@ -131,15 +131,15 @@ class RefreshTokenTest extends TestCase
         $tokenString = hash('sha256', Str::random(64));
 
         RefreshToken::create([
-            'user_id'    => $this->user->id,
-            'token'      => $tokenString,
+            'user_id' => $this->user->id,
+            'token' => $tokenString,
             'expires_at' => Carbon::now()->addWeek(),
-            'revoked'    => false,
+            'revoked' => false,
         ]);
 
         $this->assertDatabaseHas('refresh_tokens', [
             'user_id' => $this->user->id,
-            'token'   => $tokenString,
+            'token' => $tokenString,
             'revoked' => false,
         ]);
     }
@@ -147,8 +147,8 @@ class RefreshTokenTest extends TestCase
     public function test_revoked_defaults_to_false_when_not_set(): void
     {
         $token = RefreshToken::create([
-            'user_id'    => $this->user->id,
-            'token'      => hash('sha256', Str::random(64)),
+            'user_id' => $this->user->id,
+            'token' => hash('sha256', Str::random(64)),
             'expires_at' => Carbon::now()->addHour(),
         ]);
 
@@ -158,10 +158,10 @@ class RefreshTokenTest extends TestCase
     public function test_token_stores_user_agent_and_ip(): void
     {
         $token = RefreshToken::create([
-            'user_id'    => $this->user->id,
-            'token'      => hash('sha256', Str::random(64)),
+            'user_id' => $this->user->id,
+            'token' => hash('sha256', Str::random(64)),
             'expires_at' => Carbon::now()->addHour(),
-            'revoked'    => false,
+            'revoked' => false,
             'user_agent' => 'Mozilla/5.0 Test Agent',
             'ip_address' => '192.168.1.1',
         ]);
@@ -174,10 +174,10 @@ class RefreshTokenTest extends TestCase
     {
         for ($i = 0; $i < 3; $i++) {
             RefreshToken::create([
-                'user_id'    => $this->user->id,
-                'token'      => hash('sha256', Str::random(64)),
+                'user_id' => $this->user->id,
+                'token' => hash('sha256', Str::random(64)),
                 'expires_at' => Carbon::now()->addHour(),
-                'revoked'    => false,
+                'revoked' => false,
             ]);
         }
 
@@ -192,10 +192,10 @@ class RefreshTokenTest extends TestCase
         ?Carbon $expiresAt = null
     ): RefreshToken {
         return RefreshToken::create([
-            'user_id'    => $this->user->id,
-            'token'      => hash('sha256', Str::random(64)),
+            'user_id' => $this->user->id,
+            'token' => hash('sha256', Str::random(64)),
             'expires_at' => $expiresAt ?? Carbon::now()->addHour(),
-            'revoked'    => $revoked,
+            'revoked' => $revoked,
         ]);
     }
 }

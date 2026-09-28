@@ -29,10 +29,10 @@ class CleanupExpiredTokensCommandTest extends TestCase
         $user = User::factory()->create();
 
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', 'expired_token'),
+            'user_id' => $user->id,
+            'token' => hash('sha256', 'expired_token'),
             'expires_at' => Carbon::now()->subDays(2),
-            'revoked'    => false,
+            'revoked' => false,
         ]);
 
         $this->artisan('tokens:cleanup')->assertExitCode(0);
@@ -45,10 +45,10 @@ class CleanupExpiredTokensCommandTest extends TestCase
         $user = User::factory()->create();
 
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', 'revoked_token'),
+            'user_id' => $user->id,
+            'token' => hash('sha256', 'revoked_token'),
             'expires_at' => Carbon::now()->addDay(), // not expired but revoked
-            'revoked'    => true,
+            'revoked' => true,
         ]);
 
         $this->artisan('tokens:cleanup')->assertExitCode(0);
@@ -61,10 +61,10 @@ class CleanupExpiredTokensCommandTest extends TestCase
         $user = User::factory()->create();
 
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', 'active_token'),
+            'user_id' => $user->id,
+            'token' => hash('sha256', 'active_token'),
             'expires_at' => Carbon::now()->addDays(7),
-            'revoked'    => false,
+            'revoked' => false,
         ]);
 
         $this->artisan('tokens:cleanup')->assertExitCode(0);
@@ -78,24 +78,24 @@ class CleanupExpiredTokensCommandTest extends TestCase
 
         // Expired
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', 'expired'),
+            'user_id' => $user->id,
+            'token' => hash('sha256', 'expired'),
             'expires_at' => Carbon::now()->subDays(2),
-            'revoked'    => false,
+            'revoked' => false,
         ]);
         // Revoked
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', 'revoked'),
+            'user_id' => $user->id,
+            'token' => hash('sha256', 'revoked'),
             'expires_at' => Carbon::now()->addDay(),
-            'revoked'    => true,
+            'revoked' => true,
         ]);
         // Active
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', 'active'),
+            'user_id' => $user->id,
+            'token' => hash('sha256', 'active'),
             'expires_at' => Carbon::now()->addDays(7),
-            'revoked'    => false,
+            'revoked' => false,
         ]);
 
         $this->artisan('tokens:cleanup')->assertExitCode(0);
@@ -116,10 +116,10 @@ class CleanupExpiredTokensCommandTest extends TestCase
         $user = User::factory()->create();
 
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', 'expired_1'),
+            'user_id' => $user->id,
+            'token' => hash('sha256', 'expired_1'),
             'expires_at' => Carbon::now()->subDay(),
-            'revoked'    => false,
+            'revoked' => false,
         ]);
 
         $this->artisan('tokens:cleanup')

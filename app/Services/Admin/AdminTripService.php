@@ -2,13 +2,10 @@
 
 namespace App\Services\Admin;
 
-use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Models\UserRating;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,14 +37,13 @@ final class AdminTripService
     /**
      * Paginated trip list for the admin table.
      *
-     * @param  string  $filter   one of: all | active | scheduled | completed | cancelled
-     * @param  int     $perPage  1-50
-     * @param  int     $page
+     * @param  string  $filter  one of: all | active | scheduled | completed | cancelled
+     * @param  int  $perPage  1-50
      */
     public function getFilteredTrips(
-        string $filter  = 'all',
-        int    $perPage = 15,
-        int    $page    = 1,
+        string $filter = 'all',
+        int $perPage = 15,
+        int $page = 1,
     ): LengthAwarePaginator {
         $now = Carbon::now();
 
@@ -55,18 +51,18 @@ final class AdminTripService
             'driver:id,first_name,last_name',
             'driver.profile:user_id,profile_photo',
             // Only load booked seats that count toward capacity
-            'bookings' => fn($q) => $q
+            'bookings' => fn ($q) => $q
                 ->select('id', 'ride_id', 'user_id', 'seats', 'status')
                 ->whereIn('status', ['confirmed', 'completed']),
         ]);
 
         match ($filter) {
             'scheduled' => $query->where('status', 'active')->where('departure_time', '>', $now),
-            'active'    => $query->where('status', 'active')->where('departure_time', '<=', $now),
+            'active' => $query->where('status', 'active')->where('departure_time', '<=', $now),
             'completed' => $query->where('status', 'finished'),
             'cancelled' => $query->where('status', 'cancelled'),
-            'awaiting'  => $query->where('status', 'awaiting_confirmation'), // ← ADD THIS
-            default     => $query->whereIn('status', ['active', 'finished', 'cancelled', 'awaiting_confirmation']),
+            'awaiting' => $query->where('status', 'awaiting_confirmation'), // ← ADD THIS
+            default => $query->whereIn('status', ['active', 'finished', 'cancelled', 'awaiting_confirmation']),
         };
 
         return $query
@@ -80,44 +76,44 @@ final class AdminTripService
      */
     public function formatTrip(Ride $ride): array
     {
-        $now    = Carbon::now();
+        $now = Carbon::now();
         $driver = $ride->driver;
 
         $bookedSeats = $ride->bookings->sum('seats');
-        $totalSeats  = $ride->available_seats + $bookedSeats;
+        $totalSeats = $ride->available_seats + $bookedSeats;
 
         return [
-            'id'       => $ride->id,
-            'trip_ref' => '#TR-' . $ride->id,
+            'id' => $ride->id,
+            'trip_ref' => '#TR-'.$ride->id,
 
             'driver' => [
-                'id'            => $driver?->id,
-                'name'          => trim(($driver?->first_name ?? '') . ' ' . ($driver?->last_name ?? '')),
+                'id' => $driver?->id,
+                'name' => trim(($driver?->first_name ?? '').' '.($driver?->last_name ?? '')),
                 'profile_photo' => $driver?->profile?->profile_photo
-                    ? asset('storage/' . $driver->profile->profile_photo)
+                    ? asset('storage/'.$driver->profile->profile_photo)
                     : null,
             ],
 
             'route' => [
                 'from' => $ride->pickup_address,
-                'to'   => $ride->destination_address,
+                'to' => $ride->destination_address,
             ],
 
             'timing' => [
                 'departure_time' => $ride->departure_time->toIso8601String(),
-                'label'          => $this->timingLabel($ride->departure_time, $now),
-                'time_only'      => $ride->departure_time->format('H:i'),
+                'label' => $this->timingLabel($ride->departure_time, $now),
+                'time_only' => $ride->departure_time->format('H:i'),
             ],
 
             'passengers' => [
                 'booked' => $bookedSeats,
-                'total'  => $totalSeats,
-                'label'  => "{$bookedSeats}/{$totalSeats}",
+                'total' => $totalSeats,
+                'label' => "{$bookedSeats}/{$totalSeats}",
             ],
 
-            'status'         => $this->resolveUiStatus($ride, $now),
+            'status' => $this->resolveUiStatus($ride, $now),
             'payment_method' => $ride->payment_method,
-            'vehicle_type'   => $ride->vehicle_type,
+            'vehicle_type' => $ride->vehicle_type,
             'price_per_seat' => $ride->price_per_seat,
         ];
     }
@@ -135,12 +131,12 @@ final class AdminTripService
         $now = Carbon::now();
 
         return [
-            'all'       => Ride::whereIn('status', ['active', 'finished', 'cancelled', 'awaiting_confirmation'])->count(),
+            'all' => Ride::whereIn('status', ['active', 'finished', 'cancelled', 'awaiting_confirmation'])->count(),
             'scheduled' => Ride::where('status', 'active')->where('departure_time', '>', $now)->count(),
-            'active'    => Ride::where('status', 'active')->where('departure_time', '<=', $now)->count(),
+            'active' => Ride::where('status', 'active')->where('departure_time', '<=', $now)->count(),
             'completed' => Ride::where('status', 'finished')->count(),
             'cancelled' => Ride::where('status', 'cancelled')->count(),
-            'awaiting'  => Ride::where('status', 'awaiting_confirmation')->count(), // ← ADD THIS
+            'awaiting' => Ride::where('status', 'awaiting_confirmation')->count(), // ← ADD THIS
         ];
     }
 
@@ -184,12 +180,12 @@ final class AdminTripService
             $pct = ($row->trip_count / $maxCount) * 100;
 
             return [
-                'from'              => $row->pickup_address,
-                'to'                => $row->destination_address,
-                'trip_count'        => (int) $row->trip_count,
-                'total_passengers'  => (int) $row->total_passengers,
+                'from' => $row->pickup_address,
+                'to' => $row->destination_address,
+                'trip_count' => (int) $row->trip_count,
+                'total_passengers' => (int) $row->total_passengers,
                 'demand_percentage' => (int) round($pct),
-                'demand_level'      => $this->demandLevel($pct),
+                'demand_level' => $this->demandLevel($pct),
             ];
         })->values()->all();
     }
@@ -229,17 +225,17 @@ final class AdminTripService
 
         return $drivers->values()->map(function (User $driver, int $index): array {
             return [
-                'rank'           => $index + 1,
-                'id'             => $driver->id,
-                'name'           => trim("{$driver->first_name} {$driver->last_name}"),
-                'profile_photo'  => $driver->profile?->profile_photo
-                    ? asset('storage/' . $driver->profile->profile_photo)
+                'rank' => $index + 1,
+                'id' => $driver->id,
+                'name' => trim("{$driver->first_name} {$driver->last_name}"),
+                'profile_photo' => $driver->profile?->profile_photo
+                    ? asset('storage/'.$driver->profile->profile_photo)
                     : null,
-                'avg_rating'     => $driver->avg_rating !== null
+                'avg_rating' => $driver->avg_rating !== null
                     ? round((float) $driver->avg_rating, 1)
                     : null,
-                'rating_count'   => (int) $driver->rating_count,
-                'total_rides'    => (int) $driver->completed_rides, // ← now accurate
+                'rating_count' => (int) $driver->rating_count,
+                'total_rides' => (int) $driver->completed_rides, // ← now accurate
             ];
         })->all();
     }
@@ -261,7 +257,7 @@ final class AdminTripService
         $rides = Ride::with([
             'driver:id,first_name,last_name',
             'driver.profile:user_id,profile_photo',
-            'bookings' => fn($q) => $q
+            'bookings' => fn ($q) => $q
                 ->where('status', 'confirmed')
                 ->with('user:id,first_name,last_name'),
         ])
@@ -272,48 +268,48 @@ final class AdminTripService
 
         return $rides->map(function (Ride $ride) use ($now): array {
             $minutesElapsed = (int) $ride->departure_time->diffInMinutes($now);
-            $durationMins   = $ride->duration ? (int) round($ride->duration / 60) : null;
-            $etaMins        = $durationMins !== null
+            $durationMins = $ride->duration ? (int) round($ride->duration / 60) : null;
+            $etaMins = $durationMins !== null
                 ? max(0, $durationMins - $minutesElapsed)
                 : null;
 
             return [
-                'id'       => $ride->id,
-                'trip_ref' => '#TR-' . $ride->id,
+                'id' => $ride->id,
+                'trip_ref' => '#TR-'.$ride->id,
 
                 'driver' => [
-                    'id'                   => $ride->driver?->id,
-                    'name'                 => trim(($ride->driver?->first_name ?? '') . ' ' . ($ride->driver?->last_name ?? '')),
-                    'profile_photo'        => $ride->driver?->profile?->profile_photo
-                        ? asset('storage/' . $ride->driver->profile->profile_photo)
+                    'id' => $ride->driver?->id,
+                    'name' => trim(($ride->driver?->first_name ?? '').' '.($ride->driver?->last_name ?? '')),
+                    'profile_photo' => $ride->driver?->profile?->profile_photo
+                        ? asset('storage/'.$ride->driver->profile->profile_photo)
                         : null,
                     'communication_number' => $ride->communication_number,
                 ],
 
                 'route' => [
-                    'from'                => $ride->pickup_address,
-                    'to'                  => $ride->destination_address,
-                    'pickup_coords'       => $this->safeCoords($ride, 'pickup'),
-                    'destination_coords'  => $this->safeCoords($ride, 'destination'),
-                    'geometry'            => $ride->route_geometry,
+                    'from' => $ride->pickup_address,
+                    'to' => $ride->destination_address,
+                    'pickup_coords' => $this->safeCoords($ride, 'pickup'),
+                    'destination_coords' => $this->safeCoords($ride, 'destination'),
+                    'geometry' => $ride->route_geometry,
                 ],
 
                 'timing' => [
-                    'departure_time'  => $ride->departure_time->toIso8601String(),
+                    'departure_time' => $ride->departure_time->toIso8601String(),
                     'minutes_elapsed' => $minutesElapsed,
-                    'eta_minutes'     => $etaMins,
-                    'duration_total'  => $durationMins,
+                    'eta_minutes' => $etaMins,
+                    'duration_total' => $durationMins,
                 ],
 
-                'passengers'      => $ride->bookings->map(fn($b) => [
-                    'id'    => $b->user?->id,
-                    'name'  => trim(($b->user?->first_name ?? '') . ' ' . ($b->user?->last_name ?? '')),
+                'passengers' => $ride->bookings->map(fn ($b) => [
+                    'id' => $b->user?->id,
+                    'name' => trim(($b->user?->first_name ?? '').' '.($b->user?->last_name ?? '')),
                     'seats' => $b->seats,
                 ])->values()->all(),
 
                 'passenger_count' => $ride->bookings->sum('seats'),
-                'vehicle_type'    => $ride->vehicle_type,
-                'distance_km'     => $ride->distance
+                'vehicle_type' => $ride->vehicle_type,
+                'distance_km' => $ride->distance
                     ? round($ride->distance / 1000, 1)
                     : null,
             ];
@@ -331,11 +327,11 @@ final class AdminTripService
     private function resolveUiStatus(Ride $ride, Carbon $now): string
     {
         return match (true) {
-            $ride->status === 'finished'              => 'completed',
-            $ride->status === 'cancelled'             => 'cancelled',
+            $ride->status === 'finished' => 'completed',
+            $ride->status === 'cancelled' => 'cancelled',
             $ride->status === 'awaiting_confirmation' => 'awaiting',
-            $ride->departure_time->gt($now)           => 'scheduled',
-            default                                   => 'active',
+            $ride->departure_time->gt($now) => 'scheduled',
+            default => 'active',
         };
     }
 
@@ -345,10 +341,10 @@ final class AdminTripService
     private function timingLabel(Carbon $departure, Carbon $now): string
     {
         return match (true) {
-            $departure->isToday()     => 'Today',
-            $departure->isTomorrow()  => 'Tomorrow',
+            $departure->isToday() => 'Today',
+            $departure->isTomorrow() => 'Tomorrow',
             $departure->isYesterday() => 'Yesterday',
-            default                   => $departure->format('d M Y'),
+            default => $departure->format('d M Y'),
         };
     }
 
@@ -361,7 +357,7 @@ final class AdminTripService
             $pct >= 75 => 'Very High',
             $pct >= 50 => 'High',
             $pct >= 25 => 'Medium',
-            default    => 'Low',
+            default => 'Low',
         };
     }
 

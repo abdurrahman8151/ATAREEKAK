@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Enums;
 
-use App\Enums\BookingType;
 use App\Enums\BookingStatus;
+use App\Enums\BookingType;
 use PHPUnit\Framework\TestCase;
 
 class BookingTypeTest extends TestCase

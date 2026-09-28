@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Jobs;
 
 use App\Services\NotificationService;
@@ -26,7 +27,7 @@ class SendScheduledNotification implements ShouldQueue
             $notificationService->create($this->notificationData);
             Log::info('Scheduled notification sent successfully', $this->notificationData);
         } catch (\Exception $e) {
-            Log::error('Failed to send scheduled notification: ' . $e->getMessage(), $this->notificationData);
+            Log::error('Failed to send scheduled notification: '.$e->getMessage(), $this->notificationData);
             throw $e;
         }
     }

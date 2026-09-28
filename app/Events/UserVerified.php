@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -28,7 +27,7 @@ class UserVerified implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('user.' . $this->user->id),
+            new PrivateChannel('user.'.$this->user->id),
         ];
     }
 
@@ -46,12 +45,12 @@ class UserVerified implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'user_id'               => $this->user->id,
-            'verification_type'     => $this->verificationType,
-            'is_verified_driver'    => $this->user->is_verified_driver,
+            'user_id' => $this->user->id,
+            'verification_type' => $this->verificationType,
+            'is_verified_driver' => $this->user->is_verified_driver,
             'is_verified_passenger' => $this->user->is_verified_passenger,
-            'verified_at'           => now()->toIso8601String(),
-            'message'               => $this->getVerificationMessage(),
+            'verified_at' => now()->toIso8601String(),
+            'message' => $this->getVerificationMessage(),
         ];
     }
 
@@ -61,9 +60,9 @@ class UserVerified implements ShouldBroadcast
     private function getVerificationMessage(): string
     {
         return match ($this->verificationType) {
-            'driver'    => 'You have been verified as a driver. You can now create rides!',
+            'driver' => 'You have been verified as a driver. You can now create rides!',
             'passenger' => 'You have been verified as a passenger. You can now book rides!',
-            default     => 'You have been verified!',
+            default => 'You have been verified!',
         };
     }
 }

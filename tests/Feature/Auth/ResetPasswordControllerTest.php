@@ -19,10 +19,11 @@ class ResetPasswordControllerTest extends TestCase
         parent::setUp();
         putenv('EMAIL_OTP_MODE=testing');
         $this->user = User::factory()->create([
-            'email'    => 'reset@test.com',
+            'email' => 'reset@test.com',
             'password' => bcrypt('old_password'),
         ]);
     }
+
     // ─── Step 1: forgot ─────────────────────────────────────────────────
     public function test_forgot_password_sends_otp_for_existing_email(): void
     {
@@ -78,8 +79,8 @@ class ResetPasswordControllerTest extends TestCase
     public function test_user_can_reset_password_with_valid_reset_token(): void
     {
         $this->postJson('/api/auth/password/reset', [
-            'reset_token'           => $this->getValidResetToken(),
-            'password'              => 'new_password123',
+            'reset_token' => $this->getValidResetToken(),
+            'password' => 'new_password123',
             'password_confirmation' => 'new_password123',
         ])->assertStatus(200)->assertJsonPath('success', true);
     }
@@ -87,8 +88,8 @@ class ResetPasswordControllerTest extends TestCase
     public function test_password_is_actually_changed_after_reset(): void
     {
         $this->postJson('/api/auth/password/reset', [
-            'reset_token'           => $this->getValidResetToken(),
-            'password'              => 'brand_new_pass123',
+            'reset_token' => $this->getValidResetToken(),
+            'password' => 'brand_new_pass123',
             'password_confirmation' => 'brand_new_pass123',
         ]);
 
@@ -99,8 +100,8 @@ class ResetPasswordControllerTest extends TestCase
     public function test_old_password_no_longer_works_after_reset(): void
     {
         $this->postJson('/api/auth/password/reset', [
-            'reset_token'           => $this->getValidResetToken(),
-            'password'              => 'new_password123',
+            'reset_token' => $this->getValidResetToken(),
+            'password' => 'new_password123',
             'password_confirmation' => 'new_password123',
         ]);
 

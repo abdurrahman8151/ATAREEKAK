@@ -28,6 +28,7 @@ class StaffRefreshTokenHashingTest extends TestCase
     use RefreshDatabase;
 
     private StaffJwtService $service;
+
     private Employee $employee;
 
     protected function setUp(): void
@@ -37,13 +38,13 @@ class StaffRefreshTokenHashingTest extends TestCase
         $this->service = app(StaffJwtService::class);
 
         $this->employee = Employee::create([
-            'username'      => 'hashing_admin',
-            'email'         => 'hashing_admin@staff.test',
-            'password'      => bcrypt('hashed-pass-123'),
-            'first_name'    => 'Hash',
-            'last_name'     => 'Admin',
-            'role'          => StaffRole::SYSTEM_ADMIN->value,
-            'is_active'     => true,
+            'username' => 'hashing_admin',
+            'email' => 'hashing_admin@staff.test',
+            'password' => bcrypt('hashed-pass-123'),
+            'first_name' => 'Hash',
+            'last_name' => 'Admin',
+            'role' => StaffRole::SYSTEM_ADMIN->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
@@ -52,8 +53,8 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_the_stored_token_is_a_sha256_digest_not_the_raw_value(): void
     {
-        $pair  = $this->service->generateTokenPair($this->employee);
-        $raw   = $pair['refresh_token'];
+        $pair = $this->service->generateTokenPair($this->employee);
+        $raw = $pair['refresh_token'];
 
         $stored = StaffRefreshToken::where('employee_id', $this->employee->id)
             ->latest('id')
@@ -85,7 +86,7 @@ class StaffRefreshTokenHashingTest extends TestCase
         // just the service unit, so the production write path is exercised.
         $raw = $this->postJson('/api/staff/login', [
             'identifier' => 'hashing_admin',
-            'password'   => 'hashed-pass-123',
+            'password' => 'hashed-pass-123',
         ])->assertStatus(200)->json('tokens.refresh_token');
 
         $this->assertNotEmpty($raw);
@@ -181,11 +182,11 @@ class StaffRefreshTokenHashingTest extends TestCase
         // verbatim, as StaffJwtService used to write.
         $legacy = DB::table('staff_refresh_tokens')->insertGetId([
             'employee_id' => $this->employee->id,
-            'token'       => str_repeat('a', 64), // raw, not a digest
-            'expires_at'  => now()->addDays(30),
-            'revoked'     => false,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'token' => str_repeat('a', 64), // raw, not a digest
+            'expires_at' => now()->addDays(30),
+            'revoked' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         // Run just this migration's up() against the live scratch DB.

@@ -2,8 +2,8 @@
 
 namespace App\Services\PushNotification;
 
-use App\Models\User;
 use App\Models\PushNotificationToken;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -39,8 +39,9 @@ final class PushTokenManager
                     'user_id' => $userId,
                     'device_type' => $deviceType,
                     'is_active' => true,
-                    'updated_at' => now()
+                    'updated_at' => now(),
                 ]);
+
                 return $existingToken;
             }
 
@@ -52,7 +53,8 @@ final class PushTokenManager
                 'is_active' => true,
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to register push token: ' . $e->getMessage());
+            Log::error('Failed to register push token: '.$e->getMessage());
+
             return null;
         }
     }

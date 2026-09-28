@@ -107,7 +107,7 @@ class EmployeeRepositoryTest extends TestCase
         $this->repo->update($employee->id, ['first_name' => 'New']);
 
         $this->assertDatabaseHas('employees', [
-            'id'       => $employee->id,
+            'id' => $employee->id,
             'username' => 'upd_emp2', // unchanged
         ]);
     }
@@ -161,7 +161,7 @@ class EmployeeRepositoryTest extends TestCase
 
         $manageable = $this->repo->listManageableBy($manager);
 
-        $roles = $manageable->pluck('role')->map(fn($r) => $r->value)->toArray();
+        $roles = $manageable->pluck('role')->map(fn ($r) => $r->value)->toArray();
 
         $this->assertContains('admin', $roles);
         $this->assertContains('support_agent', $roles);
@@ -176,7 +176,7 @@ class EmployeeRepositoryTest extends TestCase
 
         $manageable = $this->repo->listManageableBy($admin);
 
-        $roles = $manageable->pluck('role')->map(fn($r) => $r->value)->toArray();
+        $roles = $manageable->pluck('role')->map(fn ($r) => $r->value)->toArray();
 
         $this->assertContains('support_agent', $roles);
         $this->assertNotContains('admin', $roles);
@@ -193,16 +193,16 @@ class EmployeeRepositoryTest extends TestCase
 
     // ─── Helper ────────────────────────────────────────────────────────────
 
-    private function payload(string $username, StaffRole $role = StaffRole::ADMIN, string $email = null): array
+    private function payload(string $username, StaffRole $role = StaffRole::ADMIN, ?string $email = null): array
     {
         return [
-            'username'      => $username,
-            'email'         => $email ?? "{$username}@test.com",
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Test',
-            'last_name'     => 'Employee',
-            'role'          => $role->value,
-            'is_active'     => true,
+            'username' => $username,
+            'email' => $email ?? "{$username}@test.com",
+            'password' => bcrypt('password123'),
+            'first_name' => 'Test',
+            'last_name' => 'Employee',
+            'role' => $role->value,
+            'is_active' => true,
             'token_version' => 0,
         ];
     }

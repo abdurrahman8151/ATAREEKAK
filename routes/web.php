@@ -1,11 +1,11 @@
 <?php
 
+use App\Http\Controllers\API\Auth\GoogleController;
 use App\Http\Controllers\API\NotificationController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\API\Auth\GoogleController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 
 // Platform healthcheck (render.yaml:5) and the deploy workflow depend on this
 // route. It is public by design, so it must disclose nothing.
@@ -23,11 +23,12 @@ Route::get('/up', function () {
     try {
         // Runs a lightweight query to register activity on Aiven MySQL
         DB::select('SELECT 1');
+
         return response('OK', 200);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         Log::error('Healthcheck /up failed: database unavailable', [
             'exception' => get_class($e),
-            'message'   => $e->getMessage(),
+            'message' => $e->getMessage(),
         ]);
 
         return response('Service unavailable', 500);
@@ -53,14 +54,14 @@ Route::get('/reset-password', function (Request $request) {
     $token = $request->query('token');
     $email = $request->query('email');
 
-    if (!$token || !$email) {
+    if (! $token || ! $email) {
         return response()->view('errors.invalid-reset-link', [
-            'message' => 'Invalid password reset link'
+            'message' => 'Invalid password reset link',
         ], 400);
     }
 
     return view('auth.reset-password', [
         'token' => $token,
-        'email' => urldecode($email)
+        'email' => urldecode($email),
     ]);
 })->name('password.reset');

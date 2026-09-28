@@ -29,9 +29,9 @@ class BookingResource extends JsonResource
 
             'passenger' => [
                 'id' => $this->user->id,
-                'name' => trim($this->user->first_name . ' ' . $this->user->last_name),
+                'name' => trim($this->user->first_name.' '.$this->user->last_name),
                 'avatar' => $this->user->profile?->profile_photo
-                    ? asset('storage/' . $this->user->profile->profile_photo)
+                    ? asset('storage/'.$this->user->profile->profile_photo)
                     : $this->user->avatar,
                 'rating' => $this->user->passenger_rating ?? 0,
             ],
@@ -47,9 +47,9 @@ class BookingResource extends JsonResource
 
                 'driver' => [
                     'id' => $this->ride->driver->id,
-                    'name' => trim($this->ride->driver->first_name . ' ' . $this->ride->driver->last_name),
+                    'name' => trim($this->ride->driver->first_name.' '.$this->ride->driver->last_name),
                     'avatar' => $this->ride->driver->profile?->profile_photo
-                        ? asset('storage/' . $this->ride->driver->profile->profile_photo)
+                        ? asset('storage/'.$this->ride->driver->profile->profile_photo)
                         : $this->ride->driver->avatar,
                     'communication_number' => $this->ride->communication_number,
                 ],

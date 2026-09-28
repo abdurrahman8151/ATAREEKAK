@@ -25,7 +25,7 @@ class SystemWalletSeeder extends Seeder
         Wallet::firstOrCreate(
             ['phone_number' => config('admin.system_admin.phone')],
             [
-                'name'    => 'Primary Escrow',
+                'name' => 'Primary Escrow',
                 'user_id' => null,   // system wallet — no owner
                 'balance' => 0,
             ]
@@ -35,7 +35,7 @@ class SystemWalletSeeder extends Seeder
         Wallet::firstOrCreate(
             ['phone_number' => config('admin.sycash.phone')],
             [
-                'name'    => 'SyCash',
+                'name' => 'SyCash',
                 'user_id' => null,   // system wallet — no owner
                 'balance' => 0,
             ]

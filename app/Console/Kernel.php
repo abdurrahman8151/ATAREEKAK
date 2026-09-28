@@ -56,7 +56,7 @@ class Kernel extends ConsoleKernel
         // this table grows fast and slows down OTP verification lookups.
         // Every 30 minutes keeps the table small without hammering the DB.
         $schedule->command('otp:cleanup')   // ← matches CleanupExpiredOtps $signature
-        ->everyThirtyMinutes()
+            ->everyThirtyMinutes()
             ->onOneServer()
             ->withoutOverlapping()
             ->runInBackground()
@@ -89,7 +89,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__ . '/Commands');
+        $this->load(__DIR__.'/Commands');
 
         require base_path('routes/console.php');
     }

@@ -2,27 +2,71 @@
 
 namespace App\Providers;
 
+use App\Domain\Payment\Strategies\CashPaymentStrategy;
+use App\Domain\Payment\Strategies\EPayPaymentStrategy;
+use App\Domain\Payment\Strategies\PaymentStrategyFactory;
+use App\Domain\Score\ScorePolicyFactory;
 use App\Interfaces\ChatRepositoryInterface;
+use App\Interfaces\ComplaintRepositoryInterface;
+use App\Interfaces\EmailOtpServiceInterface;
+use App\Interfaces\EmployeeRepositoryInterface;
 use App\Interfaces\OtpRepositoryInterface;
 use App\Interfaces\PasswordResetRepositoryInterface;
+use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
-use App\Interfaces\UserRepositoryInterface;
 use App\Interfaces\RideRepositoryInterface;
-use App\Models\User;
-use App\Observers\UserObserver;
+use App\Interfaces\UserRepositoryInterface;
+use App\Interfaces\VerificationRepositoryInterface;
 use App\Repositories\ChatRepository;
+use App\Repositories\ComplaintRepository;
+use App\Repositories\EmployeeRepository;
+use App\Repositories\OtpRepository;
 use App\Repositories\PasswordResetRepository;
+use App\Repositories\PhotoRepository;
 use App\Repositories\ProfileRepository;
-use App\Repositories\UserRepository;
 use App\Repositories\RideRepository;
+use App\Repositories\UserRepository;
+use App\Repositories\VerificationRepository;
+use App\Services\Admin\AdminAuthService;
+use App\Services\Admin\AdminDriverService;
+use App\Services\Admin\AdminExportService;
+use App\Services\Admin\AdminReportService;
+use App\Services\Admin\AdminTripService;
+use App\Services\Admin\AdminUserService;
+use App\Services\Admin\AdminWalletService;
+use App\Services\Chat\ChatMessageHandler;
+use App\Services\Complaint\ComplaintService;
+use App\Services\EmailOtpService;
+use App\Services\File\FileUploadService;
+use App\Services\Geocoding\ArabicPlaceNameService;
+use App\Services\Geocoding\GeocodingService;
+use App\Services\Geocoding\RouteCalculationService;
+use App\Services\NotificationService;
+use App\Services\Payment\CashRideFeeService;
+use App\Services\Payment\WalletTransactionService;
+use App\Services\Profile\ProfileInteractionService;
+use App\Services\Profile\ProfileUpdateService;
+use App\Services\PushNotification\FcmSenderService;
+use App\Services\PushNotification\PushNotificationService;
+use App\Services\PushNotification\PushTokenManager;
+use App\Services\Ride\BookingService;
+use App\Services\Ride\RideSearchService;
+use App\Services\Ride\RideService;
+use App\Services\Ride\RideValidationService;
+use App\Services\Score\ScoreService;
+use App\Services\Staff\EmployeeAuthService;
+use App\Services\Staff\EmployeeManagementService;
+use App\Services\Staff\ReviewModerationService;
+use App\Services\Staff\StaffComplaintService;
+use App\Services\Staff\StaffJwtService;
 use App\Services\TextMeBotOtpService;
+use App\Services\Verification\DocumentVerificationService;
+use App\Services\Wallet\WalletRequestService;
 use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Cache\Events\CacheMissed;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
-use App\Interfaces\EmailOtpServiceInterface;
-use App\Services\EmailOtpService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -34,91 +78,91 @@ class AppServiceProvider extends ServiceProvider
         // ========================================
         // GEOCODING SERVICES (CRITICAL - WAS MISSING!)
         // ========================================
-        $this->app->singleton(\App\Services\Geocoding\ArabicPlaceNameService::class);
+        $this->app->singleton(ArabicPlaceNameService::class);
 
-        $this->app->singleton(\App\Services\Geocoding\GeocodingService::class, function ($app) {
-            return new \App\Services\Geocoding\GeocodingService(
-                $app->make(\App\Services\Geocoding\ArabicPlaceNameService::class)
+        $this->app->singleton(GeocodingService::class, function ($app) {
+            return new GeocodingService(
+                $app->make(ArabicPlaceNameService::class)
             );
         });
-        $this->app->singleton(\App\Services\Score\ScoreService::class, function ($app) {
-            return new \App\Services\Score\ScoreService(
-                $app->make(\App\Domain\Score\ScorePolicyFactory::class)
+        $this->app->singleton(ScoreService::class, function ($app) {
+            return new ScoreService(
+                $app->make(ScorePolicyFactory::class)
             );
         });
-        $this->app->singleton(\App\Domain\Score\ScorePolicyFactory::class);
-        $this->app->singleton(\App\Services\Geocoding\RouteCalculationService::class);
+        $this->app->singleton(ScorePolicyFactory::class);
+        $this->app->singleton(RouteCalculationService::class);
 
         // ========================================
         // PUSH NOTIFICATION SERVICES
         // ========================================
-        $this->app->singleton(\App\Services\PushNotification\PushTokenManager::class);
-        $this->app->singleton(\App\Services\PushNotification\FcmSenderService::class);
-        $this->app->singleton(\App\Services\PushNotification\PushNotificationService::class);
+        $this->app->singleton(PushTokenManager::class);
+        $this->app->singleton(FcmSenderService::class);
+        $this->app->singleton(PushNotificationService::class);
 
         // ========================================
         // PROFILE SERVICES
         // ========================================
-        $this->app->singleton(\App\Services\Profile\ProfileUpdateService::class);
-        $this->app->singleton(\App\Services\Profile\ProfileInteractionService::class);
+        $this->app->singleton(ProfileUpdateService::class);
+        $this->app->singleton(ProfileInteractionService::class);
 
         // ========================================
         // CHAT SERVICES
         // ========================================
-        $this->app->singleton(\App\Services\Chat\ChatMessageHandler::class);
+        $this->app->singleton(ChatMessageHandler::class);
 
         // ========================================
         // FILE UPLOAD SERVICE
         // ========================================
-        $this->app->singleton(\App\Services\File\FileUploadService::class);
+        $this->app->singleton(FileUploadService::class);
 
         // ========================================
         // RIDE SERVICES
         // ========================================
-        $this->app->singleton(\App\Services\Ride\RideService::class);
-        $this->app->singleton(\App\Services\Ride\BookingService::class);
-        $this->app->singleton(\App\Services\Ride\RideValidationService::class);
-        $this->app->singleton(\App\Services\Ride\RideSearchService::class);
+        $this->app->singleton(RideService::class);
+        $this->app->singleton(BookingService::class);
+        $this->app->singleton(RideValidationService::class);
+        $this->app->singleton(RideSearchService::class);
 
         // ========================================
         // PAYMENT SERVICES
         // ========================================
-        $this->app->singleton(\App\Services\Payment\CashRideFeeService::class);
-        $this->app->singleton(\App\Services\Payment\WalletTransactionService::class);
-        $this->app->singleton(\App\Domain\Payment\Strategies\EPayPaymentStrategy::class);
-        $this->app->singleton(\App\Domain\Payment\Strategies\CashPaymentStrategy::class);
-        $this->app->singleton(\App\Domain\Payment\Strategies\PaymentStrategyFactory::class);
+        $this->app->singleton(CashRideFeeService::class);
+        $this->app->singleton(WalletTransactionService::class);
+        $this->app->singleton(EPayPaymentStrategy::class);
+        $this->app->singleton(CashPaymentStrategy::class);
+        $this->app->singleton(PaymentStrategyFactory::class);
         // ========================================
         // ADMIN SERVICES
         // ========================================
-        $this->app->singleton(\App\Services\Admin\AdminAuthService::class);
-        $this->app->singleton(\App\Services\Admin\AdminWalletService::class);
-        $this->app->singleton(\App\Services\Admin\AdminReportService::class);
-        $this->app->singleton(\App\Services\Admin\AdminExportService::class);
-        $this->app->singleton(\App\Services\Admin\AdminTripService::class);
-        $this->app->singleton(\App\Services\Admin\AdminDriverService::class);
-        $this->app->singleton(\App\Services\Admin\AdminUserService::class);
+        $this->app->singleton(AdminAuthService::class);
+        $this->app->singleton(AdminWalletService::class);
+        $this->app->singleton(AdminReportService::class);
+        $this->app->singleton(AdminExportService::class);
+        $this->app->singleton(AdminTripService::class);
+        $this->app->singleton(AdminDriverService::class);
+        $this->app->singleton(AdminUserService::class);
         // ── Staff / Employee Services ────────────────────────────────────────────
-        $this->app->singleton(\App\Services\Staff\StaffJwtService::class);
-        $this->app->singleton(\App\Services\Staff\EmployeeAuthService::class);
-        $this->app->singleton(\App\Services\Staff\EmployeeManagementService::class);
-        $this->app->singleton(\App\Services\Staff\ReviewModerationService::class);
-        $this->app->singleton(\App\Services\Staff\StaffComplaintService::class);
+        $this->app->singleton(StaffJwtService::class);
+        $this->app->singleton(EmployeeAuthService::class);
+        $this->app->singleton(EmployeeManagementService::class);
+        $this->app->singleton(ReviewModerationService::class);
+        $this->app->singleton(StaffComplaintService::class);
 
         // ========================================
         // WALLET SERVICES
         // ========================================
-        $this->app->singleton(\App\Services\Wallet\WalletRequestService::class);
+        $this->app->singleton(WalletRequestService::class);
 
         // ========================================
         // NOTIFICATION SERVICE
         // ========================================
-        $this->app->singleton(\App\Services\NotificationService::class);
+        $this->app->singleton(NotificationService::class);
 
         // ========================================
         // VERIFICATION SERVICE
         // ========================================
-        $this->app->singleton(\App\Services\Verification\DocumentVerificationService::class);
+        $this->app->singleton(DocumentVerificationService::class);
 
         // ========================================
         // REPOSITORY BINDINGS
@@ -128,16 +172,15 @@ class AppServiceProvider extends ServiceProvider
             UserRepository::class
         );
         $this->app->bind(
-            \App\Interfaces\EmployeeRepositoryInterface::class,
-            \App\Repositories\EmployeeRepository::class,
+            EmployeeRepositoryInterface::class,
+            EmployeeRepository::class,
         );
-        $this->app->singleton(\App\Services\Complaint\ComplaintService::class);
+        $this->app->singleton(ComplaintService::class);
 
         $this->app->bind(
-            \App\Interfaces\ComplaintRepositoryInterface::class,
-            \App\Repositories\ComplaintRepository::class,
+            ComplaintRepositoryInterface::class,
+            ComplaintRepository::class,
         );
-
 
         $this->app->bind(
             ProfileRepositoryInterface::class,
@@ -148,13 +191,13 @@ class AppServiceProvider extends ServiceProvider
             EmailOtpService::class,
         );
         $this->app->bind(
-            \App\Interfaces\OtpRepositoryInterface::class,
-            \App\Repositories\OtpRepository::class
+            OtpRepositoryInterface::class,
+            OtpRepository::class
         );
 
         $this->app->bind(
-            \App\Interfaces\PhotoRepositoryInterface::class,
-            \App\Repositories\PhotoRepository::class
+            PhotoRepositoryInterface::class,
+            PhotoRepository::class
         );
 
         $this->app->bind(
@@ -163,8 +206,8 @@ class AppServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(
-            \App\Interfaces\VerificationRepositoryInterface::class,
-            \App\Repositories\VerificationRepository::class
+            VerificationRepositoryInterface::class,
+            VerificationRepository::class
         );
 
         $this->app->bind(
@@ -195,7 +238,8 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(CacheHit::class, function () {
             try {
                 request()->attributes->set('cache_status', 'HIT');
-            } catch (\Throwable) {} // intentionally silent: fires per cache event on every request
+            } catch (\Throwable) {
+            } // intentionally silent: fires per cache event on every request
         });
 
         Event::listen(CacheMissed::class, function () {
@@ -204,7 +248,8 @@ class AppServiceProvider extends ServiceProvider
                 if ($req->attributes->get('cache_status') !== 'HIT') {
                     $req->attributes->set('cache_status', 'MISS');
                 }
-            } catch (\Throwable) {} // intentionally silent: fires per cache event on every request
+            } catch (\Throwable) {
+            } // intentionally silent: fires per cache event on every request
         });
         $scheduledLogPath = storage_path('logs/scheduled');
 
@@ -227,9 +272,9 @@ class AppServiceProvider extends ServiceProvider
                 || empty(config('broadcasting.connections.pusher.secret')))) {
             throw new \RuntimeException(
                 'BROADCAST_DRIVER=pusher requires PUSHER_APP_KEY and PUSHER_APP_SECRET to be set in the '
-                . 'environment. They are no longer defaulted in config/broadcasting.php because the '
-                . 'previous defaults were committed to version control (see docs/audit). Set the env vars '
-                . 'with rotated credentials, or set BROADCAST_DRIVER=null.'
+                .'environment. They are no longer defaulted in config/broadcasting.php because the '
+                .'previous defaults were committed to version control (see docs/audit). Set the env vars '
+                .'with rotated credentials, or set BROADCAST_DRIVER=null.'
             );
         }
 
@@ -246,10 +291,10 @@ class AppServiceProvider extends ServiceProvider
             && config('queue.default') === 'sync') {
             throw new \RuntimeException(
                 'QUEUE_CONNECTION must be set to an async driver (redis/database) in '
-                . 'production-like environments. It currently resolves to "sync", which '
-                . 'runs push notifications inline and blocks requests on FCM failures. '
-                . 'Set QUEUE_CONNECTION=redis (see .env.example) or deploy with an '
-                . 'explicit queue worker.'
+                .'production-like environments. It currently resolves to "sync", which '
+                .'runs push notifications inline and blocks requests on FCM failures. '
+                .'Set QUEUE_CONNECTION=redis (see .env.example) or deploy with an '
+                .'explicit queue worker.'
             );
         }
     }

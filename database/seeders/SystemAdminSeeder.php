@@ -26,10 +26,11 @@ class SystemAdminSeeder extends Seeder
         $username = env('SYSTEM_ADMIN_USERNAME');
         $password = env('SYSTEM_ADMIN_PASSWORD');
 
-        if (!$username || !$password) {
+        if (! $username || ! $password) {
             $this->command->error(
                 'SYSTEM_ADMIN_USERNAME and SYSTEM_ADMIN_PASSWORD must be set in .env'
             );
+
             return;
         }
 
@@ -37,18 +38,19 @@ class SystemAdminSeeder extends Seeder
 
         if ($existing) {
             $this->command->info("System admin '{$username}' already exists — skipping.");
+
             return;
         }
 
         Employee::create([
-            'username'      => $username,
-            'email'         => env('SYSTEM_ADMIN_EMAIL'),
-            'password'      => Hash::make($password),
-            'first_name'    => env('SYSTEM_ADMIN_FIRST_NAME', 'System'),
-            'last_name'     => env('SYSTEM_ADMIN_LAST_NAME', 'Admin'),
-            'role'          => StaffRole::SYSTEM_ADMIN->value,
-            'is_active'     => true,
-            'created_by'    => null,
+            'username' => $username,
+            'email' => env('SYSTEM_ADMIN_EMAIL'),
+            'password' => Hash::make($password),
+            'first_name' => env('SYSTEM_ADMIN_FIRST_NAME', 'System'),
+            'last_name' => env('SYSTEM_ADMIN_LAST_NAME', 'Admin'),
+            'role' => StaffRole::SYSTEM_ADMIN->value,
+            'is_active' => true,
+            'created_by' => null,
             'token_version' => 0,
         ]);
 

@@ -35,24 +35,24 @@ class AdminDashboardControllerTest extends TestCase
         parent::setUp();
 
         Config::set('admin.system_admin', [
-            'email'         => 'primary@admin.test',
-            'password'      => 'primary_pass',
-            'username'      => 'primary_admin',
-            'first_name'    => 'Primary',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000001',
+            'email' => 'primary@admin.test',
+            'password' => 'primary_pass',
+            'username' => 'primary_admin',
+            'first_name' => 'Primary',
+            'last_name' => 'Admin',
+            'phone' => '0910000001',
             'wallet_prefix' => 'PRIM',
-            'permissions'   => ['*'],
+            'permissions' => ['*'],
         ]);
 
         Config::set('admin.sycash', [
-            'email'         => 'sycash@admin.test',
-            'password'      => 'sycash_pass',
-            'first_name'    => 'SyCash',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000002',
+            'email' => 'sycash@admin.test',
+            'password' => 'sycash_pass',
+            'first_name' => 'SyCash',
+            'last_name' => 'Admin',
+            'phone' => '0910000002',
             'wallet_prefix' => 'SYCSH',
-            'permissions'   => ['view_wallet'],
+            'permissions' => ['view_wallet'],
         ]);
 
         $this->seedAdminWallets();
@@ -151,7 +151,7 @@ class AdminDashboardControllerTest extends TestCase
     // ─── CHARGE WALLET — known 500, see class docblock ─────────────────
     public function test_charging_a_wallet_currently_500s(): void
     {
-        $user   = User::factory()->create(['password' => bcrypt('password123')]);
+        $user = User::factory()->create(['password' => bcrypt('password123')]);
         $wallet = Wallet::create(['user_id' => $user->id, 'phone_number' => '0911111111', 'balance' => 0]);
         $user->update(['wallet_id' => $wallet->id]);
 
@@ -284,7 +284,7 @@ class AdminDashboardControllerTest extends TestCase
     {
         $user = User::factory()->create([
             'verification_status' => 'pending',
-            'password'            => bcrypt('password123'),
+            'password' => bcrypt('password123'),
         ]);
 
         $this->withToken($this->primaryToken())
@@ -305,8 +305,8 @@ class AdminDashboardControllerTest extends TestCase
     public function test_primary_admin_can_reject_verification(): void
     {
         $user = User::factory()->create([
-            'verification_status'   => 'pending',
-            'is_verified_driver'    => true,
+            'verification_status' => 'pending',
+            'is_verified_driver' => true,
             'is_verified_passenger' => true,
         ]);
 
@@ -316,9 +316,9 @@ class AdminDashboardControllerTest extends TestCase
             ->assertJsonPath('status', 'success');
 
         $this->assertDatabaseHas('users', [
-            'id'                    => $user->id,
-            'verification_status'   => 'rejected',
-            'is_verified_driver'    => false,
+            'id' => $user->id,
+            'verification_status' => 'rejected',
+            'is_verified_driver' => false,
             'is_verified_passenger' => false,
         ]);
     }
@@ -348,25 +348,25 @@ class AdminDashboardControllerTest extends TestCase
     private function seedAdminWallets(): void
     {
         foreach (['system_admin', 'sycash'] as $type) {
-            $config    = config("admin.{$type}");
+            $config = config("admin.{$type}");
             $adminUser = User::firstOrCreate(
                 ['email' => $config['email']],
                 [
-                    'first_name'        => $config['first_name'],
-                    'last_name'         => $config['last_name'],
-                    'password'          => bcrypt($config['password']),
-                    'gender'            => 'M',
-                    'address'           => 'دمشق',
-                    'status'            => 1,
+                    'first_name' => $config['first_name'],
+                    'last_name' => $config['last_name'],
+                    'password' => bcrypt($config['password']),
+                    'gender' => 'M',
+                    'address' => 'دمشق',
+                    'status' => 1,
                     'email_verified_at' => now(),
                 ]
             );
 
-            if (!Wallet::where('phone_number', $config['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $config['phone'])->exists()) {
                 $wallet = Wallet::create([
-                    'user_id'      => $adminUser->id,
+                    'user_id' => $adminUser->id,
                     'phone_number' => $config['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                     // wallet_number omitted — auto-generated 16-digit value
                 ]);
                 $adminUser->update(['wallet_id' => $wallet->id]);

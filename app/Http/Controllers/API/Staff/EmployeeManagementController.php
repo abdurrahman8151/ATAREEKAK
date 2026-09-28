@@ -46,12 +46,13 @@ final class EmployeeManagementController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $employees->map(
-                    fn($e) => $this->formatEmployee($e)   // FIX 3: was $this->managementService->formatEmployee()
+                'data' => $employees->map(
+                    fn ($e) => $this->formatEmployee($e)   // FIX 3: was $this->managementService->formatEmployee()
                 )->values(),
             ]);
         } catch (\Throwable $e) {                         // FIX 4: was \Exception
             Log::error('Employee list failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+
             return $this->serverError();
         }
     }
@@ -60,22 +61,22 @@ final class EmployeeManagementController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $requester    = $request->attributes->get('staffEmployee');
+        $requester = $request->attributes->get('staffEmployee');
         $allowedRoles = array_map(
-            fn(StaffRole $r) => $r->value,
+            fn (StaffRole $r) => $r->value,
             $requester->role->creatableRoles()
         );
 
         $validator = Validator::make($request->all(), [
-            'username'   => 'required|string|min:3|max:50|alpha_dash',
-            'email'      => 'nullable|email|max:255',
-            'password'   => 'required|string|min:8',
+            'username' => 'required|string|min:3|max:50|alpha_dash',
+            'email' => 'nullable|email|max:255',
+            'password' => 'required|string|min:8',
             'first_name' => 'required|string|max:100',
-            'last_name'  => 'required|string|max:100',
-            'role'       => 'required|in:' . implode(',', $allowedRoles),
+            'last_name' => 'required|string|max:100',
+            'role' => 'required|in:'.implode(',', $allowedRoles),
         ], [
             'username.alpha_dash' => 'Username may only contain letters, numbers, dashes, and underscores.',
-            'role.in'             => 'You are not permitted to assign this role.',
+            'role.in' => 'You are not permitted to assign this role.',
         ]);
 
         if ($validator->fails()) {
@@ -92,8 +93,8 @@ final class EmployeeManagementController extends Controller
             );
 
             return response()->json([
-                'status'   => 'success',
-                'message'  => 'Employee created successfully.',
+                'status' => 'success',
+                'message' => 'Employee created successfully.',
                 'employee' => $this->formatEmployee($employee),   // FIX 3
             ], 201);
         } catch (\DomainException $e) {
@@ -102,6 +103,7 @@ final class EmployeeManagementController extends Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 409);
         } catch (\Throwable $e) {                                 // FIX 4
             Log::error('Employee creation failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+
             return $this->serverError();
         }
     }
@@ -118,7 +120,7 @@ final class EmployeeManagementController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $this->formatEmployee($employee),    // FIX 3
+                'data' => $this->formatEmployee($employee),    // FIX 3
             ]);
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'Employee not found.'], 404);
@@ -133,8 +135,8 @@ final class EmployeeManagementController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'first_name' => 'sometimes|string|max:100',
-            'last_name'  => 'sometimes|string|max:100',
-            'email'      => 'sometimes|nullable|email|max:255',
+            'last_name' => 'sometimes|string|max:100',
+            'email' => 'sometimes|nullable|email|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -152,8 +154,8 @@ final class EmployeeManagementController extends Controller
             );
 
             return response()->json([
-                'status'   => 'success',
-                'message'  => 'Employee updated successfully.',
+                'status' => 'success',
+                'message' => 'Employee updated successfully.',
                 'employee' => $this->formatEmployee($employee),  // FIX 3
             ]);
         } catch (ModelNotFoundException) {
@@ -164,6 +166,7 @@ final class EmployeeManagementController extends Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 409);
         } catch (\Throwable $e) {                                // FIX 4
             Log::error('Employee update failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+
             return $this->serverError();
         }
     }
@@ -181,8 +184,8 @@ final class EmployeeManagementController extends Controller
             $status = $employee->is_active ? 'activated' : 'deactivated';
 
             return response()->json([
-                'status'   => 'success',
-                'message'  => "Employee {$status} successfully.",
+                'status' => 'success',
+                'message' => "Employee {$status} successfully.",
                 'employee' => $this->formatEmployee($employee),  // FIX 3
             ]);
         } catch (ModelNotFoundException) {
@@ -191,6 +194,7 @@ final class EmployeeManagementController extends Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 403);
         } catch (\Throwable $e) {                                // FIX 4
             Log::error('Toggle active failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+
             return $this->serverError();
         }
     }
@@ -218,7 +222,7 @@ final class EmployeeManagementController extends Controller
             );
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'Password reset successfully. All sessions for this employee have been invalidated.',
             ]);
         } catch (ModelNotFoundException) {
@@ -227,6 +231,7 @@ final class EmployeeManagementController extends Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 403);
         } catch (\Throwable $e) {                               // FIX 4
             Log::error('Password reset failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+
             return $this->serverError();
         }
     }
@@ -241,15 +246,15 @@ final class EmployeeManagementController extends Controller
     private function formatEmployee(Employee $e): array
     {
         return [
-            'id'         => $e->id,
-            'username'   => $e->username,
-            'email'      => $e->email,
+            'id' => $e->id,
+            'username' => $e->username,
+            'email' => $e->email,
             'first_name' => $e->first_name,
-            'last_name'  => $e->last_name,
-            'full_name'  => $e->fullName(),
-            'role'       => $e->role->value,
+            'last_name' => $e->last_name,
+            'full_name' => $e->fullName(),
+            'role' => $e->role->value,
             'role_label' => $e->role->label(),
-            'is_active'  => $e->is_active,
+            'is_active' => $e->is_active,
             'created_by' => $e->created_by,
             'created_at' => $e->created_at->toIso8601String(),
         ];
@@ -258,7 +263,7 @@ final class EmployeeManagementController extends Controller
     private function serverError(): JsonResponse
     {
         return response()->json([
-            'status'  => 'error',
+            'status' => 'error',
             'message' => 'An unexpected error occurred. Please try again.',
         ], 500);
     }

@@ -3,12 +3,12 @@
 namespace App\Events;
 
 use App\Models\Ride;
-use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+
 class RideCreated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
@@ -26,7 +26,7 @@ class RideCreated implements ShouldBroadcast
             // T2-7: was a public Channel('rides'); private so the client must
             // authorize through /broadcasting/auth (jwt) before subscribing.
             new PrivateChannel('rides'),
-            new PrivateChannel('user.'.$this->ride->driver_id)
+            new PrivateChannel('user.'.$this->ride->driver_id),
         ];
     }
 
@@ -47,7 +47,7 @@ class RideCreated implements ShouldBroadcast
                 'available_seats' => $this->ride->available_seats,
                 'price_per_seat' => $this->ride->price_per_seat,
                 'vehicle_type' => $this->ride->vehicle_type,
-            ]
+            ],
         ];
     }
 }

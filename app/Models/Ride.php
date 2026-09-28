@@ -39,23 +39,23 @@ class Ride extends Model
     ];
 
     protected $casts = [
-        'departure_time'      => 'datetime',
-        'pickup_location'     => 'array',
-        'destination_location'=> 'array',
-        'route_geometry'      => 'array',
-        'status'              => 'string',
+        'departure_time' => 'datetime',
+        'pickup_location' => 'array',
+        'destination_location' => 'array',
+        'route_geometry' => 'array',
+        'status' => 'string',
         'driver_confirmed_at' => 'datetime',
-        'payment_method'      => 'string',
-        'booking_type'        => 'string',
-        'finished_at'         => 'datetime',
-        'cash_creation_fee'   => 'decimal:2',
-        'cash_fee_deferred'   => 'boolean',
-        'chosen_route_index'  => 'integer',
+        'payment_method' => 'string',
+        'booking_type' => 'string',
+        'finished_at' => 'datetime',
+        'cash_creation_fee' => 'decimal:2',
+        'cash_fee_deferred' => 'boolean',
+        'chosen_route_index' => 'integer',
     ];
 
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
     // Relationships
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
 
     public function driver(): BelongsTo
     {
@@ -67,13 +67,13 @@ class Ride extends Model
         return $this->hasMany(Booking::class);
     }
 
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
     // Custom Accessors for pickup_location / destination_location
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
 
     public function getPickupLocationAttribute(): ?array
     {
-        if (!isset($this->attributes['id'])) {
+        if (! isset($this->attributes['id'])) {
             return null;
         }
 
@@ -87,12 +87,13 @@ class Ride extends Model
         }
 
         sscanf($row->wkt, 'POINT(%f %f)', $lng, $lat);
+
         return ['lat' => $lat, 'lng' => $lng];
     }
 
     public function getDestinationLocationAttribute(): ?array
     {
-        if (!isset($this->attributes['id'])) {
+        if (! isset($this->attributes['id'])) {
             return null;
         }
 
@@ -106,12 +107,13 @@ class Ride extends Model
         }
 
         sscanf($row->wkt, 'POINT(%f %f)', $lng, $lat);
+
         return ['lat' => $lat, 'lng' => $lng];
     }
 
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
     // Custom Mutators (Setters) for pickup_location / destination_location
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
 
     public function setPickupLocationAttribute(array $coords)
     {
@@ -135,9 +137,9 @@ class Ride extends Model
         }
     }
 
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
     // Scope
-    //------------------------------------------------------------------------//
+    // ------------------------------------------------------------------------//
 
     public function scopeNearLocation(Builder $query, float $latitude, float $longitude, int $radiusKm = 10): void
     {

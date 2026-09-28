@@ -11,6 +11,8 @@ use App\Models\Ride;
 use App\Models\ScoreTransaction;
 use App\Models\User;
 use App\Models\UserScore;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -40,10 +42,10 @@ final class ScoreService
     {
         DB::transaction(function () use ($ride) {
             $this->applyAction(
-                user:      $ride->driver,
-                action:    ScoreAction::RIDE_COMPLETED,
+                user: $ride->driver,
+                action: ScoreAction::RIDE_COMPLETED,
                 reference: $ride,
-                context:   [],
+                context: [],
             );
             $this->incrementRides($ride->driver);
 
@@ -53,10 +55,10 @@ final class ScoreService
                 ->get()
                 ->each(function ($booking) use ($ride) {
                     $this->applyAction(
-                        user:      $booking->user,
-                        action:    ScoreAction::RIDE_COMPLETED,
+                        user: $booking->user,
+                        action: ScoreAction::RIDE_COMPLETED,
                         reference: $ride,
-                        context:   [],
+                        context: [],
                     );
                     $this->incrementRides($booking->user);
                 });
@@ -64,10 +66,10 @@ final class ScoreService
     }
 
     public function recordPassengerCancel(
-        User    $passenger,
+        User $passenger,
         Booking $booking,
-        float   $elapsedPct,
-        string  $paymentMethod = 'cash',
+        float $elapsedPct,
+        string $paymentMethod = 'cash',
     ): void {
         if ($paymentMethod !== 'cash') {
             return;
@@ -78,22 +80,22 @@ final class ScoreService
 
             $action = ScoreAction::passengerCancelAction($elapsedPct);
             $this->applyAction(
-                user:      $passenger,
-                action:    $action,
+                user: $passenger,
+                action: $action,
                 reference: $booking,
-                context:   ['elapsed_pct' => $elapsedPct],
+                context: ['elapsed_pct' => $elapsedPct],
             );
         });
     }
 
     public function recordPassengerNoShow(
-        User    $passenger,
+        User $passenger,
         Booking $booking,
-        string  $paymentMethod
+        string $paymentMethod
     ): void {
         $userScore = $this->getOrCreateScore($passenger);
-        $action    = ScoreAction::PASSENGER_NO_SHOW;
-        $result    = $this->policyFactory->make($action)
+        $action = ScoreAction::PASSENGER_NO_SHOW;
+        $result = $this->policyFactory->make($action)
             ->calculate($action, $userScore);
 
         $points = ($paymentMethod === PaymentMethod::E_PAY->value) ? 0 : $result->points;
@@ -103,20 +105,20 @@ final class ScoreService
         $userScore->incrementNoShows();
 
         ScoreTransaction::create([
-            'user_id'                  => $passenger->id,
-            'action'                   => $action->value,
-            'points'                   => $points,
-            'previous_score'           => $previousScore,
-            'new_score'                => $userScore->score,
-            'reference_type'           => Booking::class,
-            'reference_id'             => $booking->id,
-            'reason'                   => $paymentMethod === PaymentMethod::E_PAY->value
+            'user_id' => $passenger->id,
+            'action' => $action->value,
+            'points' => $points,
+            'previous_score' => $previousScore,
+            'new_score' => $userScore->score,
+            'reference_type' => Booking::class,
+            'reference_id' => $booking->id,
+            'reason' => $paymentMethod === PaymentMethod::E_PAY->value
                 ? 'Passenger no-show (e-pay) — score unchanged, wallet settled'
                 : $result->reason,
             'high_cancel_rate_applied' => false,
-            'metadata'                 => [
+            'metadata' => [
                 'payment_method' => $paymentMethod,
-                'booking_id'     => $booking->id,
+                'booking_id' => $booking->id,
             ],
         ]);
     }
@@ -125,17 +127,17 @@ final class ScoreService
     {
         DB::transaction(function () use ($driver, $booking) {
             $this->applyAction(
-                user:      $driver,
-                action:    ScoreAction::DRIVER_CANCEL_SEAT,
+                user: $driver,
+                action: ScoreAction::DRIVER_CANCEL_SEAT,
                 reference: $booking,
-                context:   [],
+                context: [],
             );
         });
     }
 
     public function recordDriverCancelRide(
-        User  $driver,
-        Ride  $ride,
+        User $driver,
+        Ride $ride,
         float $elapsedPct,
     ): void {
         DB::transaction(function () use ($driver, $ride, $elapsedPct) {
@@ -143,22 +145,22 @@ final class ScoreService
 
             $action = ScoreAction::driverCancelRideAction($elapsedPct);
             $this->applyAction(
-                user:      $driver,
-                action:    $action,
+                user: $driver,
+                action: $action,
                 reference: $ride,
-                context:   ['elapsed_pct' => $elapsedPct],
+                context: ['elapsed_pct' => $elapsedPct],
             );
         });
     }
 
     public function recordDriverNoShow(
-        User   $driver,
-        Ride   $ride,
+        User $driver,
+        Ride $ride,
         string $paymentMethod
     ): void {
         $userScore = $this->getOrCreateScore($driver);
-        $action    = ScoreAction::DRIVER_NO_SHOW;
-        $result    = $this->policyFactory->make($action)
+        $action = ScoreAction::DRIVER_NO_SHOW;
+        $result = $this->policyFactory->make($action)
             ->calculate($action, $userScore);
 
         // Driver always loses −15 pts regardless of payment method.
@@ -172,18 +174,18 @@ final class ScoreService
         $userScore->incrementNoShows();
 
         ScoreTransaction::create([
-            'user_id'                  => $driver->id,
-            'action'                   => $action->value,
-            'points'                   => $points,
-            'previous_score'           => $previousScore,
-            'new_score'                => $userScore->score,
-            'reference_type'           => Ride::class,
-            'reference_id'             => $ride->id,
-            'reason'                   => $result->reason,
+            'user_id' => $driver->id,
+            'action' => $action->value,
+            'points' => $points,
+            'previous_score' => $previousScore,
+            'new_score' => $userScore->score,
+            'reference_type' => Ride::class,
+            'reference_id' => $ride->id,
+            'reason' => $result->reason,
             'high_cancel_rate_applied' => false,
-            'metadata'                 => [
+            'metadata' => [
                 'payment_method' => $paymentMethod,
-                'ride_id'        => $ride->id,
+                'ride_id' => $ride->id,
             ],
         ]);
     }
@@ -200,7 +202,7 @@ final class ScoreService
         );
     }
 
-    public function getHistory(User $user, int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    public function getHistory(User $user, int $limit = 20): Collection
     {
         return ScoreTransaction::where('user_id', $user->id)
             ->orderByDesc('created_at')
@@ -213,11 +215,11 @@ final class ScoreService
     // =========================================================================
 
     public static function calculateElapsedPct(
-        \Carbon\Carbon $createdAt,
-        \Carbon\Carbon $departureTime,
+        Carbon $createdAt,
+        Carbon $departureTime,
     ): float {
-        $now            = now();
-        $totalMinutes   = $createdAt->diffInMinutes($departureTime);
+        $now = now();
+        $totalMinutes = $createdAt->diffInMinutes($departureTime);
         $elapsedMinutes = $createdAt->diffInMinutes($now);
 
         return $totalMinutes > 0
@@ -234,10 +236,10 @@ final class ScoreService
         return UserScore::firstOrCreate(
             ['user_id' => $user->id],
             [
-                'score'               => 70,
-                'total_rides'         => 0,
+                'score' => 70,
+                'total_rides' => 0,
                 'total_cancellations' => 0,
-                'total_no_shows'      => 0,
+                'total_no_shows' => 0,
             ]
         );
     }
@@ -245,21 +247,21 @@ final class ScoreService
     // FIX: Added ?object $reference = null parameter — was missing, causing
     // "Unknown named parameter 'reference'" errors at every call site.
     public function applyAction(
-        User        $user,
+        User $user,
         ScoreAction $action,
-        ?object     $reference = null,   // <-- THE FIX
-        array       $context   = [],
+        ?object $reference = null,   // <-- THE FIX
+        array $context = [],
     ): void {
         DB::transaction(function () use ($user, $action, $reference, $context) {
 
             $userScore = UserScore::firstOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'score'               => 100,
-                    'tier'                => 'bronze',
-                    'total_rides'         => 0,
+                    'score' => 100,
+                    'tier' => 'bronze',
+                    'total_rides' => 0,
                     'total_cancellations' => 0,
-                    'cancel_rate'         => 0.0,
+                    'cancel_rate' => 0.0,
                 ]
             );
 
@@ -267,7 +269,7 @@ final class ScoreService
             $result = $policy->calculate($action, $userScore, $context);
 
             $previousScore = (int) $userScore->score;
-            $newScore      = max(0, $previousScore + $result->points);
+            $newScore = max(0, $previousScore + $result->points);
 
             if ($result->isPositive()) {
                 $userScore->total_rides = (int) $userScore->total_rides + 1;
@@ -281,43 +283,43 @@ final class ScoreService
             }
 
             $userScore->score = $newScore;
-            $userScore->tier  = $this->resolveTier($newScore);
+            $userScore->tier = $this->resolveTier($newScore);
             $userScore->save();
 
             // FIX: resolve reference from the passed $reference object directly,
             // falling back to context keys for callers that still use old style.
             $referenceType = null;
-            $referenceId   = null;
+            $referenceId = null;
 
             if ($reference !== null) {
                 $referenceType = get_class($reference);
-                $referenceId   = $reference->id;
+                $referenceId = $reference->id;
             } elseif (isset($context['booking_id'])) {
                 $referenceType = Booking::class;
-                $referenceId   = $context['booking_id'];
+                $referenceId = $context['booking_id'];
             } elseif (isset($context['ride_id'])) {
                 $referenceType = Ride::class;
-                $referenceId   = $context['ride_id'];
+                $referenceId = $context['ride_id'];
             }
 
             ScoreTransaction::create([
-                'user_id'                  => $user->id,
-                'action'                   => $action->value,
-                'points'                   => $result->points,
-                'previous_score'           => $previousScore,
-                'new_score'                => $newScore,
-                'reason'                   => $result->reason,
+                'user_id' => $user->id,
+                'action' => $action->value,
+                'points' => $result->points,
+                'previous_score' => $previousScore,
+                'new_score' => $newScore,
+                'reason' => $result->reason,
                 'high_cancel_rate_applied' => $result->highCancelRateApplied,
-                'reference_type'           => $referenceType,
-                'reference_id'             => $referenceId,
+                'reference_type' => $referenceType,
+                'reference_id' => $referenceId,
             ]);
 
             Log::info('Score action applied', [
-                'user_id'        => $user->id,
-                'action'         => $action->value,
-                'points'         => $result->points,
+                'user_id' => $user->id,
+                'action' => $action->value,
+                'points' => $result->points,
                 'previous_score' => $previousScore,
-                'new_score'      => $newScore,
+                'new_score' => $newScore,
             ]);
         });
     }
@@ -339,10 +341,9 @@ final class ScoreService
             $score >= 200 => 'platinum',
             $score >= 150 => 'gold',
             $score >= 100 => 'silver',
-            default       => 'bronze',
+            default => 'bronze',
         };
     }
-
 
     /**
      * ─────────────────────────────────────────────────────────────────────────────
@@ -368,18 +369,17 @@ final class ScoreService
      * Creates or updates the UserScore row, then inserts a ScoreTransaction
      * for the history feed (GET /api/score/history and GET /api/score/transactions).
      *
-     * @param User $user The user receiving the score change
-     * @param ScoreAction $action The action that triggered the change
-     * @param mixed|null $reference The Booking or Ride that caused it (for history)
-     * @param array $context Extra data the policy may need (e.g. elapsed_pct)
+     * @param  User  $user  The user receiving the score change
+     * @param  ScoreAction  $action  The action that triggered the change
+     * @param  mixed|null  $reference  The Booking or Ride that caused it (for history)
+     * @param  array  $context  Extra data the policy may need (e.g. elapsed_pct)
      */
     public function applyScore(
-        User        $user,
+        User $user,
         ScoreAction $action,
-        mixed       $reference = null,
-        array       $context = [],
-    ): ScoreResult
-    {
+        mixed $reference = null,
+        array $context = [],
+    ): ScoreResult {
         return DB::transaction(function () use ($user, $action, $reference, $context) {
 
             // ── Get or create the user's score record ─────────────────────────

@@ -35,13 +35,13 @@ final class AdminJwtMiddleware
     {
         // ── 1. Extract Bearer token ───────────────────────────────────────────
         $token = $this->extractToken($request);
-        if (!$token) {
+        if (! $token) {
             return $this->unauthorized('Admin access token missing.');
         }
 
         // ── 2. Decode & verify signature + expiry ─────────────────────────────
         $payload = $this->staffJwtService->decodeToken($token);
-        if (!$payload) {
+        if (! $payload) {
             return $this->unauthorized('Invalid or expired admin token.');
         }
 
@@ -52,25 +52,25 @@ final class AdminJwtMiddleware
 
         // ── 4. Load the Employee record ───────────────────────────────────────
         $employee = Employee::find($payload['sub']);
-        if (!$employee) {
+        if (! $employee) {
             return $this->unauthorized('Account not found.');
         }
 
-        if (!$employee->is_active) {
+        if (! $employee->is_active) {
             return $this->unauthorized('This account has been deactivated.');
         }
 
         // ── 5. Verify this is an admin-level role ─────────────────────────────
         //      system_admin and sycash are the only two admin roles.
         //      Regular admins and support agents use StaffJwtMiddleware instead.
-        if (!$employee->role->isAdminRole()) {
+        if (! $employee->role->isAdminRole()) {
             return $this->unauthorized(
                 'Access denied. This endpoint requires an admin account.'
             );
         }
 
         // ── 6. Token version check (invalidates tokens after password rotation)─
-        if (!$this->staffJwtService->validateTokenVersion($payload, $employee)) {
+        if (! $this->staffJwtService->validateTokenVersion($payload, $employee)) {
             return $this->unauthorized(
                 'Your session has been invalidated. Please log in again.'
             );
@@ -80,8 +80,8 @@ final class AdminJwtMiddleware
         //      middleware('auth.admin:sycash') restricts to financial admin only.
         if ($requiredRole && $employee->role->value !== $requiredRole) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'FORBIDDEN',
+                'status' => 'error',
+                'code' => 'FORBIDDEN',
                 'message' => "This action requires '{$requiredRole}' access.",
             ], 403);
         }
@@ -90,7 +90,7 @@ final class AdminJwtMiddleware
         // Set user resolver so $request->user()->id works in all admin controllers.
         $request->setUserResolver(fn () => $employee);
         $request->attributes->set('adminEmployee', $employee);
-        $request->attributes->set('adminType',     $employee->role->value);
+        $request->attributes->set('adminType', $employee->role->value);
 
         return $next($request);
     }
@@ -100,14 +100,15 @@ final class AdminJwtMiddleware
     private function extractToken(Request $request): ?string
     {
         $header = $request->header('Authorization', '');
+
         return str_starts_with($header, 'Bearer ') ? substr($header, 7) : null;
     }
 
     private function unauthorized(string $message): Response
     {
         return response()->json([
-            'status'  => 'error',
-            'code'    => 'UNAUTHORIZED',
+            'status' => 'error',
+            'code' => 'UNAUTHORIZED',
             'message' => $message,
         ], 401);
     }

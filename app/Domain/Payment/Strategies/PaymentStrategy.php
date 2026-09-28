@@ -23,8 +23,8 @@ interface PaymentStrategy
      */
     public function processBookingPayment(
         Booking $booking,
-        Ride    $ride,
-        User    $passenger,
+        Ride $ride,
+        User $passenger,
     ): PaymentResult;
 
     /**
@@ -36,8 +36,8 @@ interface PaymentStrategy
      */
     public function processRideCompletionPayment(
         Booking $booking,
-        Ride    $ride,
-        User    $driver,
+        Ride $ride,
+        User $driver,
     ): PaymentResult;
 
     /**
@@ -45,8 +45,8 @@ interface PaymentStrategy
      */
     public function processRefund(
         Booking $booking,
-        Ride    $ride,
-        User    $passenger,
+        Ride $ride,
+        User $passenger,
     ): RefundResult;
 
     public function canProcess(string $paymentMethod): bool;

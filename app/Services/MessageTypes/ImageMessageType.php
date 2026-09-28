@@ -17,7 +17,7 @@ class ImageMessageType implements MessageTypeInterface
             'caption' => 'nullable|string|max:500',
         ]);
 
-        return !$validator->fails();
+        return ! $validator->fails();
     }
 
     /**
@@ -29,7 +29,7 @@ class ImageMessageType implements MessageTypeInterface
         // For now, we'll just return a placeholder
 
         $imagePath = $data['image']->store('chat-images', 'public');
-        $imageUrl = asset('storage/' . $imagePath);
+        $imageUrl = asset('storage/'.$imagePath);
 
         return [
             'content' => $data['caption'] ?? '',
@@ -38,7 +38,7 @@ class ImageMessageType implements MessageTypeInterface
                 'image_name' => $data['image']->getClientOriginalName(),
                 'image_size' => $data['image']->getSize(),
                 'image_mime' => $data['image']->getMimeType(),
-            ]
+            ],
         ];
     }
 }

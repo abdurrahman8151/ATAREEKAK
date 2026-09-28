@@ -5,8 +5,8 @@ namespace App\Services\Ride;
 use App\Enums\RideStatus;
 use App\Models\Ride;
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Ride Search Service
@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Builder;
 final class RideSearchService
 {
     private const MAX_DISTANCE_KM = 20;
+
     private const ROUTE_BUFFER_DEGREES = 0.05; // ~5km buffer around route
 
     /**
@@ -44,7 +45,7 @@ final class RideSearchService
                 },
                 'driver.profile' => function ($query) {
                     $query->select('user_id', 'profile_photo');
-                }
+                },
             ])
             ->withCount(['bookings as total_booked_seats' => function ($query) {
                 $query->selectRaw('COALESCE(SUM(seats), 0)');
@@ -88,11 +89,11 @@ final class RideSearchService
         int $maxDistance
     ): void {
         $query->whereRaw(
-            "ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?",
+            'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?',
             [$srcWkt, $maxDistance]
         )
             ->whereRaw(
-                "ST_Distance_Sphere(destination_location, ST_GeomFromText(?, 4326)) <= ?",
+                'ST_Distance_Sphere(destination_location, ST_GeomFromText(?, 4326)) <= ?',
                 [$dstWkt, $maxDistance]
             );
     }
@@ -104,29 +105,29 @@ final class RideSearchService
     {
         $query
             ->whereNotNull('route_geometry')
-            ->whereRaw("JSON_VALID(route_geometry)")
+            ->whereRaw('JSON_VALID(route_geometry)')
             ->whereRaw("JSON_EXTRACT(route_geometry, '$.coordinates') IS NOT NULL")
             ->whereRaw("JSON_TYPE(JSON_EXTRACT(route_geometry, '$.coordinates')) = 'ARRAY'")
             // Check if source point is near route
             ->whereRaw(
-                "ST_Contains(
+                'ST_Contains(
                     ST_Buffer(
                         ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)),
                         ?
                     ),
                     ST_GeomFromText(?, 4326)
-                )",
+                )',
                 [self::ROUTE_BUFFER_DEGREES, $srcWkt]
             )
             // Check if destination point is near route
             ->whereRaw(
-                "ST_Contains(
+                'ST_Contains(
                     ST_Buffer(
                         ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)),
                         ?
                     ),
                     ST_GeomFromText(?, 4326)
-                )",
+                )',
                 [self::ROUTE_BUFFER_DEGREES, $dstWkt]
             );
     }
@@ -142,7 +143,7 @@ final class RideSearchService
         return Ride::query()
             ->where('status', RideStatus::ACTIVE->value)
             ->whereRaw(
-                "ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?",
+                'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?',
                 [$pointWkt, $radiusMeters]
             )
             ->with(['driver', 'driver.profile'])

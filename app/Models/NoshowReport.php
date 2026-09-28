@@ -24,7 +24,7 @@ class NoshowReport extends Model
     ];
 
     protected $casts = [
-        'expires_at'  => 'datetime',
+        'expires_at' => 'datetime',
         'resolved_at' => 'datetime',
     ];
 

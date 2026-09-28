@@ -45,7 +45,7 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
 
         $this->assertFalse($service->isConfigured());
     }
@@ -54,7 +54,7 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', 'firebase/does_not_exist.json');
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
 
         $this->assertFalse($service->isConfigured());
     }
@@ -63,7 +63,7 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', '');
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
 
         $this->assertFalse($service->isConfigured());
     }
@@ -74,10 +74,10 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->sendToTokens(['fake_token_123'], [
+        $service = new FcmSenderService;
+        $result = $service->sendToTokens(['fake_token_123'], [
             'title' => 'Test',
-            'body'  => 'Hello',
+            'body' => 'Hello',
         ]);
 
         $this->assertFalse($result);
@@ -90,10 +90,10 @@ class FcmSenderServiceTest extends TestCase
         // is also hit in the configured path — see method body).
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->sendToTokens([], [
+        $service = new FcmSenderService;
+        $result = $service->sendToTokens([], [
             'title' => 'Test',
-            'body'  => 'Hello',
+            'body' => 'Hello',
         ]);
 
         $this->assertFalse($result);
@@ -108,7 +108,7 @@ class FcmSenderServiceTest extends TestCase
         Log::shouldReceive('warning')->atLeast()->once();
         Log::shouldReceive('error')->zeroOrMoreTimes();
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
         $service->sendToTokens(['fake_token_123'], ['title' => 'Test', 'body' => 'Hello']);
     }
 
@@ -119,7 +119,7 @@ class FcmSenderServiceTest extends TestCase
         // Constructor warning fires first; we allow any number of warning calls.
         Log::shouldReceive('warning')->atLeast()->once();
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
         $service->sendToTokens([], ['title' => 'T', 'body' => 'B']);
     }
 
@@ -129,11 +129,11 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->sendToTopic('all_users', [
+        $service = new FcmSenderService;
+        $result = $service->sendToTopic('all_users', [
             'title' => 'Test',
-            'body'  => 'Hello',
-            'data'  => [],
+            'body' => 'Hello',
+            'data' => [],
         ]);
 
         $this->assertFalse($result);
@@ -145,7 +145,7 @@ class FcmSenderServiceTest extends TestCase
 
         Log::shouldReceive('warning')->atLeast()->once();
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
         $service->sendToTopic('test_topic', ['title' => 'T', 'body' => 'B']);
     }
 
@@ -155,8 +155,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->subscribeToTopic(['token_abc'], 'test_topic');
+        $service = new FcmSenderService;
+        $result = $service->subscribeToTopic(['token_abc'], 'test_topic');
 
         $this->assertFalse($result);
     }
@@ -165,8 +165,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->subscribeToTopic([], 'test_topic');
+        $service = new FcmSenderService;
+        $result = $service->subscribeToTopic([], 'test_topic');
 
         $this->assertFalse($result);
     }
@@ -177,8 +177,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->unsubscribeFromTopic(['token_abc'], 'test_topic');
+        $service = new FcmSenderService;
+        $result = $service->unsubscribeFromTopic(['token_abc'], 'test_topic');
 
         $this->assertFalse($result);
     }
@@ -187,8 +187,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->unsubscribeFromTopic([], 'test_topic');
+        $service = new FcmSenderService;
+        $result = $service->unsubscribeFromTopic([], 'test_topic');
 
         $this->assertFalse($result);
     }
@@ -199,8 +199,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->validateToken('any_token_string');
+        $service = new FcmSenderService;
+        $result = $service->validateToken('any_token_string');
 
         $this->assertFalse($result);
     }
@@ -211,8 +211,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->sendToTokens(['t'], ['title' => 'T', 'body' => 'B']);
+        $service = new FcmSenderService;
+        $result = $service->sendToTokens(['t'], ['title' => 'T', 'body' => 'B']);
 
         // Must be exactly false (not null, not 0, not empty array)
         $this->assertFalse($result);
@@ -222,8 +222,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->sendToTopic('topic', ['title' => 'T', 'body' => 'B']);
+        $service = new FcmSenderService;
+        $result = $service->sendToTopic('topic', ['title' => 'T', 'body' => 'B']);
 
         $this->assertFalse($result);
     }
@@ -232,8 +232,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->subscribeToTopic(['t'], 'topic');
+        $service = new FcmSenderService;
+        $result = $service->subscribeToTopic(['t'], 'topic');
 
         $this->assertIsBool($result);
     }
@@ -242,8 +242,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->unsubscribeFromTopic(['t'], 'topic');
+        $service = new FcmSenderService;
+        $result = $service->unsubscribeFromTopic(['t'], 'topic');
 
         $this->assertIsBool($result);
     }
@@ -252,8 +252,8 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
-        $result  = $service->validateToken('any_token');
+        $service = new FcmSenderService;
+        $result = $service->validateToken('any_token');
 
         $this->assertIsBool($result);
     }
@@ -264,7 +264,7 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
 
         $this->assertInstanceOf(FcmSenderService::class, $service);
     }
@@ -314,7 +314,7 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
 
         for ($i = 0; $i < 3; $i++) {
             $result = $service->sendToTokens(['token'], ['title' => 'T', 'body' => 'B']);
@@ -326,14 +326,14 @@ class FcmSenderServiceTest extends TestCase
     {
         Config::set('services.fcm.credentials', null);
 
-        $service = new FcmSenderService();
+        $service = new FcmSenderService;
 
         // Should not throw even with extra keys like icon, sound, badge
         $result = $service->sendToTopic('test_topic', [
             'title' => 'Test',
-            'body'  => 'Body',
-            'data'  => ['key' => 'value'],
-            'icon'  => 'ic_notification',
+            'body' => 'Body',
+            'data' => ['key' => 'value'],
+            'icon' => 'ic_notification',
             'sound' => 'default',
             'badge' => 1,
         ]);

@@ -70,7 +70,7 @@ class WalletRequestService
         // until the first commits and then sees its pending amount. Idempotency
         // comes from locking, not from hoping nobody double-clicks.
         return DB::transaction(function () use ($user, $amount, $notes) {
-            /** @var \App\Models\Wallet|null $wallet */
+            /** @var Wallet|null $wallet */
             $wallet = $user->wallet()->lockForUpdate()->first();
 
             if (! $wallet) {
@@ -188,7 +188,7 @@ class WalletRequestService
             // T3-13: was silently swallowed. Non-fatal by intent (a failed
             // acknowledgement must not undo the persisted request), but the
             // failure must be visible to operations.
-            Log::warning('wallet-request acknowledgement notification failed (non-fatal): ' . $e->getMessage());
+            Log::warning('wallet-request acknowledgement notification failed (non-fatal): '.$e->getMessage());
         }
     }
 }

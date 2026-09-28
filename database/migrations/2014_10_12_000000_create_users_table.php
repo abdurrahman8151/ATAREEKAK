@@ -1,4 +1,5 @@
 <?php
+
 // database/migrations/2014_10_12_000000_create_users_table.php
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -25,9 +26,9 @@ return new class extends Migration
             // Profile details
             $table->enum('gender', ['M', 'F'])->nullable();
             $table->enum('address', [
-                'دمشق','درعا','القنيطرة','السويداء','ريف دمشق',
-                'حمص','حماة','اللاذقية','طرطوس','حلب',
-                'ادلب','الحسكة','الرقة','دير الزور'
+                'دمشق', 'درعا', 'القنيطرة', 'السويداء', 'ريف دمشق',
+                'حمص', 'حماة', 'اللاذقية', 'طرطوس', 'حلب',
+                'ادلب', 'الحسكة', 'الرقة', 'دير الزور',
             ])->nullable();
 
             // Social authentication
@@ -38,7 +39,7 @@ return new class extends Migration
             $table->tinyInteger('status')->default(1);
             $table->boolean('is_verified_passenger')->default(0);
             $table->boolean('is_verified_driver')->default(0);
-            $table->enum('verification_status', ['none','pending','rejected','approved'])
+            $table->enum('verification_status', ['none', 'pending', 'rejected', 'approved'])
                 ->default('none');
 
             $table->timestamps();

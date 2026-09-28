@@ -8,6 +8,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\ServiceProvider;
 use Tests\TestCase;
 
 /**
@@ -45,7 +46,7 @@ class RouteServiceProviderTest extends TestCase
     public function test_provider_extends_service_provider(): void
     {
         $this->assertTrue(
-            is_subclass_of(RouteServiceProvider::class, \Illuminate\Support\ServiceProvider::class)
+            is_subclass_of(RouteServiceProvider::class, ServiceProvider::class)
         );
     }
 
@@ -81,8 +82,8 @@ class RouteServiceProviderTest extends TestCase
 
     public function test_api_rate_limiter_returns_limit_instance(): void
     {
-        $limiter  = RateLimiter::limiter('api');
-        $request  = Request::create('/api/test', 'GET');
+        $limiter = RateLimiter::limiter('api');
+        $request = Request::create('/api/test', 'GET');
 
         $this->assertInstanceOf(Limit::class, $limiter($request));
     }
@@ -99,7 +100,7 @@ class RouteServiceProviderTest extends TestCase
 
     public function test_api_rate_limiter_keys_by_user_id_when_authenticated(): void
     {
-        $user    = User::factory()->create();
+        $user = User::factory()->create();
         $limiter = RateLimiter::limiter('api');
 
         $request = Request::create('/api/test', 'GET');

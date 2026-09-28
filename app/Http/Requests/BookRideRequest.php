@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 
 /**
  * Book Ride Request
@@ -45,9 +46,9 @@ class BookRideRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        if (!$this->has('idempotency_key')) {
+        if (! $this->has('idempotency_key')) {
             $this->merge([
-                'idempotency_key' => (string) \Illuminate\Support\Str::uuid()
+                'idempotency_key' => (string) Str::uuid(),
             ]);
         }
     }

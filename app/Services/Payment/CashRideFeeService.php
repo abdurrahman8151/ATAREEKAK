@@ -2,7 +2,6 @@
 
 namespace App\Services\Payment;
 
-use App\Enums\BookingStatus;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
@@ -79,12 +78,12 @@ final class CashRideFeeService
     {
         $wallet = $driver->wallet;
 
-        if (!$wallet) {
+        if (! $wallet) {
             return [
-                'allowed'  => false,
+                'allowed' => false,
                 'deferred' => false,
-                'fee'      => $feeAmount,
-                'reason'   => 'You must create a wallet before creating a cash ride.',
+                'fee' => $feeAmount,
+                'reason' => 'You must create a wallet before creating a cash ride.',
             ];
         }
 
@@ -99,10 +98,10 @@ final class CashRideFeeService
 
         if ((float) $wallet->balance >= $feeAmount) {
             return [
-                'allowed'  => true,
+                'allowed' => true,
                 'deferred' => false,
-                'fee'      => $feeAmount,
-                'reason'   => '',
+                'fee' => $feeAmount,
+                'reason' => '',
             ];
         }
 
@@ -111,10 +110,10 @@ final class CashRideFeeService
 
         if ($cashRideCount < self::DEFERRED_RIDES_ALLOWED) {
             return [
-                'allowed'  => true,
+                'allowed' => true,
                 'deferred' => true,
-                'fee'      => $feeAmount,
-                'reason'   => '',
+                'fee' => $feeAmount,
+                'reason' => '',
             ];
         }
 
@@ -124,20 +123,20 @@ final class CashRideFeeService
 
         if ($debt > 0) {
             return [
-                'allowed'  => false,
+                'allowed' => false,
                 'deferred' => false,
-                'fee'      => $feeAmount,
-                'reason'   => "You have an outstanding debt of {$debt} SYP from previous cash rides. "
-                    . 'Please top up your wallet to clear it before creating another ride.',
+                'fee' => $feeAmount,
+                'reason' => "You have an outstanding debt of {$debt} SYP from previous cash rides. "
+                    .'Please top up your wallet to clear it before creating another ride.',
             ];
         }
 
         return [
-            'allowed'  => false,
+            'allowed' => false,
             'deferred' => false,
-            'fee'      => $feeAmount,
-            'reason'   => "Insufficient wallet balance. The creation fee for this ride is {$feeAmount} SYP. "
-                . "Current balance: {$wallet->balance} SYP.",
+            'fee' => $feeAmount,
+            'reason' => "Insufficient wallet balance. The creation fee for this ride is {$feeAmount} SYP. "
+                ."Current balance: {$wallet->balance} SYP.",
         ];
     }
 
@@ -155,36 +154,36 @@ final class CashRideFeeService
      */
     public function chargeCashRideCreationFee(Ride $ride, User $driver): void
     {
-        $feeAmount    = (float) $ride->cash_creation_fee;
+        $feeAmount = (float) $ride->cash_creation_fee;
         $driverWallet = Wallet::where('user_id', $driver->id)
             ->lockForUpdate()
             ->firstOrFail();
 
         if ($ride->cash_fee_deferred) {
             // ── Deferred: add to debt, no balance change ──────────────────────
-            $prevDebt                     = (float) $driverWallet->cash_ride_debt;
+            $prevDebt = (float) $driverWallet->cash_ride_debt;
             $driverWallet->cash_ride_debt = $prevDebt + $feeAmount;
             $driverWallet->save();
 
             WalletTransaction::create([
-                'wallet_id'        => $driverWallet->id,
-                'user_id'          => $driver->id,
-                'type'             => 'cash_ride_fee_deferred',
-                'amount'           => 0,
+                'wallet_id' => $driverWallet->id,
+                'user_id' => $driver->id,
+                'type' => 'cash_ride_fee_deferred',
+                'amount' => 0,
                 'previous_balance' => (float) $driverWallet->balance,
-                'new_balance'      => (float) $driverWallet->balance,
-                'description'      => "Cash ride creation fee deferred ({$feeAmount} SYP) — ride #{$ride->id}. "
-                    . "Balance unchanged; debt now " . $driverWallet->cash_ride_debt . ' SYP.',
-                'transaction_id'   => 'CASH_DEFER_' . time() . '_' . Str::random(6),
-                'status'           => 'completed',
-                'reference'        => "ride:{$ride->id}",
+                'new_balance' => (float) $driverWallet->balance,
+                'description' => "Cash ride creation fee deferred ({$feeAmount} SYP) — ride #{$ride->id}. "
+                    .'Balance unchanged; debt now '.$driverWallet->cash_ride_debt.' SYP.',
+                'transaction_id' => 'CASH_DEFER_'.time().'_'.Str::random(6),
+                'status' => 'completed',
+                'reference' => "ride:{$ride->id}",
             ]);
 
             Log::info('Cash ride fee deferred', [
-                'ride_id'   => $ride->id,
+                'ride_id' => $ride->id,
                 'driver_id' => $driver->id,
-                'fee'       => $feeAmount,
-                'new_debt'  => $driverWallet->cash_ride_debt,
+                'fee' => $feeAmount,
+                'new_debt' => $driverWallet->cash_ride_debt,
             ]);
 
             return;
@@ -192,47 +191,47 @@ final class CashRideFeeService
 
         // ── Immediate: Driver wallet → Primary Admin wallet ──────────────────
         $primaryWallet = $this->lockPrimaryWallet();
-        $txId          = 'CASH_FEE_' . time() . '_' . Str::random(6);
-        $driverPrev    = (float) $driverWallet->balance;
-        $primaryPrev   = (float) $primaryWallet->balance;
+        $txId = 'CASH_FEE_'.time().'_'.Str::random(6);
+        $driverPrev = (float) $driverWallet->balance;
+        $primaryPrev = (float) $primaryWallet->balance;
 
-        $driverWallet->balance  -= $feeAmount;
+        $driverWallet->balance -= $feeAmount;
         $primaryWallet->balance += $feeAmount;
 
         $driverWallet->save();
         $primaryWallet->save();
 
         WalletTransaction::create([
-            'wallet_id'        => $driverWallet->id,
-            'user_id'          => $driver->id,
-            'type'             => 'cash_ride_creation_fee',
-            'amount'           => -$feeAmount,
+            'wallet_id' => $driverWallet->id,
+            'user_id' => $driver->id,
+            'type' => 'cash_ride_creation_fee',
+            'amount' => -$feeAmount,
             'previous_balance' => $driverPrev,
-            'new_balance'      => (float) $driverWallet->balance,
-            'description'      => "Cash ride creation fee (5%) — ride #{$ride->id}: "
-                . "{$ride->pickup_address} → {$ride->destination_address}",
-            'transaction_id'   => $txId,
-            'status'           => 'completed',
-            'reference'        => "ride:{$ride->id}",
+            'new_balance' => (float) $driverWallet->balance,
+            'description' => "Cash ride creation fee (5%) — ride #{$ride->id}: "
+                ."{$ride->pickup_address} → {$ride->destination_address}",
+            'transaction_id' => $txId,
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
         ]);
 
         WalletTransaction::create([
-            'wallet_id'        => $primaryWallet->id,
-            'user_id'          => null,
-            'type'             => 'cash_ride_creation_fee_received',
-            'amount'           => $feeAmount,
+            'wallet_id' => $primaryWallet->id,
+            'user_id' => null,
+            'type' => 'cash_ride_creation_fee_received',
+            'amount' => $feeAmount,
             'previous_balance' => $primaryPrev,
-            'new_balance'      => (float) $primaryWallet->balance,
-            'description'      => "Cash ride creation fee received from driver #{$driver->id} — ride #{$ride->id}",
-            'transaction_id'   => 'PRIMARY_' . $txId,
-            'status'           => 'completed',
-            'reference'        => "ride:{$ride->id}",
+            'new_balance' => (float) $primaryWallet->balance,
+            'description' => "Cash ride creation fee received from driver #{$driver->id} — ride #{$ride->id}",
+            'transaction_id' => 'PRIMARY_'.$txId,
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
         ]);
 
         Log::info('Cash ride fee charged immediately', [
-            'ride_id'   => $ride->id,
+            'ride_id' => $ride->id,
             'driver_id' => $driver->id,
-            'fee'       => $feeAmount,
+            'fee' => $feeAmount,
         ]);
     }
 
@@ -267,11 +266,12 @@ final class CashRideFeeService
             ->lockForUpdate()
             ->first();
 
-        if (!$driverWallet) {
+        if (! $driverWallet) {
             Log::warning('Cannot refund cash ride fee — driver wallet not found', [
-                'ride_id'   => $ride->id,
+                'ride_id' => $ride->id,
                 'driver_id' => $driver->id,
             ]);
+
             return;
         }
 
@@ -279,38 +279,38 @@ final class CashRideFeeService
         //   Elapsed < 30%                      → always 100%
         //   Elapsed ≥ 30% + had passengers     → 0%  (platform keeps fee)
         //   Elapsed ≥ 30% + no passengers      → 100%
-        $elapsedPct   = $this->calculateElapsedPct($ride);
-        $refundPct    = ($elapsedPct < 30.0 || !$hadActiveBookings) ? 100 : 0;
+        $elapsedPct = $this->calculateElapsedPct($ride);
+        $refundPct = ($elapsedPct < 30.0 || ! $hadActiveBookings) ? 100 : 0;
         $refundAmount = round($feeAmount * $refundPct / 100, 2);
 
         // ── Deferred fee: adjust debt only, no money moves ───────────────────
         if ($ride->cash_fee_deferred) {
-            $prevDebt                     = (float) $driverWallet->cash_ride_debt;
+            $prevDebt = (float) $driverWallet->cash_ride_debt;
             $driverWallet->cash_ride_debt = max(0.0, $prevDebt - $refundAmount);
             $driverWallet->save();
 
             WalletTransaction::create([
-                'wallet_id'        => $driverWallet->id,
-                'user_id'          => $driver->id,
-                'type'             => 'cash_ride_fee_debt_cancelled',
-                'amount'           => 0,
+                'wallet_id' => $driverWallet->id,
+                'user_id' => $driver->id,
+                'type' => 'cash_ride_fee_debt_cancelled',
+                'amount' => 0,
                 'previous_balance' => (float) $driverWallet->balance,
-                'new_balance'      => (float) $driverWallet->balance,
-                'description'      => "Deferred fee cancelled — ride #{$ride->id} cancelled. "
-                    . "Debt reduced by {$refundAmount} SYP ({$refundPct}%) — was {$prevDebt} SYP.",
-                'transaction_id'   => 'DEBT_CANCEL_' . time() . '_' . Str::random(6),
-                'status'           => 'completed',
-                'reference'        => "ride:{$ride->id}",
+                'new_balance' => (float) $driverWallet->balance,
+                'description' => "Deferred fee cancelled — ride #{$ride->id} cancelled. "
+                    ."Debt reduced by {$refundAmount} SYP ({$refundPct}%) — was {$prevDebt} SYP.",
+                'transaction_id' => 'DEBT_CANCEL_'.time().'_'.Str::random(6),
+                'status' => 'completed',
+                'reference' => "ride:{$ride->id}",
             ]);
 
             Log::info('Deferred cash ride fee cancelled', [
-                'ride_id'            => $ride->id,
-                'driver_id'          => $driver->id,
-                'prev_debt'          => $prevDebt,
-                'new_debt'           => $driverWallet->cash_ride_debt,
-                'refund_pct'         => $refundPct,
-                'elapsed_pct'        => round($elapsedPct, 2),
-                'had_active_bookings'=> $hadActiveBookings,
+                'ride_id' => $ride->id,
+                'driver_id' => $driver->id,
+                'prev_debt' => $prevDebt,
+                'new_debt' => $driverWallet->cash_ride_debt,
+                'refund_pct' => $refundPct,
+                'elapsed_pct' => round($elapsedPct, 2),
+                'had_active_bookings' => $hadActiveBookings,
             ]);
 
             return;
@@ -322,25 +322,25 @@ final class CashRideFeeService
         if ($refundAmount <= 0) {
             // Audit record only — no money movement
             WalletTransaction::create([
-                'wallet_id'        => $driverWallet->id,
-                'user_id'          => $driver->id,
-                'type'             => 'cash_ride_fee_no_refund',
-                'amount'           => 0,
+                'wallet_id' => $driverWallet->id,
+                'user_id' => $driver->id,
+                'type' => 'cash_ride_fee_no_refund',
+                'amount' => 0,
                 'previous_balance' => (float) $driverWallet->balance,
-                'new_balance'      => (float) $driverWallet->balance,
-                'description'      => "No refund on cash ride creation fee — ride #{$ride->id} cancelled "
-                    . "(late cancellation). Platform keeps {$feeAmount} SYP.",
-                'transaction_id'   => 'CASH_NO_REFUND_' . time() . '_' . Str::random(6),
-                'status'           => 'completed',
-                'reference'        => "ride:{$ride->id}",
+                'new_balance' => (float) $driverWallet->balance,
+                'description' => "No refund on cash ride creation fee — ride #{$ride->id} cancelled "
+                    ."(late cancellation). Platform keeps {$feeAmount} SYP.",
+                'transaction_id' => 'CASH_NO_REFUND_'.time().'_'.Str::random(6),
+                'status' => 'completed',
+                'reference' => "ride:{$ride->id}",
             ]);
 
             Log::info('Cash ride fee — no refund (late cancellation with passengers)', [
-                'ride_id'            => $ride->id,
-                'driver_id'          => $driver->id,
-                'fee_paid'           => $feeAmount,
-                'elapsed_pct'        => round($elapsedPct, 2),
-                'had_active_bookings'=> $hadActiveBookings,
+                'ride_id' => $ride->id,
+                'driver_id' => $driver->id,
+                'fee_paid' => $feeAmount,
+                'elapsed_pct' => round($elapsedPct, 2),
+                'had_active_bookings' => $hadActiveBookings,
             ]);
 
             return;
@@ -351,8 +351,8 @@ final class CashRideFeeService
 
         if ((float) $primaryWallet->balance < $refundAmount) {
             Log::error('Cannot refund cash ride fee — insufficient Primary Admin balance', [
-                'ride_id'         => $ride->id,
-                'refund_needed'   => $refundAmount,
+                'ride_id' => $ride->id,
+                'refund_needed' => $refundAmount,
                 'primary_balance' => $primaryWallet->balance,
             ]);
             throw new \RuntimeException(
@@ -360,53 +360,53 @@ final class CashRideFeeService
             );
         }
 
-        $txId        = 'CASH_FEE_REFUND_' . time() . '_' . Str::random(6);
-        $driverPrev  = (float) $driverWallet->balance;
+        $txId = 'CASH_FEE_REFUND_'.time().'_'.Str::random(6);
+        $driverPrev = (float) $driverWallet->balance;
         $primaryPrev = (float) $primaryWallet->balance;
 
-        $driverWallet->balance  += $refundAmount;
+        $driverWallet->balance += $refundAmount;
         $primaryWallet->balance -= $refundAmount;
 
         $driverWallet->save();
         $primaryWallet->save();
 
         WalletTransaction::create([
-            'wallet_id'        => $driverWallet->id,
-            'user_id'          => $driver->id,
-            'type'             => 'cash_ride_fee_refund',
-            'amount'           => $refundAmount,
+            'wallet_id' => $driverWallet->id,
+            'user_id' => $driver->id,
+            'type' => 'cash_ride_fee_refund',
+            'amount' => $refundAmount,
             'previous_balance' => $driverPrev,
-            'new_balance'      => (float) $driverWallet->balance,
-            'description'      => "Cash ride creation fee refund ({$refundPct}%) — ride #{$ride->id} cancelled. "
-                . "Refunded: {$refundAmount} SYP. Platform keeps: {$platformKeeps} SYP.",
-            'transaction_id'   => $txId,
-            'status'           => 'completed',
-            'reference'        => "ride:{$ride->id}",
+            'new_balance' => (float) $driverWallet->balance,
+            'description' => "Cash ride creation fee refund ({$refundPct}%) — ride #{$ride->id} cancelled. "
+                ."Refunded: {$refundAmount} SYP. Platform keeps: {$platformKeeps} SYP.",
+            'transaction_id' => $txId,
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
         ]);
 
         WalletTransaction::create([
-            'wallet_id'        => $primaryWallet->id,
-            'user_id'          => null,
-            'type'             => 'cash_ride_fee_refund_issued',
-            'amount'           => -$refundAmount,
+            'wallet_id' => $primaryWallet->id,
+            'user_id' => null,
+            'type' => 'cash_ride_fee_refund_issued',
+            'amount' => -$refundAmount,
             'previous_balance' => $primaryPrev,
-            'new_balance'      => (float) $primaryWallet->balance,
-            'description'      => "Cash ride fee refund issued to driver #{$driver->id} — ride #{$ride->id}. "
-                . "Platform retains {$platformKeeps} SYP.",
-            'transaction_id'   => 'PRIMARY_' . $txId,
-            'status'           => 'completed',
-            'reference'        => "ride:{$ride->id}",
+            'new_balance' => (float) $primaryWallet->balance,
+            'description' => "Cash ride fee refund issued to driver #{$driver->id} — ride #{$ride->id}. "
+                ."Platform retains {$platformKeeps} SYP.",
+            'transaction_id' => 'PRIMARY_'.$txId,
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
         ]);
 
         Log::info('Cash ride creation fee refunded', [
-            'ride_id'            => $ride->id,
-            'driver_id'          => $driver->id,
-            'fee_paid'           => $feeAmount,
-            'refund_pct'         => $refundPct,
-            'refund_amount'      => $refundAmount,
-            'platform_keeps'     => $platformKeeps,
-            'elapsed_pct'        => round($elapsedPct, 2),
-            'had_active_bookings'=> $hadActiveBookings,
+            'ride_id' => $ride->id,
+            'driver_id' => $driver->id,
+            'fee_paid' => $feeAmount,
+            'refund_pct' => $refundPct,
+            'refund_amount' => $refundAmount,
+            'platform_keeps' => $platformKeeps,
+            'elapsed_pct' => round($elapsedPct, 2),
+            'had_active_bookings' => $hadActiveBookings,
         ]);
     }
 
@@ -432,7 +432,7 @@ final class CashRideFeeService
         // Re-lock the wallet inside a transaction to prevent races
         $lockedWallet = Wallet::where('id', $wallet->id)->lockForUpdate()->first();
 
-        if (!$lockedWallet) {
+        if (! $lockedWallet) {
             return;
         }
 
@@ -444,49 +444,49 @@ final class CashRideFeeService
         }
 
         $primaryWallet = $this->lockPrimaryWallet();
-        $txId          = 'DEBT_CLEAR_' . time() . '_' . Str::random(6);
-        $prevBalance   = (float) $lockedWallet->balance;
-        $prevDebt      = $debt;
-        $primaryPrev   = (float) $primaryWallet->balance;
+        $txId = 'DEBT_CLEAR_'.time().'_'.Str::random(6);
+        $prevBalance = (float) $lockedWallet->balance;
+        $prevDebt = $debt;
+        $primaryPrev = (float) $primaryWallet->balance;
 
-        $lockedWallet->balance        -= $debt;
-        $lockedWallet->cash_ride_debt  = 0;
-        $primaryWallet->balance       += $debt;
+        $lockedWallet->balance -= $debt;
+        $lockedWallet->cash_ride_debt = 0;
+        $primaryWallet->balance += $debt;
 
         $lockedWallet->save();
         $primaryWallet->save();
 
         WalletTransaction::create([
-            'wallet_id'        => $lockedWallet->id,
-            'user_id'          => $driver->id,
-            'type'             => 'cash_ride_debt_cleared',
-            'amount'           => -$debt,
+            'wallet_id' => $lockedWallet->id,
+            'user_id' => $driver->id,
+            'type' => 'cash_ride_debt_cleared',
+            'amount' => -$debt,
             'previous_balance' => $prevBalance,
-            'new_balance'      => (float) $lockedWallet->balance,
-            'description'      => "Cash ride creation fee debt auto-cleared ({$debt} SYP) after wallet top-up.",
-            'transaction_id'   => $txId,
-            'status'           => 'completed',
-            'reference'        => "wallet:{$lockedWallet->id}",
+            'new_balance' => (float) $lockedWallet->balance,
+            'description' => "Cash ride creation fee debt auto-cleared ({$debt} SYP) after wallet top-up.",
+            'transaction_id' => $txId,
+            'status' => 'completed',
+            'reference' => "wallet:{$lockedWallet->id}",
         ]);
 
         WalletTransaction::create([
-            'wallet_id'        => $primaryWallet->id,
-            'user_id'          => null,
-            'type'             => 'cash_ride_debt_received',
-            'amount'           => $debt,
+            'wallet_id' => $primaryWallet->id,
+            'user_id' => null,
+            'type' => 'cash_ride_debt_received',
+            'amount' => $debt,
             'previous_balance' => $primaryPrev,
-            'new_balance'      => (float) $primaryWallet->balance,
-            'description'      => "Cash ride fee debt payment received from driver #{$driver->id} ({$debt} SYP).",
-            'transaction_id'   => 'PRIMARY_' . $txId,
-            'status'           => 'completed',
-            'reference'        => "wallet:{$lockedWallet->id}",
+            'new_balance' => (float) $primaryWallet->balance,
+            'description' => "Cash ride fee debt payment received from driver #{$driver->id} ({$debt} SYP).",
+            'transaction_id' => 'PRIMARY_'.$txId,
+            'status' => 'completed',
+            'reference' => "wallet:{$lockedWallet->id}",
         ]);
 
         Log::info('Cash ride debt auto-cleared after top-up', [
-            'driver_id'    => $driver->id,
-            'wallet_id'    => $lockedWallet->id,
+            'driver_id' => $driver->id,
+            'wallet_id' => $lockedWallet->id,
             'debt_cleared' => $prevDebt,
-            'new_balance'  => $lockedWallet->balance,
+            'new_balance' => $lockedWallet->balance,
         ]);
     }
 
@@ -500,7 +500,7 @@ final class CashRideFeeService
      */
     private function countCashRides(int $driverId): int
     {
-        return \App\Models\Ride::where('driver_id', $driverId)
+        return Ride::where('driver_id', $driverId)
             ->where('payment_method', 'cash')
             ->count();
     }
@@ -515,15 +515,15 @@ final class CashRideFeeService
      */
     private function calculateElapsedPct(Ride $ride): float
     {
-        $now       = now();
-        $created   = $ride->created_at;
+        $now = now();
+        $created = $ride->created_at;
         $departure = Carbon::parse($ride->departure_time);
 
         if ($now->greaterThanOrEqualTo($departure)) {
             return 100.0;
         }
 
-        $totalMinutes   = $created->diffInMinutes($departure);
+        $totalMinutes = $created->diffInMinutes($departure);
         $elapsedMinutes = $created->diffInMinutes($now);
 
         return $totalMinutes > 0
@@ -537,7 +537,7 @@ final class CashRideFeeService
             ->lockForUpdate()
             ->first();
 
-        if (!$wallet) {
+        if (! $wallet) {
             throw new \RuntimeException(
                 'Primary Admin wallet not found. Run: php artisan db:seed --class=SystemWalletSeeder'
             );

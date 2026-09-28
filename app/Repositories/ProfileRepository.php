@@ -24,6 +24,7 @@ class ProfileRepository implements ProfileRepositoryInterface
     {
         $profile = $this->model->where('user_id', $userId)->firstOrFail();
         $profile->update($data);
+
         return $profile;
     }
 
@@ -43,6 +44,7 @@ class ProfileRepository implements ProfileRepositoryInterface
             ['user_id' => $userId],
             $data
         );
+
         return $profile->fresh(); // Add this to get refreshed data
     }
 
@@ -56,9 +58,6 @@ class ProfileRepository implements ProfileRepositoryInterface
             ->firstOrFail();
     }
 
-
-
-
     // In app/Repositories/ProfileRepository.php
     public function createFromUser(User $user)
     {
@@ -70,7 +69,7 @@ class ProfileRepository implements ProfileRepositoryInterface
             'profile_photo' => 'profiles/profile_photo/default-profile-photo.jpg', // Remove one .jpg if that's the issue
             'number_of_rides' => 0,
             'radio' => false,
-            'smoking' => false
+            'smoking' => false,
         ]);
     }
 }

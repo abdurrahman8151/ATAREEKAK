@@ -1,6 +1,7 @@
 <?php
 
 // ============== App/Models/UserNotification.php ==============
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,11 +14,11 @@ class UserNotification extends Model
     protected $fillable = [
         'user_id',
         'notification_id',
-        'read_at'
+        'read_at',
     ];
 
     protected $casts = [
-        'read_at' => 'datetime'
+        'read_at' => 'datetime',
     ];
 
     public function user()
@@ -45,7 +46,7 @@ class UserNotification extends Model
     // Check if notification is read
     public function isRead()
     {
-        return !is_null($this->read_at);
+        return ! is_null($this->read_at);
     }
 
     // Mark as read

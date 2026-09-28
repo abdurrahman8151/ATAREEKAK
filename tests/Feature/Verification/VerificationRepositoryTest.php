@@ -24,7 +24,7 @@ class VerificationRepositoryTest extends TestCase
     public function test_verify_passenger_sets_is_verified_passenger_true(): void
     {
         $user = User::factory()->create([
-            'verification_status'   => 'pending',
+            'verification_status' => 'pending',
             'is_verified_passenger' => false,
         ]);
 
@@ -49,9 +49,9 @@ class VerificationRepositoryTest extends TestCase
         $this->repo->verifyPassenger($user->id);
 
         $this->assertDatabaseHas('users', [
-            'id'                    => $user->id,
+            'id' => $user->id,
             'is_verified_passenger' => true,
-            'verification_status'   => 'approved',
+            'verification_status' => 'approved',
         ]);
     }
 
@@ -77,7 +77,7 @@ class VerificationRepositoryTest extends TestCase
     {
         $user = User::factory()->create([
             'verification_status' => 'pending',
-            'is_verified_driver'  => false,
+            'is_verified_driver' => false,
         ]);
 
         $result = $this->repo->verifyDriver($user->id);
@@ -88,7 +88,7 @@ class VerificationRepositoryTest extends TestCase
     public function test_verify_driver_also_sets_is_verified_passenger_true(): void
     {
         $user = User::factory()->create([
-            'verification_status'   => 'pending',
+            'verification_status' => 'pending',
             'is_verified_passenger' => false,
         ]);
 
@@ -113,7 +113,7 @@ class VerificationRepositoryTest extends TestCase
         $this->repo->verifyDriver($user->id);
 
         $this->assertDatabaseHas('users', [
-            'id'                 => $user->id,
+            'id' => $user->id,
             'is_verified_driver' => true,
             'verification_status' => 'approved',
         ]);

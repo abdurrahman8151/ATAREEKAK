@@ -4,20 +4,25 @@ namespace App\Http\Controllers\API;
 
 use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
+use App\Interfaces\VerificationRepositoryInterface;
+use App\Models\Employee;
+use App\Models\User;
 use App\Services\Admin\AdminAuthService;
-use App\Services\Admin\AdminWalletService;
-use App\Services\Admin\AdminReportService;
 use App\Services\Admin\AdminExportService;
+use App\Services\Admin\AdminReportService;
+use App\Services\Admin\AdminWalletService;      // ← added
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;      // ← added
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\Response;
 
 final class AdminDashboardController extends Controller
 {
     public function __construct(
-        private readonly AdminAuthService   $authService,
+        private readonly AdminAuthService $authService,
         private readonly AdminWalletService $walletService,
         private readonly AdminReportService $reportService,
         private readonly AdminExportService $exportService,
@@ -30,38 +35,38 @@ final class AdminDashboardController extends Controller
     public function login(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'email'    => 'required_without:username|nullable|string',
+            'email' => 'required_without:username|nullable|string',
             'username' => 'required_without:email|nullable|string',
             'password' => 'required|string',
         ], [
-            'email.required_without'    => 'Please provide an email or username.',
+            'email.required_without' => 'Please provide an email or username.',
             'username.required_without' => 'Please provide an email or username.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'code'   => 'VALIDATION_FAILED',
+                'code' => 'VALIDATION_FAILED',
                 'errors' => $validator->errors(),
             ], 422);
         }
 
         $identifier = $request->input('username') ?? $request->input('email');
-        $result     = $this->authService->authenticate($identifier, $request->password);
+        $result = $this->authService->authenticate($identifier, $request->password);
 
-        if (!$result) {
+        if (! $result) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'INVALID_CREDENTIALS',
+                'status' => 'error',
+                'code' => 'INVALID_CREDENTIALS',
                 'message' => 'Invalid admin credentials',
             ], 401);
         }
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Login successful',
-            'admin'   => $result['admin'],
-            'tokens'  => $result['tokens'],
+            'admin' => $result['admin'],
+            'tokens' => $result['tokens'],
         ]);
     }
 
@@ -80,10 +85,10 @@ final class AdminDashboardController extends Controller
 
         $tokens = $this->authService->refresh($request->refresh_token);
 
-        if (!$tokens) {
+        if (! $tokens) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'REFRESH_TOKEN_INVALID',
+                'status' => 'error',
+                'code' => 'REFRESH_TOKEN_INVALID',
                 'message' => 'Invalid or expired refresh token',
             ], 401);
         }
@@ -96,13 +101,13 @@ final class AdminDashboardController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        /** @var \App\Models\Employee $admin */
+        /** @var Employee $admin */
         $admin = $request->attributes->get('staffEmployee');
 
         $this->authService->logout($admin->id);
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Logged out successfully',
         ]);
     }
@@ -126,13 +131,13 @@ final class AdminDashboardController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard data failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load dashboard data',
             ], 500);
         }
@@ -151,7 +156,7 @@ final class AdminDashboardController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data,
+            'data' => $data,
         ]);
     }
 
@@ -171,7 +176,7 @@ final class AdminDashboardController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data,
+            'data' => $data,
         ]);
     }
 
@@ -187,7 +192,7 @@ final class AdminDashboardController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data,
+            'data' => $data,
         ]);
     }
 
@@ -207,7 +212,7 @@ final class AdminDashboardController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $data,
+            'data' => $data,
         ]);
     }
 
@@ -218,16 +223,16 @@ final class AdminDashboardController extends Controller
     public function getAdminWallet(Request $request): JsonResponse
     {
         $adminConfig = $this->authService->getAdminConfigFromRequest($request);
-        $wallet      = $this->walletService->getOrCreateWallet($adminConfig);
+        $wallet = $this->walletService->getOrCreateWallet($adminConfig);
 
         return response()->json([
             'status' => 'success',
             'wallet' => [
-                'id'            => $wallet->id,
+                'id' => $wallet->id,
                 'wallet_number' => $wallet->wallet_number,
-                'phone_number'  => $wallet->phone_number,
-                'balance'       => Money::from($wallet->balance)->formatted(),
-                'admin_type'    => $adminConfig['type'],
+                'phone_number' => $wallet->phone_number,
+                'balance' => Money::from($wallet->balance)->formatted(),
+                'admin_type' => $adminConfig['type'],
             ],
         ]);
     }
@@ -235,9 +240,9 @@ final class AdminDashboardController extends Controller
     public function getAdminWallets(): JsonResponse
     {
         return response()->json([
-            'status'        => 'success',
+            'status' => 'success',
             'admin_wallets' => $this->walletService->getAdminWallets(),
-            'all_wallets'   => $this->walletService->getAllWallets(),
+            'all_wallets' => $this->walletService->getAllWallets(),
         ]);
     }
 
@@ -245,47 +250,47 @@ final class AdminDashboardController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'phone_number' => 'required|string|min:10|max:15',
-            'amount'       => 'required|numeric|min:1|max:1000000',
+            'amount' => 'required|numeric|min:1|max:1000000',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'code'   => 'VALIDATION_FAILED',
+                'code' => 'VALIDATION_FAILED',
                 'errors' => $validator->errors(),
             ], 422);
         }
 
         try {
             $adminConfig = $this->authService->getAdminConfigFromRequest($request);
-            $amount      = Money::from((float) $request->amount);
-            $result      = $this->walletService->chargeWallet(
+            $amount = Money::from((float) $request->amount);
+            $result = $this->walletService->chargeWallet(
                 $request->phone_number,
                 $amount,
                 $adminConfig
             );
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'Wallet charged successfully',
-                'wallet'  => [
-                    'phone_number'     => $result['wallet']->phone_number,
+                'wallet' => [
+                    'phone_number' => $result['wallet']->phone_number,
                     'previous_balance' => $result['previous_balance']->formatted(),
-                    'new_balance'      => $result['new_balance']->formatted(),
+                    'new_balance' => $result['new_balance']->formatted(),
                 ],
                 'transaction_id' => $result['transaction']->transaction_id,
             ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        } catch (ModelNotFoundException) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'WALLET_NOT_FOUND',
+                'status' => 'error',
+                'code' => 'WALLET_NOT_FOUND',
                 'message' => 'No wallet found for this phone number',
             ], 404);
         } catch (\Exception $e) {
             Log::error('Admin wallet charge failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to charge wallet',
             ], 500);
         }
@@ -297,13 +302,13 @@ final class AdminDashboardController extends Controller
             $result = $this->walletService->getWalletTransactions($walletId);
 
             return response()->json([
-                'status'       => 'success',
-                'wallet'       => $result['wallet'],
+                'status' => 'success',
+                'wallet' => $result['wallet'],
                 'transactions' => $result['transactions'],
             ]);
         } catch (\Exception) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Wallet not found',
             ], 404);
         }
@@ -332,7 +337,7 @@ final class AdminDashboardController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'start_date' => 'nullable|date_format:Y-m-d',
-            'end_date'   => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
+            'end_date' => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
         ]);
 
         if ($validator->fails()) {
@@ -344,7 +349,7 @@ final class AdminDashboardController extends Controller
 
         try {
             $startKey = $request->input('start_date', 'all');
-            $endKey   = $request->input('end_date', 'all');
+            $endKey = $request->input('end_date', 'all');
             $cacheKey = "admin.report.{$startKey}.{$endKey}";
 
             $report = Cache::remember($cacheKey, 300, function () use ($request) {
@@ -355,14 +360,14 @@ final class AdminDashboardController extends Controller
             });
 
             return response()->json([
-                'status'      => 'success',
+                'status' => 'success',
                 'report_data' => $report,
             ]);
         } catch (\Exception $e) {
             Log::error('Report generation failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to generate report',
             ], 500);
         }
@@ -372,12 +377,12 @@ final class AdminDashboardController extends Controller
     // PDF EXPORT  [primary only] — never cached (binary stream, no-store header)
     // =========================================================================
 
-    public function exportPdf(Request $request): \Symfony\Component\HttpFoundation\Response
+    public function exportPdf(Request $request): Response
     {
         $validator = Validator::make($request->all(), [
             'start_date' => 'nullable|date_format:Y-m-d',
-            'end_date'   => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
-            'sections'   => 'nullable|array',
+            'end_date' => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
+            'sections' => 'nullable|array',
             'sections.*' => 'in:stats,financial,growth,cities,recent',
         ]);
 
@@ -391,8 +396,8 @@ final class AdminDashboardController extends Controller
         try {
             $pdfBytes = $this->exportService->exportDashboardPdf(
                 startDate: $request->input('start_date'),
-                endDate:   $request->input('end_date'),
-                sections:  $request->input('sections', []),
+                endDate: $request->input('end_date'),
+                sections: $request->input('sections', []),
             );
 
             $filename = $this->exportService->buildFilename(
@@ -401,17 +406,17 @@ final class AdminDashboardController extends Controller
             );
 
             return response($pdfBytes, 200, [
-                'Content-Type'        => 'application/pdf',
+                'Content-Type' => 'application/pdf',
                 'Content-Disposition' => "inline; filename=\"{$filename}\"",
-                'Content-Length'      => strlen($pdfBytes),
-                'Cache-Control'       => 'no-store, no-cache',
+                'Content-Length' => strlen($pdfBytes),
+                'Cache-Control' => 'no-store, no-cache',
             ]);
 
         } catch (\Exception $e) {
             Log::error('PDF export failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to generate PDF report',
             ], 500);
         }
@@ -428,7 +433,7 @@ final class AdminDashboardController extends Controller
      */
     public function pendingVerifications(): JsonResponse
     {
-        $pending = \App\Models\User::with(['photos', 'profile'])
+        $pending = User::with(['photos', 'profile'])
             ->where('verification_status', 'pending')
             ->get()
             ->map(function ($u) {
@@ -436,13 +441,13 @@ final class AdminDashboardController extends Controller
                 $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
 
                 return [
-                    'user_id'      => $u->id,
-                    'name'         => trim("{$u->first_name} {$u->last_name}"),
-                    'email'        => $u->email,
-                    'type'         => $isDriver ? 'driver' : 'passenger',
-                    'documents'    => $u->photos->map(fn($p) => [
+                    'user_id' => $u->id,
+                    'name' => trim("{$u->first_name} {$u->last_name}"),
+                    'email' => $u->email,
+                    'type' => $isDriver ? 'driver' : 'passenger',
+                    'documents' => $u->photos->map(fn ($p) => [
                         'type' => $p->type,
-                        'url'  => asset("storage/{$p->path}"),
+                        'url' => asset("storage/{$p->path}"),
                     ]),
                     'submitted_at' => $u->updated_at->toIso8601String(),
                 ];
@@ -457,7 +462,7 @@ final class AdminDashboardController extends Controller
      */
     public function approveVerification(int $userId, Request $request): JsonResponse
     {
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'national_id' => 'required|string|max:50',
         ], [
             'national_id.required' => 'The national ID number is required to approve verification.',
@@ -472,26 +477,26 @@ final class AdminDashboardController extends Controller
 
         $nationalId = trim($request->input('national_id'));
 
-        $duplicate = \App\Models\User::where('national_id', $nationalId)
+        $duplicate = User::where('national_id', $nationalId)
             ->where('id', '!=', $userId)
             ->first();
 
         if ($duplicate) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'This national ID is already linked to another verified account. Verification blocked.',
-                'data'    => [
+                'data' => [
                     'conflicting_user_id' => $duplicate->id,
                 ],
             ], 422);
         }
 
         try {
-            $user     = \App\Models\User::with(['photos'])->findOrFail($userId);
+            $user = User::with(['photos'])->findOrFail($userId);
             $docTypes = $user->photos->pluck('type')->toArray();
             $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
 
-            $repo         = app(\App\Interfaces\VerificationRepositoryInterface::class);
+            $repo = app(VerificationRepositoryInterface::class);
             $verifiedUser = $isDriver
                 ? $repo->verifyDriver($userId)
                 : $repo->verifyPassenger($userId);
@@ -503,18 +508,18 @@ final class AdminDashboardController extends Controller
             $this->bustVerificationCaches();
 
             return response()->json([
-                'status'  => 'success',
-                'message' => ($isDriver ? 'Driver' : 'Passenger') . ' verification approved',
-                'user'    => [
-                    'id'                  => $verifiedUser->id,
-                    'national_id'         => $verifiedUser->national_id,
+                'status' => 'success',
+                'message' => ($isDriver ? 'Driver' : 'Passenger').' verification approved',
+                'user' => [
+                    'id' => $verifiedUser->id,
+                    'national_id' => $verifiedUser->national_id,
                     'verification_status' => $verifiedUser->verification_status,
                 ],
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => $e->getMessage(),
             ], 422);
         }
@@ -525,11 +530,11 @@ final class AdminDashboardController extends Controller
      */
     public function rejectVerification(int $userId): JsonResponse
     {
-        $user = \App\Models\User::findOrFail($userId);
+        $user = User::findOrFail($userId);
         $user->update([
-            'verification_status'   => 'rejected',
+            'verification_status' => 'rejected',
             'is_verified_passenger' => false,
-            'is_verified_driver'    => false,
+            'is_verified_driver' => false,
         ]);
 
         $this->bustVerificationCaches();

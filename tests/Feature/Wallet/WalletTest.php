@@ -13,8 +13,10 @@ class WalletTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $user;
+    private User $user;
+
     private string $token;
+
     private string $testPhone; // unique per test — prevents duplicate key errors
 
     protected function setUp(): void
@@ -25,9 +27,9 @@ class WalletTest extends TestCase
         // truncate() was breaking RefreshDatabase's transaction wrapping
         Otp::query()->delete();
 
-        $this->testPhone = '09' . rand(10000000, 99999999);
+        $this->testPhone = '09'.rand(10000000, 99999999);
 
-        $this->user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user = User::factory()->create(['password' => bcrypt('password123')]);
         $this->seedAdminWallets();
         $this->token = $this->getToken($this->user);
     }
@@ -39,7 +41,7 @@ class WalletTest extends TestCase
         $this->withToken($this->token)
             ->postJson('/api/wallet/initiate', [
                 'phone_number' => $this->testPhone,
-                'password'     => 'password123',
+                'password' => 'password123',
             ])
             ->assertStatus(200)
             ->assertJsonPath('success', true);
@@ -50,7 +52,7 @@ class WalletTest extends TestCase
         $response = $this->withToken($this->token)
             ->postJson('/api/wallet/initiate', [
                 'phone_number' => $this->testPhone,
-                'password'     => 'password123',
+                'password' => 'password123',
             ]);
 
         $response->assertStatus(200);
@@ -63,7 +65,7 @@ class WalletTest extends TestCase
         $this->withToken($this->token)
             ->postJson('/api/wallet/initiate', [
                 'phone_number' => $this->testPhone,
-                'password'     => 'wrong_password',
+                'password' => 'wrong_password',
             ])
             ->assertStatus(401);
     }
@@ -71,17 +73,17 @@ class WalletTest extends TestCase
     public function test_initiate_fails_if_wallet_already_exists(): void
     {
         $wallet = Wallet::create([
-            'user_id'       => $this->user->id,
-            'phone_number'  => $this->testPhone,
-            'wallet_number' => 'WLT-' . Str::random(8),
-            'balance'       => 0,
+            'user_id' => $this->user->id,
+            'phone_number' => $this->testPhone,
+            'wallet_number' => 'WLT-'.Str::random(8),
+            'balance' => 0,
         ]);
         $this->user->update(['wallet_id' => $wallet->id]);
 
         $response = $this->withToken($this->token)
             ->postJson('/api/wallet/initiate', [
-                'phone_number' => '09' . rand(10000000, 99999999), // different phone
-                'password'     => 'password123',
+                'phone_number' => '09'.rand(10000000, 99999999), // different phone
+                'password' => 'password123',
             ]);
 
         // Wallet controller returns 409 when wallet already exists for the user
@@ -90,20 +92,20 @@ class WalletTest extends TestCase
 
     public function test_initiate_fails_with_duplicate_phone(): void
     {
-        $duplicatePhone = '09' . rand(10000000, 99999999);
+        $duplicatePhone = '09'.rand(10000000, 99999999);
 
         $other = User::factory()->create();
         Wallet::create([
-            'user_id'       => $other->id,
-            'phone_number'  => $duplicatePhone,
-            'wallet_number' => 'WLT-' . Str::random(8),
-            'balance'       => 0,
+            'user_id' => $other->id,
+            'phone_number' => $duplicatePhone,
+            'wallet_number' => 'WLT-'.Str::random(8),
+            'balance' => 0,
         ]);
 
         $response = $this->withToken($this->token)
             ->postJson('/api/wallet/initiate', [
                 'phone_number' => $duplicatePhone,
-                'password'     => 'password123',
+                'password' => 'password123',
             ]);
 
         // phone_number has unique:wallets constraint → validation returns 422
@@ -117,7 +119,7 @@ class WalletTest extends TestCase
         $initResponse = $this->withToken($this->token)
             ->postJson('/api/wallet/initiate', [
                 'phone_number' => $this->testPhone,
-                'password'     => 'password123',
+                'password' => 'password123',
             ]);
 
         $initResponse->assertStatus(200);
@@ -127,7 +129,7 @@ class WalletTest extends TestCase
         $this->withToken($this->token)
             ->postJson('/api/wallet/verify-and-create', [
                 'phone_number' => $this->testPhone,
-                'otp_code'     => $otp,
+                'otp_code' => $otp,
             ])
             ->assertStatus(201);
 
@@ -138,13 +140,13 @@ class WalletTest extends TestCase
     {
         $this->withToken($this->token)->postJson('/api/wallet/initiate', [
             'phone_number' => $this->testPhone,
-            'password'     => 'password123',
+            'password' => 'password123',
         ]);
 
         $this->withToken($this->token)
             ->postJson('/api/wallet/verify-and-create', [
                 'phone_number' => $this->testPhone,
-                'otp_code'     => '000000',
+                'otp_code' => '000000',
             ])
             ->assertStatus(400);
     }
@@ -153,13 +155,13 @@ class WalletTest extends TestCase
 
     public function test_can_check_wallet_balance(): void
     {
-        $balancePhone = '09' . rand(10000000, 99999999);
+        $balancePhone = '09'.rand(10000000, 99999999);
 
         $wallet = Wallet::create([
-            'user_id'       => $this->user->id,
-            'phone_number'  => $balancePhone,
-            'wallet_number' => 'WLT-' . Str::random(8),
-            'balance'       => 500_000,
+            'user_id' => $this->user->id,
+            'phone_number' => $balancePhone,
+            'wallet_number' => 'WLT-'.Str::random(8),
+            'balance' => 500_000,
         ]);
         $this->user->update(['wallet_id' => $wallet->id]);
 
@@ -184,17 +186,17 @@ class WalletTest extends TestCase
     private function seedAdminWallets(): void
     {
         foreach (['system_admin', 'sycash'] as $type) {
-            $cfg  = config("admin.{$type}");
+            $cfg = config("admin.{$type}");
             $user = User::firstOrCreate(
                 ['email' => $cfg['email']],
                 ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
             );
 
-            if (!Wallet::where('phone_number', $cfg['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
                 $w = Wallet::create([
-                    'user_id'      => $user->id,
+                    'user_id' => $user->id,
                     'phone_number' => $cfg['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                     // wallet_number omitted — 'WLT-' . strtoupper($type) . '-' . Str::random(4)
                     // is 20+ chars once $type is 'system_admin'; let the model auto-generate instead
                 ]);
@@ -204,10 +206,11 @@ class WalletTest extends TestCase
             }
         }
     }
+
     private function getToken(User $user): string
     {
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }

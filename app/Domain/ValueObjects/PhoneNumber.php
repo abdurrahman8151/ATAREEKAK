@@ -32,8 +32,9 @@ class PhoneNumber
     {
         // Format as +963 9XX XXX XXX
         $cleaned = str_replace('+963', '', $this->number);
-        return '+963 ' . substr($cleaned, 0, 3) . ' ' .
-            substr($cleaned, 3, 3) . ' ' .
+
+        return '+963 '.substr($cleaned, 0, 3).' '.
+            substr($cleaned, 3, 3).' '.
             substr($cleaned, 6, 3);
     }
 
@@ -68,15 +69,15 @@ class PhoneNumber
         }
 
         if (str_starts_with($clean, '963')) {
-            return '+' . $clean;
+            return '+'.$clean;
         }
 
         if (str_starts_with($clean, '9') && strlen($clean) === 9) {
-            return '+963' . $clean;
+            return '+963'.$clean;
         }
 
         if (strlen($clean) === 10 && str_starts_with($clean, '09')) {
-            return '+963' . substr($clean, 1);
+            return '+963'.substr($clean, 1);
         }
 
         throw new InvalidArgumentException("Invalid Syrian phone number format: {$number}");
@@ -85,7 +86,7 @@ class PhoneNumber
     private function validate(): void
     {
         // Must be +963 9XX XXX XXX (12 characters total)
-        if (!preg_match('/^\+9639\d{8}$/', $this->number)) {
+        if (! preg_match('/^\+9639\d{8}$/', $this->number)) {
             throw new InvalidArgumentException(
                 "Invalid Syrian phone number: {$this->number}. Expected format: +9639XXXXXXXX"
             );

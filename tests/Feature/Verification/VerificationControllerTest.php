@@ -12,7 +12,8 @@ class VerificationControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $user;
+    private User $user;
+
     private string $token;
 
     protected function setUp(): void
@@ -20,7 +21,7 @@ class VerificationControllerTest extends TestCase
         parent::setUp();
         Storage::fake('public');
 
-        $this->user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user = User::factory()->create(['password' => bcrypt('password123')]);
         $this->token = $this->getToken($this->user);
     }
 
@@ -39,7 +40,7 @@ class VerificationControllerTest extends TestCase
             ->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('users', [
-            'id'                  => $this->user->id,
+            'id' => $this->user->id,
             'verification_status' => 'pending',
         ]);
     }
@@ -75,14 +76,14 @@ class VerificationControllerTest extends TestCase
         // Use post() for file uploads
         $response = $this->withToken($this->token)
             ->post('/api/profile/verify/driver', [
-                'face_id_pic'         => UploadedFile::fake()->image('face.jpg'),
-                'back_id_pic'         => UploadedFile::fake()->image('back.jpg'),
+                'face_id_pic' => UploadedFile::fake()->image('face.jpg'),
+                'back_id_pic' => UploadedFile::fake()->image('back.jpg'),
                 'driving_license_pic' => UploadedFile::fake()->image('license.jpg'),
-                'mechanic_card_pic'   => UploadedFile::fake()->image('mechanic.jpg'),
-                'car_pic'             => UploadedFile::fake()->image('car.jpg'),
-                'type_of_car'         => 'Toyota Camry',
-                'color_of_car'        => 'White',
-                'number_of_seats'     => 4,
+                'mechanic_card_pic' => UploadedFile::fake()->image('mechanic.jpg'),
+                'car_pic' => UploadedFile::fake()->image('car.jpg'),
+                'type_of_car' => 'Toyota Camry',
+                'color_of_car' => 'White',
+                'number_of_seats' => 4,
             ], ['Accept' => 'application/json']);
 
         $response->assertStatus(201)
@@ -150,7 +151,7 @@ class VerificationControllerTest extends TestCase
     private function getToken(User $user): string
     {
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }

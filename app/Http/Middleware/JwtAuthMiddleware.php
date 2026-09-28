@@ -2,8 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\JwtService;
 use App\Models\User;
+use App\Services\JwtService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,13 +24,13 @@ class JwtAuthMiddleware
     {
         // 1. Extract Bearer token
         $token = $this->extractToken($request);
-        if (!$token) {
+        if (! $token) {
             return $this->fail('TOKEN_MISSING', 'Unauthenticated');
         }
 
         // 2. Decode: verify signature + expiry
         $payload = $this->jwtService->decodeToken($token);
-        if (!$payload) {
+        if (! $payload) {
             return $this->fail('TOKEN_INVALID', 'Invalid or expired token');
         }
 
@@ -44,7 +44,7 @@ class JwtAuthMiddleware
         //    Saves ~50ms per request across every authenticated endpoint in the app.
         //    Cache is busted by JwtService::revokeAllTokens() on logout/ban/password reset.
         $user = $this->jwtService->findUserCached($payload['sub']);
-        if (!$user) {
+        if (! $user) {
             return $this->fail('USER_NOT_FOUND', 'User not found');
         }
 
@@ -58,12 +58,12 @@ class JwtAuthMiddleware
             ) {
                 // Ban expired — restore to logged-out, user must log in again
                 $user->update([
-                    'status'         => 0,
-                    'ban_reason'     => null,
-                    'ban_type'       => null,
-                    'banned_at'      => null,
+                    'status' => 0,
+                    'ban_reason' => null,
+                    'ban_type' => null,
+                    'banned_at' => null,
                     'ban_expires_at' => null,
-                    'banned_by'      => null,
+                    'banned_by' => null,
                 ]);
 
                 // Bust the cache — the cached object still has status=-1.
@@ -74,14 +74,14 @@ class JwtAuthMiddleware
                 // Fall through to the inactive check below (status is now 0)
             } else {
                 // Still banned — only /api/contact is allowed
-                if (!$request->is('api/contact')) {
+                if (! $request->is('api/contact')) {
                     return response()->json([
-                        'status'  => 'error',
-                        'code'    => 'USER_BANNED',
+                        'status' => 'error',
+                        'code' => 'USER_BANNED',
                         'message' => 'Your account has been banned. You may only use the contact form.',
-                        'ban'     => [
-                            'reason'     => $user->ban_reason,
-                            'type'       => $user->ban_type,
+                        'ban' => [
+                            'reason' => $user->ban_reason,
+                            'type' => $user->ban_type,
                             'expires_at' => $user->ban_expires_at?->toIso8601String(),
                         ],
                     ], 403);
@@ -89,6 +89,7 @@ class JwtAuthMiddleware
 
                 $request->setUserResolver(fn () => $user);
                 Auth::setUser($user);
+
                 return $next($request);
             }
         }
@@ -101,7 +102,7 @@ class JwtAuthMiddleware
         // 7. Token version check — rejects tokens issued before last
         //    password change or logout-all.
         //    Uses the already-loaded cached user — zero extra DB queries.
-        if (!$this->jwtService->validateTokenVersion($payload, $user)) {
+        if (! $this->jwtService->validateTokenVersion($payload, $user)) {
             return $this->fail(
                 'TOKEN_INVALIDATED',
                 'Your session has been invalidated. Please log in again.'
@@ -110,20 +111,22 @@ class JwtAuthMiddleware
 
         $request->setUserResolver(fn () => $user);
         Auth::setUser($user);
+
         return $next($request);
     }
 
     private function extractToken(Request $request): ?string
     {
         $header = $request->header('Authorization', '');
+
         return str_starts_with($header, 'Bearer ') ? substr($header, 7) : null;
     }
 
     private function fail(string $code, string $message): Response
     {
         return response()->json([
-            'status'  => 'error',
-            'code'    => $code,
+            'status' => 'error',
+            'code' => $code,
             'message' => $message,
         ], 401);
     }

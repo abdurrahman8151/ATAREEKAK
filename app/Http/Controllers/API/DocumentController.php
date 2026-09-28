@@ -36,7 +36,7 @@ class DocumentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -58,14 +58,14 @@ class DocumentController extends Controller
         // because the person is still the same individual.
 
         $isIdentityDoc = in_array($request->type, ['face_id', 'back_id']);
-        $isDriverDoc   = in_array($request->type, ['license', 'mechanic_card']);
+        $isDriverDoc = in_array($request->type, ['license', 'mechanic_card']);
 
         $updates = ['verification_status' => 'none'];
 
         if ($isIdentityDoc) {
             // Identity changed → both verifications are invalid
             $updates['is_verified_passenger'] = false;
-            $updates['is_verified_driver']    = false;
+            $updates['is_verified_driver'] = false;
         } elseif ($isDriverDoc) {
             // Driver docs changed → only driver verification is invalid
             $updates['is_verified_driver'] = false;
@@ -94,9 +94,9 @@ class DocumentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'id'   => $photo->id,
-                'url'  => asset("storage/{$path}"),
+            'data' => [
+                'id' => $photo->id,
+                'url' => asset("storage/{$path}"),
                 'type' => $photo->type,
             ],
         ]);

@@ -25,7 +25,7 @@ class SendOtpRequest extends FormRequest
                 'string',
                 'regex:/^(\+963|963|0)?9[0-9]{8}$/',
             ],
-            'type' => 'sometimes|in:registration,login,password_reset'
+            'type' => 'sometimes|in:registration,login,password_reset',
         ];
     }
 
@@ -37,7 +37,7 @@ class SendOtpRequest extends FormRequest
         return [
             'phone_number.required' => 'Phone number is required',
             'phone_number.regex' => 'Invalid Syrian phone number format. Use format: 09XXXXXXXX or +96309XXXXXXXX',
-            'type.in' => 'Invalid OTP type. Must be one of: registration, login, password_reset'
+            'type.in' => 'Invalid OTP type. Must be one of: registration, login, password_reset',
         ];
     }
 }

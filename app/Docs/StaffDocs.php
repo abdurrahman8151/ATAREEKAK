@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Docs;
 
 /**
@@ -9,12 +10,16 @@ namespace App\Docs;
  *     operationId="staffLogin",
  *     tags={"Staff – Auth"},
  *     summary="Staff login",
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"email","password"},
+ *
  *             @OA\Property(property="email",    type="string", format="email"),
  *             @OA\Property(property="password", type="string", format="password")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="JWT returned"),
  *     @OA\Response(response=401, description="Invalid credentials")
  * )
@@ -25,6 +30,7 @@ namespace App\Docs;
  *     tags={"Staff – Auth"},
  *     summary="Refresh staff JWT",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="New token")
  * )
  *
@@ -34,6 +40,7 @@ namespace App\Docs;
  *     tags={"Staff – Auth"},
  *     summary="Staff logout",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Logged out")
  * )
  *
@@ -43,6 +50,7 @@ namespace App\Docs;
  *     tags={"Staff – Auth"},
  *     summary="Get current staff member",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Staff user object")
  * )
  *
@@ -54,6 +62,7 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="List all user reviews / comments",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Reviews list")
  * )
  *
@@ -63,7 +72,9 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="Delete a review / comment",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="commentId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Deleted")
  * )
  *
@@ -75,6 +86,7 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="List all users",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Users list")
  * )
  *
@@ -84,7 +96,9 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="Get a user's profile",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="User profile")
  * )
  *
@@ -96,6 +110,7 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="List all trips",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Trips list")
  * )
  *
@@ -105,6 +120,7 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="List all bookings",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Bookings list")
  * )
  *
@@ -114,10 +130,14 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="Cancel a trip (staff action)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="rideId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=false,
+ *
  *         @OA\JsonContent(@OA\Property(property="reason", type="string"))
  *     ),
+ *
  *     @OA\Response(response=200, description="Trip cancelled")
  * )
  *
@@ -127,10 +147,14 @@ namespace App\Docs;
  *     tags={"Staff – Operations"},
  *     summary="Cancel a booking (staff action)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="bookingId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=false,
+ *
  *         @OA\JsonContent(@OA\Property(property="reason", type="string"))
  *     ),
+ *
  *     @OA\Response(response=200, description="Booking cancelled")
  * )
  *
@@ -142,6 +166,7 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="List all complaints",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Complaints list")
  * )
  *
@@ -151,7 +176,9 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="Get a complaint",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Complaint object")
  * )
  *
@@ -161,12 +188,17 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="Respond to a complaint",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"response"},
+ *
  *             @OA\Property(property="response", type="string")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Response saved")
  * )
  *
@@ -176,10 +208,14 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="Escalate a complaint to admin",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=false,
+ *
  *         @OA\JsonContent(@OA\Property(property="reason", type="string"))
  *     ),
+ *
  *     @OA\Response(response=200, description="Escalated")
  * )
  *
@@ -191,6 +227,7 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="[admin] List pending verifications",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Pending verifications")
  * )
  *
@@ -200,7 +237,9 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="[admin] Approve a verification",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Approved")
  * )
  *
@@ -210,10 +249,14 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="[admin] Reject a verification",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=false,
+ *
  *         @OA\JsonContent(@OA\Property(property="reason", type="string"))
  *     ),
+ *
  *     @OA\Response(response=200, description="Rejected")
  * )
  *
@@ -225,6 +268,7 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="[admin] List escalated complaints",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Escalated complaints list")
  * )
  *
@@ -234,12 +278,17 @@ namespace App\Docs;
  *     tags={"Staff – Complaints"},
  *     summary="[admin] Resolve an escalated complaint",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"resolution"},
+ *
  *             @OA\Property(property="resolution", type="string")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Resolved")
  * )
  */

@@ -23,7 +23,7 @@ return new class extends Migration
         Schema::table('rides', function (Blueprint $table) {
             $drop = array_filter(
                 ['cash_creation_fee', 'cash_fee_deferred'],
-                fn($c) => Schema::hasColumn('rides', $c)
+                fn ($c) => Schema::hasColumn('rides', $c)
             );
             if ($drop) {
                 $table->dropColumn(array_values($drop));

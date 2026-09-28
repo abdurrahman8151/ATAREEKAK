@@ -4,7 +4,6 @@ namespace Tests\Feature\Staff;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
@@ -34,35 +33,35 @@ class EmployeeManagementControllerTest extends TestCase
         parent::setUp();
 
         Config::set('admin.system_admin', [
-            'email'         => 'sysadmin@test.com',
-            'password'      => 'syspass',
-            'username'      => 'sysadmin',
-            'first_name'    => 'System',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000001',
+            'email' => 'sysadmin@test.com',
+            'password' => 'syspass',
+            'username' => 'sysadmin',
+            'first_name' => 'System',
+            'last_name' => 'Admin',
+            'phone' => '0910000001',
             'wallet_prefix' => 'SYS',
-            'permissions'   => ['*'],
+            'permissions' => ['*'],
         ]);
 
         Config::set('admin.sycash', [
-            'email'         => 'sycash@test.com',
-            'password'      => 'sycashpass',
-            'first_name'    => 'SyCash',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000002',
+            'email' => 'sycash@test.com',
+            'password' => 'sycashpass',
+            'first_name' => 'SyCash',
+            'last_name' => 'Admin',
+            'phone' => '0910000002',
             'wallet_prefix' => 'SYCSH',
-            'permissions'   => ['view_wallet'],
+            'permissions' => ['view_wallet'],
         ]);
 
         // A real admin employee for staff-JWT-based tests
         $this->adminEmployee = Employee::create([
-            'username'      => 'admin_mgr',
-            'email'         => 'admin_mgr@staff.test',
-            'password'      => bcrypt('admin_mgr_pass'),
-            'first_name'    => 'Admin',
-            'last_name'     => 'Manager',
-            'role'          => StaffRole::ADMIN->value,
-            'is_active'     => true,
+            'username' => 'admin_mgr',
+            'email' => 'admin_mgr@staff.test',
+            'password' => bcrypt('admin_mgr_pass'),
+            'first_name' => 'Admin',
+            'last_name' => 'Manager',
+            'role' => StaffRole::ADMIN->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
@@ -97,11 +96,11 @@ class EmployeeManagementControllerTest extends TestCase
     {
         $this->withToken($this->adminJwt())
             ->postJson('/api/employees', [
-                'username'   => 'new_agent',
-                'password'   => 'password123',
+                'username' => 'new_agent',
+                'password' => 'password123',
                 'first_name' => 'New',
-                'last_name'  => 'Agent',
-                'role'       => 'support_agent',
+                'last_name' => 'Agent',
+                'role' => 'support_agent',
             ])->assertStatus(201)
             ->assertJsonPath('status', 'success');
 
@@ -112,11 +111,11 @@ class EmployeeManagementControllerTest extends TestCase
     {
         $this->withToken($this->adminJwt())
             ->postJson('/api/employees', [
-                'username'   => 'new_admin',
-                'password'   => 'password123',
+                'username' => 'new_admin',
+                'password' => 'password123',
                 'first_name' => 'New',
-                'last_name'  => 'Admin',
-                'role'       => 'admin',
+                'last_name' => 'Admin',
+                'role' => 'admin',
             ])->assertStatus(201);
     }
 
@@ -132,11 +131,11 @@ class EmployeeManagementControllerTest extends TestCase
     {
         $this->withToken($this->adminJwt())
             ->postJson('/api/employees', [
-                'username'   => 'admin_mgr', // already exists
-                'password'   => 'password123',
+                'username' => 'admin_mgr', // already exists
+                'password' => 'password123',
                 'first_name' => 'Dup',
-                'last_name'  => 'User',
-                'role'       => 'support_agent',
+                'last_name' => 'User',
+                'role' => 'support_agent',
             ])->assertStatus(409);
     }
 
@@ -144,11 +143,11 @@ class EmployeeManagementControllerTest extends TestCase
     {
         $this->withToken($this->adminJwt())
             ->postJson('/api/employees', [
-                'username'   => 'tricky',
-                'password'   => 'password123',
+                'username' => 'tricky',
+                'password' => 'password123',
                 'first_name' => 'Tricky',
-                'last_name'  => 'Role',
-                'role'       => 'god_mode',
+                'last_name' => 'Role',
+                'role' => 'god_mode',
             ])->assertStatus(422);
     }
 
@@ -157,11 +156,11 @@ class EmployeeManagementControllerTest extends TestCase
         // admin role level < system_admin — forbidden
         $this->withToken($this->staffToken())
             ->postJson('/api/employees', [
-                'username'   => 'new_sysadmin',
-                'password'   => 'password123',
+                'username' => 'new_sysadmin',
+                'password' => 'password123',
                 'first_name' => 'New',
-                'last_name'  => 'SysAdmin',
-                'role'       => 'system_admin',
+                'last_name' => 'SysAdmin',
+                'role' => 'system_admin',
             ])->assertStatus(422); // DomainException → 403 or 422
     }
 
@@ -191,12 +190,12 @@ class EmployeeManagementControllerTest extends TestCase
         $this->withToken($this->adminJwt())
             ->putJson("/api/employees/{$agent->id}", [
                 'first_name' => 'Updated',
-                'last_name'  => 'Name',
+                'last_name' => 'Name',
             ])->assertStatus(200)
             ->assertJsonPath('status', 'success');
 
         $this->assertDatabaseHas('employees', [
-            'id'         => $agent->id,
+            'id' => $agent->id,
             'first_name' => 'Updated',
         ]);
     }
@@ -244,7 +243,7 @@ class EmployeeManagementControllerTest extends TestCase
     private function adminJwt(): string
     {
         return $this->postJson('/api/admin/login', [
-            'email'    => 'sysadmin@test.com',
+            'email' => 'sysadmin@test.com',
             'password' => 'syspass',
         ])->json('tokens.access_token');
     }
@@ -253,7 +252,7 @@ class EmployeeManagementControllerTest extends TestCase
     {
         return $this->postJson('/api/staff/login', [
             'identifier' => 'admin_mgr',
-            'password'   => 'admin_mgr_pass',
+            'password' => 'admin_mgr_pass',
         ])->json('tokens.access_token');
     }
 
@@ -263,13 +262,13 @@ class EmployeeManagementControllerTest extends TestCase
         $n++;
 
         return Employee::create([
-            'username'      => "agent_{$n}",
-            'email'         => "agent{$n}@staff.test",
-            'password'      => bcrypt('pass123'),
-            'first_name'    => 'Test',
-            'last_name'     => 'Agent',
-            'role'          => StaffRole::SUPPORT_AGENT->value,
-            'is_active'     => true,
+            'username' => "agent_{$n}",
+            'email' => "agent{$n}@staff.test",
+            'password' => bcrypt('pass123'),
+            'first_name' => 'Test',
+            'last_name' => 'Agent',
+            'role' => StaffRole::SUPPORT_AGENT->value,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }

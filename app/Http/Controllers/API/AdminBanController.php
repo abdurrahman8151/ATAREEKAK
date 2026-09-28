@@ -4,10 +4,12 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\JwtService;
+use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Http\JsonResponse;
+use Illuminate\Http\JsonResponse;      // ← added
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;      // ← added
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
@@ -52,16 +54,16 @@ final class AdminBanController extends Controller
     public function ban(int $userId, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'reason'     => 'required|string|min:10|max:1000',
-            'type'       => 'required|in:permanent,temporary',
+            'reason' => 'required|string|min:10|max:1000',
+            'type' => 'required|in:permanent,temporary',
             'expires_at' => 'required_if:type,temporary|nullable|date|after:now',
         ], [
-            'reason.required'        => 'A ban reason is required.',
-            'reason.min'             => 'Ban reason must be at least 10 characters.',
-            'type.required'          => 'Ban type is required (permanent or temporary).',
-            'type.in'                => 'Ban type must be permanent or temporary.',
+            'reason.required' => 'A ban reason is required.',
+            'reason.min' => 'Ban reason must be at least 10 characters.',
+            'type.required' => 'Ban type is required (permanent or temporary).',
+            'type.in' => 'Ban type must be permanent or temporary.',
             'expires_at.required_if' => 'An expiry date is required for temporary bans.',
-            'expires_at.after'       => 'Expiry date must be in the future.',
+            'expires_at.after' => 'Expiry date must be in the future.',
         ]);
 
         if ($validator->fails()) {
@@ -73,69 +75,68 @@ final class AdminBanController extends Controller
 
             // Prevent banning admin accounts
 
-
-
             if ($user->status == -1) {
                 return response()->json([
-                    'status'  => 'error',
+                    'status' => 'error',
                     'message' => 'This user is already banned.',
                 ], 422);
             }
 
             $user->update([
-                'status'         => -1,
-                'ban_reason'     => $request->input('reason'),
-                'ban_type'       => $request->input('type'),
-                'banned_at'      => now(),
+                'status' => -1,
+                'ban_reason' => $request->input('reason'),
+                'ban_type' => $request->input('type'),
+                'banned_at' => now(),
                 'ban_expires_at' => $request->input('type') === 'temporary'
                     ? $request->input('expires_at')
                     : null,
-                'banned_by'      => $request->user()?->id,
+                'banned_by' => $request->user()?->id,
             ]);
 
             // Revoke all tokens — ban takes effect on the very next request
-            app(\App\Services\JwtService::class)->revokeAllTokens($user->id);
+            app(JwtService::class)->revokeAllTokens($user->id);
 
             // Bust caches — a ban changes active user/driver counts and the user's status
             $this->bustBanCaches($userId);
 
             Log::info('User banned', [
-                'user_id'    => $user->id,
-                'banned_by'  => $request->user()?->id,
-                'type'       => $request->input('type'),
+                'user_id' => $user->id,
+                'banned_by' => $request->user()?->id,
+                'type' => $request->input('type'),
                 'expires_at' => $request->input('expires_at'),
             ]);
 
             // Notify user
             try {
                 $expiryNote = $request->input('type') === 'temporary'
-                    ? ' Your ban expires at ' . $request->input('expires_at') . '.'
+                    ? ' Your ban expires at '.$request->input('expires_at').'.'
                     : '';
 
-                app(\App\Services\NotificationService::class)->createNotification(
+                app(NotificationService::class)->createNotification(
                     $user,
                     'account_banned',
                     'Account Banned',
-                    'Your account has been banned. Reason: ' . $request->input('reason') . $expiryNote,
+                    'Your account has been banned. Reason: '.$request->input('reason').$expiryNote,
                     ['ban_type' => $request->input('type')],
                     'high',
                     'system'
                 );
             } catch (\Throwable $e) {
                 // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('ban notification failed (non-fatal): ' . $e->getMessage());
+                Log::warning('ban notification failed (non-fatal): '.$e->getMessage());
             }
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'User has been banned successfully.',
-                'data'    => $this->formatUserStatus($user->fresh()),
+                'data' => $this->formatUserStatus($user->fresh()),
             ]);
 
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
             Log::error('Ban failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+
             return $this->serverError();
         }
     }
@@ -165,38 +166,38 @@ final class AdminBanController extends Controller
 
             if ($user->status != -1) {
                 return response()->json([
-                    'status'  => 'error',
+                    'status' => 'error',
                     'message' => 'This user is not currently banned.',
                 ], 422);
             }
 
             $user->update([
-                'status'         => 0,   // logged out — user must log in again
-                'ban_reason'     => null,
-                'ban_type'       => null,
-                'banned_at'      => null,
+                'status' => 0,   // logged out — user must log in again
+                'ban_reason' => null,
+                'ban_type' => null,
+                'banned_at' => null,
                 'ban_expires_at' => null,
-                'banned_by'      => null,
+                'banned_by' => null,
             ]);
 
             // Bust caches — an unban changes active user/driver counts
             $this->bustBanCaches($userId);
 
             Log::info('User unbanned', [
-                'user_id'     => $userId,
+                'user_id' => $userId,
                 'unbanned_by' => $request->user()?->id,
-                'notes'       => $request->input('admin_notes'),
+                'notes' => $request->input('admin_notes'),
             ]);
 
             // Notify user
             try {
-                app(\App\Services\NotificationService::class)->createNotification(
+                app(NotificationService::class)->createNotification(
                     $user,
                     'account_unbanned',
                     'Account Restored',
                     'Your account ban has been lifted. You can now log in again.'
-                    . ($request->input('admin_notes')
-                        ? ' Note: ' . $request->input('admin_notes')
+                    .($request->input('admin_notes')
+                        ? ' Note: '.$request->input('admin_notes')
                         : ''),
                     [],
                     'high',
@@ -204,19 +205,20 @@ final class AdminBanController extends Controller
                 );
             } catch (\Throwable $e) {
                 // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('unban notification failed (non-fatal): ' . $e->getMessage());
+                Log::warning('unban notification failed (non-fatal): '.$e->getMessage());
             }
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'User has been unbanned. They can now log in again.',
-                'data'    => $this->formatUserStatus($user->fresh()),
+                'data' => $this->formatUserStatus($user->fresh()),
             ]);
 
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
             Log::error('Unban failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+
             return $this->serverError();
         }
     }
@@ -238,7 +240,7 @@ final class AdminBanController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
 
         } catch (ModelNotFoundException) {
@@ -275,12 +277,12 @@ final class AdminBanController extends Controller
         };
 
         $data = [
-            'user_id'        => $user->id,
-            'name'           => trim("{$user->first_name} {$user->last_name}"),
-            'email'          => $user->email,
+            'user_id' => $user->id,
+            'name' => trim("{$user->first_name} {$user->last_name}"),
+            'email' => $user->email,
             'account_status' => $accountStatus,
-            'status_code'    => (int) $user->status,
-            'ban'            => null,
+            'status_code' => (int) $user->status,
+            'ban' => null,
         ];
 
         if ($user->status == -1) {
@@ -293,13 +295,13 @@ final class AdminBanController extends Controller
                 && now()->gt($user->ban_expires_at);
 
             $data['ban'] = [
-                'reason'     => $user->ban_reason,
-                'type'       => $user->ban_type,
-                'banned_at'  => $user->banned_at?->toIso8601String(),
+                'reason' => $user->ban_reason,
+                'type' => $user->ban_type,
+                'banned_at' => $user->banned_at?->toIso8601String(),
                 'expires_at' => $user->ban_expires_at?->toIso8601String(),
                 'is_expired' => $isExpired,
-                'banned_by'  => $bannedBy ? [
-                    'id'   => $bannedBy->id,
+                'banned_by' => $bannedBy ? [
+                    'id' => $bannedBy->id,
                     'name' => trim("{$bannedBy->first_name} {$bannedBy->last_name}"),
                 ] : null,
             ];
@@ -311,7 +313,7 @@ final class AdminBanController extends Controller
     private function serverError(): JsonResponse
     {
         return response()->json([
-            'status'  => 'error',
+            'status' => 'error',
             'message' => 'An unexpected error occurred. Please try again.',
         ], 500);
     }

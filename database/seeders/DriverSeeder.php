@@ -64,14 +64,14 @@ class DriverSeeder extends Seeder
             // ── 1. Create user ──────────────────────────────────────────────
             // Observer fires here: profile + score + 3.0 base rating seeded.
             $user = User::create([
-                'first_name'          => "Driver{$n}",
-                'last_name'           => 'Test',
-                'email'               => "driver{$n}@syride.test",
-                'password'            => Hash::make($password),
-                'gender'              => 'M',
-                'address'             => 'دمشق',
-                'status'              => 1,
-                'email_verified_at'   => now(),
+                'first_name' => "Driver{$n}",
+                'last_name' => 'Test',
+                'email' => "driver{$n}@syride.test",
+                'password' => Hash::make($password),
+                'gender' => 'M',
+                'address' => 'دمشق',
+                'status' => 1,
+                'email_verified_at' => now(),
                 'verification_status' => 'none',
             ]);
 
@@ -81,8 +81,8 @@ class DriverSeeder extends Seeder
             foreach (['license', 'mechanic_card'] as $docType) {
                 Photo::create([
                     'user_id' => $user->id,
-                    'type'    => $docType,
-                    'path'    => "verifications/{$docType}/driver{$n}_placeholder.jpg",
+                    'type' => $docType,
+                    'path' => "verifications/{$docType}/driver{$n}_placeholder.jpg",
                 ]);
             }
 
@@ -97,9 +97,9 @@ class DriverSeeder extends Seeder
 
             // ── 5. Create driver wallet ─────────────────────────────────────
             $wallet = Wallet::create([
-                'user_id'      => $user->id,
+                'user_id' => $user->id,
                 'phone_number' => self::COMM_NUMBER,
-                'balance'      => 10000, // 10,000 SYP starting balance for testing
+                'balance' => 10000, // 10,000 SYP starting balance for testing
             ]);
 
             // Link wallet to user
@@ -108,11 +108,11 @@ class DriverSeeder extends Seeder
             // ── 6. Update profile with vehicle details ──────────────────────
             // Profile was already created by the observer; we just fill vehicle info.
             $user->profile()->update([
-                'type_of_car'     => $data['vehicle'],
-                'color_of_car'    => $data['color'],
+                'type_of_car' => $data['vehicle'],
+                'color_of_car' => $data['color'],
                 'number_of_seats' => $data['seats'],
-                'radio'           => false,
-                'smoking'         => false,
+                'radio' => false,
+                'smoking' => false,
             ]);
 
             $this->command->info("  ✅  Driver{$n} created → verified → wallet ready.");

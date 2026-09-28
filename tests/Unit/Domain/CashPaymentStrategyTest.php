@@ -4,10 +4,12 @@ namespace Tests\Unit\Domain;
 
 use App\Domain\Payment\Strategies\CashPaymentStrategy;
 use App\Domain\Payment\Strategies\PaymentResult;
+use App\Domain\Payment\Strategies\PaymentStrategy;
 use App\Domain\Payment\Strategies\RefundResult;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -20,7 +22,7 @@ class CashPaymentStrategyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->strategy = new CashPaymentStrategy();
+        $this->strategy = new CashPaymentStrategy;
     }
 
     // ── canProcess ──────────────────────────────────────────────────────────
@@ -80,9 +82,9 @@ class CashPaymentStrategyTest extends TestCase
         [$user, $booking, $ride] = $this->makeScenario();
         // Cash strategy should NOT touch any wallet — no exception should be thrown
         // and no WalletTransaction records should be created
-        $before = \App\Models\WalletTransaction::count();
+        $before = WalletTransaction::count();
         $this->strategy->processBookingPayment($booking, $ride, $user);
-        $this->assertEquals($before, \App\Models\WalletTransaction::count());
+        $this->assertEquals($before, WalletTransaction::count());
     }
 
     // ── processRefund ────────────────────────────────────────────────────────
@@ -111,9 +113,9 @@ class CashPaymentStrategyTest extends TestCase
     public function test_process_refund_does_not_create_wallet_transactions(): void
     {
         [$user, $booking, $ride] = $this->makeScenario();
-        $before = \App\Models\WalletTransaction::count();
+        $before = WalletTransaction::count();
         $this->strategy->processRefund($booking, $ride, $user);
-        $this->assertEquals($before, \App\Models\WalletTransaction::count());
+        $this->assertEquals($before, WalletTransaction::count());
     }
 
     // ── Strategy implements interface ────────────────────────────────────────
@@ -121,7 +123,7 @@ class CashPaymentStrategyTest extends TestCase
     public function test_strategy_implements_payment_strategy_interface(): void
     {
         $this->assertInstanceOf(
-            \App\Domain\Payment\Strategies\PaymentStrategy::class,
+            PaymentStrategy::class,
             $this->strategy
         );
     }
@@ -132,19 +134,19 @@ class CashPaymentStrategyTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $booking     = new Booking();
+        $booking = new Booking;
         $booking->id = 1;
         $booking->setAttribute('seats', 2);
         $booking->setAttribute('status', 'confirmed');
 
-        $ride                      = new Ride();
-        $ride->driver_id           = $user->id;
-        $ride->pickup_address      = 'Damascus';
+        $ride = new Ride;
+        $ride->driver_id = $user->id;
+        $ride->pickup_address = 'Damascus';
         $ride->destination_address = 'Aleppo';
-        $ride->price_per_seat      = 50000;
-        $ride->available_seats     = 4;
-        $ride->payment_method      = 'cash';
-        $ride->booking_type        = 'direct';
+        $ride->price_per_seat = 50000;
+        $ride->available_seats = 4;
+        $ride->payment_method = 'cash';
+        $ride->booking_type = 'direct';
 
         return [$user, $booking, $ride];
     }

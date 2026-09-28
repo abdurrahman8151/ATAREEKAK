@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Docs;
 
 /**
@@ -9,12 +10,16 @@ namespace App\Docs;
  *     operationId="adminLogin",
  *     tags={"Admin – Auth"},
  *     summary="Admin login",
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"email","password"},
+ *
  *             @OA\Property(property="email",    type="string", format="email"),
  *             @OA\Property(property="password", type="string", format="password")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Admin JWT returned"),
  *     @OA\Response(response=401, description="Invalid credentials")
  * )
@@ -25,6 +30,7 @@ namespace App\Docs;
  *     tags={"Admin – Auth"},
  *     summary="Refresh admin JWT",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="New token")
  * )
  *
@@ -34,6 +40,7 @@ namespace App\Docs;
  *     tags={"Admin – Auth"},
  *     summary="Admin logout",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Logged out")
  * )
  *
@@ -43,13 +50,18 @@ namespace App\Docs;
  *     tags={"Admin – Auth"},
  *     summary="Upload admin profile photo",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\MediaType(mediaType="multipart/form-data",
+ *
  *             @OA\Schema(
+ *
  *                 @OA\Property(property="photo", type="string", format="binary")
  *             )
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Photo uploaded")
  * )
  *
@@ -61,6 +73,7 @@ namespace App\Docs;
  *     tags={"Admin – Dashboard"},
  *     summary="Main admin dashboard",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Dashboard data")
  * )
  *
@@ -70,6 +83,7 @@ namespace App\Docs;
  *     tags={"Admin – Dashboard"},
  *     summary="Dashboard statistics",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Stats")
  * )
  *
@@ -79,6 +93,7 @@ namespace App\Docs;
  *     tags={"Admin – Dashboard"},
  *     summary="Dashboard growth metrics",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Growth data")
  * )
  *
@@ -88,6 +103,7 @@ namespace App\Docs;
  *     tags={"Admin – Dashboard"},
  *     summary="City breakdown",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Cities data")
  * )
  *
@@ -97,6 +113,7 @@ namespace App\Docs;
  *     tags={"Admin – Dashboard"},
  *     summary="Recent activity",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Recent activity")
  * )
  *
@@ -106,6 +123,7 @@ namespace App\Docs;
  *     tags={"Admin – Dashboard"},
  *     summary="[system_admin] Export report as PDF",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="PDF file")
  * )
  *
@@ -115,6 +133,7 @@ namespace App\Docs;
  *     tags={"Admin – Dashboard"},
  *     summary="[system_admin] Show system reports",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Reports data")
  * )
  *
@@ -126,6 +145,7 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="List all users",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Users list")
  * )
  *
@@ -135,7 +155,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Get user ban status",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="User status")
  * )
  *
@@ -145,10 +167,14 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Ban a user",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=false,
+ *
  *         @OA\JsonContent(@OA\Property(property="reason", type="string"))
  *     ),
+ *
  *     @OA\Response(response=200, description="User banned")
  * )
  *
@@ -158,7 +184,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Unban a user",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="User unbanned")
  * )
  *
@@ -168,6 +196,7 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="[system_admin] List pending verifications",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Verifications list")
  * )
  *
@@ -177,7 +206,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="[system_admin] Approve a verification",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Approved")
  * )
  *
@@ -187,10 +218,14 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="[system_admin] Reject a verification",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=false,
+ *
  *         @OA\JsonContent(@OA\Property(property="reason", type="string"))
  *     ),
+ *
  *     @OA\Response(response=200, description="Rejected")
  * )
  *
@@ -202,7 +237,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Passenger full profile (BFF – all sections in one call)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Full profile data")
  * )
  *
@@ -212,7 +249,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Passenger stats",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Stats")
  * )
  *
@@ -222,7 +261,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Passenger monthly trip breakdown",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Monthly trips")
  * )
  *
@@ -232,7 +273,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Passenger recent trips",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Recent trips")
  * )
  *
@@ -242,7 +285,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Passenger complaints",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Complaints list")
  * )
  *
@@ -252,7 +297,9 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Passenger wallet charge history",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Charges list")
  * )
  *
@@ -262,13 +309,18 @@ namespace App\Docs;
  *     tags={"Admin – Users"},
  *     summary="Charge a passenger's wallet directly",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="userId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"amount"},
+ *
  *             @OA\Property(property="amount", type="number"),
  *             @OA\Property(property="notes",  type="string")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Wallet charged")
  * )
  *
@@ -280,6 +332,7 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="List all drivers",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Drivers list")
  * )
  *
@@ -289,6 +342,7 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="Driver verification efficiency stats",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Stats")
  * )
  *
@@ -298,6 +352,7 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="Drivers dashboard overview",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Dashboard data")
  * )
  *
@@ -307,6 +362,7 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="Driver statistics",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Stats")
  * )
  *
@@ -316,6 +372,7 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="Driver activity log",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Activity data")
  * )
  *
@@ -325,6 +382,7 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="Top performing drivers",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Drivers list")
  * )
  *
@@ -334,7 +392,9 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="Get driver's full profile",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="driverId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Driver profile")
  * )
  *
@@ -344,7 +404,9 @@ namespace App\Docs;
  *     tags={"Admin – Drivers"},
  *     summary="Driver dashboard by ID",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="driverId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Driver dashboard")
  * )
  *
@@ -356,6 +418,7 @@ namespace App\Docs;
  *     tags={"Admin – Trips"},
  *     summary="List all trips",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Trips list")
  * )
  *
@@ -365,6 +428,7 @@ namespace App\Docs;
  *     tags={"Admin – Trips"},
  *     summary="List live / active trips",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Live trips")
  * )
  *
@@ -374,6 +438,7 @@ namespace App\Docs;
  *     tags={"Admin – Trips"},
  *     summary="Most popular routes",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Routes list")
  * )
  *
@@ -385,6 +450,7 @@ namespace App\Docs;
  *     tags={"Admin – Wallet"},
  *     summary="Get admin wallet",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Admin wallet")
  * )
  *
@@ -394,6 +460,7 @@ namespace App\Docs;
  *     tags={"Admin – Wallet"},
  *     summary="List all wallets",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Wallets list")
  * )
  *
@@ -403,7 +470,9 @@ namespace App\Docs;
  *     tags={"Admin – Wallet"},
  *     summary="Get transactions for a wallet",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="walletId", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Transactions list")
  * )
  *
@@ -413,6 +482,7 @@ namespace App\Docs;
  *     tags={"Admin – Wallet"},
  *     summary="List pending wallet requests",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Requests list")
  * )
  *
@@ -422,7 +492,9 @@ namespace App\Docs;
  *     tags={"Admin – Wallet"},
  *     summary="Approve a wallet request",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Approved")
  * )
  *
@@ -432,10 +504,14 @@ namespace App\Docs;
  *     tags={"Admin – Wallet"},
  *     summary="Reject a wallet request",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+ *
  *     @OA\RequestBody(required=false,
+ *
  *         @OA\JsonContent(@OA\Property(property="reason", type="string"))
  *     ),
+ *
  *     @OA\Response(response=200, description="Rejected")
  * )
  *
@@ -445,13 +521,17 @@ namespace App\Docs;
  *     tags={"Admin – Wallet"},
  *     summary="[system_admin] Manually charge a wallet",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"user_id","amount"},
+ *
  *             @OA\Property(property="user_id", type="integer"),
  *             @OA\Property(property="amount",  type="number"),
  *             @OA\Property(property="notes",   type="string")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Wallet charged")
  * )
  */

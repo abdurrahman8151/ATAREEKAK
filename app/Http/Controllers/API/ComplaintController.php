@@ -2,29 +2,30 @@
 
 namespace App\Http\Controllers\API;
 
-use Illuminate\Support\Facades\Log;
-
 use App\Http\Controllers\Controller;
 use App\Services\Complaint\ComplaintService;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use App\Services\NotificationService;
+
 final class ComplaintController extends Controller
 {
     public function __construct(
-        private readonly ComplaintService    $complaintService,
+        private readonly ComplaintService $complaintService,
         private readonly NotificationService $notificationService,
     ) {}
+
     // POST /api/complaints
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'title'           => 'required|string|max:255',
-            'description'     => 'required|string|max:2000',
-            'type'            => 'required|in:trip_safety,driver_behavior,passenger_behavior,ride_cancellation,financial_issue,account_issue,technical_issue,other',
-            'attachments'     => 'sometimes|array|max:3',
-            'attachments.*'   => 'file|mimes:jpeg,jpg,png,pdf|max:5120',
+            'title' => 'required|string|max:255',
+            'description' => 'required|string|max:2000',
+            'type' => 'required|in:trip_safety,driver_behavior,passenger_behavior,ride_cancellation,financial_issue,account_issue,technical_issue,other',
+            'attachments' => 'sometimes|array|max:3',
+            'attachments.*' => 'file|mimes:jpeg,jpg,png,pdf|max:5120',
         ]);
 
         if ($validator->fails()) {
@@ -47,14 +48,17 @@ final class ComplaintController extends Controller
                 'normal',
                 'system'
             );
-        } catch (\Throwable $e) { Log::warning('complaint acknowledgement notification failed (non-fatal): ' . $e->getMessage()); }
+        } catch (\Throwable $e) {
+            Log::warning('complaint acknowledgement notification failed (non-fatal): '.$e->getMessage());
+        }
 
         return response()->json([
-            'status'    => 'success',
-            'message'   => 'Complaint submitted successfully.',
+            'status' => 'success',
+            'message' => 'Complaint submitted successfully.',
             'complaint' => $this->complaintService->format($complaint),
         ], 201);
     }
+
     // GET /api/complaints
     public function index(Request $request): JsonResponse
     {
@@ -62,7 +66,7 @@ final class ComplaintController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $complaints->map(fn($c) => $this->complaintService->format($c))->values(),
+            'data' => $complaints->map(fn ($c) => $this->complaintService->format($c))->values(),
         ]);
     }
 
@@ -74,7 +78,7 @@ final class ComplaintController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $this->complaintService->format($complaint),
+                'data' => $this->complaintService->format($complaint),
             ]);
         } catch (\DomainException $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 404);

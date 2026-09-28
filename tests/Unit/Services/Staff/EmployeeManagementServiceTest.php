@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
@@ -21,13 +22,15 @@ class EmployeeManagementServiceTest extends TestCase
     use RefreshDatabase;
 
     private EmployeeManagementService $service;
+
     private Employee $sysAdmin;
+
     private Employee $adminEmp;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service  = app(EmployeeManagementService::class);
+        $this->service = app(EmployeeManagementService::class);
         $this->sysAdmin = $this->make(StaffRole::SYSTEM_ADMIN, 'sysadmin', 'sysadmin@s.test');
         $this->adminEmp = $this->make(StaffRole::ADMIN, 'adminuser', 'admin@s.test', $this->sysAdmin->id);
     }
@@ -58,11 +61,11 @@ class EmployeeManagementServiceTest extends TestCase
     public function test_create_makes_new_employee(): void
     {
         $employee = $this->service->create([
-            'username'   => 'brand_new',
-            'password'   => 'password123',
+            'username' => 'brand_new',
+            'password' => 'password123',
             'first_name' => 'Brand',
-            'last_name'  => 'New',
-            'role'       => 'support_agent',
+            'last_name' => 'New',
+            'role' => 'support_agent',
         ], $this->sysAdmin);
 
         $this->assertInstanceOf(Employee::class, $employee);
@@ -75,11 +78,11 @@ class EmployeeManagementServiceTest extends TestCase
         $this->expectException(\DomainException::class);
 
         $this->service->create([
-            'username'   => 'sneaky_admin',
-            'password'   => 'password123',
+            'username' => 'sneaky_admin',
+            'password' => 'password123',
             'first_name' => 'Sneaky',
-            'last_name'  => 'User',
-            'role'       => 'system_admin',
+            'last_name' => 'User',
+            'role' => 'system_admin',
         ], $this->adminEmp);
     }
 
@@ -88,11 +91,11 @@ class EmployeeManagementServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
 
         $this->service->create([
-            'username'   => 'sysadmin', // already exists
-            'password'   => 'password123',
+            'username' => 'sysadmin', // already exists
+            'password' => 'password123',
             'first_name' => 'Dup',
-            'last_name'  => 'User',
-            'role'       => 'support_agent',
+            'last_name' => 'User',
+            'role' => 'support_agent',
         ], $this->sysAdmin);
     }
 
@@ -168,7 +171,7 @@ class EmployeeManagementServiceTest extends TestCase
         $this->service->resetPassword($agent->id, 'brand_new_pass_123', $this->sysAdmin);
 
         $this->assertTrue(
-            \Illuminate\Support\Facades\Hash::check('brand_new_pass_123', $agent->fresh()->password)
+            Hash::check('brand_new_pass_123', $agent->fresh()->password)
         );
     }
 
@@ -210,15 +213,15 @@ class EmployeeManagementServiceTest extends TestCase
     private function make(StaffRole $role, string $username, string $email, ?int $createdBy = null): Employee
     {
         return Employee::create([
-            'username'      => $username,
-            'email'         => $email,
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Test',
-            'last_name'     => 'Employee',
-            'role'          => $role->value,
-            'is_active'     => true,
+            'username' => $username,
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'first_name' => 'Test',
+            'last_name' => 'Employee',
+            'role' => $role->value,
+            'is_active' => true,
             'token_version' => 0,
-            'created_by'    => $createdBy,
+            'created_by' => $createdBy,
         ]);
     }
 }

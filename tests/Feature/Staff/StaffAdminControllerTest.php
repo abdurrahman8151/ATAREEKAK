@@ -34,24 +34,24 @@ class StaffAdminControllerTest extends TestCase
         parent::setUp();
 
         Config::set('admin.system_admin', [
-            'email'         => 'primary@admin.test',
-            'password'      => 'primary_pass',
-            'username'      => 'primary_admin',
-            'first_name'    => 'Primary',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000001',
+            'email' => 'primary@admin.test',
+            'password' => 'primary_pass',
+            'username' => 'primary_admin',
+            'first_name' => 'Primary',
+            'last_name' => 'Admin',
+            'phone' => '0910000001',
             'wallet_prefix' => 'PRIM',
-            'permissions'   => ['*'],
+            'permissions' => ['*'],
         ]);
 
         Config::set('admin.sycash', [
-            'email'         => 'sycash@admin.test',
-            'password'      => 'sycash_pass',
-            'first_name'    => 'SyCash',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000002',
+            'email' => 'sycash@admin.test',
+            'password' => 'sycash_pass',
+            'first_name' => 'SyCash',
+            'last_name' => 'Admin',
+            'phone' => '0910000002',
             'wallet_prefix' => 'SYCSH',
-            'permissions'   => ['view_wallet'],
+            'permissions' => ['view_wallet'],
         ]);
     }
 
@@ -106,8 +106,8 @@ class StaffAdminControllerTest extends TestCase
             ->assertJsonPath('status', 'success');
 
         $this->assertDatabaseHas('users', [
-            'id'                    => $user->id,
-            'verification_status'   => 'approved',
+            'id' => $user->id,
+            'verification_status' => 'approved',
             'is_verified_passenger' => true,
         ]);
     }
@@ -141,8 +141,8 @@ class StaffAdminControllerTest extends TestCase
     public function test_can_reject_pending_verification(): void
     {
         $user = User::factory()->create([
-            'verification_status'   => 'pending',
-            'is_verified_driver'    => true,
+            'verification_status' => 'pending',
+            'is_verified_driver' => true,
             'is_verified_passenger' => true,
         ]);
 
@@ -154,9 +154,9 @@ class StaffAdminControllerTest extends TestCase
             ->assertJsonPath('status', 'success');
 
         $this->assertDatabaseHas('users', [
-            'id'                    => $user->id,
-            'verification_status'   => 'rejected',
-            'is_verified_driver'    => false,
+            'id' => $user->id,
+            'verification_status' => 'rejected',
+            'is_verified_driver' => false,
             'is_verified_passenger' => false,
         ]);
     }
@@ -247,7 +247,7 @@ class StaffAdminControllerTest extends TestCase
     {
         $this->patchJson('/api/staff/escalated-complaints/1/resolve', [
             'resolution_notes' => 'Resolved after full investigation.',
-            'status'           => 'resolved',
+            'status' => 'resolved',
         ])->assertStatus(401);
     }
 
@@ -263,7 +263,7 @@ class StaffAdminControllerTest extends TestCase
         $this->withToken($this->adminToken())
             ->patchJson('/api/staff/escalated-complaints/1/resolve', [
                 'resolution_notes' => 'Short',
-                'status'           => 'resolved',
+                'status' => 'resolved',
             ])->assertStatus(422);
     }
 
@@ -272,7 +272,7 @@ class StaffAdminControllerTest extends TestCase
         $this->withToken($this->adminToken())
             ->patchJson('/api/staff/escalated-complaints/1/resolve', [
                 'resolution_notes' => 'A sufficiently detailed resolution note.',
-                'status'           => 'pending',
+                'status' => 'pending',
             ])->assertStatus(422);
     }
 
@@ -281,7 +281,7 @@ class StaffAdminControllerTest extends TestCase
         $this->withToken($this->adminToken())
             ->patchJson('/api/staff/escalated-complaints/999999/resolve', [
                 'resolution_notes' => 'Resolved after thorough investigation.',
-                'status'           => 'resolved',
+                'status' => 'resolved',
             ])->assertStatus(404);
     }
 
@@ -290,7 +290,7 @@ class StaffAdminControllerTest extends TestCase
     private function adminToken(): string
     {
         return $this->postJson('/api/admin/login', [
-            'email'    => 'primary@admin.test',
+            'email' => 'primary@admin.test',
             'password' => 'primary_pass',
         ])->json('tokens.access_token');
     }

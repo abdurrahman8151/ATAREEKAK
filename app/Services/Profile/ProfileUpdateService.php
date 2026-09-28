@@ -2,10 +2,10 @@
 
 namespace App\Services\Profile;
 
-use App\Interfaces\ProfileRepositoryInterface;
 use App\Interfaces\PhotoRepositoryInterface;
-use App\Services\File\FileUploadService;
+use App\Interfaces\ProfileRepositoryInterface;
 use App\Models\User;
+use App\Services\File\FileUploadService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 
@@ -29,19 +29,19 @@ final class ProfileUpdateService
         'last_name',
         'type_of_car',
         'color_of_car',
-        'number_of_seats'
+        'number_of_seats',
     ];
 
     private const VERIFICATION_DOCUMENTS = [
         'face_id_pic',
         'back_id_pic',
         'driving_license_pic',
-        'mechanic_card_pic'
+        'mechanic_card_pic',
     ];
 
     private const NON_VERIFICATION_FILES = [
         'profile_photo',
-        'car_pic'
+        'car_pic',
     ];
 
     private const DOCUMENT_TYPE_MAP = [
@@ -79,7 +79,7 @@ final class ProfileUpdateService
             array_intersect_key($data, array_flip(self::USER_MODEL_FIELDS)),
             fn ($v) => $v !== null
         );
-        if (!empty($userFields)) {
+        if (! empty($userFields)) {
             $user->update($userFields);
         }
 
@@ -103,7 +103,7 @@ final class ProfileUpdateService
         return [
             'profile' => $this->profileRepo->getProfileWithUser($user->id),
             'user' => $user->fresh(),
-            'verification_reset' => $fileData['verification_docs_updated']
+            'verification_reset' => $fileData['verification_docs_updated'],
         ];
     }
 
@@ -119,7 +119,7 @@ final class ProfileUpdateService
             self::CRITICAL_FIELDS
         );
 
-        if (!empty($criticalBeingChanged)) {
+        if (! empty($criticalBeingChanged)) {
             throw new \Exception(
                 'Cannot change name or vehicle details while verification is pending'
             );
@@ -137,7 +137,7 @@ final class ProfileUpdateService
         $verificationDocsUpdated = false;
 
         foreach (array_merge(self::VERIFICATION_DOCUMENTS, self::NON_VERIFICATION_FILES) as $field) {
-            if (!isset($data[$field]) || !($data[$field] instanceof UploadedFile)) {
+            if (! isset($data[$field]) || ! ($data[$field] instanceof UploadedFile)) {
                 continue;
             }
 
@@ -157,7 +157,7 @@ final class ProfileUpdateService
 
         return [
             'profile_data' => $profileData,
-            'verification_docs_updated' => $verificationDocsUpdated
+            'verification_docs_updated' => $verificationDocsUpdated,
         ];
     }
 
@@ -166,19 +166,19 @@ final class ProfileUpdateService
      */
     private function uploadFile(User $user, string $field, UploadedFile $file): array
     {
-        return match($field) {
+        return match ($field) {
             'profile_photo' => [
-                'path' => $this->fileUploadService->uploadProfilePhoto($file, $user->id)
+                'path' => $this->fileUploadService->uploadProfilePhoto($file, $user->id),
             ],
             'car_pic' => [
-                'path' => $this->fileUploadService->uploadCarPhoto($file, $user->id)
+                'path' => $this->fileUploadService->uploadCarPhoto($file, $user->id),
             ],
             default => [
                 'path' => $this->fileUploadService->uploadVerificationDocument(
                     $file,
                     $user->id,
                     self::DOCUMENT_TYPE_MAP[$field]
-                )
+                ),
             ]
         };
     }
@@ -195,7 +195,7 @@ final class ProfileUpdateService
         ]);
 
         Log::info('Verification status reset due to document update', [
-            'user_id' => $user->id
+            'user_id' => $user->id,
         ]);
     }
 }

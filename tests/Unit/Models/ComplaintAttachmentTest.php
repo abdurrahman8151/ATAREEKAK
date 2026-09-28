@@ -18,27 +18,27 @@ class ComplaintAttachmentTest extends TestCase
 
     public function test_fillable_contains_complaint_id(): void
     {
-        $this->assertContains('complaint_id', (new ComplaintAttachment())->getFillable());
+        $this->assertContains('complaint_id', (new ComplaintAttachment)->getFillable());
     }
 
     public function test_fillable_contains_path(): void
     {
-        $this->assertContains('path', (new ComplaintAttachment())->getFillable());
+        $this->assertContains('path', (new ComplaintAttachment)->getFillable());
     }
 
     public function test_fillable_contains_original_name(): void
     {
-        $this->assertContains('original_name', (new ComplaintAttachment())->getFillable());
+        $this->assertContains('original_name', (new ComplaintAttachment)->getFillable());
     }
 
     public function test_fillable_contains_mime_type(): void
     {
-        $this->assertContains('mime_type', (new ComplaintAttachment())->getFillable());
+        $this->assertContains('mime_type', (new ComplaintAttachment)->getFillable());
     }
 
     public function test_fillable_contains_size(): void
     {
-        $this->assertContains('size', (new ComplaintAttachment())->getFillable());
+        $this->assertContains('size', (new ComplaintAttachment)->getFillable());
     }
 
     // ─── Relationships ────────────────────────────────────────────────────────
@@ -102,19 +102,19 @@ class ComplaintAttachmentTest extends TestCase
     {
         $user = User::factory()->create();
         $complaint = Complaint::create([
-            'user_id'     => $user->id,
-            'title'       => 'Test',
+            'user_id' => $user->id,
+            'title' => 'Test',
             'description' => 'Description',
-            'type'        => ComplaintType::OTHER->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => ComplaintType::OTHER->value,
+            'status' => ComplaintStatus::PENDING->value,
         ]);
 
         return [
-            'complaint_id'  => $complaint->id,
-            'path'          => 'complaints/attachments/test.jpg',
+            'complaint_id' => $complaint->id,
+            'path' => 'complaints/attachments/test.jpg',
             'original_name' => 'test.jpg',
-            'mime_type'     => 'image/jpeg',
-            'size'          => 1024,
+            'mime_type' => 'image/jpeg',
+            'size' => 1024,
         ];
     }
 }

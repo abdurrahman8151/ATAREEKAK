@@ -12,15 +12,17 @@ class ProfileTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private User $otherUser;
+
     private string $token;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user      = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user = User::factory()->create(['password' => bcrypt('password123')]);
         $this->otherUser = User::factory()->create(['password' => bcrypt('password123')]);
-        $this->token     = $this->getToken($this->user);
+        $this->token = $this->getToken($this->user);
     }
 
     public function test_can_view_own_profile(): void
@@ -60,7 +62,7 @@ class ProfileTest extends TestCase
             ]);
         $response->assertStatus(200);
         $this->assertDatabaseHas('profiles', [
-            'user_id'     => $this->user->id,
+            'user_id' => $this->user->id,
             'description' => 'Updated description',
         ]);
     }
@@ -137,9 +139,10 @@ class ProfileTest extends TestCase
     private function getToken(User $user): string
     {
         $response = $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ]);
+
         return $response->json('tokens.access_token');
     }
 }

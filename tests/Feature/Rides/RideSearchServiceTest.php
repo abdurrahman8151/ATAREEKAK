@@ -24,24 +24,26 @@ class RideSearchServiceTest extends TestCase
     use RefreshDatabase;
 
     private RideSearchService $service;
-    private User              $driver;
-    private string            $driverPhone;
+
+    private User $driver;
+
+    private string $driverPhone;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->service     = app(RideSearchService::class);
-        $this->driverPhone = '091' . rand(1000000, 9999999);
-        $this->driver      = User::factory()->create([
-            'is_verified_driver'  => true,
+        $this->service = app(RideSearchService::class);
+        $this->driverPhone = '091'.rand(1000000, 9999999);
+        $this->driver = User::factory()->create([
+            'is_verified_driver' => true,
             'verification_status' => 'approved',
-            'password'            => bcrypt('password123'),
+            'password' => bcrypt('password123'),
         ]);
 
-        if (!$this->driver->profile) {
+        if (! $this->driver->profile) {
             $this->driver->profile()->create([
-                'full_name'       => 'Search Test Driver',
+                'full_name' => 'Search Test Driver',
                 'number_of_rides' => 0,
             ]);
         }
@@ -54,10 +56,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => now()->addDays(3)->toDateString(),
             'seats_required' => 1,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         $this->assertEmpty($results);
@@ -71,10 +73,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $date,
             'seats_required' => 1,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         $this->assertNotEmpty($results);
@@ -88,10 +90,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $date,
             'seats_required' => 1,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         $this->assertEmpty($results);
@@ -105,10 +107,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $date,
             'seats_required' => 1,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         $this->assertEmpty($results);
@@ -117,7 +119,7 @@ class RideSearchServiceTest extends TestCase
     public function test_filters_by_departure_date(): void
     {
         $targetDate = now()->addDays(5)->toDateString();
-        $otherDate  = now()->addDays(10)->toDateString();
+        $otherDate = now()->addDays(10)->toDateString();
 
         $this->insertRide(['departure_date' => $targetDate]);
         $this->insertRide(['departure_date' => $otherDate]);
@@ -125,10 +127,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $targetDate,
             'seats_required' => 1,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         foreach ($results as $ride) {
@@ -147,10 +149,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $date,
             'seats_required' => 3,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         $this->assertEmpty($results);
@@ -164,10 +166,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $date,
             'seats_required' => 2,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         $this->assertNotEmpty($results);
@@ -181,10 +183,10 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $date,
             'seats_required' => 1,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         if ($results->isNotEmpty()) {
@@ -201,14 +203,14 @@ class RideSearchServiceTest extends TestCase
         $results = $this->service->searchRides([
             'departure_date' => $baseDate,
             'seats_required' => 1,
-            'source_lat'     => 33.5138,
-            'source_lng'     => 36.2765,
-            'dest_lat'       => 36.2021,
-            'dest_lng'       => 37.1343,
+            'source_lat' => 33.5138,
+            'source_lng' => 36.2765,
+            'dest_lat' => 36.2021,
+            'dest_lng' => 37.1343,
         ]);
 
         if ($results->count() >= 2) {
-            $first  = Carbon::parse($results->first()->departure_time);
+            $first = Carbon::parse($results->first()->departure_time);
             $second = Carbon::parse($results->skip(1)->first()->departure_time);
             $this->assertTrue($first->lessThanOrEqualTo($second));
         }
@@ -251,16 +253,16 @@ class RideSearchServiceTest extends TestCase
     public function test_search_endpoint_returns_200_with_valid_params(): void
     {
         $token = $this->postJson('/api/auth/login', [
-            'email'    => $this->driver->email,
+            'email' => $this->driver->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
 
         $this->withToken($token)
             ->postJson('/api/rides/search', [
-                'source_lat'     => 33.5138,
-                'source_lng'     => 36.2765,
-                'dest_lat'       => 36.2021,
-                'dest_lng'       => 37.1343,
+                'source_lat' => 33.5138,
+                'source_lng' => 36.2765,
+                'dest_lat' => 36.2021,
+                'dest_lng' => 37.1343,
                 'departure_date' => now()->addDays(5)->toDateString(),
                 'seats_required' => 1,
             ])->assertStatus(200);
@@ -269,7 +271,7 @@ class RideSearchServiceTest extends TestCase
     public function test_search_endpoint_returns_422_with_missing_params(): void
     {
         $token = $this->postJson('/api/auth/login', [
-            'email'    => $this->driver->email,
+            'email' => $this->driver->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
 
@@ -282,10 +284,10 @@ class RideSearchServiceTest extends TestCase
 
     private function insertRide(array $overrides = []): Ride
     {
-        $status        = $overrides['status']          ?? 'active';
-        $seats         = $overrides['available_seats'] ?? 4;
-        $departureDate = $overrides['departure_date']  ?? now()->addDays(3)->toDateString();
-        $hour          = $overrides['departure_hour']  ?? 10;
+        $status = $overrides['status'] ?? 'active';
+        $seats = $overrides['available_seats'] ?? 4;
+        $departureDate = $overrides['departure_date'] ?? now()->addDays(3)->toDateString();
+        $hour = $overrides['departure_hour'] ?? 10;
         $departureTime = Carbon::parse($departureDate)->setHour($hour)->format('Y-m-d H:i:s');
 
         DB::statement("

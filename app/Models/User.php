@@ -45,10 +45,10 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password'          => 'hashed',
-        'token_version'     => 'integer',
-        'banned_at'         => 'datetime',
-        'ban_expires_at'    => 'datetime',
+        'password' => 'hashed',
+        'token_version' => 'integer',
+        'banned_at' => 'datetime',
+        'ban_expires_at' => 'datetime',
     ];
 
     protected $hidden = [
@@ -162,12 +162,13 @@ class User extends Authenticatable
     public function getAccountStatusAttribute(): string
     {
         return match ((int) $this->status) {
-            -1      => 'banned',
-            0       => 'logged_out',
-            1       => 'active',
+            -1 => 'banned',
+            0 => 'logged_out',
+            1 => 'active',
             default => 'unknown',
         };
     }
+
     public function getJWTIdentifier(): mixed
     {
         return $this->getKey();

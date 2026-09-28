@@ -22,12 +22,12 @@ class VerifyEmailOtpRequestTest extends TestCase
 
     private function rules(): array
     {
-        return (new VerifyEmailOtpRequest())->rules();
+        return (new VerifyEmailOtpRequest)->rules();
     }
 
     public function test_authorize_always_returns_true(): void
     {
-        $this->assertTrue((new VerifyEmailOtpRequest())->authorize());
+        $this->assertTrue((new VerifyEmailOtpRequest)->authorize());
     }
 
     // ─── Valid payload ────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ class VerifyEmailOtpRequestTest extends TestCase
         User::factory()->create(['email' => 'registered@example.com']);
 
         $validator = Validator::make([
-            'email'    => 'registered@example.com',
+            'email' => 'registered@example.com',
             'otp_code' => '123456',
         ], $this->rules());
 
@@ -49,7 +49,7 @@ class VerifyEmailOtpRequestTest extends TestCase
         User::factory()->create(['email' => 'test@example.com']);
 
         $validator = Validator::make([
-            'email'    => 'test@example.com',
+            'email' => 'test@example.com',
             'otp_code' => '000000',
         ], $this->rules());
 
@@ -68,7 +68,7 @@ class VerifyEmailOtpRequestTest extends TestCase
     public function test_fails_when_email_has_invalid_format(): void
     {
         $validator = Validator::make([
-            'email'    => 'not-an-email',
+            'email' => 'not-an-email',
             'otp_code' => '123456',
         ], $this->rules());
 
@@ -80,7 +80,7 @@ class VerifyEmailOtpRequestTest extends TestCase
     {
         // No user created — exists:users,email should fail
         $validator = Validator::make([
-            'email'    => 'nobody@example.com',
+            'email' => 'nobody@example.com',
             'otp_code' => '123456',
         ], $this->rules());
 
@@ -104,7 +104,7 @@ class VerifyEmailOtpRequestTest extends TestCase
         User::factory()->create(['email' => 'test@example.com']);
 
         $validator = Validator::make([
-            'email'    => 'test@example.com',
+            'email' => 'test@example.com',
             'otp_code' => '12345',
         ], $this->rules());
 
@@ -117,7 +117,7 @@ class VerifyEmailOtpRequestTest extends TestCase
         User::factory()->create(['email' => 'test@example.com']);
 
         $validator = Validator::make([
-            'email'    => 'test@example.com',
+            'email' => 'test@example.com',
             'otp_code' => '1234567',
         ], $this->rules());
 
@@ -130,7 +130,7 @@ class VerifyEmailOtpRequestTest extends TestCase
         User::factory()->create(['email' => 'test@example.com']);
 
         $validator = Validator::make([
-            'email'    => 'test@example.com',
+            'email' => 'test@example.com',
             'otp_code' => '12345a',
         ], $this->rules());
 
@@ -143,7 +143,7 @@ class VerifyEmailOtpRequestTest extends TestCase
         User::factory()->create(['email' => 'test@example.com']);
 
         $validator = Validator::make([
-            'email'    => 'test@example.com',
+            'email' => 'test@example.com',
             'otp_code' => '',
         ], $this->rules());
 
@@ -155,7 +155,7 @@ class VerifyEmailOtpRequestTest extends TestCase
     {
         $validator = Validator::make([], $this->rules());
         $this->assertTrue($validator->fails());
-        $this->assertArrayHasKey('email',    $validator->errors()->toArray());
+        $this->assertArrayHasKey('email', $validator->errors()->toArray());
         $this->assertArrayHasKey('otp_code', $validator->errors()->toArray());
     }
 
@@ -163,28 +163,28 @@ class VerifyEmailOtpRequestTest extends TestCase
 
     public function test_custom_messages_cover_all_expected_keys(): void
     {
-        $messages = (new VerifyEmailOtpRequest())->messages();
+        $messages = (new VerifyEmailOtpRequest)->messages();
 
-        $this->assertArrayHasKey('email.exists',    $messages);
-        $this->assertArrayHasKey('otp_code.size',   $messages);
-        $this->assertArrayHasKey('otp_code.regex',  $messages);
+        $this->assertArrayHasKey('email.exists', $messages);
+        $this->assertArrayHasKey('otp_code.size', $messages);
+        $this->assertArrayHasKey('otp_code.regex', $messages);
     }
 
     public function test_email_exists_message_text(): void
     {
-        $messages = (new VerifyEmailOtpRequest())->messages();
+        $messages = (new VerifyEmailOtpRequest)->messages();
         $this->assertEquals('No account found with this email.', $messages['email.exists']);
     }
 
     public function test_otp_size_message_text(): void
     {
-        $messages = (new VerifyEmailOtpRequest())->messages();
+        $messages = (new VerifyEmailOtpRequest)->messages();
         $this->assertEquals('Code must be exactly 6 digits.', $messages['otp_code.size']);
     }
 
     public function test_otp_regex_message_text(): void
     {
-        $messages = (new VerifyEmailOtpRequest())->messages();
+        $messages = (new VerifyEmailOtpRequest)->messages();
         $this->assertEquals('Code must contain numbers only.', $messages['otp_code.regex']);
     }
 }

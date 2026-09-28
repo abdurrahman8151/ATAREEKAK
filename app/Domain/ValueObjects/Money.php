@@ -21,6 +21,7 @@ use InvalidArgumentException;
 class Money
 {
     private int $amountInMinorUnits; // Stored as fils (1 SYP = 100 fils)
+
     private string $currency;
 
     private const MINOR_UNITS_PER_MAJOR = 100; // 100 fils = 1 SYP
@@ -41,6 +42,7 @@ class Money
     public static function from(float $amount, string $currency = 'SYP'): self
     {
         $minorUnits = (int) round($amount * self::MINOR_UNITS_PER_MAJOR);
+
         return new self($minorUnits, $currency);
     }
 
@@ -91,6 +93,7 @@ class Money
     public function add(Money $other): self
     {
         $this->ensureSameCurrency($other);
+
         return new self(
             $this->amountInMinorUnits + $other->amountInMinorUnits,
             $this->currency
@@ -122,6 +125,7 @@ class Money
         }
 
         $result = (int) round($this->amountInMinorUnits * $multiplier);
+
         return new self($result, $this->currency);
     }
 
@@ -135,6 +139,7 @@ class Money
         }
 
         $result = (int) round($this->amountInMinorUnits / $divisor);
+
         return new self($result, $this->currency);
     }
 
@@ -148,6 +153,7 @@ class Money
         }
 
         $result = (int) round(($this->amountInMinorUnits * $percentage) / 100);
+
         return new self($result, $this->currency);
     }
 
@@ -157,6 +163,7 @@ class Money
     public function isGreaterThan(Money $other): bool
     {
         $this->ensureSameCurrency($other);
+
         return $this->amountInMinorUnits > $other->amountInMinorUnits;
     }
 
@@ -166,6 +173,7 @@ class Money
     public function isLessThan(Money $other): bool
     {
         $this->ensureSameCurrency($other);
+
         return $this->amountInMinorUnits < $other->amountInMinorUnits;
     }
 
@@ -175,6 +183,7 @@ class Money
     public function isGreaterThanOrEqual(Money $other): bool
     {
         $this->ensureSameCurrency($other);
+
         return $this->amountInMinorUnits >= $other->amountInMinorUnits;
     }
 
@@ -184,6 +193,7 @@ class Money
     public function isLessThanOrEqual(Money $other): bool
     {
         $this->ensureSameCurrency($other);
+
         return $this->amountInMinorUnits <= $other->amountInMinorUnits;
     }
 
@@ -217,7 +227,7 @@ class Money
      */
     public function formatted(): string
     {
-        return number_format($this->amount(), 2) . ' ' . $this->currency;
+        return number_format($this->amount(), 2).' '.$this->currency;
     }
 
     /**
@@ -249,7 +259,7 @@ class Money
             'amount' => $this->amount(),
             'amount_in_minor_units' => $this->amountInMinorUnits,
             'currency' => $this->currency,
-            'formatted' => $this->formatted()
+            'formatted' => $this->formatted(),
         ];
     }
 

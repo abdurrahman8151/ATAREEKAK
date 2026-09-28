@@ -1,14 +1,11 @@
 <?php
 
-use App\Http\Controllers\API\Staff\StaffAdminController;
-use App\Http\Controllers\API\Staff\StaffComplaintController;
+use App\Http\Controllers\API\AdminBanController;
 use App\Http\Controllers\API\AdminDashboardController;
 use App\Http\Controllers\API\AdminDriverController;
 use App\Http\Controllers\API\AdminTripController;
 use App\Http\Controllers\API\AdminUserController;
-use App\Http\Controllers\API\AdminBanController;
 use App\Http\Controllers\API\AdminWalletRequestController;
-use App\Http\Controllers\API\Auth\GoogleController;
 use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\ComplaintController;
 use App\Http\Controllers\API\ContactController;
@@ -21,15 +18,16 @@ use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\OtpController;
 use App\Http\Controllers\API\PassengerProfileController;
 use App\Http\Controllers\API\ProfileController;
-use App\Http\Controllers\API\PushNotificationController;
 use App\Http\Controllers\API\RefreshTokenController;
 use App\Http\Controllers\API\ResetPasswordController;
 use App\Http\Controllers\API\RideController;
 use App\Http\Controllers\API\ScoreController;
 use App\Http\Controllers\API\SignupController;
 use App\Http\Controllers\API\Staff\EmployeeManagementController;
+use App\Http\Controllers\API\Staff\StaffAdminController;
 use App\Http\Controllers\API\Staff\StaffAuthController;
-use App\Http\Controllers\API\Staff\StaffChatController;      // ← NEW
+use App\Http\Controllers\API\Staff\StaffChatController;
+use App\Http\Controllers\API\Staff\StaffComplaintController;      // ← NEW
 use App\Http\Controllers\API\Staff\StaffOperationsController;
 use App\Http\Controllers\API\Staff\StaffReviewController;
 use App\Http\Controllers\API\TextMeOtpController;
@@ -72,9 +70,9 @@ use Illuminate\Support\Facades\Route;
 // That is unauthenticated reconnaissance of internal topology. The code's own
 // comment said "Remove /test-db before production"; this is that removal.
 // ========================================
-Route::get('/ping', fn() => response()->json(['ok' => true]));
+Route::get('/ping', fn () => response()->json(['ok' => true]));
 Route::get('/test', fn () => response()->json([
-    'message'   => 'API is working!',
+    'message' => 'API is working!',
     'timestamp' => now(),
 ]));
 
@@ -85,12 +83,12 @@ Route::get('/test', fn () => response()->json([
 Route::middleware('throttle:auth')->group(function () {
 
     Route::prefix('otp')->group(function () {
-        Route::post('/send',   [OtpController::class, 'sendOtp']);
+        Route::post('/send', [OtpController::class, 'sendOtp']);
         Route::post('/verify', [OtpController::class, 'verifyOtp']);
     });
 
     Route::prefix('textme-otp')->group(function () {
-        Route::post('/send',   [TextMeOtpController::class, 'sendOtp']);
+        Route::post('/send', [TextMeOtpController::class, 'sendOtp']);
         Route::post('/verify', [TextMeOtpController::class, 'verifyOtp']);
     });
 
@@ -102,14 +100,14 @@ Route::middleware('throttle:auth')->group(function () {
 
 Route::middleware('throttle:auth')->prefix('auth')->group(function () {
 
-    Route::post('/signup',  [SignupController::class, 'register']);
-    Route::post('/login',   LoginController::class);
+    Route::post('/signup', [SignupController::class, 'register']);
+    Route::post('/login', LoginController::class);
     Route::post('/refresh', RefreshTokenController::class);
 
     // Password reset (3-step OTP flow)
-    Route::post('/password/forgot',     ForgotPasswordController::class);
+    Route::post('/password/forgot', ForgotPasswordController::class);
     Route::post('/password/verify-otp', VerifyPasswordOtpController::class);
-    Route::post('/password/reset',      ResetPasswordController::class);
+    Route::post('/password/reset', ResetPasswordController::class);
 
 });
 
@@ -118,7 +116,7 @@ Route::middleware('throttle:auth')->prefix('auth')->group(function () {
 // ========================================
 
 Route::middleware('throttle:auth')->prefix('email-verification')->group(function () {
-    Route::post('/send',   [EmailVerificationController::class, 'send']);
+    Route::post('/send', [EmailVerificationController::class, 'send']);
     Route::post('/verify', [EmailVerificationController::class, 'verify']);
     Route::post('/resend', [EmailVerificationController::class, 'resend']);
 });
@@ -132,13 +130,13 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
     // Session
     Route::get('/user', fn (Request $r) => response()->json([
         'status' => 'success',
-        'user'   => $r->user(),
+        'user' => $r->user(),
     ]));
     Route::post('/logout', LogoutController::class);
 
     // Score
     Route::prefix('score')->group(function () {
-        Route::get('/',        [ScoreController::class, 'show']);
+        Route::get('/', [ScoreController::class, 'show']);
         Route::get('/history', [ScoreController::class, 'history']);
         Route::get('/transactions', [ScoreController::class, 'transactions']);
     });
@@ -158,14 +156,14 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
             ->post('/documents', [DocumentController::class, 'store']);
 
         Route::prefix('verify')->group(function () {
-            Route::post('/passenger',      [VerificationController::class, 'verifyPassenger']);
-            Route::post('/driver',         [VerificationController::class, 'verifyDriver']);
+            Route::post('/passenger', [VerificationController::class, 'verifyPassenger']);
+            Route::post('/driver', [VerificationController::class, 'verifyDriver']);
             Route::get('/status/{userId}', [VerificationController::class, 'status']);
         });
 
-        Route::get('/{userId}',           [ProfileController::class, 'show']);
+        Route::get('/{userId}', [ProfileController::class, 'show']);
         Route::post('/{userId}/comments', [ProfileController::class, 'comment']);
-        Route::post('/{userId}/rate',     [ProfileController::class, 'rateUser']);
+        Route::post('/{userId}/rate', [ProfileController::class, 'rateUser']);
 
     });
 
@@ -175,21 +173,21 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
 
         // Search / route calculation [+throttle:search — effective cap: 30/min]
         Route::middleware('throttle:search')->group(function () {
-            Route::get('/search',         [RideController::class, 'searchRides']);
-            Route::post('/search',        [RideController::class, 'searchRides']);
+            Route::get('/search', [RideController::class, 'searchRides']);
+            Route::post('/search', [RideController::class, 'searchRides']);
             Route::post('/route-options', [RideController::class, 'getRouteOptions']);
         });
 
         Route::post('/create-with-route', [RideController::class, 'createRideWithRoute']);
 
-        Route::get('/',  [RideController::class, 'getRides']);
+        Route::get('/', [RideController::class, 'getRides']);
         Route::post('/', [RideController::class, 'createRide']);
 
-        Route::get('/{rideId}',              [RideController::class, 'show']);
+        Route::get('/{rideId}', [RideController::class, 'show']);
         Route::get('/{rideId}/passengers', [RideController::class, 'driverView']);
-        Route::patch('/{rideId}/cancel',        [RideController::class, 'cancelRide']);
-        Route::post('/{rideId}/book',           [RideController::class, 'bookRide']);
-        Route::post('/{rideId}/finish',         [RideController::class, 'finishRide']);
+        Route::patch('/{rideId}/cancel', [RideController::class, 'cancelRide']);
+        Route::post('/{rideId}/book', [RideController::class, 'bookRide']);
+        Route::post('/{rideId}/finish', [RideController::class, 'finishRide']);
         Route::post('/{rideId}/driver-confirm', [RideController::class, 'driverConfirmCompletion']);
         Route::post('/{rideId}/driver-no-show', [RideController::class, 'reportDriverNoShow']);
 
@@ -198,11 +196,11 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
     // ── Bookings ──────────────────────────────────────────────────────────────
 
     Route::prefix('bookings')->group(function () {
-        Route::get('/',                               [RideController::class, 'myBookings']);
-        Route::post('/{bookingId}/accept',            [RideController::class, 'acceptBooking']);
-        Route::post('/{bookingId}/reject',            [RideController::class, 'rejectBooking']);
-        Route::post('/{bookingId}/cancel',            [RideController::class, 'cancelBooking']);
-        Route::post('/{bookingId}/cancel-seats',      [RideController::class, 'cancelPartialSeats']);
+        Route::get('/', [RideController::class, 'myBookings']);
+        Route::post('/{bookingId}/accept', [RideController::class, 'acceptBooking']);
+        Route::post('/{bookingId}/reject', [RideController::class, 'rejectBooking']);
+        Route::post('/{bookingId}/cancel', [RideController::class, 'cancelBooking']);
+        Route::post('/{bookingId}/cancel-seats', [RideController::class, 'cancelPartialSeats']);
         Route::post('/{bookingId}/passenger-confirm', [RideController::class, 'passengerConfirmCompletion']);
         Route::post('/{bookingId}/passenger-no-show', [RideController::class, 'reportPassengerNoShow']);
     });
@@ -210,47 +208,47 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
     // ── Chat ──────────────────────────────────────────────────────────────────
 
     Route::prefix('chat')->group(function () {
-        Route::get('/conversations',                            [ChatController::class, 'getConversations']);
-        Route::post('/conversations',                           [ChatController::class, 'startConversation']);
-        Route::get('/conversations/{conversationId}/messages',  [ChatController::class, 'getMessages']);
+        Route::get('/conversations', [ChatController::class, 'getConversations']);
+        Route::post('/conversations', [ChatController::class, 'startConversation']);
+        Route::get('/conversations/{conversationId}/messages', [ChatController::class, 'getMessages']);
         Route::post('/conversations/{conversationId}/messages', [ChatController::class, 'sendMessage']);
-        Route::delete('/messages/{messageId}',                  [ChatController::class, 'deleteMessage']);
+        Route::delete('/messages/{messageId}', [ChatController::class, 'deleteMessage']);
     });
 
     // ── Notifications ─────────────────────────────────────────────────────────
 
     Route::prefix('notifications')->group(function () {
-        Route::get('/',             [NotificationController::class, 'index']);
+        Route::get('/', [NotificationController::class, 'index']);
         Route::get('/unread-count', [NotificationController::class, 'getUnreadCount']);
-        Route::get('/categories',   [NotificationController::class, 'getCategories']);
-        Route::post('/read-all',    [NotificationController::class, 'markAllAsRead']);
+        Route::get('/categories', [NotificationController::class, 'getCategories']);
+        Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::post('/bulk-action', [NotificationController::class, 'bulkAction']);
-        Route::post('/{id}/read',   [NotificationController::class, 'markAsRead']);
+        Route::post('/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::post('/{id}/unread', [NotificationController::class, 'markAsUnread']);
-        Route::delete('/{id}',      [NotificationController::class, 'destroy']);
+        Route::delete('/{id}', [NotificationController::class, 'destroy']);
     });
 
     // ── Wallet ────────────────────────────────────────────────────────────────
 
     Route::prefix('wallet')->group(function () {
-        Route::get('/balance',            [WalletController::class, 'getBalance']);
-        Route::post('/initiate',          [WalletController::class, 'initiateWalletCreation']);
+        Route::get('/balance', [WalletController::class, 'getBalance']);
+        Route::post('/initiate', [WalletController::class, 'initiateWalletCreation']);
         Route::post('/verify-and-create', [WalletController::class, 'verifyAndCreateWallet']);
-        Route::get('/transactions',       [WalletController::class, 'transactions']);
-        Route::get('/requests',           [WalletRequestController::class, 'myRequests']);
-        Route::post('/request-charge',    [WalletRequestController::class, 'requestCharge']);
-        Route::post('/request-withdraw',  [WalletRequestController::class, 'requestWithdraw']);
-        Route::post('/requests',          [WalletRequestController::class, 'store']);
-        Route::get('/requests/{id}',      [WalletRequestController::class, 'show']);
-        Route::post('/create-direct',     [WalletController::class, 'createDirect']);
-        Route::delete('/requests/{id}',   [WalletRequestController::class, 'destroy']);
+        Route::get('/transactions', [WalletController::class, 'transactions']);
+        Route::get('/requests', [WalletRequestController::class, 'myRequests']);
+        Route::post('/request-charge', [WalletRequestController::class, 'requestCharge']);
+        Route::post('/request-withdraw', [WalletRequestController::class, 'requestWithdraw']);
+        Route::post('/requests', [WalletRequestController::class, 'store']);
+        Route::get('/requests/{id}', [WalletRequestController::class, 'show']);
+        Route::post('/create-direct', [WalletController::class, 'createDirect']);
+        Route::delete('/requests/{id}', [WalletRequestController::class, 'destroy']);
     });
 
     // ── Complaints ────────────────────────────────────────────────────────────
 
     Route::prefix('complaints')->group(function () {
-        Route::get('/',     [ComplaintController::class, 'index']);
-        Route::post('/',    [ComplaintController::class, 'store']);
+        Route::get('/', [ComplaintController::class, 'index']);
+        Route::post('/', [ComplaintController::class, 'store']);
         Route::get('/{id}', [ComplaintController::class, 'show']);
     });
 
@@ -268,7 +266,7 @@ Route::prefix('admin')->group(function () {
 
     // Public: login + refresh [throttle:auth]
     Route::middleware('throttle:auth')->group(function () {
-        Route::post('/login',   [AdminDashboardController::class, 'login']);
+        Route::post('/login', [AdminDashboardController::class, 'login']);
         Route::post('/refresh', [AdminDashboardController::class, 'refresh']);
     });
 
@@ -276,14 +274,14 @@ Route::prefix('admin')->group(function () {
     Route::middleware(['staff:admin,system_admin', 'throttle:admin'])->group(function () {
 
         // ── Driver routes ──────────────────────────────────────────────────
-        Route::get('users',                                    [AdminUserController::class,   'index']);
-        Route::get('drivers/verification-efficiency',          [AdminDriverController::class, 'verificationEfficiency']);
-        Route::get('drivers/dashboard',                        [AdminDriverController::class, 'dashboard']);
-        Route::get('drivers/stats',                            [AdminDriverController::class, 'stats']);
-        Route::get('drivers/activity',                         [AdminDriverController::class, 'activity']);
-        Route::get('drivers',                                  [AdminDriverController::class, 'index']);
-        Route::get('drivers/{driverId}/profile',               [AdminDriverController::class, 'driverProfile']);
-        Route::get('drivers/{driverId}/dashboard',             [AdminDriverController::class, 'driverDashboard']);
+        Route::get('users', [AdminUserController::class,   'index']);
+        Route::get('drivers/verification-efficiency', [AdminDriverController::class, 'verificationEfficiency']);
+        Route::get('drivers/dashboard', [AdminDriverController::class, 'dashboard']);
+        Route::get('drivers/stats', [AdminDriverController::class, 'stats']);
+        Route::get('drivers/activity', [AdminDriverController::class, 'activity']);
+        Route::get('drivers', [AdminDriverController::class, 'index']);
+        Route::get('drivers/{driverId}/profile', [AdminDriverController::class, 'driverProfile']);
+        Route::get('drivers/{driverId}/dashboard', [AdminDriverController::class, 'driverDashboard']);
 
         // ── Session ────────────────────────────────────────────────────────
         Route::post('/logout', [AdminDashboardController::class, 'logout']);
@@ -295,8 +293,8 @@ Route::prefix('admin')->group(function () {
 
         // ── Dashboard ──────────────────────────────────────────────────────
         Route::prefix('dashboard')->group(function () {
-            Route::get('/',       [AdminDashboardController::class, 'dashboard']);
-            Route::get('/stats',  [AdminDashboardController::class, 'dashboardStats']);
+            Route::get('/', [AdminDashboardController::class, 'dashboard']);
+            Route::get('/stats', [AdminDashboardController::class, 'dashboardStats']);
             Route::get('/growth', [AdminDashboardController::class, 'dashboardGrowth']);
             Route::get('/cities', [AdminDashboardController::class, 'dashboardCities']);
             Route::get('/recent', [AdminDashboardController::class, 'dashboardRecent']);
@@ -305,10 +303,10 @@ Route::prefix('admin')->group(function () {
         // ── Trips ──────────────────────────────────────────────────────────
         Route::prefix('trips')->group(function () {
             Route::get('/live', [AdminTripController::class, 'live']);
-            Route::get('/',     [AdminTripController::class, 'index']);
+            Route::get('/', [AdminTripController::class, 'index']);
         });
         Route::get('/routes/popular', [AdminTripController::class, 'popularRoutes']);
-        Route::get('/drivers/top',    [AdminTripController::class, 'topDrivers']);
+        Route::get('/drivers/top', [AdminTripController::class, 'topDrivers']);
 
         // ── Wallet [system_admin only] ─────────────────────────────────────
         // These endpoints act on the CALLER'S OWN system wallet, resolved by
@@ -322,29 +320,29 @@ Route::prefix('admin')->group(function () {
         // the existing gate on /wallet/charge, /reports and /export/pdf.
         Route::middleware('staff:system_admin')->group(function () {
             Route::prefix('wallet')->group(function () {
-                Route::get('/',                        [AdminDashboardController::class,     'getAdminWallet']);
+                Route::get('/', [AdminDashboardController::class,     'getAdminWallet']);
                 Route::get('/{walletId}/transactions', [AdminDashboardController::class,     'showWalletTransactions']);
-                Route::get('/requests',                [AdminWalletRequestController::class, 'index']);
-                Route::post('/requests/{id}/approve',  [AdminWalletRequestController::class, 'approve']);
-                Route::post('/requests/{id}/reject',   [AdminWalletRequestController::class, 'reject']);
+                Route::get('/requests', [AdminWalletRequestController::class, 'index']);
+                Route::post('/requests/{id}/approve', [AdminWalletRequestController::class, 'approve']);
+                Route::post('/requests/{id}/reject', [AdminWalletRequestController::class, 'reject']);
             });
             Route::get('/wallets', [AdminDashboardController::class, 'getAdminWallets']);
         });
 
         // ── UC-ADM-12: Ban / Unban ─────────────────────────────────────────
         Route::prefix('users')->group(function () {
-            Route::get('/{userId}/status',  [AdminBanController::class, 'userStatus']);
-            Route::post('/{userId}/ban',    [AdminBanController::class, 'ban']);
-            Route::post('/{userId}/unban',  [AdminBanController::class, 'unban']);
+            Route::get('/{userId}/status', [AdminBanController::class, 'userStatus']);
+            Route::post('/{userId}/ban', [AdminBanController::class, 'ban']);
+            Route::post('/{userId}/unban', [AdminBanController::class, 'unban']);
         });
 
         // ── Passenger Profile Dashboard ────────────────────────────────────
         Route::prefix('passengers')->group(function () {
-            Route::get('/{userId}/full-profile',   [PassengerProfileController::class, 'fullProfile']);
-            Route::get('/{userId}/stats',          [PassengerProfileController::class, 'stats']);
-            Route::get('/{userId}/monthly-trips',  [PassengerProfileController::class, 'monthlyTrips']);
-            Route::get('/{userId}/recent-trips',   [PassengerProfileController::class, 'recentTrips']);
-            Route::get('/{userId}/complaints',     [PassengerProfileController::class, 'complaints']);
+            Route::get('/{userId}/full-profile', [PassengerProfileController::class, 'fullProfile']);
+            Route::get('/{userId}/stats', [PassengerProfileController::class, 'stats']);
+            Route::get('/{userId}/monthly-trips', [PassengerProfileController::class, 'monthlyTrips']);
+            Route::get('/{userId}/recent-trips', [PassengerProfileController::class, 'recentTrips']);
+            Route::get('/{userId}/complaints', [PassengerProfileController::class, 'complaints']);
             Route::get('/{userId}/wallet-charges', [PassengerProfileController::class, 'walletCharges']);
 
             // Moves real money into a passenger's wallet and writes a
@@ -360,13 +358,13 @@ Route::prefix('admin')->group(function () {
         Route::middleware('staff:system_admin')->group(function () {
 
             Route::post('/wallet/charge', [AdminDashboardController::class, 'chargeWallet']);
-            Route::get('/export/pdf',     [AdminDashboardController::class, 'exportPdf']);
-            Route::get('/reports',        [AdminDashboardController::class, 'showReport']);
+            Route::get('/export/pdf', [AdminDashboardController::class, 'exportPdf']);
+            Route::get('/reports', [AdminDashboardController::class, 'showReport']);
 
             Route::prefix('verifications')->group(function () {
-                Route::get('/',                  [AdminDashboardController::class, 'pendingVerifications']);
+                Route::get('/', [AdminDashboardController::class, 'pendingVerifications']);
                 Route::post('/{userId}/approve', [AdminDashboardController::class, 'approveVerification']);
-                Route::post('/{userId}/reject',  [AdminDashboardController::class, 'rejectVerification']);
+                Route::post('/{userId}/reject', [AdminDashboardController::class, 'rejectVerification']);
             });
 
         });
@@ -383,7 +381,7 @@ Route::prefix('staff')->name('staff.')->group(function () {
 
     // Public: login + refresh [throttle:auth]
     Route::middleware('throttle:auth')->group(function () {
-        Route::post('login',   [StaffAuthController::class, 'login'])->name('login');
+        Route::post('login', [StaffAuthController::class, 'login'])->name('login');
         Route::post('refresh', [StaffAuthController::class, 'refresh'])->name('refresh');
     });
 
@@ -391,51 +389,51 @@ Route::prefix('staff')->name('staff.')->group(function () {
     Route::middleware(['staff', 'throttle:staff'])->group(function () {
 
         Route::post('logout', [StaffAuthController::class, 'logout'])->name('logout');
-        Route::get('me',      [StaffAuthController::class, 'me'])->name('me');
+        Route::get('me', [StaffAuthController::class, 'me'])->name('me');
 
         Route::prefix('reviews')->name('reviews.')->group(function () {
-            Route::get('/',               [StaffReviewController::class, 'index'])->name('index');
+            Route::get('/', [StaffReviewController::class, 'index'])->name('index');
             Route::delete('/{commentId}', [StaffReviewController::class, 'destroy'])->name('destroy');
         });
 
         Route::prefix('users')->name('users.')->group(function () {
-            Route::get('/',         [StaffOperationsController::class, 'users'])->name('index');
+            Route::get('/', [StaffOperationsController::class, 'users'])->name('index');
             Route::get('/{userId}', [StaffOperationsController::class, 'userProfile'])->name('show');
         });
 
-        Route::get('trips',    [StaffOperationsController::class, 'trips'])->name('trips.index');
+        Route::get('trips', [StaffOperationsController::class, 'trips'])->name('trips.index');
         Route::get('bookings', [StaffOperationsController::class, 'bookings'])->name('bookings.index');
 
         Route::prefix('complaints')->name('complaints.')->group(function () {
-            Route::get('/',                [StaffComplaintController::class, 'index'])->name('index');
-            Route::get('/{id}',            [StaffComplaintController::class, 'show'])->name('show');
-            Route::patch('/{id}/respond',  [StaffComplaintController::class, 'respond'])->name('respond');
+            Route::get('/', [StaffComplaintController::class, 'index'])->name('index');
+            Route::get('/{id}', [StaffComplaintController::class, 'show'])->name('show');
+            Route::patch('/{id}/respond', [StaffComplaintController::class, 'respond'])->name('respond');
             Route::patch('/{id}/escalate', [StaffComplaintController::class, 'escalate'])->name('escalate');
         });
 
-        Route::post('trips/{rideId}/cancel',      [StaffOperationsController::class, 'cancelTrip'])->name('trips.cancel');
+        Route::post('trips/{rideId}/cancel', [StaffOperationsController::class, 'cancelTrip'])->name('trips.cancel');
         Route::post('bookings/{bookingId}/cancel', [StaffOperationsController::class, 'cancelBooking'])->name('bookings.cancel');
 
         // ── Support Chat (support_agent, admin, system_admin) ─────────────
         // All active staff roles can read and reply to support conversations.
         // The agent's User account (matched by email) is the chat participant.
         Route::prefix('chat')->name('chat.')->group(function () {
-            Route::get('conversations',                    [StaffChatController::class, 'conversations'])->name('conversations');
-            Route::get('conversations/{id}/messages',      [StaffChatController::class, 'messages'])->name('messages');
-            Route::post('conversations/{id}/messages',     [StaffChatController::class, 'sendMessage'])->name('send');
+            Route::get('conversations', [StaffChatController::class, 'conversations'])->name('conversations');
+            Route::get('conversations/{id}/messages', [StaffChatController::class, 'messages'])->name('messages');
+            Route::post('conversations/{id}/messages', [StaffChatController::class, 'sendMessage'])->name('send');
         });
 
         // Admin + System Admin only
         Route::middleware('staff:admin,system_admin')->group(function () {
 
             Route::prefix('verifications')->name('verifications.')->group(function () {
-                Route::get('/pending',           [StaffAdminController::class, 'pendingVerifications'])->name('pending');
+                Route::get('/pending', [StaffAdminController::class, 'pendingVerifications'])->name('pending');
                 Route::post('/{userId}/approve', [StaffAdminController::class, 'approveVerification'])->name('approve');
-                Route::post('/{userId}/reject',  [StaffAdminController::class, 'rejectVerification'])->name('reject');
+                Route::post('/{userId}/reject', [StaffAdminController::class, 'rejectVerification'])->name('reject');
             });
 
             Route::prefix('escalated-complaints')->name('escalated-complaints.')->group(function () {
-                Route::get('/',               [StaffAdminController::class, 'escalatedComplaints'])->name('index');
+                Route::get('/', [StaffAdminController::class, 'escalatedComplaints'])->name('index');
                 Route::patch('/{id}/resolve', [StaffAdminController::class, 'resolveEscalated'])->name('resolve');
             });
 
@@ -450,11 +448,11 @@ Route::prefix('staff')->name('staff.')->group(function () {
 // ========================================
 
 Route::prefix('employees')->middleware(['staff:system_admin', 'throttle:admin'])->group(function () {
-    Route::get('/',                      [EmployeeManagementController::class, 'index']);
-    Route::post('/',                     [EmployeeManagementController::class, 'store']);
-    Route::get('/{id}',                  [EmployeeManagementController::class, 'show']);
-    Route::put('/{id}',                  [EmployeeManagementController::class, 'update']);
-    Route::patch('/{id}/toggle-active',  [EmployeeManagementController::class, 'toggleActive']);
+    Route::get('/', [EmployeeManagementController::class, 'index']);
+    Route::post('/', [EmployeeManagementController::class, 'store']);
+    Route::get('/{id}', [EmployeeManagementController::class, 'show']);
+    Route::put('/{id}', [EmployeeManagementController::class, 'update']);
+    Route::patch('/{id}/toggle-active', [EmployeeManagementController::class, 'toggleActive']);
     Route::patch('/{id}/reset-password', [EmployeeManagementController::class, 'resetPassword']);
 });
 

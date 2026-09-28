@@ -3,15 +3,14 @@
 namespace App\Repositories;
 
 use App\Interfaces\RideRepositoryInterface;
-use App\Models\Ride;
 use App\Models\Booking;
+use App\Models\Ride;
 use App\Services\Geocoding\GeocodingService;
 use App\Services\Geocoding\RouteCalculationService;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Carbon\Carbon;
 
 /**
  * Ride Repository (UPDATED)
@@ -56,7 +55,7 @@ class RideRepository implements RideRepositoryInterface
                     $pickup['lat'],
                     $pickup['lng']
                 );
-            } elseif (!empty($data['pickup_address'])) {
+            } elseif (! empty($data['pickup_address'])) {
                 // ✅ NEW: Use GeocodingService
                 $pickupResult = $this->geocodingService->geocodeAddress($data['pickup_address']);
                 $pickup = [
@@ -86,7 +85,7 @@ class RideRepository implements RideRepositoryInterface
                     $destination['lat'],
                     $destination['lng']
                 );
-            } elseif (!empty($data['destination_address'])) {
+            } elseif (! empty($data['destination_address'])) {
                 // ✅ NEW: Use GeocodingService
                 $destResult = $this->geocodingService->geocodeAddress($data['destination_address']);
                 $destination = [
@@ -107,7 +106,7 @@ class RideRepository implements RideRepositoryInterface
             // ────────────────────────────────────────────────────────────
             // 4) Create the Ride model and fill non-spatial fields
             // ────────────────────────────────────────────────────────────
-            $ride = new Ride();
+            $ride = new Ride;
             $ride->driver_id = $data['driver_id'];
             $ride->pickup_address = $pickupLabel;
             $ride->destination_address = $destinationLabel;
@@ -134,10 +133,10 @@ class RideRepository implements RideRepositoryInterface
             ];
 
             // 6) Assign route_geometry as GeoJSON - WITH VALIDATION
-            if (isset($route['geometry']) && is_array($route['geometry']) && !empty($route['geometry'])) {
+            if (isset($route['geometry']) && is_array($route['geometry']) && ! empty($route['geometry'])) {
                 $validCoordinates = true;
                 foreach ($route['geometry'] as $coord) {
-                    if (!is_array($coord) || count($coord) < 2) {
+                    if (! is_array($coord) || count($coord) < 2) {
                         $validCoordinates = false;
                         break;
                     }
@@ -161,6 +160,7 @@ class RideRepository implements RideRepositoryInterface
             // 7) Save and return
             // ────────────────────────────────────────────────────────────
             $ride->save();
+
             return $ride->fresh();
         });
     }
@@ -171,6 +171,7 @@ class RideRepository implements RideRepositoryInterface
     public function getUpcomingRides(): Collection
     {
         Log::info('RideRepository: Fetching upcoming rides');
+
         return Ride::with('driver.profile')
             ->where('departure_time', '>', now())
             ->orderBy('departure_time', 'asc')
@@ -183,6 +184,7 @@ class RideRepository implements RideRepositoryInterface
     public function getRideById(int $rideId): Ride
     {
         Log::info('RideRepository: Fetch ride by ID', ['ride_id' => $rideId]);
+
         return Ride::with(['driver.profile', 'bookings.user'])->findOrFail($rideId);
     }
 
@@ -196,7 +198,7 @@ class RideRepository implements RideRepositoryInterface
         return DB::transaction(function () use ($rideId, $data) {
             $ride = Ride::findOrFail($rideId);
 
-            if (!empty($data['departure_time'])) {
+            if (! empty($data['departure_time'])) {
                 $data['departure_time'] = Carbon::parse($data['departure_time'])->toDateTimeString();
             }
 
@@ -224,6 +226,7 @@ class RideRepository implements RideRepositoryInterface
             $ride->save();
 
             Log::info('RideRepository: Ride updated', ['ride_id' => $ride->id]);
+
             return $ride->fresh();
         });
     }
@@ -234,6 +237,7 @@ class RideRepository implements RideRepositoryInterface
     public function deleteRide(int $rideId): bool
     {
         Log::info('RideRepository: Deleting ride', ['ride_id' => $rideId]);
+
         return (bool) Ride::destroy($rideId);
     }
 
@@ -243,6 +247,7 @@ class RideRepository implements RideRepositoryInterface
     public function getDriverRides(int $userId): Collection
     {
         Log::info('RideRepository: Fetching driver rides', ['user_id' => $userId]);
+
         return Ride::where('driver_id', $userId)
             ->withCount('bookings')
             ->orderBy('departure_time', 'desc')
@@ -262,7 +267,7 @@ class RideRepository implements RideRepositoryInterface
                 'ride_id' => $rideId,
                 'seats' => $bookingData['seats'],
                 'status' => $bookingData['status'],
-                'communication_number' => $bookingData['communication_number'] ?? " ",
+                'communication_number' => $bookingData['communication_number'] ?? ' ',
             ]);
 
             if ($booking->status === Booking::CONFIRMED) {
@@ -306,7 +311,7 @@ class RideRepository implements RideRepositoryInterface
     public function createRideWithGeometry(array $data): Ride
     {
         return DB::transaction(function () use ($data) {
-            $ride = new Ride();
+            $ride = new Ride;
 
             // Fill every $fillable column except the two spatial ones.
             // Any column present in $data AND in $fillable is written automatically —
@@ -318,10 +323,11 @@ class RideRepository implements RideRepositoryInterface
 
             // Spatial columns go through the custom mutators so they are stored
             // as ST_GeomFromText(POINT(...)) rather than plain JSON.
-            $ride->pickup_location      = $data['pickup_location'];
+            $ride->pickup_location = $data['pickup_location'];
             $ride->destination_location = $data['destination_location'];
 
             $ride->save();
+
             return $ride->fresh();
         });
     }
@@ -337,24 +343,24 @@ class RideRepository implements RideRepositoryInterface
 
         $query->where(function ($q) use ($maxDistance, $srcWkt, $dstWkt) {
             $q->whereRaw(
-                "ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?",
+                'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?',
                 [$srcWkt, $maxDistance]
             )
                 ->whereRaw(
-                    "ST_Distance_Sphere(destination_location, ST_GeomFromText(?, 4326)) <= ?",
+                    'ST_Distance_Sphere(destination_location, ST_GeomFromText(?, 4326)) <= ?',
                     [$dstWkt, $maxDistance]
                 )
                 ->orWhere(function ($q2) use ($srcWkt, $dstWkt) {
                     $q2->whereNotNull('route_geometry')
-                        ->whereRaw("JSON_VALID(route_geometry)")
+                        ->whereRaw('JSON_VALID(route_geometry)')
                         ->whereRaw("JSON_EXTRACT(route_geometry, '$.coordinates') IS NOT NULL")
                         ->whereRaw("JSON_TYPE(JSON_EXTRACT(route_geometry, '$.coordinates')) = 'ARRAY'")
                         ->whereRaw(
-                            "ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))",
+                            'ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))',
                             [$srcWkt]
                         )
                         ->whereRaw(
-                            "ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))",
+                            'ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))',
                             [$dstWkt]
                         );
                 });

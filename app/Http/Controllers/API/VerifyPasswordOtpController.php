@@ -44,26 +44,26 @@ class VerifyPasswordOtpController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'email'    => ['required', 'string', 'email', 'exists:users,email'],
+            'email' => ['required', 'string', 'email', 'exists:users,email'],
             'otp_code' => ['required', 'string', 'size:6', 'regex:/^[0-9]{6}$/'],
         ], [
-            'email.exists'   => 'No account found with this email.',
-            'otp_code.size'  => 'The code must be exactly 6 digits.',
+            'email.exists' => 'No account found with this email.',
+            'otp_code.size' => 'The code must be exactly 6 digits.',
             'otp_code.regex' => 'The code must contain numbers only.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         // Reuse the same DTO + service as the email verification flow
-        $dto    = VerifyEmailOtpDTO::fromRequest($validator->validated());
+        $dto = VerifyEmailOtpDTO::fromRequest($validator->validated());
         $result = $this->emailOtpService->verifyOtp($dto);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return response()->json([
                 'success' => false,
                 'message' => $result['message'] ?? 'Invalid or expired code.',
@@ -78,16 +78,16 @@ class VerifyPasswordOtpController extends Controller
         $resetToken = (string) Str::uuid();
 
         Cache::put(
-            self::CACHE_PREFIX . $resetToken,
+            self::CACHE_PREFIX.$resetToken,
             $request->input('email'),
             self::TOKEN_TTL
         );
 
         return response()->json([
-            'success'     => true,
-            'message'     => 'Code verified. You may now set a new password.',
+            'success' => true,
+            'message' => 'Code verified. You may now set a new password.',
             'reset_token' => $resetToken,
-            'expires_in'  => self::TOKEN_TTL, // seconds – useful for frontend countdown
+            'expires_in' => self::TOKEN_TTL, // seconds – useful for frontend countdown
         ]);
     }
 
@@ -97,6 +97,6 @@ class VerifyPasswordOtpController extends Controller
      */
     public static function cacheKey(string $token): string
     {
-        return self::CACHE_PREFIX . $token;
+        return self::CACHE_PREFIX.$token;
     }
 }

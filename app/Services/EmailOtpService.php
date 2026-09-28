@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services;
 
 use App\DTOs\Auth\SendEmailOtpDTO;
@@ -13,8 +14,10 @@ use Illuminate\Support\Facades\Mail;
 
 final class EmailOtpService implements EmailOtpServiceInterface
 {
-    private const EXPIRY_MINUTES    = 10;
-    private const MAX_ATTEMPTS      = 3;
+    private const EXPIRY_MINUTES = 10;
+
+    private const MAX_ATTEMPTS = 3;
+
     private const RATE_LIMIT_WINDOW = 5;
 
     public function __construct(
@@ -39,19 +42,20 @@ final class EmailOtpService implements EmailOtpServiceInterface
 
             $otp = $this->otpRepository->create([
                 'phone_number' => $identifier,
-                'otp_code'     => $otpCode,
-                'type'         => $dto->type,
-                'expires_at'   => Carbon::now()->addMinutes(self::EXPIRY_MINUTES),
-                'is_verified'  => false,
-                'attempts'     => 0,
+                'otp_code' => $otpCode,
+                'type' => $dto->type,
+                'expires_at' => Carbon::now()->addMinutes(self::EXPIRY_MINUTES),
+                'is_verified' => false,
+                'attempts' => 0,
             ]);
 
             if ($this->isTestingMode()) {
                 Log::info("Email OTP (testing) for {$identifier}: {$otpCode}");
+
                 return [
-                    'success'    => true,
-                    'message'    => 'OTP generated (testing mode).',
-                    'otp_code'   => $otpCode,
+                    'success' => true,
+                    'message' => 'OTP generated (testing mode).',
+                    'otp_code' => $otpCode,
                     'expires_at' => $otp->expires_at->toDateTimeString(),
                 ];
             }
@@ -63,13 +67,14 @@ final class EmailOtpService implements EmailOtpServiceInterface
             Log::info("Email OTP sent to {$identifier}");
 
             return [
-                'success'    => true,
-                'message'    => 'Verification code sent to your email.',
+                'success' => true,
+                'message' => 'Verification code sent to your email.',
                 'expires_at' => $otp->expires_at->toDateTimeString(),
             ];
 
         } catch (\Exception $e) {
             Log::error("EmailOtpService::sendOtp failed: {$e->getMessage()}");
+
             return [
                 'success' => false,
                 'message' => 'Failed to send verification email. Please try again.',
@@ -89,14 +94,14 @@ final class EmailOtpService implements EmailOtpServiceInterface
             // brute-forceable for its whole 10-minute lifetime.
             $otp = $this->otpRepository->findLatestByPhone($identifier);
 
-            if (!$otp || !$otp->isValid()) {
+            if (! $otp || ! $otp->isValid()) {
                 return [
                     'success' => false,
                     'message' => 'Invalid or expired verification code.',
                 ];
             }
 
-            if (!$otp->matchesCode($dto->otpCode)) {
+            if (! $otp->matchesCode($dto->otpCode)) {
                 // Count the miss; once the cap is hit the row is no longer
                 // isValid() and the code is dead even if later guessed correctly.
                 $otp->registerFailedAttempt();
@@ -110,13 +115,14 @@ final class EmailOtpService implements EmailOtpServiceInterface
             $otp->markAsVerified();
 
             return [
-                'success'     => true,
-                'message'     => 'Email verified successfully.',
+                'success' => true,
+                'message' => 'Email verified successfully.',
                 'verified_at' => $otp->verified_at->toDateTimeString(),
             ];
 
         } catch (\Exception $e) {
             Log::error("EmailOtpService::verifyOtp failed: {$e->getMessage()}");
+
             return ['success' => false, 'message' => 'Verification failed.'];
         }
     }
@@ -124,9 +130,9 @@ final class EmailOtpService implements EmailOtpServiceInterface
     private function isRateLimited(string $identifier): bool
     {
         return $this->otpRepository->getRecentAttempts(
-                $identifier,
-                self::RATE_LIMIT_WINDOW
-            ) >= self::MAX_ATTEMPTS;
+            $identifier,
+            self::RATE_LIMIT_WINDOW
+        ) >= self::MAX_ATTEMPTS;
     }
 
     private function isTestingMode(): bool

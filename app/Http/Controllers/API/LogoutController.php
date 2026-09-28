@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 class LogoutController extends Controller
 {
     private UserRepositoryInterface $userRepository;
+
     private JwtService $jwtService;
 
     public function __construct(
@@ -25,10 +26,10 @@ class LogoutController extends Controller
         // Get authenticated user
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Unauthenticated'
+                'message' => 'Unauthenticated',
             ], 401);
         }
 
@@ -40,7 +41,7 @@ class LogoutController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Successfully logged out'
+            'message' => 'Successfully logged out',
         ], 200);
     }
 }

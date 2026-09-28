@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\StaffRole;
 use App\Models\Employee;
 use App\Services\Staff\StaffJwtService;
 use Illuminate\Console\Command;
@@ -47,16 +46,18 @@ class RotateAdminPasswordCommand extends Command
 
         $employee = Employee::where('username', $username)->first();
 
-        if (!$employee) {
+        if (! $employee) {
             $this->error("No employee found with username: {$username}");
+
             return self::FAILURE;
         }
 
-        if (!$employee->role->isRestricted()) {
+        if (! $employee->role->isRestricted()) {
             $this->error(
-                "'{$username}' is not a restricted account ({$employee->role->label()}). " .
-                "Use the management API to reset passwords for regular staff."
+                "'{$username}' is not a restricted account ({$employee->role->label()}). ".
+                'Use the management API to reset passwords for regular staff.'
             );
+
             return self::FAILURE;
         }
 
@@ -64,34 +65,37 @@ class RotateAdminPasswordCommand extends Command
 
         $password = $this->option('password');
 
-        if (!$password) {
+        if (! $password) {
             $password = $this->secret(
                 "New password for {$employee->role->label()} ({$username})"
             );
         }
 
-        if (!$password || mb_strlen($password) < 12) {
+        if (! $password || mb_strlen($password) < 12) {
             $this->error('Password must be at least 12 characters.');
+
             return self::FAILURE;
         }
 
-        if (!$this->option('force') && !$this->option('password')) {
+        if (! $this->option('force') && ! $this->option('password')) {
             $confirmed = $this->secret('Confirm new password');
             if ($password !== $confirmed) {
                 $this->error('Passwords do not match.');
+
                 return self::FAILURE;
             }
         }
 
         // ── Confirm (unless --force) ──────────────────────────────────────────
 
-        if (!$this->option('force')) {
+        if (! $this->option('force')) {
             $proceed = $this->confirm(
-                "Rotate password for {$employee->role->label()} ({$username}) " .
-                "and invalidate ALL active sessions?"
+                "Rotate password for {$employee->role->label()} ({$username}) ".
+                'and invalidate ALL active sessions?'
             );
-            if (!$proceed) {
+            if (! $proceed) {
                 $this->info('Aborted.');
+
                 return self::SUCCESS;
             }
         }

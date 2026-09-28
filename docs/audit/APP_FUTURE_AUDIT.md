@@ -517,6 +517,73 @@ image does not rely on it).
 
 **Next:** AF-2 (CI gates: Pint + Larastan + tests-required).
 
+### AF-2′ — Modularity foundation: bounded-context map + machine-checked ratchet — VERIFIED FIX
+
+**Owner direction:** "make it modular first." Reframed correctly (see §A2): modularity is
+not a folder move, it is *enforced boundaries*. A big-bang restructure with no gate would
+re-rot — this repo already *has* a modularization (`Domain/` VOs + Strategy factories) that
+the code simply ignored, which is the proof that structure without enforcement fails. So
+AF-2′ delivers the rules *and* the checks before any code moves.
+
+**Delivered:**
+- `docs/audit/ARCHITECTURE_MAP.md` — the six bounded contexts, the allowed dependency
+  direction, the baseline table, and the four audit defects assigned to AF steps. This is
+  the *agreed shape*; the test below is the *machine-checked rule*.
+- `tests/Feature/AppFuture/BoundaryDependencyTest.php` — a **ratchet**, not a lint. It
+  scans every `app/` file and counts nine forbidden cross-context edges. Two properties:
+  a *new* violation fails the suite, and *fixing* one also fails the suite until the human
+  lowers `BASELINES` — so debt can only shrink deliberately, never silently.
+- `.github/workflows/pint.yml` — Pint check-mode gate on every push/PR (branch set includes
+  `Agentic`, so the audit branch is gated too).
+- `.github/workflows/architecture.yml` — runs the ratchet + the fully-green audit suites
+  against a MySQL service. Deliberately a *growing list*, not `php artisan test` on the
+  whole tree: the 374 pre-existing broad-suite errors would make an all-or-nothing gate
+  permanently red — the exact `|| true` disease removed under T3-11, in the opposite
+  direction. The list grows as that debt burns down.
+
+**Measured baselines (the honest current debt, from the dependency graph):**
+`request_below_http = 0` and `domain_to_http = 0` and `async_to_http = 0` are **hard** (already
+clean). Grandfathered: `domain_to_services = 2` (both reach `WalletTransactionService`),
+`domain_to_models = 10` (Score policies + payment strategies type-hint Eloquent),
+`repos_to_services = 2` (`PasswordReset→Jwt`, `RideRepo→Geocoding`), `request_in_services = 1`
+(`AdminAuthService`), `controllers_to_models = 21 of 38` (the headline §B2 problem),
+`models_to_enums = 2`.
+
+**Pre-sweep:** the whole tree was made Pint-compliant first (392 files, style-only) so the
+gate is green from day one rather than a wall of noise. `.gitattributes` declares
+`* text=auto eol=lf`, so Pint's LF normalization is the committed form.
+
+**Verification:**
+- AppFuture suite (ratchet + AF-1 pins): **OK (12 tests, 40 assertions)**, deterministic ×3.
+- Ratchet causality, three needles: (A) a Domain file importing `Illuminate\Http\Request` →
+  `request_below_http` fails naming the probe file; (B) a 22nd controller touching a model →
+  `controllers_to_models` fails; (C) *removing* a violation (deleting `PasswordReset→Jwt`)
+  fails demanding the baseline be lowered — proving the ratchet can't quietly drift.
+  All needles restored; `ScoreController` was accidentally LF-ified by a needle round-trip
+  and re-fixed via the style sweep.
+- **Full-suite regression after the 392-file style sweep: 1921 tests / 374 errors / 56
+  failures** vs the pre-sweep 1909/374/56 — the +12 are exactly the new AppFuture tests;
+  **zero new errors, zero new failures.** Style-only confirmed.
+- Both new workflow YAMLs parse (`yaml.safe_load`); the CI test step's single-path form was
+  executed locally (`php artisan test --no-coverage tests/Feature/AppFuture` → 12 passed) —
+  the earlier `>`-fold block scalar was wrong (artisan takes ONE path) and was fixed to a
+  `for` loop before commit.
+
+**Genuinely unverified:** the two new GitHub Actions have not run on CI (this env cannot
+trigger GitHub). Their commands were replicated locally and pass. **Larastan is deferred,
+not silently skipped** — it is not installed and a level-5 run over a 392-file untyped
+surface would produce un-actionable noise; it becomes the second gate after AF-6/AF-7 add
+types on the way. Owner decision needed if you want it attempted now.
+
+**Owner decisions captured (for AF-4, not yet executed):**
+- **Ride search:** keep `RideSearchService` (route-buffer), wire it live, delete the other —
+  must be load-tested before the swap.
+- **Sanctum:** owner stated *"I am using JWT, I don't want Sanctum for anything"* → AF-4 will
+  remove the Sanctum config/surface (nothing consumes it today).
+
+**Next:** AF-4 — un-tangle the dead-but-wired set (search swap, Sanctum removal, 3 dead
+events, no-show gates → config, hide debug commands).
+
 ---
 *Maintained as the future-state companion to the bug audit. If any item here graduates to a
 fix task, mirror it into the `SYRIDE_COMPREHENSIVE_AUDIT.md` workflow (one problem at a

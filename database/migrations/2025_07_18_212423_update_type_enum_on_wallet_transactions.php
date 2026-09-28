@@ -46,13 +46,13 @@ return new class extends Migration
                 'ride_earnings',
 
                 // Partial refunds
-                'partial_seat_refund'
+                'partial_seat_refund',
             ])->after('user_id');
         });
 
         // Copy data from old column to new column
         DB::table('wallet_transactions')->update([
-            'type_new' => DB::raw('type')
+            'type_new' => DB::raw('type'),
         ]);
 
         Schema::table('wallet_transactions', function (Blueprint $table) {
@@ -74,7 +74,7 @@ return new class extends Migration
                 'credit',
                 'debit',
                 'admin_credit',
-                'ride_creation_fee'
+                'ride_creation_fee',
             ])->after('user_id');
         });
 

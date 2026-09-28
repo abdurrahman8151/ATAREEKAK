@@ -9,22 +9,25 @@ use Illuminate\Console\Command;
 class TestNotificationCommand extends Command
 {
     protected $signature = 'notification:test {user_id?} {--type=welcome}';
+
     protected $description = 'Send a test notification to a user';
 
     public function handle(NotificationService $notificationService)
     {
         $userId = $this->argument('user_id') ?? User::first()?->id;
-        $type   = $this->option('type');
+        $type = $this->option('type');
 
-        if (!$userId) {
+        if (! $userId) {
             $this->error('No user found to send notification to');
+
             return 1;
         }
 
         $user = User::find($userId);
 
-        if (!$user) {
+        if (! $user) {
             $this->error("User with ID {$userId} not found");
+
             return 1;
         }
 
@@ -69,10 +72,12 @@ class TestNotificationCommand extends Command
             }
 
             $this->info("Test notification sent successfully! ID: {$notification->id}");
+
             return 0;
 
         } catch (\Exception $e) {
-            $this->error('Failed to send test notification: ' . $e->getMessage());
+            $this->error('Failed to send test notification: '.$e->getMessage());
+
             return 1;
         }
     }

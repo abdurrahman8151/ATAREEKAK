@@ -41,24 +41,24 @@ class StaffAuthControllerTest extends TestCase
         parent::setUp();
 
         Config::set('admin.system_admin', [
-            'email'         => 'primary@admin.test',
-            'password'      => 'primary_pass',
-            'username'      => 'primary_admin',
-            'first_name'    => 'Primary',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000001',
+            'email' => 'primary@admin.test',
+            'password' => 'primary_pass',
+            'username' => 'primary_admin',
+            'first_name' => 'Primary',
+            'last_name' => 'Admin',
+            'phone' => '0910000001',
             'wallet_prefix' => 'PRIM',
-            'permissions'   => ['*'],
+            'permissions' => ['*'],
         ]);
 
         Config::set('admin.sycash', [
-            'email'         => 'sycash@admin.test',
-            'password'      => 'sycash_pass',
-            'first_name'    => 'SyCash',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000002',
+            'email' => 'sycash@admin.test',
+            'password' => 'sycash_pass',
+            'first_name' => 'SyCash',
+            'last_name' => 'Admin',
+            'phone' => '0910000002',
             'wallet_prefix' => 'SYCSH',
-            'permissions'   => ['view_wallet'],
+            'permissions' => ['view_wallet'],
         ]);
 
         // FIX: Config::set above points admin config at specific emails/phones.
@@ -76,11 +76,11 @@ class StaffAuthControllerTest extends TestCase
 
         $this->postJson('/api/staff/login', [
             'identifier' => 'agent_user',
-            'password'   => 'secret123',
+            'password' => 'secret123',
         ])->assertStatus(200)
             ->assertJsonPath('status', 'success')
             ->assertJsonStructure([
-                'tokens'   => ['access_token', 'refresh_token'],
+                'tokens' => ['access_token', 'refresh_token'],
                 'employee',
             ]);
     }
@@ -91,7 +91,7 @@ class StaffAuthControllerTest extends TestCase
 
         $this->postJson('/api/staff/login', [
             'identifier' => 'agent@test.com',
-            'password'   => 'secret123',
+            'password' => 'secret123',
         ])->assertStatus(200);
     }
 
@@ -101,7 +101,7 @@ class StaffAuthControllerTest extends TestCase
 
         $this->postJson('/api/staff/login', [
             'identifier' => 'agent_user',
-            'password'   => 'wrong_password',
+            'password' => 'wrong_password',
         ])->assertStatus(401)
             ->assertJsonPath('code', 'INVALID_CREDENTIALS');
     }
@@ -110,7 +110,7 @@ class StaffAuthControllerTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'nobody_here',
-            'password'   => 'any_password',
+            'password' => 'any_password',
         ])->assertStatus(401);
     }
 
@@ -138,7 +138,7 @@ class StaffAuthControllerTest extends TestCase
 
         $this->postJson('/api/staff/login', [
             'identifier' => 'agent_user',
-            'password'   => 'secret123',
+            'password' => 'secret123',
         ])->assertStatus(401);
     }
 
@@ -150,7 +150,7 @@ class StaffAuthControllerTest extends TestCase
 
         $refresh = $this->postJson('/api/staff/login', [
             'identifier' => 'agent_user',
-            'password'   => 'secret123',
+            'password' => 'secret123',
         ])->json('tokens.refresh_token');
 
         $this->postJson('/api/staff/refresh', ['refresh_token' => $refresh])
@@ -225,7 +225,7 @@ class StaffAuthControllerTest extends TestCase
 
         $token = $this->postJson('/api/staff/login', [
             'identifier' => 'agent_user',
-            'password'   => 'secret123',
+            'password' => 'secret123',
         ])->json('tokens.access_token');
 
         // Fail with a clear message rather than a cryptic TypeError if login
@@ -233,7 +233,7 @@ class StaffAuthControllerTest extends TestCase
         // whatever the login success path needs).
         $this->assertNotNull(
             $token,
-            'staffToken(): login returned null — check that seedAdminWallets() ' .
+            'staffToken(): login returned null — check that seedAdminWallets() '.
             'creates all rows the login success handler requires.'
         );
 
@@ -243,26 +243,26 @@ class StaffAuthControllerTest extends TestCase
     private function adminToken(): string
     {
         return $this->postJson('/api/admin/login', [
-            'email'    => 'primary@admin.test',
+            'email' => 'primary@admin.test',
             'password' => 'primary_pass',
         ])->json('tokens.access_token');
     }
 
     private function makeEmployee(
-        string    $email,
-        string    $username,
-        string    $password,
-        StaffRole $role      = StaffRole::SUPPORT_AGENT,
-        bool      $is_active = true,
+        string $email,
+        string $username,
+        string $password,
+        StaffRole $role = StaffRole::SUPPORT_AGENT,
+        bool $is_active = true,
     ): Employee {
         return Employee::create([
-            'username'      => $username,
-            'email'         => $email,
-            'password'      => bcrypt($password),
-            'first_name'    => 'Test',
-            'last_name'     => 'Agent',
-            'role'          => $role->value,
-            'is_active'     => $is_active,
+            'username' => $username,
+            'email' => $email,
+            'password' => bcrypt($password),
+            'first_name' => 'Test',
+            'last_name' => 'Agent',
+            'role' => $role->value,
+            'is_active' => $is_active,
             'token_version' => 0,
         ]);
     }
@@ -288,21 +288,21 @@ class StaffAuthControllerTest extends TestCase
             $adminUser = User::firstOrCreate(
                 ['email' => $cfg['email']],
                 [
-                    'first_name'        => $cfg['first_name'],
-                    'last_name'         => $cfg['last_name'],
-                    'password'          => bcrypt($cfg['password']),
-                    'gender'            => 'M',
-                    'address'           => 'دمشق',
-                    'status'            => 1,
+                    'first_name' => $cfg['first_name'],
+                    'last_name' => $cfg['last_name'],
+                    'password' => bcrypt($cfg['password']),
+                    'gender' => 'M',
+                    'address' => 'دمشق',
+                    'status' => 1,
                     'email_verified_at' => now(),
                 ]
             );
 
-            if (!Wallet::where('phone_number', $cfg['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
                 $wallet = Wallet::create([
-                    'user_id'      => $adminUser->id,
+                    'user_id' => $adminUser->id,
                     'phone_number' => $cfg['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                 ]);
                 $adminUser->update(['wallet_id' => $wallet->id]);
             }

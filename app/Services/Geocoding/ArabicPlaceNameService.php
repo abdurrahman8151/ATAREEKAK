@@ -58,7 +58,7 @@ final class ArabicPlaceNameService
         try {
             $response = Http::withHeaders([
                 'User-Agent' => 'SyRide-App/1.0',
-                'Accept-Language' => 'ar,en;q=0.8'
+                'Accept-Language' => 'ar,en;q=0.8',
             ])
                 ->withoutVerifying()
                 ->timeout(10)
@@ -78,8 +78,9 @@ final class ArabicPlaceNameService
             return null;
         } catch (\Exception $e) {
             Log::debug('Arabic reverse geocoding failed', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -104,7 +105,7 @@ final class ArabicPlaceNameService
         try {
             $response = Http::withHeaders([
                 'User-Agent' => 'SyRide-App/1.0',
-                'Accept-Language' => 'ar,en;q=0.8'
+                'Accept-Language' => 'ar,en;q=0.8',
             ])
                 ->withoutVerifying()
                 ->timeout(10)
@@ -112,7 +113,7 @@ final class ArabicPlaceNameService
 
             if ($response->successful()) {
                 return collect($response->json())
-                    ->map(function($result) {
+                    ->map(function ($result) {
                         $arabicName = $this->extractBestArabicName($result);
 
                         return [
@@ -127,8 +128,9 @@ final class ArabicPlaceNameService
             return [];
         } catch (\Exception $e) {
             Log::error('Arabic autocomplete failed', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return [];
         }
     }
@@ -153,13 +155,13 @@ final class ArabicPlaceNameService
         try {
             $response = Http::withHeaders([
                 'User-Agent' => 'SyRide-App/1.0',
-                'Accept-Language' => 'ar,en;q=0.8'
+                'Accept-Language' => 'ar,en;q=0.8',
             ])
                 ->withoutVerifying()
                 ->timeout(10)
                 ->get($url, $params);
 
-            if (!$response->successful() || empty($response->json())) {
+            if (! $response->successful() || empty($response->json())) {
                 return null;
             }
 
@@ -186,8 +188,9 @@ final class ArabicPlaceNameService
             ];
         } catch (\Exception $e) {
             Log::debug('Nominatim Arabic failed', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -199,23 +202,23 @@ final class ArabicPlaceNameService
     {
         $token = env('MAPBOX_ACCESS_TOKEN');
 
-        if (!$token) {
+        if (! $token) {
             return null;
         }
 
-        $url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($address) . ".json";
+        $url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'.urlencode($address).'.json';
 
         $params = [
             'access_token' => $token,
             'country' => 'sy',
             'language' => 'ar',
-            'limit' => 1
+            'limit' => 1,
         ];
 
         try {
             $response = Http::timeout(10)->get($url, $params);
 
-            if ($response->successful() && !empty($response->json()['features'])) {
+            if ($response->successful() && ! empty($response->json()['features'])) {
                 $feature = $response->json()['features'][0];
 
                 return [
@@ -228,6 +231,7 @@ final class ArabicPlaceNameService
             return null;
         } catch (\Exception $e) {
             Log::debug('Mapbox failed', ['error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -287,6 +291,6 @@ final class ArabicPlaceNameService
             }
         }
 
-        return !empty($arabicParts) ? implode(', ', array_unique($arabicParts)) : null;
+        return ! empty($arabicParts) ? implode(', ', array_unique($arabicParts)) : null;
     }
 }

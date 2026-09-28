@@ -23,10 +23,10 @@ class TextMeOtpController extends Controller
      */
     public function sendOtp(SendOtpRequest $request): JsonResponse
     {
-        if (!env('TEXTMEBOT_ENABLED', false)) {
+        if (! env('TEXTMEBOT_ENABLED', false)) {
             return response()->json([
                 'success' => false,
-                'message' => 'TextMeBot service is currently disabled'
+                'message' => 'TextMeBot service is currently disabled',
             ], 400);
         }
 

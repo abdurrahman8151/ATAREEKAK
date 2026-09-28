@@ -27,7 +27,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $user = User::factory()->create(['password' => bcrypt('password123')]);
 
         $token = $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
 

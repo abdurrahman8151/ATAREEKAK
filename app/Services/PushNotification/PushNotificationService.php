@@ -60,6 +60,7 @@ final class PushNotificationService
 
         if (empty($tokens)) {
             Log::info("No active tokens found for user: {$user->id}");
+
             return false;
         }
 
@@ -74,7 +75,8 @@ final class PushNotificationService
         $tokens = $this->tokenManager->getMultipleUserTokens($userIds);
 
         if (empty($tokens)) {
-            Log::info("No active tokens found for users: " . implode(',', $userIds));
+            Log::info('No active tokens found for users: '.implode(',', $userIds));
+
             return false;
         }
 
@@ -93,7 +95,7 @@ final class PushNotificationService
         $result = $this->fcmSender->sendToTokens($tokens, $data);
 
         // Handle invalid tokens
-        if ($result && !empty($result['invalid_tokens'])) {
+        if ($result && ! empty($result['invalid_tokens'])) {
             $this->tokenManager->markTokensAsInvalid($result['invalid_tokens']);
         }
 
@@ -159,14 +161,14 @@ final class PushNotificationService
     {
         $user = User::find($userId);
 
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
         return $this->sendToUser($user, [
             'title' => 'Test Notification',
             'body' => 'This is a test notification from your app!',
-            'data' => ['test' => true]
+            'data' => ['test' => true],
         ]);
     }
 }

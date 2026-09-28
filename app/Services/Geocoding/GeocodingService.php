@@ -2,8 +2,8 @@
 
 namespace App\Services\Geocoding;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -29,7 +29,7 @@ final class GeocodingService
      */
     public function geocodeAddress(string $address): array
     {
-        $cacheKey = "geocode:v2:" . md5($address);
+        $cacheKey = 'geocode:v2:'.md5($address);
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($address) {
             // Try Arabic-optimized geocoding first
@@ -49,7 +49,7 @@ final class GeocodingService
      */
     public function reverseGeocode(float $lat, float $lng): string
     {
-        $cacheKey = "reverse:v2:" . md5("{$lat},{$lng}");
+        $cacheKey = 'reverse:v2:'.md5("{$lat},{$lng}");
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($lat, $lng) {
             // Try Arabic first
@@ -69,7 +69,7 @@ final class GeocodingService
      */
     public function autocomplete(string $partial): array
     {
-        $cacheKey = "autocomplete:v2:" . md5($partial);
+        $cacheKey = 'autocomplete:v2:'.md5($partial);
 
         return Cache::remember($cacheKey, self::CACHE_TTL / 2, function () use ($partial) {
             return $this->arabicService->autocompleteWithArabic($partial);
@@ -94,12 +94,12 @@ final class GeocodingService
 
         try {
             $response = Http::withHeaders([
-                'User-Agent' => 'SyRide-App/1.0'
+                'User-Agent' => 'SyRide-App/1.0',
             ])
                 ->timeout(10)
                 ->get($url, $params);
 
-            if ($response->successful() && !empty($response->json())) {
+            if ($response->successful() && ! empty($response->json())) {
                 $data = $response->json()[0];
 
                 return [
@@ -113,7 +113,7 @@ final class GeocodingService
         } catch (\Exception $e) {
             Log::error('Geocoding failed', [
                 'address' => $address,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -135,13 +135,14 @@ final class GeocodingService
 
         try {
             $response = Http::withHeaders([
-                'User-Agent' => 'SyRide-App/1.0'
+                'User-Agent' => 'SyRide-App/1.0',
             ])
                 ->timeout(10)
                 ->get($url, $params);
 
             if ($response->successful()) {
                 $data = $response->json();
+
                 return $data['display_name'] ?? "Location: {$lat}, {$lng}";
             }
 
@@ -150,7 +151,7 @@ final class GeocodingService
             Log::warning('Reverse geocoding failed', [
                 'lat' => $lat,
                 'lng' => $lng,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return "الموقع: {$lat}, {$lng}";
@@ -160,5 +161,4 @@ final class GeocodingService
      * Get multiple route alternatives between two points
      * Delegates to OpenRouteService which handles ORS API + waypoint fallback
      */
-
 }

@@ -13,27 +13,27 @@ use Illuminate\Support\Facades\Log;
 class ChatRepository implements ChatRepositoryInterface
 {
     public function createConversation(
-        array   $participants,
-        string  $type  = 'private',
+        array $participants,
+        string $type = 'private',
         ?string $title = null,
-        array   $roles = [],
+        array $roles = [],
     ): Conversation {
         return DB::transaction(function () use ($participants, $type, $title, $roles) {
             $conversation = Conversation::create([
-                'type'  => $type,
+                'type' => $type,
                 'title' => $title,
             ]);
 
             foreach ($participants as $userId) {
                 $conversation->participants()->attach($userId, [
-                    'role'      => $roles[$userId] ?? 'member',
+                    'role' => $roles[$userId] ?? 'member',
                     'joined_at' => now(),
                 ]);
             }
 
             Log::info('Conversation created', [
                 'conversation_id' => $conversation->id,
-                'type'            => $type,
+                'type' => $type,
             ]);
 
             return $conversation->load('participants');
@@ -75,7 +75,7 @@ class ChatRepository implements ChatRepositoryInterface
 
     public function getUserConversations(User $user): Collection
     {
-        return Conversation::whereHas('participants', fn($q) => $q->where('user_id', $user->id))
+        return Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
             ->with([
                 'participants.profile',
                 'latestMessage.sender',
@@ -83,6 +83,7 @@ class ChatRepository implements ChatRepositoryInterface
             ->latest('updated_at')
             ->get();
     }
+
     /**
      * Save a message and return it.
      *
@@ -95,18 +96,18 @@ class ChatRepository implements ChatRepositoryInterface
      * sender object (with profile) without touching the DB.
      */
     public function sendMessage(
-        int    $conversationId,
-        int    $senderId,
+        int $conversationId,
+        int $senderId,
         string $content,
-        string $type     = 'text',
+        string $type = 'text',
         ?array $metadata = null,
     ): Message {
         $message = Message::create([
             'conversation_id' => $conversationId,
-            'sender_id'       => $senderId,
-            'type'            => $type,
-            'content'         => $content,
-            'metadata'        => $metadata,
+            'sender_id' => $senderId,
+            'type' => $type,
+            'content' => $content,
+            'metadata' => $metadata,
         ]);
 
         Conversation::where('id', $conversationId)->touch();
@@ -131,18 +132,19 @@ class ChatRepository implements ChatRepositoryInterface
     public function markMessageAsRead(int $messageId, int $userId): bool
     {
         $message = Message::find($messageId);
-        if (!$message || $message->sender_id === $userId) {
+        if (! $message || $message->sender_id === $userId) {
             return false;
         }
 
         $message->markAsRead();
+
         return true;
     }
 
     public function deleteMessage(int $messageId, int $userId): bool
     {
         $message = Message::find($messageId);
-        if (!$message || $message->sender_id !== $userId) {
+        if (! $message || $message->sender_id !== $userId) {
             return false;
         }
 

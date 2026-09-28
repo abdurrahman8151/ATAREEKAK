@@ -1,4 +1,5 @@
 <?php
+
 // database/migrations/2025_07_12_152308_create_wallets_table.php
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

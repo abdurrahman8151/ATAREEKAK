@@ -2,8 +2,8 @@
 
 namespace App\Services\Verification;
 
-use App\Models\User;
 use App\Models\Photo;
+use App\Models\User;
 
 /**
  * Document Verification Service
@@ -23,12 +23,12 @@ final class DocumentVerificationService
         'face_id',
         'back_id',
         'license',
-        'mechanic_card'
+        'mechanic_card',
     ];
 
     private const REQUIRED_PASSENGER_DOCUMENTS = [
         'face_id',
-        'back_id'
+        'back_id',
     ];
 
     private const DOCUMENT_LABELS = [
@@ -44,6 +44,7 @@ final class DocumentVerificationService
     public function hasRequiredDriverDocuments(User $user): bool
     {
         $missing = $this->getMissingDriverDocuments($user);
+
         return empty($missing);
     }
 
@@ -53,6 +54,7 @@ final class DocumentVerificationService
     public function hasRequiredPassengerDocuments(User $user): bool
     {
         $missing = $this->getMissingPassengerDocuments($user);
+
         return empty($missing);
     }
 
@@ -62,6 +64,7 @@ final class DocumentVerificationService
     public function getMissingDriverDocuments(User $user): array
     {
         $existingDocuments = $this->getUserDocumentTypes($user);
+
         return array_diff(self::REQUIRED_DRIVER_DOCUMENTS, $existingDocuments);
     }
 
@@ -71,6 +74,7 @@ final class DocumentVerificationService
     public function getMissingPassengerDocuments(User $user): array
     {
         $existingDocuments = $this->getUserDocumentTypes($user);
+
         return array_diff(self::REQUIRED_PASSENGER_DOCUMENTS, $existingDocuments);
     }
 
@@ -83,11 +87,11 @@ final class DocumentVerificationService
     {
         $missing = $this->getMissingDriverDocuments($user);
 
-        if (!empty($missing)) {
+        if (! empty($missing)) {
             $missingNames = $this->formatDocumentNames($missing);
 
             throw new \Exception(
-                'Missing required driver verification documents: ' . implode(', ', $missingNames)
+                'Missing required driver verification documents: '.implode(', ', $missingNames)
             );
         }
     }
@@ -101,11 +105,11 @@ final class DocumentVerificationService
     {
         $missing = $this->getMissingPassengerDocuments($user);
 
-        if (!empty($missing)) {
+        if (! empty($missing)) {
             $missingNames = $this->formatDocumentNames($missing);
 
             throw new \Exception(
-                'Missing required passenger verification documents: ' . implode(', ', $missingNames)
+                'Missing required passenger verification documents: '.implode(', ', $missingNames)
             );
         }
     }
@@ -126,7 +130,7 @@ final class DocumentVerificationService
     private function formatDocumentNames(array $documentTypes): array
     {
         return array_map(
-            fn($type) => self::DOCUMENT_LABELS[$type] ?? $type,
+            fn ($type) => self::DOCUMENT_LABELS[$type] ?? $type,
             $documentTypes
         );
     }

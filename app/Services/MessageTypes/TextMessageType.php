@@ -16,7 +16,7 @@ class TextMessageType implements MessageTypeInterface
             'content' => 'required|string|max:5000',
         ]);
 
-        return !$validator->fails();
+        return ! $validator->fails();
     }
 
     /**
@@ -26,7 +26,7 @@ class TextMessageType implements MessageTypeInterface
     {
         return [
             'content' => trim($data['content']),
-            'metadata' => []
+            'metadata' => [],
         ];
     }
 }

@@ -47,11 +47,11 @@ class OtpAttemptLimitTest extends TestCase
     {
         return Otp::create([
             'phone_number' => $identifier,
-            'otp_code'     => $code,
-            'type'         => 'E-PAYMENT',
-            'expires_at'   => $expiresAt ?? Carbon::now()->addMinutes(10),
-            'is_verified'  => false,
-            'attempts'     => 0,
+            'otp_code' => $code,
+            'type' => 'E-PAYMENT',
+            'expires_at' => $expiresAt ?? Carbon::now()->addMinutes(10),
+            'is_verified' => false,
+            'attempts' => 0,
         ]);
     }
 
@@ -65,7 +65,7 @@ class OtpAttemptLimitTest extends TestCase
     {
         return $this->postJson('/api/otp/verify', [
             'phone_number' => self::PHONE_RAW,
-            'otp_code'     => $code,
+            'otp_code' => $code,
         ]);
     }
 
@@ -173,18 +173,18 @@ class OtpAttemptLimitTest extends TestCase
     {
         return Otp::create([
             'phone_number' => self::EMAIL,
-            'otp_code'     => $code,
-            'type'         => 'password_reset',
-            'expires_at'   => Carbon::now()->addMinutes(10),
-            'is_verified'  => false,
-            'attempts'     => 0,
+            'otp_code' => $code,
+            'type' => 'password_reset',
+            'expires_at' => Carbon::now()->addMinutes(10),
+            'is_verified' => false,
+            'attempts' => 0,
         ]);
     }
 
     private function verifyReset(string $code)
     {
         return $this->postJson('/api/auth/password/verify-otp', [
-            'email'    => self::EMAIL,
+            'email' => self::EMAIL,
             'otp_code' => $code,
         ]);
     }

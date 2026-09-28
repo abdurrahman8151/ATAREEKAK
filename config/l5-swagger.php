@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\GateDocumentation;
+use OpenApi\scan;
+
 return [
     'default' => 'default',
     'documentations' => [
@@ -45,7 +48,6 @@ return [
                  */
                 'annotations' => [
 
-
                     base_path('app/Docs'),
                 ],
             ],
@@ -72,10 +74,10 @@ return [
              * (DOCS_ALLOWED_IPS) elsewhere.
              */
             'middleware' => [
-                'api' => [\App\Http\Middleware\GateDocumentation::class],
-                'asset' => [\App\Http\Middleware\GateDocumentation::class],
-                'docs' => [\App\Http\Middleware\GateDocumentation::class],
-                'oauth2_callback' => [\App\Http\Middleware\GateDocumentation::class],
+                'api' => [GateDocumentation::class],
+                'asset' => [GateDocumentation::class],
+                'docs' => [GateDocumentation::class],
+                'oauth2_callback' => [GateDocumentation::class],
             ],
 
             /*
@@ -142,14 +144,14 @@ return [
             /**
              * analyser: defaults to \OpenApi\StaticAnalyser .
              *
-             * @see \OpenApi\scan
+             * @see scan
              */
             'analyser' => null,
 
             /**
              * analysis: defaults to a new \OpenApi\Analysis .
              *
-             * @see \OpenApi\scan
+             * @see scan
              */
             'analysis' => null,
 
@@ -157,7 +159,7 @@ return [
              * Custom query path processors classes.
              *
              * @link https://github.com/zircote/swagger-php/tree/master/Examples/processors/schema-query-parameter
-             * @see \OpenApi\scan
+             * @see scan
              */
             'processors' => [
                 // new \App\SwaggerProcessors\SchemaQueryParameter(),
@@ -166,7 +168,7 @@ return [
             /**
              * pattern: string       $pattern File pattern(s) to scan (default: *.php) .
              *
-             * @see \OpenApi\scan
+             * @see scan
              */
             'pattern' => null,
 

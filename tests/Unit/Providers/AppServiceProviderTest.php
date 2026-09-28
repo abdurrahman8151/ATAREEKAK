@@ -2,24 +2,24 @@
 
 namespace Tests\Unit\Providers;
 
-use App\Providers\AppServiceProvider;
-use App\Interfaces\UserRepositoryInterface;
-use App\Interfaces\ProfileRepositoryInterface;
-use App\Interfaces\OtpRepositoryInterface;
-use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ChatRepositoryInterface;
-use App\Interfaces\VerificationRepositoryInterface;
+use App\Interfaces\OtpRepositoryInterface;
 use App\Interfaces\PasswordResetRepositoryInterface;
+use App\Interfaces\PhotoRepositoryInterface;
+use App\Interfaces\ProfileRepositoryInterface;
 use App\Interfaces\RideRepositoryInterface;
-use App\Services\Geocoding\GeocodingService;
-use App\Services\Geocoding\ArabicPlaceNameService;
-use App\Services\PushNotification\FcmSenderService;
-use App\Services\PushNotification\PushNotificationService;
-use App\Services\Ride\RideService;
-use App\Services\Ride\BookingService;
+use App\Interfaces\UserRepositoryInterface;
+use App\Interfaces\VerificationRepositoryInterface;
+use App\Providers\AppServiceProvider;
 use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminWalletService;
+use App\Services\Geocoding\ArabicPlaceNameService;
+use App\Services\Geocoding\GeocodingService;
 use App\Services\NotificationService;
+use App\Services\PushNotification\FcmSenderService;
+use App\Services\PushNotification\PushNotificationService;
+use App\Services\Ride\BookingService;
+use App\Services\Ride\RideService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

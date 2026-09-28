@@ -5,6 +5,7 @@ namespace App\Services\Staff;
 use App\Enums\StaffRole;
 use App\Models\Employee;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -64,8 +65,7 @@ class EmployeeManagementService
         return Employee::orderBy('role')
             ->orderBy('username')
             ->get()
-            ->filter(fn (Employee $emp) =>
-                $emp->id === $requester->id
+            ->filter(fn (Employee $emp) => $emp->id === $requester->id
                 || $requester->role->canManage($emp->role)
             )
             ->values();
@@ -74,7 +74,7 @@ class EmployeeManagementService
     /**
      * Single employee — enforces visibility by role tier.
      *
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     * @throws ModelNotFoundException
      * @throws \DomainException
      */
     public function getById(int $id, Employee $requester): Employee
@@ -83,7 +83,7 @@ class EmployeeManagementService
 
         if (
             $employee->id !== $requester->id
-            && !$requester->role->canManage($employee->role)
+            && ! $requester->role->canManage($employee->role)
         ) {
             throw new \DomainException(
                 "Your role ({$requester->role->label()}) cannot view this account."
@@ -120,16 +120,16 @@ class EmployeeManagementService
         // ── Guard 1: restricted roles can never be created via the API ────────
         if ($role->isRestricted()) {
             throw new \DomainException(
-                "The '{$role->label()}' account cannot be created via the API. " .
-                "It is seeded once at deployment. To rotate the password run: " .
+                "The '{$role->label()}' account cannot be created via the API. ".
+                'It is seeded once at deployment. To rotate the password run: '.
                 "php artisan admin:rotate-password {$role->value}"
             );
         }
 
         // ── Guard 2: requester must be permitted to create this role ──────────
-        if (!$requester->role->canManage($role)) {
+        if (! $requester->role->canManage($role)) {
             throw new \DomainException(
-                "Your role ({$requester->role->label()}) is not permitted to " .
+                "Your role ({$requester->role->label()}) is not permitted to ".
                 "create a '{$role->label()}' account."
             );
         }
@@ -141,7 +141,7 @@ class EmployeeManagementService
 
         // ── Guard 4: unique email (if provided) ───────────────────────────────
         if (
-            !empty($data['email'])
+            ! empty($data['email'])
             && Employee::where('email', $data['email'])->exists()
         ) {
             throw new \DomainException("Email '{$data['email']}' is already in use.");
@@ -152,19 +152,19 @@ class EmployeeManagementService
         // Without an email there is no bridge, and ContactController returns 503.
         if ($role === StaffRole::SUPPORT_AGENT && empty($data['email'])) {
             throw new \DomainException(
-                "Support agents must have an email address. " .
-                "It is used to link the employee to the chat system."
+                'Support agents must have an email address. '.
+                'It is used to link the employee to the chat system.'
             );
         }
 
         $employee = Employee::create([
-            'username'   => $data['username'],
-            'email'      => $data['email'] ?? null,
-            'password'   => Hash::make($data['password']),
+            'username' => $data['username'],
+            'email' => $data['email'] ?? null,
+            'password' => Hash::make($data['password']),
             'first_name' => $data['first_name'],
-            'last_name'  => $data['last_name'],
-            'role'       => $role->value,
-            'is_active'  => true,
+            'last_name' => $data['last_name'],
+            'role' => $role->value,
+            'is_active' => true,
             'created_by' => $requester->id,   // ← was missing; always track who created whom
         ]);
 
@@ -210,7 +210,7 @@ class EmployeeManagementService
                 );
             }
 
-            if (!$requester->role->canManage($newRole)) {
+            if (! $requester->role->canManage($newRole)) {
                 throw new \DomainException(
                     "Your role ({$requester->role->label()}) cannot assign '{$newRole->label()}'."
                 );
@@ -256,9 +256,9 @@ class EmployeeManagementService
                 ->where('is_verified_driver', 0)
                 ->where('is_verified_passenger', 0)
                 ->update([
-                    'email'      => $data['email'],
+                    'email' => $data['email'],
                     'first_name' => $data['first_name'] ?? $employee->first_name,
-                    'last_name'  => $data['last_name']  ?? $employee->last_name,
+                    'last_name' => $data['last_name'] ?? $employee->last_name,
                 ]);
         }
 
@@ -285,12 +285,12 @@ class EmployeeManagementService
 
         if ($employee->role->isRestricted()) {
             throw new \DomainException(
-                "The '{$employee->role->label()}' password must be rotated via Artisan: " .
+                "The '{$employee->role->label()}' password must be rotated via Artisan: ".
                 "php artisan admin:rotate-password {$employee->role->value}"
             );
         }
 
-        $employee->password      = Hash::make($newPassword);
+        $employee->password = Hash::make($newPassword);
         $employee->token_version = ($employee->token_version ?? 0) + 1;
         $employee->save();
 
@@ -319,10 +319,10 @@ class EmployeeManagementService
             );
         }
 
-        $employee->is_active = !$employee->is_active;
+        $employee->is_active = ! $employee->is_active;
         $employee->save();
 
-        if (!$employee->is_active) {
+        if (! $employee->is_active) {
             $this->staffJwtService->revokeAllTokens($employee->id);
         }
 
@@ -350,9 +350,9 @@ class EmployeeManagementService
             );
         }
 
-        if (!$requester->role->canManage($employee->role)) {
+        if (! $requester->role->canManage($employee->role)) {
             throw new \DomainException(
-                "Your role ({$requester->role->label()}) cannot delete " .
+                "Your role ({$requester->role->label()}) cannot delete ".
                 "a '{$employee->role->label()}' account."
             );
         }
@@ -395,13 +395,13 @@ class EmployeeManagementService
         }
 
         return User::create([
-            'first_name'        => $employee->first_name,
-            'last_name'         => $employee->last_name,
-            'email'             => $employee->email,
-            'password'          => Str::random(64), // never used — agent logs in via staff portal
-            'gender'            => 'M',
-            'address'           => 'دمشق',
-            'status'            => 1,
+            'first_name' => $employee->first_name,
+            'last_name' => $employee->last_name,
+            'email' => $employee->email,
+            'password' => Str::random(64), // never used — agent logs in via staff portal
+            'gender' => 'M',
+            'address' => 'دمشق',
+            'status' => 1,
             'email_verified_at' => now(),
         ]);
     }

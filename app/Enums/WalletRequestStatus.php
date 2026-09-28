@@ -4,7 +4,7 @@ namespace App\Enums;
 
 enum WalletRequestStatus: string
 {
-    case PENDING  = 'pending';
+    case PENDING = 'pending';
     case APPROVED = 'approved';
     case REJECTED = 'rejected';
     case CANCELLED = 'cancelled';
@@ -12,7 +12,7 @@ enum WalletRequestStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::PENDING  => 'Pending',
+            self::PENDING => 'Pending',
             self::APPROVED => 'Approved',
             self::REJECTED => 'Rejected',
             self::CANCELLED => 'Cancelled',

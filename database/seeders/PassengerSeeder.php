@@ -61,14 +61,14 @@ class PassengerSeeder extends Seeder
             // ── 1. Create user ──────────────────────────────────────────────
             // Observer fires: profile + score + 3.0 base rating.
             $user = User::create([
-                'first_name'          => "Passenger{$n}",
-                'last_name'           => 'Test',
-                'email'               => "passenger{$n}@syride.test",
-                'password'            => Hash::make($password),
-                'gender'              => $data['gender'],
-                'address'             => 'دمشق',
-                'status'              => 1,
-                'email_verified_at'   => now(),
+                'first_name' => "Passenger{$n}",
+                'last_name' => 'Test',
+                'email' => "passenger{$n}@syride.test",
+                'password' => Hash::make($password),
+                'gender' => $data['gender'],
+                'address' => 'دمشق',
+                'status' => 1,
+                'email_verified_at' => now(),
                 'verification_status' => 'none',
             ]);
 
@@ -76,8 +76,8 @@ class PassengerSeeder extends Seeder
             foreach (['face_id', 'back_id'] as $docType) {
                 Photo::create([
                     'user_id' => $user->id,
-                    'type'    => $docType,
-                    'path'    => "verifications/{$docType}/passenger{$n}_placeholder.jpg",
+                    'type' => $docType,
+                    'path' => "verifications/{$docType}/passenger{$n}_placeholder.jpg",
                 ]);
             }
 
@@ -90,9 +90,9 @@ class PassengerSeeder extends Seeder
 
             // ── 5. Create passenger wallet ──────────────────────────────────
             $wallet = Wallet::create([
-                'user_id'      => $user->id,
+                'user_id' => $user->id,
                 'phone_number' => self::COMM_NUMBER,
-                'balance'      => 50000, // 50,000 SYP starting balance for testing
+                'balance' => 50000, // 50,000 SYP starting balance for testing
             ]);
 
             $user->update(['wallet_id' => $wallet->id]);

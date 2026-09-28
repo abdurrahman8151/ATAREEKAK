@@ -33,7 +33,7 @@ class ArabicPlaceNameServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ArabicPlaceNameService();
+        $this->service = new ArabicPlaceNameService;
     }
 
     // ─── geocodeWithArabicPriority ────────────────────────────────────────────
@@ -42,14 +42,14 @@ class ArabicPlaceNameServiceTest extends TestCase
     {
         Http::fake([
             'nominatim.openstreetmap.org/*' => Http::response($this->nominatimSearchResponse(), 200),
-            'api.mapbox.com/*'              => Http::response([], 200), // never reached
+            'api.mapbox.com/*' => Http::response([], 200), // never reached
         ]);
 
         $result = $this->service->geocodeWithArabicPriority('دمشق');
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('lat',   $result);
-        $this->assertArrayHasKey('lng',   $result);
+        $this->assertArrayHasKey('lat', $result);
+        $this->assertArrayHasKey('lng', $result);
         $this->assertArrayHasKey('label', $result);
     }
 
@@ -70,11 +70,11 @@ class ArabicPlaceNameServiceTest extends TestCase
         Http::fake([
             'nominatim.openstreetmap.org/*' => Http::response([
                 [
-                    'lat'          => '33.5',
-                    'lon'          => '36.3',
+                    'lat' => '33.5',
+                    'lon' => '36.3',
                     'display_name' => 'Damascus, Syria',
-                    'namedetails'  => [],          // no Arabic fields
-                    'address'      => [],
+                    'namedetails' => [],          // no Arabic fields
+                    'address' => [],
                 ],
             ], 200),
         ]);
@@ -116,7 +116,7 @@ class ArabicPlaceNameServiceTest extends TestCase
         // Nominatim returns empty → fall through to Mapbox
         Http::fake([
             'nominatim.openstreetmap.org/*' => Http::response([], 200),
-            'api.mapbox.com/*'              => Http::response($this->mapboxResponse(), 200),
+            'api.mapbox.com/*' => Http::response($this->mapboxResponse(), 200),
         ]);
 
         putenv('MAPBOX_ACCESS_TOKEN=fake_test_token');
@@ -172,8 +172,8 @@ class ArabicPlaceNameServiceTest extends TestCase
         Http::fake([
             'nominatim.openstreetmap.org/*' => Http::response([
                 'display_name' => 'Unknown Place',  // no Arabic
-                'namedetails'  => [],
-                'address'      => [],
+                'namedetails' => [],
+                'address' => [],
             ], 200),
         ]);
 
@@ -198,8 +198,8 @@ class ArabicPlaceNameServiceTest extends TestCase
         Http::fake([
             'nominatim.openstreetmap.org/*' => Http::response([
                 'display_name' => 'دمشق، سوريا',
-                'namedetails'  => [],
-                'address'      => [],
+                'namedetails' => [],
+                'address' => [],
             ], 200),
         ]);
 
@@ -232,8 +232,8 @@ class ArabicPlaceNameServiceTest extends TestCase
 
         foreach ($results as $item) {
             $this->assertArrayHasKey('label', $item);
-            $this->assertArrayHasKey('lat',   $item);
-            $this->assertArrayHasKey('lng',   $item);
+            $this->assertArrayHasKey('lat', $item);
+            $this->assertArrayHasKey('lng', $item);
         }
     }
 
@@ -278,11 +278,11 @@ class ArabicPlaceNameServiceTest extends TestCase
         Http::fake([
             'nominatim.openstreetmap.org/*' => Http::response([
                 [
-                    'lat'          => '33.5',
-                    'lon'          => '36.3',
+                    'lat' => '33.5',
+                    'lon' => '36.3',
                     'display_name' => 'Damascus, Syria',
-                    'namedetails'  => [],
-                    'address'      => [],
+                    'namedetails' => [],
+                    'address' => [],
                 ],
             ], 200),
         ]);
@@ -302,16 +302,16 @@ class ArabicPlaceNameServiceTest extends TestCase
     {
         return [
             [
-                'lat'          => '33.5138073',
-                'lon'          => '36.2763577',
+                'lat' => '33.5138073',
+                'lon' => '36.2763577',
                 'display_name' => 'دمشق، سوريا',
-                'namedetails'  => [
-                    'name'    => 'دمشق',
+                'namedetails' => [
+                    'name' => 'دمشق',
                     'name:ar' => 'دمشق',
                     'name:en' => 'Damascus',
                 ],
                 'address' => [
-                    'city'    => 'دمشق',
+                    'city' => 'دمشق',
                     'country' => 'سوريا',
                 ],
             ],
@@ -325,12 +325,12 @@ class ArabicPlaceNameServiceTest extends TestCase
     {
         return [
             'display_name' => 'دمشق، سوريا',
-            'namedetails'  => [
-                'name'    => 'دمشق',
+            'namedetails' => [
+                'name' => 'دمشق',
                 'name:ar' => 'دمشق',
             ],
             'address' => [
-                'city'    => 'دمشق',
+                'city' => 'دمشق',
                 'country' => 'سوريا',
             ],
         ];
@@ -344,9 +344,9 @@ class ArabicPlaceNameServiceTest extends TestCase
         return [
             'features' => [
                 [
-                    'place_name'    => 'Aleppo, Syria',
+                    'place_name' => 'Aleppo, Syria',
                     'place_name_ar' => 'حلب، سوريا',
-                    'geometry'      => [
+                    'geometry' => [
                         'coordinates' => [37.1612, 36.2020], // [lon, lat]
                     ],
                 ],

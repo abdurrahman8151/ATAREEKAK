@@ -27,7 +27,7 @@ final class StaffAuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'identifier' => 'required|string|max:255',  // username or email
-            'password'   => 'required|string',
+            'password' => 'required|string',
         ], [
             'identifier.required' => 'Please provide your username or email.',
         ]);
@@ -44,19 +44,19 @@ final class StaffAuthController extends Controller
             $request->input('password')
         );
 
-        if (!$result) {
+        if (! $result) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'INVALID_CREDENTIALS',
+                'status' => 'error',
+                'code' => 'INVALID_CREDENTIALS',
                 'message' => 'Invalid credentials or account is inactive.',
             ], 401);
         }
 
         return response()->json([
-            'status'   => 'success',
-            'message'  => 'Login successful.',
+            'status' => 'success',
+            'message' => 'Login successful.',
             'employee' => $result['employee'],
-            'tokens'   => $result['tokens'],
+            'tokens' => $result['tokens'],
         ]);
     }
 
@@ -77,10 +77,10 @@ final class StaffAuthController extends Controller
 
         $tokens = $this->authService->refresh($request->input('refresh_token'));
 
-        if (!$tokens) {
+        if (! $tokens) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'REFRESH_TOKEN_INVALID',
+                'status' => 'error',
+                'code' => 'REFRESH_TOKEN_INVALID',
                 'message' => 'Invalid or expired refresh token.',
             ], 401);
         }
@@ -100,7 +100,7 @@ final class StaffAuthController extends Controller
         $this->authService->logout($employee->id);
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Logged out successfully.',
         ]);
     }
@@ -112,7 +112,7 @@ final class StaffAuthController extends Controller
         $employee = $request->attributes->get('staffEmployee');
 
         return response()->json([
-            'status'   => 'success',
+            'status' => 'success',
             'employee' => $this->authService->formatEmployee($employee),
         ]);
     }

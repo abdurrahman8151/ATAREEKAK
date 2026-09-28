@@ -35,13 +35,13 @@ class ScoreTransactionTest extends TestCase
 
     public function test_fillable_contains_all_expected_fields(): void
     {
-        $fillable = (new ScoreTransaction())->getFillable();
+        $fillable = (new ScoreTransaction)->getFillable();
 
         foreach ([
-                     'user_id', 'action', 'points', 'previous_score', 'new_score',
-                     'reference_type', 'reference_id', 'reason',
-                     'high_cancel_rate_applied', 'metadata',
-                 ] as $field) {
+            'user_id', 'action', 'points', 'previous_score', 'new_score',
+            'reference_type', 'reference_id', 'reason',
+            'high_cancel_rate_applied', 'metadata',
+        ] as $field) {
             $this->assertContains($field, $fillable, "Expected '{$field}' to be fillable");
         }
     }
@@ -50,27 +50,27 @@ class ScoreTransactionTest extends TestCase
 
     public function test_points_is_cast_to_integer(): void
     {
-        $this->assertEquals('integer', (new ScoreTransaction())->getCasts()['points']);
+        $this->assertEquals('integer', (new ScoreTransaction)->getCasts()['points']);
     }
 
     public function test_previous_score_is_cast_to_integer(): void
     {
-        $this->assertEquals('integer', (new ScoreTransaction())->getCasts()['previous_score']);
+        $this->assertEquals('integer', (new ScoreTransaction)->getCasts()['previous_score']);
     }
 
     public function test_new_score_is_cast_to_integer(): void
     {
-        $this->assertEquals('integer', (new ScoreTransaction())->getCasts()['new_score']);
+        $this->assertEquals('integer', (new ScoreTransaction)->getCasts()['new_score']);
     }
 
     public function test_high_cancel_rate_applied_is_cast_to_boolean(): void
     {
-        $this->assertEquals('boolean', (new ScoreTransaction())->getCasts()['high_cancel_rate_applied']);
+        $this->assertEquals('boolean', (new ScoreTransaction)->getCasts()['high_cancel_rate_applied']);
     }
 
     public function test_metadata_is_cast_to_array(): void
     {
-        $this->assertEquals('array', (new ScoreTransaction())->getCasts()['metadata']);
+        $this->assertEquals('array', (new ScoreTransaction)->getCasts()['metadata']);
     }
 
     public function test_updated_at_constant_is_null(): void
@@ -136,15 +136,15 @@ class ScoreTransactionTest extends TestCase
 
         $this->assertDatabaseHas('score_transactions', [
             'user_id' => $this->user->id,
-            'action'  => 'ride_completed',
-            'points'  => 10,
+            'action' => 'ride_completed',
+            'points' => 10,
         ]);
     }
 
     public function test_metadata_is_stored_and_retrieved_as_array(): void
     {
         $meta = ['ride_id' => 99, 'booking_id' => 42];
-        $tx   = $this->makeTx(10, metadata: $meta);
+        $tx = $this->makeTx(10, metadata: $meta);
 
         $fresh = $tx->fresh();
         $this->assertIsArray($fresh->metadata);
@@ -184,20 +184,20 @@ class ScoreTransactionTest extends TestCase
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private function makeTx(
-        int    $points,
-        string $action   = 'ride_completed',
-        bool   $highRate = false,
+        int $points,
+        string $action = 'ride_completed',
+        bool $highRate = false,
         ?array $metadata = null,
     ): ScoreTransaction {
         return ScoreTransaction::create([
-            'user_id'                  => $this->user->id,
-            'action'                   => $action,
-            'points'                   => $points,
-            'previous_score'           => 70,
-            'new_score'                => 70 + $points,
-            'reason'                   => "Test reason for {$action}",
+            'user_id' => $this->user->id,
+            'action' => $action,
+            'points' => $points,
+            'previous_score' => 70,
+            'new_score' => 70 + $points,
+            'reason' => "Test reason for {$action}",
             'high_cancel_rate_applied' => $highRate,
-            'metadata'                 => $metadata,
+            'metadata' => $metadata,
         ]);
     }
 }

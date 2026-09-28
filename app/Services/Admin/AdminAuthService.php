@@ -35,9 +35,8 @@ final class AdminAuthService
     /**
      * Authenticate a system_admin or sycash account.
      *
-     * @param string $identifier  Username or email
-     * @param string $password
-     * @return array{admin: array, tokens: array}|null  null on failure
+     * @param  string  $identifier  Username or email
+     * @return array{admin: array, tokens: array}|null null on failure
      */
     public function authenticate(string $identifier, string $password): ?array
     {
@@ -45,29 +44,30 @@ final class AdminAuthService
             ->orWhere('email', $identifier)
             ->first();
 
-        if (!$employee) {
+        if (! $employee) {
             return null;
         }
 
         // Only system_admin and sycash may use the admin panel
-        if (!$employee->role->isAdminRole()) {
+        if (! $employee->role->isAdminRole()) {
             Log::warning('Non-admin attempted admin login', [
                 'identifier' => $identifier,
-                'role'       => $employee->role->value,
+                'role' => $employee->role->value,
             ]);
+
             return null;
         }
 
-        if (!$employee->is_active) {
+        if (! $employee->is_active) {
             return null;
         }
 
-        if (!Hash::check($password, $employee->password)) {
+        if (! Hash::check($password, $employee->password)) {
             return null;
         }
 
         return [
-            'admin'  => $this->formatAdmin($employee),
+            'admin' => $this->formatAdmin($employee),
             'tokens' => $this->jwtService->generateTokenPair($employee),
         ];
     }
@@ -109,9 +109,9 @@ final class AdminAuthService
         $roleKey = $employee->role->value;
 
         return [
-            'type'        => $roleKey,
-            'phone'       => config("admin.$roleKey.phone"),
-            'email'       => $employee->email,
+            'type' => $roleKey,
+            'phone' => config("admin.$roleKey.phone"),
+            'email' => $employee->email,
             'employee_id' => $employee->id,
         ];
     }
@@ -123,12 +123,12 @@ final class AdminAuthService
     public function formatAdmin(Employee $employee): array
     {
         return [
-            'id'         => $employee->id,
-            'username'   => $employee->username,
-            'email'      => $employee->email,
+            'id' => $employee->id,
+            'username' => $employee->username,
+            'email' => $employee->email,
             'first_name' => $employee->first_name,
-            'last_name'  => $employee->last_name,
-            'role'       => $employee->role->value,
+            'last_name' => $employee->last_name,
+            'role' => $employee->role->value,
             'role_label' => $employee->role->label(),
         ];
     }

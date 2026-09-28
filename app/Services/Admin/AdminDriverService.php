@@ -53,14 +53,14 @@ final class AdminDriverService
      * The driver table is intentionally excluded from the BFF payload because
      * it is paginated – the frontend fetches it via GET /api/admin/drivers.
      *
-     * @param int|null $adminUserId  Used to fetch the admin's own profile photo.
+     * @param  int|null  $adminUserId  Used to fetch the admin's own profile photo.
      */
     public function getDashboardData(?int $adminUserId = null): array
     {
         return [
-            'admin_photo'             => $this->getAdminPhoto($adminUserId),
-            'stats'                   => $this->getStats(),
-            'recent_activity'         => $this->getRecentActivity(10),
+            'admin_photo' => $this->getAdminPhoto($adminUserId),
+            'stats' => $this->getStats(),
+            'recent_activity' => $this->getRecentActivity(10),
             'verification_efficiency' => $this->getVerificationEfficiency('week'),
         ];
     }
@@ -77,29 +77,29 @@ final class AdminDriverService
         $totalDrivers = User::where('is_verified_driver', true)
             ->orWhere(function ($q) {
                 $q->whereIn('verification_status', ['pending', 'rejected'])
-                    ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']));
+                    ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']));
             })
             ->count();
 
         $activeDrivers = User::where('is_verified_driver', true)->count();
 
         $pendingVerifications = User::where('verification_status', 'pending')
-            ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->count();
 
         $suspendedDrivers = 0; // not implemented yet
 
         $avgRating = UserRating::whereHas(
             'ratedUser',
-            fn($q) => $q->where('is_verified_driver', true)
+            fn ($q) => $q->where('is_verified_driver', true)
         )->avg('rating');
 
         return [
-            'total_drivers'         => $totalDrivers,
-            'active_drivers'        => $activeDrivers,
+            'total_drivers' => $totalDrivers,
+            'active_drivers' => $activeDrivers,
             'pending_verifications' => $pendingVerifications,
-            'suspended_drivers'     => $suspendedDrivers,
-            'average_rating'        => $avgRating ? round((float) $avgRating, 2) : 0.0,
+            'suspended_drivers' => $suspendedDrivers,
+            'average_rating' => $avgRating ? round((float) $avgRating, 2) : 0.0,
         ];
     }
 
@@ -110,16 +110,15 @@ final class AdminDriverService
     /**
      * Returns a paginated, filterable list of drivers for the admin table.
      *
-     * @param string      $filter   all | verified | pending | suspended
-     * @param int         $perPage  1–50
-     * @param int         $page
-     * @param string|null $search   Matches first name, last name, or email
+     * @param  string  $filter  all | verified | pending | suspended
+     * @param  int  $perPage  1–50
+     * @param  string|null  $search  Matches first name, last name, or email
      */
     public function getDrivers(
-        string  $filter  = 'all',
-        int     $perPage = 10,
-        int     $page    = 1,
-        ?string $search  = null
+        string $filter = 'all',
+        int $perPage = 10,
+        int $page = 1,
+        ?string $search = null
     ): LengthAwarePaginator {
         $query = User::with([
             'profile:user_id,profile_photo,type_of_car,color_of_car',
@@ -129,23 +128,23 @@ final class AdminDriverService
                 $q->where('is_verified_driver', true)
                     ->orWhere(function ($q2) {
                         $q2->whereIn('verification_status', ['pending', 'rejected'])
-                            ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']));
+                            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']));
                     });
             });
 
         match ($filter) {
-            'verified'  => $query->where('is_verified_driver', true),
-            'pending'   => $query->where('verification_status', 'pending')
-                ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
+            'verified' => $query->where('is_verified_driver', true),
+            'pending' => $query->where('verification_status', 'pending')
+                ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
             'suspended' => $query->where('status', 0),
-            default     => null,
+            default => null,
         };
 
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name',  'like', "%{$search}%")
-                    ->orWhere('email',      'like', "%{$search}%");
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -155,6 +154,7 @@ final class AdminDriverService
 
         $paginator->getCollection()->transform(function (User $driver) {
             $driver->avg_rating = UserRating::where('rated_user_id', $driver->id)->avg('rating');
+
             return $driver;
         });
 
@@ -173,26 +173,26 @@ final class AdminDriverService
         if ($profile?->type_of_car) {
             $vehicleLabel = $profile->type_of_car;
             if ($profile->color_of_car) {
-                $vehicleLabel .= ' | ' . $profile->color_of_car;
+                $vehicleLabel .= ' | '.$profile->color_of_car;
             }
         }
 
         return [
-            'id'                  => $driver->id,
-            'driver_ref'          => '#DR-' . $driver->id,
-            'full_name'           => trim("{$driver->first_name} {$driver->last_name}"),
-            'profile_photo'       => $profile?->profile_photo
-                ? asset('storage/' . $profile->profile_photo)
+            'id' => $driver->id,
+            'driver_ref' => '#DR-'.$driver->id,
+            'full_name' => trim("{$driver->first_name} {$driver->last_name}"),
+            'profile_photo' => $profile?->profile_photo
+                ? asset('storage/'.$profile->profile_photo)
                 : null,
-            'phone'               => $this->resolveDriverPhone($driver->id),
-            'vehicle'             => $vehicleLabel,
-            'status'              => $this->resolveDriverStatus($driver),
-            'avg_rating'          => isset($driver->avg_rating) && $driver->avg_rating !== null
+            'phone' => $this->resolveDriverPhone($driver->id),
+            'vehicle' => $vehicleLabel,
+            'status' => $this->resolveDriverStatus($driver),
+            'avg_rating' => isset($driver->avg_rating) && $driver->avg_rating !== null
                 ? round((float) $driver->avg_rating, 1)
                 : null,
-            'is_verified_driver'  => (bool) $driver->is_verified_driver,
+            'is_verified_driver' => (bool) $driver->is_verified_driver,
             'verification_status' => $driver->verification_status,
-            'joined_at'           => $driver->created_at->toIso8601String(),
+            'joined_at' => $driver->created_at->toIso8601String(),
         ];
     }
 
@@ -211,7 +211,7 @@ final class AdminDriverService
         $driver = User::with([
             'profile',
             'photos',
-            'rides' => fn($q) => $q
+            'rides' => fn ($q) => $q
                 ->withCount('bookings')
                 ->orderByDesc('created_at')
                 ->limit(5),
@@ -226,52 +226,52 @@ final class AdminDriverService
             ->count();
 
         $documents = $driver->photos->mapWithKeys(
-            fn($p) => [$p->type => asset('storage/' . $p->path)]
+            fn ($p) => [$p->type => asset('storage/'.$p->path)]
         );
 
         $profile = $driver->profile;
 
         return [
-            'id'                  => $driver->id,
-            'driver_ref'          => '#DR-' . $driver->id,
-            'full_name'           => trim("{$driver->first_name} {$driver->last_name}"),
-            'email'               => $driver->email,
-            'profile_photo'       => $profile?->profile_photo
-                ? asset('storage/' . $profile->profile_photo)
+            'id' => $driver->id,
+            'driver_ref' => '#DR-'.$driver->id,
+            'full_name' => trim("{$driver->first_name} {$driver->last_name}"),
+            'email' => $driver->email,
+            'profile_photo' => $profile?->profile_photo
+                ? asset('storage/'.$profile->profile_photo)
                 : null,
-            'phone'               => $this->resolveDriverPhone($driver->id),
-            'address'             => $driver->address,
-            'gender'              => $driver->gender,
+            'phone' => $this->resolveDriverPhone($driver->id),
+            'address' => $driver->address,
+            'gender' => $driver->gender,
             'verification_status' => $driver->verification_status,
-            'is_verified_driver'  => (bool) $driver->is_verified_driver,
-            'status'              => $this->resolveDriverStatus($driver),
-            'joined_at'           => $driver->created_at->toIso8601String(),
+            'is_verified_driver' => (bool) $driver->is_verified_driver,
+            'status' => $this->resolveDriverStatus($driver),
+            'joined_at' => $driver->created_at->toIso8601String(),
             'vehicle' => [
-                'type'  => $profile?->type_of_car,
+                'type' => $profile?->type_of_car,
                 'color' => $profile?->color_of_car,
                 'seats' => $profile?->number_of_seats,
                 'photo' => $profile?->car_pic
-                    ? asset('storage/' . $profile->car_pic)
+                    ? asset('storage/'.$profile->car_pic)
                     : null,
             ],
-            'documents'    => $documents,
+            'documents' => $documents,
             'rating' => [
-                'average'       => $ratingStats->average
+                'average' => $ratingStats->average
                     ? round((float) $ratingStats->average, 2)
                     : null,
                 'total_ratings' => (int) $ratingStats->total,
             ],
             'stats' => [
                 'completed_rides' => $completedRides,
-                'total_rides'     => $driver->rides->count(),
+                'total_rides' => $driver->rides->count(),
             ],
-            'recent_rides' => $driver->rides->map(fn($r) => [
-                'id'                  => $r->id,
-                'pickup_address'      => $r->pickup_address,
+            'recent_rides' => $driver->rides->map(fn ($r) => [
+                'id' => $r->id,
+                'pickup_address' => $r->pickup_address,
                 'destination_address' => $r->destination_address,
-                'departure_time'      => $r->departure_time->toIso8601String(),
-                'status'              => $r->status,
-                'bookings_count'      => $r->bookings_count,
+                'departure_time' => $r->departure_time->toIso8601String(),
+                'status' => $r->status,
+                'bookings_count' => $r->bookings_count,
             ])->values()->all(),
         ];
     }
@@ -293,7 +293,7 @@ final class AdminDriverService
      */
     public function getDriverDashboard(int $driverId): array
     {
-        $driver  = User::with(['profile', 'photos'])->findOrFail($driverId);
+        $driver = User::with(['profile', 'photos'])->findOrFail($driverId);
         $profile = $driver->profile;
 
         // ── Rating ────────────────────────────────────────────────────────────
@@ -302,7 +302,7 @@ final class AdminDriverService
             ->first();
 
         // ── Stats ─────────────────────────────────────────────────────────────
-        $totalRides     = Ride::where('driver_id', $driverId)->count();
+        $totalRides = Ride::where('driver_id', $driverId)->count();
         $completedRides = Ride::where('driver_id', $driverId)->where('status', 'finished')->count();
         $cancelledRides = Ride::where('driver_id', $driverId)->where('status', 'cancelled')->count();
 
@@ -333,63 +333,63 @@ final class AdminDriverService
             ->first();
 
         // ── Documents ─────────────────────────────────────────────────────────
-        $documents = $driver->photos->map(fn($photo) => [
-            'type'     => $photo->type,
-            'file_url' => asset('storage/' . $photo->path),
+        $documents = $driver->photos->map(fn ($photo) => [
+            'type' => $photo->type,
+            'file_url' => asset('storage/'.$photo->path),
         ]);
 
         return [
-            'id'                  => $driver->id,
-            'driver_ref'          => '#DR-' . $driver->id,
-            'full_name'           => trim("{$driver->first_name} {$driver->last_name}"),
-            'email'               => $driver->email,
-            'phone'               => $this->resolveDriverPhone($driver->id),
-            'gender'              => $driver->gender,
-            'address'             => $driver->address,
-            'joined_at'           => $driver->created_at->toIso8601String(),
-            'status'              => $this->resolveDriverStatus($driver),
-            'is_verified'         => (bool) $driver->is_verified_driver,
+            'id' => $driver->id,
+            'driver_ref' => '#DR-'.$driver->id,
+            'full_name' => trim("{$driver->first_name} {$driver->last_name}"),
+            'email' => $driver->email,
+            'phone' => $this->resolveDriverPhone($driver->id),
+            'gender' => $driver->gender,
+            'address' => $driver->address,
+            'joined_at' => $driver->created_at->toIso8601String(),
+            'status' => $this->resolveDriverStatus($driver),
+            'is_verified' => (bool) $driver->is_verified_driver,
             'verification_status' => $driver->verification_status,
 
             'profile_photo' => $profile?->profile_photo
-                ? asset('storage/' . $profile->profile_photo)
+                ? asset('storage/'.$profile->profile_photo)
                 : null,
 
             'rating' => [
-                'average'       => $ratingStats->average ?? 0,
+                'average' => $ratingStats->average ?? 0,
                 'total_ratings' => (int) ($ratingStats->total ?? 0),
             ],
 
             'stats' => [
-                'total_rides'     => $totalRides,
+                'total_rides' => $totalRides,
                 'completed_rides' => $completedRides,
                 'cancelled_rides' => $cancelledRides,
-                'cancel_rate'     => $cancelRate,                        // e.g. 2.4 (%)
-                'total_earnings'  => round((float) $totalEarnings, 2),  // after 5% commission
+                'cancel_rate' => $cancelRate,                        // e.g. 2.4 (%)
+                'total_earnings' => round((float) $totalEarnings, 2),  // after 5% commission
             ],
 
             'vehicle' => [
-                'type'      => $profile?->type_of_car,
-                'color'     => $profile?->color_of_car,
-                'seats'     => $profile?->number_of_seats,
+                'type' => $profile?->type_of_car,
+                'color' => $profile?->color_of_car,
+                'seats' => $profile?->number_of_seats,
                 'photo_url' => $profile?->car_pic
-                    ? asset('storage/' . $profile->car_pic)
+                    ? asset('storage/'.$profile->car_pic)
                     : null,
             ],
 
             'documents' => $documents,
 
-            'recent_rides' => $recentRides->map(fn($ride) => [
-                'id'             => $ride->id,
-                'status'         => $ride->status,
-                'source'         => $ride->pickup_address,
-                'destination'    => $ride->destination_address,
+            'recent_rides' => $recentRides->map(fn ($ride) => [
+                'id' => $ride->id,
+                'status' => $ride->status,
+                'source' => $ride->pickup_address,
+                'destination' => $ride->destination_address,
                 'price_per_seat' => (float) $ride->price_per_seat,
-                'date'           => $ride->departure_time->toIso8601String(),
+                'date' => $ride->departure_time->toIso8601String(),
             ])->values(),
 
             'favorite_destination' => $favoriteDestination ? [
-                'name'        => $favoriteDestination->destination_address,
+                'name' => $favoriteDestination->destination_address,
                 'visit_count' => $favoriteDestination->visit_count,
             ] : null,
         ];
@@ -412,46 +412,45 @@ final class AdminDriverService
 
         // ── 1. Verification status changes ────────────────────────────────────
         $recentVerifications = User::with('profile:user_id,profile_photo')
-            ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->whereIn('verification_status', ['pending', 'approved', 'rejected'])
             ->orderByDesc('updated_at')
             ->limit($limit)
             ->get();
 
         foreach ($recentVerifications as $user) {
-            $name   = trim("{$user->first_name} {$user->last_name}");
+            $name = trim("{$user->first_name} {$user->last_name}");
             $status = $user->verification_status;
 
             $events[] = [
-                'type'        => 'verification_' . $status,
-                'icon'        => match ($status) {
+                'type' => 'verification_'.$status,
+                'icon' => match ($status) {
                     'approved' => 'check',
                     'rejected' => 'x',
-                    default    => 'clock',
+                    default => 'clock',
                 },
-                'color'       => match ($status) {
+                'color' => match ($status) {
                     'approved' => 'green',
                     'rejected' => 'red',
-                    default    => 'blue',
+                    default => 'blue',
                 },
-                'message'     => match ($status) {
-                    'pending'  => "Verification request submitted by \"{$name}\"",
+                'message' => match ($status) {
+                    'pending' => "Verification request submitted by \"{$name}\"",
                     'approved' => "Verification request for \"{$name}\" accepted",
                     'rejected' => "Verification request for \"{$name}\" rejected",
-                    default    => "Verification update for \"{$name}\"",
+                    default => "Verification update for \"{$name}\"",
                 },
-                'actor'       => $status === 'pending' ? $name : 'Admin',
-                'user_id'     => $user->id,
+                'actor' => $status === 'pending' ? $name : 'Admin',
+                'user_id' => $user->id,
                 'occurred_at' => $user->updated_at->toIso8601String(),
-                'human_time'  => $this->humanTime($user->updated_at),
+                'human_time' => $this->humanTime($user->updated_at),
             ];
         }
 
         // ── 2. Vehicle / profile updates by drivers ───────────────────────────
         $recentProfileUpdates = Profile::with('user:id,first_name,last_name')
-            ->whereHas('user', fn($q) =>
-            $q->where('is_verified_driver', true)
-                ->orWhereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            ->whereHas('user', fn ($q) => $q->where('is_verified_driver', true)
+                ->orWhereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             )
             ->whereNotNull('type_of_car')
             ->orderByDesc('updated_at')
@@ -459,22 +458,24 @@ final class AdminDriverService
             ->get();
 
         foreach ($recentProfileUpdates as $profile) {
-            if (!$profile->user) continue;
+            if (! $profile->user) {
+                continue;
+            }
             $name = trim("{$profile->user->first_name} {$profile->user->last_name}");
 
             $events[] = [
-                'type'        => 'vehicle_update',
-                'icon'        => 'edit',
-                'color'       => 'purple',
-                'message'     => "Vehicle details updated for \"{$name}\"",
-                'actor'       => $name,
-                'user_id'     => $profile->user_id,
+                'type' => 'vehicle_update',
+                'icon' => 'edit',
+                'color' => 'purple',
+                'message' => "Vehicle details updated for \"{$name}\"",
+                'actor' => $name,
+                'user_id' => $profile->user_id,
                 'occurred_at' => $profile->updated_at->toIso8601String(),
-                'human_time'  => $this->humanTime($profile->updated_at),
+                'human_time' => $this->humanTime($profile->updated_at),
             ];
         }
 
-        usort($events, fn($a, $b) => strcmp($b['occurred_at'], $a['occurred_at']));
+        usort($events, fn ($a, $b) => strcmp($b['occurred_at'], $a['occurred_at']));
 
         return array_slice(array_values($events), 0, $limit);
     }
@@ -487,7 +488,7 @@ final class AdminDriverService
      * Calculates the verification processing efficiency for the chosen period
      * and compares it against the previous equivalent period.
      *
-     * @param string $period  'day' | 'week' | 'month'
+     * @param  string  $period  'day' | 'week' | 'month'
      */
     public function getVerificationEfficiency(string $period = 'week'): array
     {
@@ -501,53 +502,53 @@ final class AdminDriverService
         ] = $this->resolvePeriodBounds($period);
 
         $totalIncoming = $this->countIncomingVerifications($currentStart, $currentEnd);
-        $processed     = $this->countProcessedVerifications($currentStart, $currentEnd);
+        $processed = $this->countProcessedVerifications($currentStart, $currentEnd);
 
         $efficiencyPct = $totalIncoming > 0
             ? round(($processed / $totalIncoming) * 100)
             : 100;
 
         $prevTotalIncoming = $this->countIncomingVerifications($previousStart, $previousEnd);
-        $prevProcessed     = $this->countProcessedVerifications($previousStart, $previousEnd);
+        $prevProcessed = $this->countProcessedVerifications($previousStart, $previousEnd);
 
         $prevEfficiencyPct = $prevTotalIncoming > 0
             ? round(($prevProcessed / $prevTotalIncoming) * 100)
             : 100;
 
-        $delta        = $efficiencyPct - $prevEfficiencyPct;
-        $deltaDisplay = ($delta >= 0 ? '+' : '') . $delta . '%';
-        $trend        = $delta > 0 ? 'up' : ($delta < 0 ? 'down' : 'flat');
+        $delta = $efficiencyPct - $prevEfficiencyPct;
+        $deltaDisplay = ($delta >= 0 ? '+' : '').$delta.'%';
+        $trend = $delta > 0 ? 'up' : ($delta < 0 ? 'down' : 'flat');
 
         $comparisonText = match (true) {
-            $delta > 0  => abs($delta) . '% higher than last ' . $label,
-            $delta < 0  => abs($delta) . '% lower than last '  . $label,
-            default     => 'Same as last ' . $label,
+            $delta > 0 => abs($delta).'% higher than last '.$label,
+            $delta < 0 => abs($delta).'% lower than last '.$label,
+            default => 'Same as last '.$label,
         };
 
         return [
-            'period'       => $period,
+            'period' => $period,
             'period_label' => ucfirst($label),
             'current' => [
-                'start'          => $currentStart->toDateTimeString(),
-                'end'            => $currentEnd->toDateTimeString(),
+                'start' => $currentStart->toDateTimeString(),
+                'end' => $currentEnd->toDateTimeString(),
                 'total_incoming' => $totalIncoming,
-                'processed'      => $processed,
-                'pending'        => max(0, $totalIncoming - $processed),
+                'processed' => $processed,
+                'pending' => max(0, $totalIncoming - $processed),
                 'efficiency_pct' => $efficiencyPct,
             ],
             'previous' => [
-                'label'          => 'Last ' . $previousLabel,
-                'start'          => $previousStart->toDateTimeString(),
-                'end'            => $previousEnd->toDateTimeString(),
+                'label' => 'Last '.$previousLabel,
+                'start' => $previousStart->toDateTimeString(),
+                'end' => $previousEnd->toDateTimeString(),
                 'total_incoming' => $prevTotalIncoming,
-                'processed'      => $prevProcessed,
+                'processed' => $prevProcessed,
                 'efficiency_pct' => $prevEfficiencyPct,
             ],
             'comparison' => [
-                'delta'         => $delta,
+                'delta' => $delta,
                 'delta_display' => $deltaDisplay,
-                'trend'         => $trend,
-                'text'          => $comparisonText,
+                'trend' => $trend,
+                'text' => $comparisonText,
             ],
         ];
     }
@@ -558,12 +559,14 @@ final class AdminDriverService
 
     public function getAdminPhoto(?int $adminUserId): ?string
     {
-        if (!$adminUserId) return null;
+        if (! $adminUserId) {
+            return null;
+        }
 
         $profile = Profile::where('user_id', $adminUserId)->first();
 
         return ($profile && $profile->profile_photo)
-            ? asset('storage/' . $profile->profile_photo)
+            ? asset('storage/'.$profile->profile_photo)
             : null;
     }
 
@@ -582,7 +585,7 @@ final class AdminDriverService
     private function countProcessedVerifications(Carbon $start, Carbon $end): int
     {
         return User::whereIn('verification_status', ['approved', 'rejected'])
-            ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->whereBetween('updated_at', [$start, $end])
             ->count();
     }
@@ -618,10 +621,19 @@ final class AdminDriverService
 
     private function resolveDriverStatus(User $driver): string
     {
-        if ($driver->status == 0)                        return 'suspended';
-        if ($driver->is_verified_driver)                 return 'verified';
-        if ($driver->verification_status === 'pending')  return 'pending';
-        if ($driver->verification_status === 'rejected') return 'rejected';
+        if ($driver->status == 0) {
+            return 'suspended';
+        }
+        if ($driver->is_verified_driver) {
+            return 'verified';
+        }
+        if ($driver->verification_status === 'pending') {
+            return 'pending';
+        }
+        if ($driver->verification_status === 'rejected') {
+            return 'rejected';
+        }
+
         return 'unverified';
     }
 
@@ -637,8 +649,12 @@ final class AdminDriverService
     {
         $diffMins = $time->diffInMinutes(now());
 
-        if ($diffMins < 60)   return $diffMins . ' mins ago';
-        if ($diffMins < 1440) return $time->diffInHours(now()) . ' hours ago';
+        if ($diffMins < 60) {
+            return $diffMins.' mins ago';
+        }
+        if ($diffMins < 1440) {
+            return $time->diffInHours(now()).' hours ago';
+        }
 
         return $time->format('d M Y');
     }

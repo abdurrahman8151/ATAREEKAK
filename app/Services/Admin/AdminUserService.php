@@ -5,7 +5,6 @@ namespace App\Services\Admin;
 use App\Models\Profile;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
  * AdminUserService
@@ -40,22 +39,18 @@ final class AdminUserService
      * Returns admin photo, stats, and the filtered paginated table
      * in one response.
      *
-     * @param int|null $adminUserId
-     * @param string   $typeFilter    all | driver | passenger
-     * @param string   $statusFilter  all | verified | pending | suspended
-     * @param string   $dateFilter    all | last_30_days | last_3_months | last_6_months | last_12_months
-     * @param int      $perPage
-     * @param int      $page
-     * @param string|null $search
+     * @param  string  $typeFilter  all | driver | passenger
+     * @param  string  $statusFilter  all | verified | pending | suspended
+     * @param  string  $dateFilter  all | last_30_days | last_3_months | last_6_months | last_12_months
      */
     public function getPageData(
-        ?int    $adminUserId  = null,
-        string  $typeFilter   = 'all',
-        string  $statusFilter = 'all',
-        string  $dateFilter   = 'all',
-        int     $perPage      = 10,
-        int     $page         = 1,
-        ?string $search       = null
+        ?int $adminUserId = null,
+        string $typeFilter = 'all',
+        string $statusFilter = 'all',
+        string $dateFilter = 'all',
+        int $perPage = 10,
+        int $page = 1,
+        ?string $search = null
     ): array {
         $paginator = $this->buildQuery(
             $typeFilter,
@@ -65,22 +60,22 @@ final class AdminUserService
         )->paginate($perPage, ['*'], 'page', $page);
 
         $rows = $paginator->getCollection()
-            ->map(fn(User $user) => $this->formatUser($user))
+            ->map(fn (User $user) => $this->formatUser($user))
             ->values();
 
         return [
             'admin_photo' => $this->getAdminPhoto($adminUserId),
-            'stats'       => $this->getStats(),
-            'users'       => $rows,
-            'meta'        => [
+            'stats' => $this->getStats(),
+            'users' => $rows,
+            'meta' => [
                 'current_page' => $paginator->currentPage(),
-                'last_page'    => $paginator->lastPage(),
-                'per_page'     => $paginator->perPage(),
-                'total'        => $paginator->total(),
-                'filters'      => [
-                    'type'   => $typeFilter,
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'filters' => [
+                    'type' => $typeFilter,
                     'status' => $statusFilter,
-                    'date'   => $dateFilter,
+                    'date' => $dateFilter,
                 ],
             ],
         ];
@@ -94,14 +89,14 @@ final class AdminUserService
     {
         return [
             'total_registered' => User::count(),
-            'active_drivers'   => User::where('is_verified_driver', true)->count(),
-            'pending_drivers'  => User::where('verification_status', 'pending')
-                ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            'active_drivers' => User::where('is_verified_driver', true)->count(),
+            'pending_drivers' => User::where('verification_status', 'pending')
+                ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
                 ->count(),
-            'passengers'       => User::where('is_verified_passenger', true)
+            'passengers' => User::where('is_verified_passenger', true)
                 ->where('is_verified_driver', false)
                 ->count(),
-            'suspended_users'  => User::where('status', 0)->count(),
+            'suspended_users' => User::where('status', 0)->count(),
         ];
     }
 
@@ -111,12 +106,14 @@ final class AdminUserService
 
     public function getAdminPhoto(?int $adminUserId): ?string
     {
-        if (!$adminUserId) return null;
+        if (! $adminUserId) {
+            return null;
+        }
 
         $profile = Profile::where('user_id', $adminUserId)->first();
 
         return ($profile?->profile_photo)
-            ? asset('storage/' . $profile->profile_photo)
+            ? asset('storage/'.$profile->profile_photo)
             : null;
     }
 
@@ -125,9 +122,9 @@ final class AdminUserService
     // =========================================================================
 
     private function buildQuery(
-        string  $typeFilter,
-        string  $statusFilter,
-        string  $dateFilter,
+        string $typeFilter,
+        string $statusFilter,
+        string $dateFilter,
         ?string $search
     ) {
         $query = User::with([
@@ -142,13 +139,13 @@ final class AdminUserService
                 $q->where('is_verified_driver', true)
                     ->orWhere(function ($q2) {
                         $q2->where('verification_status', 'pending')
-                            ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']));
+                            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']));
                     });
             }),
 
             'passenger' => $query
                 ->where('is_verified_driver', false)
-                ->whereDoesntHave('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
+                ->whereDoesntHave('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
 
             default => null,   // 'all' — no constraint
         };
@@ -156,25 +153,25 @@ final class AdminUserService
         // ── Status filter ─────────────────────────────────────────────────
         match ($statusFilter) {
 
-            'verified'  => $query->where(function ($q) {
+            'verified' => $query->where(function ($q) {
                 $q->where('is_verified_driver', true)
                     ->orWhere('is_verified_passenger', true);
             }),
 
-            'pending'   => $query->where('verification_status', 'pending'),
+            'pending' => $query->where('verification_status', 'pending'),
 
             'suspended' => $query->where('status', 0),
 
-            default     => null,   // 'all' — no constraint
+            default => null,   // 'all' — no constraint
         };
 
         // ── Date / join filter ────────────────────────────────────────────
         $cutoff = match ($dateFilter) {
-            'last_30_days'   => Carbon::now()->subDays(30),
-            'last_3_months'  => Carbon::now()->subMonths(3),
-            'last_6_months'  => Carbon::now()->subMonths(6),
+            'last_30_days' => Carbon::now()->subDays(30),
+            'last_3_months' => Carbon::now()->subMonths(3),
+            'last_6_months' => Carbon::now()->subMonths(6),
             'last_12_months' => Carbon::now()->subMonths(12),
-            default          => null,   // 'all' — no constraint
+            default => null,   // 'all' — no constraint
         };
 
         if ($cutoff) {
@@ -185,8 +182,8 @@ final class AdminUserService
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name',  'like', "%{$search}%")
-                    ->orWhere('email',      'like', "%{$search}%");
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -200,16 +197,16 @@ final class AdminUserService
     private function formatUser(User $user): array
     {
         return [
-            'id'            => $user->id,
-            'full_name'     => trim("{$user->first_name} {$user->last_name}"),
-            'email'         => $user->email,
+            'id' => $user->id,
+            'full_name' => trim("{$user->first_name} {$user->last_name}"),
+            'email' => $user->email,
             'profile_photo' => $user->profile?->profile_photo
-                ? asset('storage/' . $user->profile->profile_photo)
+                ? asset('storage/'.$user->profile->profile_photo)
                 : null,
-            'type'          => $this->resolveUserType($user),
-            'status'        => $this->resolveUserStatus($user),
-            'joined_at'     => $user->created_at->toIso8601String(),
-            'joined_label'  => $user->created_at->format('d M Y'),
+            'type' => $this->resolveUserType($user),
+            'status' => $this->resolveUserStatus($user),
+            'joined_at' => $user->created_at->toIso8601String(),
+            'joined_label' => $user->created_at->format('d M Y'),
         ];
     }
 
@@ -228,11 +225,21 @@ final class AdminUserService
 
     private function resolveUserStatus(User $user): string
     {
-        if ($user->status == 0)                        return 'suspended';
-        if ($user->is_verified_driver)                 return 'verified';
-        if ($user->is_verified_passenger)              return 'verified';
-        if ($user->verification_status === 'pending')  return 'pending';
-        if ($user->verification_status === 'rejected') return 'rejected';
+        if ($user->status == 0) {
+            return 'suspended';
+        }
+        if ($user->is_verified_driver) {
+            return 'verified';
+        }
+        if ($user->is_verified_passenger) {
+            return 'verified';
+        }
+        if ($user->verification_status === 'pending') {
+            return 'pending';
+        }
+        if ($user->verification_status === 'rejected') {
+            return 'rejected';
+        }
 
         return 'unverified';
     }

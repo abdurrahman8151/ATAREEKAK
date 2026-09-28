@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Validator;
 class LoginController extends Controller
 {
     private UserRepositoryInterface $userRepository;
+
     private JwtService $jwtService;
 
     public function __construct(
@@ -20,42 +21,42 @@ class LoginController extends Controller
         JwtService $jwtService
     ) {
         $this->userRepository = $userRepository;
-        $this->jwtService     = $jwtService;
+        $this->jwtService = $jwtService;
     }
 
     public function __invoke(Request $request): JsonResponse
     {
         // ── Validate ──────────────────────────────────────────────────────────
         $validator = Validator::make($request->all(), [
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         // ── Find user ─────────────────────────────────────────────────────────
         $user = $this->userRepository->findByEmail($request->email);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Invalid credentials',
-                'code'    => 'INVALID_CREDENTIALS',
+                'code' => 'INVALID_CREDENTIALS',
             ], 401);
         }
 
         // ── Verify password ───────────────────────────────────────────────────
-        if (!Hash::check($request->password, $user->password)) {
+        if (! Hash::check($request->password, $user->password)) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Invalid credentials',
-                'code'    => 'INVALID_CREDENTIALS',
+                'code' => 'INVALID_CREDENTIALS',
             ], 401);
         }
 
@@ -63,22 +64,22 @@ class LoginController extends Controller
         // Users who registered but never submitted the OTP are blocked here.
         // email_verified_at is set by EmailVerificationController::verify()
         // only after the correct OTP is submitted.
-        if (!$user->email_verified_at) {
+        if (! $user->email_verified_at) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Your email address is not verified. '
-                    . 'Please check your inbox for the verification code.',
-                'code'    => 'EMAIL_NOT_VERIFIED',
-                'email'   => $user->email,
+                    .'Please check your inbox for the verification code.',
+                'code' => 'EMAIL_NOT_VERIFIED',
+                'email' => $user->email,
             ], 403);
         }
 
         // ── Block banned accounts ─────────────────────────────────────────────
         if ((int) $user->status === -1) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Your account has been suspended. Please contact support.',
-                'code'    => 'ACCOUNT_BANNED',
+                'code' => 'ACCOUNT_BANNED',
             ], 403);
         }
 
@@ -90,22 +91,22 @@ class LoginController extends Controller
         $tokens = $this->jwtService->generateTokenPair($user);
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Login successful',
-            'user'    => [
-                'id'                    => $user->id,
-                'first_name'            => $user->first_name,
-                'last_name'             => $user->last_name,
-                'email'                 => $user->email,
-                'gender'                => $user->gender,
-                'address'               => $user->address,
-                'status'                => $user->status,
+            'user' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'gender' => $user->gender,
+                'address' => $user->address,
+                'status' => $user->status,
                 'is_verified_passenger' => $user->is_verified_passenger,
-                'is_verified_driver'    => $user->is_verified_driver,
-                'verification_status'   => $user->verification_status,
-                'created_at'            => $user->created_at->toDateTimeString(),
+                'is_verified_driver' => $user->is_verified_driver,
+                'verification_status' => $user->verification_status,
+                'created_at' => $user->created_at->toDateTimeString(),
             ],
-            'tokens'  => $tokens,
+            'tokens' => $tokens,
         ], 200);
     }
 }

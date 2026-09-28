@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\User;
 use App\Models\RefreshToken;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
 
 class JwtService
 {
@@ -19,15 +19,15 @@ class JwtService
      */
     public function generateTokenPair(User $user): array
     {
-        $accessToken  = $this->generateAccessToken($user);
+        $accessToken = $this->generateAccessToken($user);
         $refreshToken = $this->generateRefreshToken($user);
 
         return [
-            'access_token'             => $accessToken['token'],
-            'access_token_expires_at'  => $accessToken['expires_at'],
-            'refresh_token'            => $refreshToken['token'],
+            'access_token' => $accessToken['token'],
+            'access_token_expires_at' => $accessToken['expires_at'],
+            'refresh_token' => $refreshToken['token'],
             'refresh_token_expires_at' => $refreshToken['expires_at'],
-            'token_type'               => 'Bearer',
+            'token_type' => 'Bearer',
         ];
     }
 
@@ -37,15 +37,15 @@ class JwtService
      */
     public function generateAdminTokenPair(User $adminUser, string $adminType): array
     {
-        $accessToken  = $this->generateAdminAccessToken($adminUser, $adminType);
+        $accessToken = $this->generateAdminAccessToken($adminUser, $adminType);
         $refreshToken = $this->generateRefreshToken($adminUser);
 
         return [
-            'access_token'  => $accessToken,
+            'access_token' => $accessToken,
             'refresh_token' => $refreshToken['token'],
-            'expires_in'    => config('jwt.ttl', 15) * 60,
-            'token_type'    => 'Bearer',
-            'admin_type'    => $adminType,
+            'expires_in' => config('jwt.ttl', 15) * 60,
+            'token_type' => 'Bearer',
+            'admin_type' => $adminType,
         ];
     }
 
@@ -70,13 +70,13 @@ class JwtService
 
         // Verify signature
         $expectedSignature = $this->generateSignature($headerEncoded, $payloadEncoded);
-        if (!hash_equals($expectedSignature, $signature)) {
+        if (! hash_equals($expectedSignature, $signature)) {
             return null;
         }
 
         // Decode payload
         $payload = json_decode($this->base64UrlDecode($payloadEncoded), true);
-        if (!$payload) {
+        if (! $payload) {
             return null;
         }
 
@@ -100,7 +100,7 @@ class JwtService
      */
     public function validateTokenVersion(array $payload, User $user): bool
     {
-        if (!isset($payload['ver'])) {
+        if (! isset($payload['ver'])) {
             return false;
         }
 
@@ -127,12 +127,12 @@ class JwtService
             ->where('revoked', false)
             ->first();
 
-        if (!$storedToken) {
+        if (! $storedToken) {
             return null;
         }
 
         $user = $this->findUserCached($storedToken->user_id);
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 
@@ -196,7 +196,7 @@ class JwtService
         return Cache::remember(
             "auth.user.{$userId}",
             300, // 5 minutes
-            fn() => User::with('profile')->find($userId)
+            fn () => User::with('profile')->find($userId)
         );
     }
 
@@ -226,17 +226,17 @@ class JwtService
         $expiresAt = Carbon::now()->addMinutes($expiresIn);
 
         $payload = [
-            'iss'  => config('app.url'),
-            'sub'  => $user->id,
-            'iat'  => Carbon::now()->timestamp,
-            'exp'  => $expiresAt->timestamp,
-            'jti'  => Str::uuid()->toString(),
+            'iss' => config('app.url'),
+            'sub' => $user->id,
+            'iat' => Carbon::now()->timestamp,
+            'exp' => $expiresAt->timestamp,
+            'jti' => Str::uuid()->toString(),
             'type' => 'access',
-            'ver'  => $user->token_version,
+            'ver' => $user->token_version,
         ];
 
         return [
-            'token'      => $this->encodeToken($payload),
+            'token' => $this->encodeToken($payload),
             'expires_at' => $expiresAt->toDateTimeString(),
             'expires_in' => $expiresIn * 60,
         ];
@@ -249,17 +249,17 @@ class JwtService
     private function generateAdminAccessToken(User $adminUser, string $adminType): string
     {
         $expiresIn = config('jwt.ttl', 15);
-        $now       = Carbon::now();
+        $now = Carbon::now();
 
         $payload = [
-            'iss'        => config('app.url'),
-            'sub'        => $adminUser->id,
-            'iat'        => $now->timestamp,
-            'exp'        => $now->addMinutes($expiresIn)->timestamp,
-            'jti'        => Str::uuid()->toString(),
-            'type'       => 'access',
-            'ver'        => $adminUser->token_version,
-            'is_admin'   => true,
+            'iss' => config('app.url'),
+            'sub' => $adminUser->id,
+            'iat' => $now->timestamp,
+            'exp' => $now->addMinutes($expiresIn)->timestamp,
+            'jti' => Str::uuid()->toString(),
+            'type' => 'access',
+            'ver' => $adminUser->token_version,
+            'is_admin' => true,
             'admin_type' => $adminType,
         ];
 
@@ -272,20 +272,20 @@ class JwtService
      */
     private function generateRefreshToken(User $user): array
     {
-        $expiresIn   = config('jwt.refresh_ttl', 10080); // minutes, default 7 days
-        $expiresAt   = Carbon::now()->addMinutes($expiresIn);
+        $expiresIn = config('jwt.refresh_ttl', 10080); // minutes, default 7 days
+        $expiresAt = Carbon::now()->addMinutes($expiresIn);
         $tokenString = Str::random(64);
 
         RefreshToken::create([
-            'user_id'    => $user->id,
-            'token'      => hash('sha256', $tokenString),
+            'user_id' => $user->id,
+            'token' => hash('sha256', $tokenString),
             'expires_at' => $expiresAt,
             'user_agent' => request()->userAgent(),
             'ip_address' => request()->ip(),
         ]);
 
         return [
-            'token'      => $tokenString,
+            'token' => $tokenString,
             'expires_at' => $expiresAt->toDateTimeString(),
             'expires_in' => $expiresIn * 60,
         ];
@@ -299,17 +299,17 @@ class JwtService
     {
         $header = ['typ' => 'JWT', 'alg' => config('jwt.algo', 'HS256')];
 
-        $headerEncoded  = $this->base64UrlEncode(json_encode($header));
+        $headerEncoded = $this->base64UrlEncode(json_encode($header));
         $payloadEncoded = $this->base64UrlEncode(json_encode($payload));
-        $signature      = $this->generateSignature($headerEncoded, $payloadEncoded);
+        $signature = $this->generateSignature($headerEncoded, $payloadEncoded);
 
         return "{$headerEncoded}.{$payloadEncoded}.{$signature}";
     }
 
     private function generateSignature(string $header, string $payload): string
     {
-        $secret  = config('jwt.secret');
-        $algo    = strtolower(config('jwt.algo', 'HS256'));
+        $secret = config('jwt.secret');
+        $algo = strtolower(config('jwt.algo', 'HS256'));
 
         $algoMap = [
             'hs256' => 'sha256',
@@ -317,7 +317,7 @@ class JwtService
             'hs512' => 'sha512',
         ];
 
-        $hashAlgo  = $algoMap[$algo] ?? 'sha256';
+        $hashAlgo = $algoMap[$algo] ?? 'sha256';
         $signature = hash_hmac($hashAlgo, "{$header}.{$payload}", $secret, true);
 
         return $this->base64UrlEncode($signature);

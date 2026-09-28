@@ -1,12 +1,12 @@
 <?php
+
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Services\NotificationService;
 use App\Services\PushNotification\PushNotificationService;
-
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class PushNotificationController extends Controller
 {
@@ -33,21 +33,21 @@ class PushNotificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Push notification token registered successfully',
-            'data' => $token
+            'data' => $token,
         ]);
     }
 
     public function removeToken(Request $request): JsonResponse
     {
         $request->validate([
-            'token' => 'required|string'
+            'token' => 'required|string',
         ]);
 
         $removed = $this->pushService->removeToken($request->token);
 
         return response()->json([
             'success' => $removed,
-            'message' => $removed ? 'Token removed successfully' : 'Token not found'
+            'message' => $removed ? 'Token removed successfully' : 'Token not found',
         ]);
     }
 
@@ -57,17 +57,17 @@ class PushNotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $tokens
+            'data' => $tokens,
         ]);
     }
 
     public function testNotification(Request $request): JsonResponse
     {
         // Only allow in development
-        if (!app()->environment('local')) {
+        if (! app()->environment('local')) {
             return response()->json([
                 'success' => false,
-                'message' => 'Test notifications are only available in development'
+                'message' => 'Test notifications are only available in development',
             ], 403);
         }
 
@@ -84,9 +84,10 @@ class PushNotificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Test notification sent',
-            'data' => $notification
+            'data' => $notification,
         ]);
     }
+
     // app/Http/Controllers/API/PushTokenController.php
     public function store(Request $request, PushNotificationService $pushService)
     {

@@ -20,7 +20,7 @@ class NotificationChannelTest extends TestCase
 
     public function test_channel_can_be_instantiated(): void
     {
-        $channel = new NotificationChannel();
+        $channel = new NotificationChannel;
         $this->assertInstanceOf(NotificationChannel::class, $channel);
     }
 
@@ -42,8 +42,8 @@ class NotificationChannelTest extends TestCase
         // FIX: NotificationChannel::join() has return type array|bool but its body
         // is empty (stub), implicitly returning null. PHP 8 enforces return types
         // at call time and throws TypeError. Fix: implement the method body.
-        $user    = User::factory()->create();
-        $channel = new NotificationChannel();
+        $user = User::factory()->create();
+        $channel = new NotificationChannel;
 
         $this->expectException(\TypeError::class);
         $channel->join($user);
@@ -51,8 +51,8 @@ class NotificationChannelTest extends TestCase
 
     public function test_join_return_type_is_declared_as_array_or_bool(): void
     {
-        $ref        = new \ReflectionClass(NotificationChannel::class);
-        $method     = $ref->getMethod('join');
+        $ref = new \ReflectionClass(NotificationChannel::class);
+        $method = $ref->getMethod('join');
         $returnType = $method->getReturnType();
 
         $this->assertNotNull($returnType);
@@ -61,7 +61,7 @@ class NotificationChannelTest extends TestCase
 
     public function test_join_accepts_user_parameter(): void
     {
-        $ref    = new \ReflectionClass(NotificationChannel::class);
+        $ref = new \ReflectionClass(NotificationChannel::class);
         $method = $ref->getMethod('join');
         $params = $method->getParameters();
 

@@ -52,32 +52,32 @@ final class ScoreTransactionResource extends JsonResource
     public function toArray(Request $request): array
     {
         $action = ScoreAction::from($this->action);
-        $sign   = $this->points >= 0 ? '+' : '';   // negative already carries its own '−'
+        $sign = $this->points >= 0 ? '+' : '';   // negative already carries its own '−'
 
         return [
             // ── What happened ─────────────────────────────────────────────
-            'id'    => $this->id,
+            'id' => $this->id,
             'event' => [
-                'code'    => $this->action,
-                'label'   => $action->label(),
+                'code' => $this->action,
+                'label' => $action->label(),
                 'summary' => "{$sign}{$this->points} pts — {$action->label()}",
             ],
 
             // ── Points ────────────────────────────────────────────────────
             'points' => [
-                'value'   => $this->points,
+                'value' => $this->points,
                 'display' => "{$sign}{$this->points}",   // e.g. "+10" or "−5"
             ],
 
             // ── Score snapshot ────────────────────────────────────────────
             'score' => [
                 'before' => $this->previous_score,
-                'after'  => $this->new_score,
-                'delta'  => $this->new_score - $this->previous_score,
+                'after' => $this->new_score,
+                'delta' => $this->new_score - $this->previous_score,
             ],
 
             // ── Narrative ─────────────────────────────────────────────────
-            'reason'                   => $this->reason,
+            'reason' => $this->reason,
             'high_cancel_rate_applied' => (bool) $this->high_cancel_rate_applied,
 
             // ── Context (ride / booking) ──────────────────────────────────
@@ -101,7 +101,7 @@ final class ScoreTransactionResource extends JsonResource
         $type = class_basename($this->reference_type);
         $base = [
             'type' => $type,
-            'id'   => $this->reference_id,
+            'id' => $this->reference_id,
         ];
 
         // Model was not pre-loaded → return id + type only (safe fallback)
@@ -116,9 +116,9 @@ final class ScoreTransactionResource extends JsonResource
         }
 
         return match ($type) {
-            'Ride'    => $this->formatRide($base, $model),
+            'Ride' => $this->formatRide($base, $model),
             'Booking' => $this->formatBooking($base, $model),
-            default   => $base,
+            default => $base,
         };
     }
 
@@ -130,10 +130,10 @@ final class ScoreTransactionResource extends JsonResource
     private function formatRide(array $base, Ride $ride): array
     {
         return array_merge($base, [
-            'origin'         => $ride->origin,
-            'destination'    => $ride->destination,
+            'origin' => $ride->origin,
+            'destination' => $ride->destination,
             'departure_time' => $ride->departure_time?->toIso8601String(),
-            'status'         => $ride->status,
+            'status' => $ride->status,
         ]);
     }
 
@@ -145,19 +145,19 @@ final class ScoreTransactionResource extends JsonResource
     private function formatBooking(array $base, Booking $booking): array
     {
         $result = array_merge($base, [
-            'seats'          => $booking->seats,
-            'status'         => $booking->status,
+            'seats' => $booking->seats,
+            'status' => $booking->status,
             'payment_method' => $booking->payment_method ?? null,
         ]);
 
         // Ride is eager-loaded in ScoreController::hydrateReferences()
         if ($booking->relationLoaded('ride') && $booking->ride) {
             $result['ride'] = [
-                'id'             => $booking->ride->id,
-                'origin'         => $booking->ride->origin,
-                'destination'    => $booking->ride->destination,
+                'id' => $booking->ride->id,
+                'origin' => $booking->ride->origin,
+                'destination' => $booking->ride->destination,
                 'departure_time' => $booking->ride->departure_time?->toIso8601String(),
-                'status'         => $booking->ride->status,
+                'status' => $booking->ride->status,
             ];
         }
 

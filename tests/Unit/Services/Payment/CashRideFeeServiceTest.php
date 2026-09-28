@@ -21,8 +21,10 @@ class CashRideFeeServiceTest extends TestCase
     use RefreshDatabase;
 
     private CashRideFeeService $service;
-    private User               $driver;
-    private Wallet             $wallet;
+
+    private User $driver;
+
+    private Wallet $wallet;
 
     // =========================================================================
     // SET UP
@@ -38,17 +40,17 @@ class CashRideFeeServiceTest extends TestCase
         // Seeded with 100.00 to represent fees already collected by the platform,
         // so that non-deferred refund tests can actually pay out to the driver.
         Wallet::create([
-            'name'         => 'Primary Escrow',
+            'name' => 'Primary Escrow',
             'phone_number' => config('admin.system_admin.phone'),
-            'balance'      => 100.00,
+            'balance' => 100.00,
         ]);
 
         // Driver under test
         $this->driver = User::factory()->create();
         $this->wallet = Wallet::create([
-            'phone_number'   => '0900000002',
-            'user_id'        => $this->driver->id,
-            'balance'        => 0.00,
+            'phone_number' => '0900000002',
+            'user_id' => $this->driver->id,
+            'balance' => 0.00,
             'cash_ride_debt' => 0.00,
         ]);
     }
@@ -63,34 +65,34 @@ class CashRideFeeServiceTest extends TestCase
      * silently drop them and MySQL would reject the INSERT.
      */
     private function seedRide(
-        float  $elapsedPct = 0,
-        float  $fee        = 5.00,
-        bool   $deferred   = false,
-        string $status     = 'active',
+        float $elapsedPct = 0,
+        float $fee = 5.00,
+        bool $deferred = false,
+        string $status = 'active',
     ): Ride {
-        $window     = 10.0;
+        $window = 10.0;
         $elapsedHrs = $window * $elapsedPct / 100;
 
-        $ride = new Ride();
-        $ride->driver_id            = $this->driver->id;
-        $ride->payment_method       = PaymentMethod::CASH->value;
-        $ride->booking_type         = 'direct';
-        $ride->price_per_seat       = 25.00;
-        $ride->available_seats      = 4;
-        $ride->vehicle_type         = 'car';
-        $ride->pickup_address       = 'Test Origin';
-        $ride->destination_address  = 'Test Destination';
+        $ride = new Ride;
+        $ride->driver_id = $this->driver->id;
+        $ride->payment_method = PaymentMethod::CASH->value;
+        $ride->booking_type = 'direct';
+        $ride->price_per_seat = 25.00;
+        $ride->available_seats = 4;
+        $ride->vehicle_type = 'car';
+        $ride->pickup_address = 'Test Origin';
+        $ride->destination_address = 'Test Destination';
         $ride->communication_number = '0900000000';
-        $ride->distance             = 0;
-        $ride->duration             = 0;
-        $ride->status               = $status;
-        $ride->cash_creation_fee    = $fee;
-        $ride->cash_fee_deferred    = $deferred;
-        $ride->departure_time       = Carbon::now()->addHours($window - $elapsedHrs);
+        $ride->distance = 0;
+        $ride->duration = 0;
+        $ride->status = $status;
+        $ride->cash_creation_fee = $fee;
+        $ride->cash_fee_deferred = $deferred;
+        $ride->departure_time = Carbon::now()->addHours($window - $elapsedHrs);
         // Spatial columns must be set via their mutators, not through create().
-        $ride->pickup_location      = ['lat' => 33.5138, 'lng' => 36.2765];
+        $ride->pickup_location = ['lat' => 33.5138, 'lng' => 36.2765];
         $ride->destination_location = ['lat' => 33.5000, 'lng' => 36.3000];
-        $ride->created_at           = Carbon::now()->subHours($elapsedHrs);
+        $ride->created_at = Carbon::now()->subHours($elapsedHrs);
         $ride->save();
 
         return $ride;
@@ -104,10 +106,10 @@ class CashRideFeeServiceTest extends TestCase
         $passenger = User::factory()->create();
 
         return Booking::create([
-            'ride_id'              => $ride->id,
-            'user_id'              => $passenger->id,
-            'seats'                => 1,
-            'status'               => BookingStatus::CONFIRMED->value,
+            'ride_id' => $ride->id,
+            'user_id' => $passenger->id,
+            'seats' => 1,
+            'status' => BookingStatus::CONFIRMED->value,
             'communication_number' => '0900000000',
         ]);
     }
@@ -222,7 +224,7 @@ class CashRideFeeServiceTest extends TestCase
 
         $this->wallet->refresh();
         $this->assertEquals(45.00, $this->wallet->balance);
-        $this->assertEquals(0.00,  $this->wallet->cash_ride_debt);
+        $this->assertEquals(0.00, $this->wallet->cash_ride_debt);
     }
 
     // =========================================================================
@@ -355,7 +357,7 @@ class CashRideFeeServiceTest extends TestCase
 
         $this->wallet->refresh();
         $this->assertEquals(10.00, $this->wallet->balance);
-        $this->assertEquals(0.00,  $this->wallet->cash_ride_debt);
+        $this->assertEquals(0.00, $this->wallet->cash_ride_debt);
     }
 
     /** @test */
@@ -366,7 +368,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->service->autoClearDebt($this->wallet, $this->driver);
 
         $this->wallet->refresh();
-        $this->assertEquals(3.00,  $this->wallet->balance);
+        $this->assertEquals(3.00, $this->wallet->balance);
         $this->assertEquals(10.00, $this->wallet->cash_ride_debt);
     }
 
@@ -379,7 +381,7 @@ class CashRideFeeServiceTest extends TestCase
 
         $this->wallet->refresh();
         $this->assertEquals(50.00, $this->wallet->balance);
-        $this->assertEquals(0.00,  $this->wallet->cash_ride_debt);
+        $this->assertEquals(0.00, $this->wallet->cash_ride_debt);
     }
 
     /** @test */

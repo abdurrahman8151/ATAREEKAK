@@ -17,63 +17,63 @@ class ComplaintTest extends TestCase
 
     public function test_fillable_contains_user_id(): void
     {
-        $this->assertContains('user_id', (new Complaint())->getFillable());
+        $this->assertContains('user_id', (new Complaint)->getFillable());
     }
 
     public function test_fillable_contains_assigned_to(): void
     {
-        $this->assertContains('assigned_to', (new Complaint())->getFillable());
+        $this->assertContains('assigned_to', (new Complaint)->getFillable());
     }
 
     public function test_fillable_contains_title(): void
     {
-        $this->assertContains('title', (new Complaint())->getFillable());
+        $this->assertContains('title', (new Complaint)->getFillable());
     }
 
     public function test_fillable_contains_description(): void
     {
-        $this->assertContains('description', (new Complaint())->getFillable());
+        $this->assertContains('description', (new Complaint)->getFillable());
     }
 
     public function test_fillable_contains_type(): void
     {
-        $this->assertContains('type', (new Complaint())->getFillable());
+        $this->assertContains('type', (new Complaint)->getFillable());
     }
 
     public function test_fillable_contains_status(): void
     {
-        $this->assertContains('status', (new Complaint())->getFillable());
+        $this->assertContains('status', (new Complaint)->getFillable());
     }
 
     public function test_fillable_contains_resolution_notes(): void
     {
-        $this->assertContains('resolution_notes', (new Complaint())->getFillable());
+        $this->assertContains('resolution_notes', (new Complaint)->getFillable());
     }
 
     public function test_fillable_contains_resolved_at(): void
     {
-        $this->assertContains('resolved_at', (new Complaint())->getFillable());
+        $this->assertContains('resolved_at', (new Complaint)->getFillable());
     }
 
     // ─── Casts ────────────────────────────────────────────────────────────────
 
     public function test_status_is_cast_to_complaint_status_enum(): void
     {
-        $casts = (new Complaint())->getCasts();
+        $casts = (new Complaint)->getCasts();
         $this->assertArrayHasKey('status', $casts);
         $this->assertEquals(ComplaintStatus::class, $casts['status']);
     }
 
     public function test_type_is_cast_to_complaint_type_enum(): void
     {
-        $casts = (new Complaint())->getCasts();
+        $casts = (new Complaint)->getCasts();
         $this->assertArrayHasKey('type', $casts);
         $this->assertEquals(ComplaintType::class, $casts['type']);
     }
 
     public function test_resolved_at_is_cast_to_datetime(): void
     {
-        $casts = (new Complaint())->getCasts();
+        $casts = (new Complaint)->getCasts();
         $this->assertArrayHasKey('resolved_at', $casts);
         $this->assertEquals('datetime', $casts['resolved_at']);
     }
@@ -102,17 +102,17 @@ class ComplaintTest extends TestCase
         $user = User::factory()->create();
 
         $complaint = Complaint::create([
-            'user_id'     => $user->id,
-            'title'       => 'Test Complaint',
+            'user_id' => $user->id,
+            'title' => 'Test Complaint',
             'description' => 'This is a test complaint description.',
-            'type'        => ComplaintType::OTHER->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => ComplaintType::OTHER->value,
+            'status' => ComplaintStatus::PENDING->value,
         ]);
 
         $this->assertDatabaseHas('complaints', [
-            'id'      => $complaint->id,
+            'id' => $complaint->id,
             'user_id' => $user->id,
-            'title'   => 'Test Complaint',
+            'title' => 'Test Complaint',
         ]);
     }
 
@@ -120,11 +120,11 @@ class ComplaintTest extends TestCase
     {
         $user = User::factory()->create();
         $complaint = Complaint::create([
-            'user_id'     => $user->id,
-            'title'       => 'Test',
+            'user_id' => $user->id,
+            'title' => 'Test',
             'description' => 'Description',
-            'type'        => ComplaintType::OTHER->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => ComplaintType::OTHER->value,
+            'status' => ComplaintStatus::PENDING->value,
         ]);
 
         $fresh = Complaint::find($complaint->id);
@@ -136,11 +136,11 @@ class ComplaintTest extends TestCase
     {
         $user = User::factory()->create();
         $complaint = Complaint::create([
-            'user_id'     => $user->id,
-            'title'       => 'Test',
+            'user_id' => $user->id,
+            'title' => 'Test',
             'description' => 'Description',
-            'type'        => ComplaintType::FINANCIAL_ISSUE->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => ComplaintType::FINANCIAL_ISSUE->value,
+            'status' => ComplaintStatus::PENDING->value,
         ]);
 
         $fresh = Complaint::find($complaint->id);
@@ -152,11 +152,11 @@ class ComplaintTest extends TestCase
     {
         $user = User::factory()->create();
         $complaint = Complaint::create([
-            'user_id'     => $user->id,
-            'title'       => 'Test',
+            'user_id' => $user->id,
+            'title' => 'Test',
             'description' => 'Description',
-            'type'        => ComplaintType::OTHER->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => ComplaintType::OTHER->value,
+            'status' => ComplaintStatus::PENDING->value,
         ]);
 
         $this->assertEquals($user->id, $complaint->user->id);
@@ -166,11 +166,11 @@ class ComplaintTest extends TestCase
     {
         $user = User::factory()->create();
         $complaint = Complaint::create([
-            'user_id'     => $user->id,
-            'title'       => 'Test',
+            'user_id' => $user->id,
+            'title' => 'Test',
             'description' => 'Description',
-            'type'        => ComplaintType::OTHER->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => ComplaintType::OTHER->value,
+            'status' => ComplaintStatus::PENDING->value,
         ]);
 
         $this->assertNull($complaint->resolved_at);

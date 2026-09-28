@@ -29,8 +29,8 @@ class VerifyOtpRequest extends FormRequest
                 'required',
                 'string',
                 'size:6',
-                'regex:/^[0-9]{6}$/'
-            ]
+                'regex:/^[0-9]{6}$/',
+            ],
         ];
     }
 
@@ -44,7 +44,7 @@ class VerifyOtpRequest extends FormRequest
             'phone_number.regex' => 'Invalid Syrian phone number format. Use format: 09XXXXXXXX or +96309XXXXXXXX',
             'otp_code.required' => 'OTP code is required',
             'otp_code.size' => 'OTP code must be exactly 6 digits',
-            'otp_code.regex' => 'OTP code must contain only numbers'
+            'otp_code.regex' => 'OTP code must contain only numbers',
         ];
     }
 }

@@ -2,14 +2,13 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Log;
-
-use App\Models\User;
-use App\Models\UserNotification;
-use App\Models\Notification;
 use App\Events\NotificationSent;
 use App\Jobs\SendPushNotificationJob;
+use App\Models\Notification;
+use App\Models\User;
+use App\Models\UserNotification;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
 
 class NotificationService
 {
@@ -24,9 +23,8 @@ class NotificationService
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc');
 
-        if (!empty($filters['category'])) {
-            $query->whereHas('notification', fn($q) =>
-            $q->where('type', $filters['category'])
+        if (! empty($filters['category'])) {
+            $query->whereHas('notification', fn ($q) => $q->where('type', $filters['category'])
             );
         }
 
@@ -50,39 +48,41 @@ class NotificationService
     ): UserNotification {
 
         $notification = Notification::create([
-            'title'   => $title,
+            'title' => $title,
             'message' => $message,
-            'type'    => $type,
-            'data'    => $data,
+            'type' => $type,
+            'data' => $data,
             'sent_at' => now(),
         ]);
 
         $userNotification = UserNotification::create([
-            'user_id'         => $user->id,
+            'user_id' => $user->id,
             'notification_id' => $notification->id,
         ]);
 
         SendPushNotificationJob::dispatch($user->id, [
             'title' => $title,
-            'body'  => $message,
-            'data'  => array_merge($data, [
+            'body' => $message,
+            'data' => array_merge($data, [
                 'notification_id' => $notification->id,
-                'type'            => $type,
-                'category'        => $category,
-                'priority'        => $priority,
+                'type' => $type,
+                'category' => $category,
+                'priority' => $priority,
             ]),
         ]);
 
         try {
             broadcast(new NotificationSent($user, $notification));
-        } catch (\Throwable $e) { Log::warning('broadcast NotificationSent after persist failed (non-fatal): ' . $e->getMessage()); }
+        } catch (\Throwable $e) {
+            Log::warning('broadcast NotificationSent after persist failed (non-fatal): '.$e->getMessage());
+        }
 
         return $userNotification->load('notification');
     }
 
     public function markAsRead(UserNotification $notification): void
     {
-        if (!$notification->read_at) {
+        if (! $notification->read_at) {
             $notification->update(['read_at' => now()]);
         }
     }

@@ -36,28 +36,29 @@ class SignupPasswordOverwriteTest extends TestCase
     }
 
     private const PASSWORD_VICTIM = 'original-password-123';
+
     private const PASSWORD_ATTACKER = 'attacker-chosen-123';
 
     private function signupPayload(array $overrides = []): array
     {
         return array_merge([
-            'first_name'            => 'Ahmad',
-            'last_name'             => 'Ali',
-            'email'                 => 'victim@test.com',
-            'password'              => self::PASSWORD_ATTACKER,
+            'first_name' => 'Ahmad',
+            'last_name' => 'Ali',
+            'email' => 'victim@test.com',
+            'password' => self::PASSWORD_ATTACKER,
             'password_confirmation' => self::PASSWORD_ATTACKER,
-            'gender'                => 'M',
-            'address'               => 'دمشق',
+            'gender' => 'M',
+            'address' => 'دمشق',
         ], $overrides);
     }
 
     private function unverifiedVictim(): User
     {
         return User::factory()->create([
-            'email'             => 'victim@test.com',
-            'password'          => Hash::make(self::PASSWORD_VICTIM),
+            'email' => 'victim@test.com',
+            'password' => Hash::make(self::PASSWORD_VICTIM),
             'email_verified_at' => null,
-            'status'            => 0,
+            'status' => 0,
         ]);
     }
 
@@ -88,7 +89,7 @@ class SignupPasswordOverwriteTest extends TestCase
         // An attacker hammering the endpoint must never converge on their value.
         foreach (['attacker-a-123', 'attacker-b-123', 'attacker-c-123'] as $attempt) {
             $this->postJson('/api/auth/signup', $this->signupPayload([
-                'password'              => $attempt,
+                'password' => $attempt,
                 'password_confirmation' => $attempt,
             ]))->assertStatus(200);
         }
@@ -109,7 +110,7 @@ class SignupPasswordOverwriteTest extends TestCase
         $victim->update(['email_verified_at' => now(), 'status' => 1]);
 
         $this->postJson('/api/auth/login', [
-            'email'    => 'victim@test.com',
+            'email' => 'victim@test.com',
             'password' => self::PASSWORD_VICTIM,
         ])->assertStatus(200)->assertJsonStructure(['tokens' => ['access_token']]);
     }
@@ -124,7 +125,7 @@ class SignupPasswordOverwriteTest extends TestCase
         $victim->update(['email_verified_at' => now(), 'status' => 1]);
 
         $this->postJson('/api/auth/login', [
-            'email'    => 'victim@test.com',
+            'email' => 'victim@test.com',
             'password' => self::PASSWORD_ATTACKER,
         ])->assertStatus(401);
     }
@@ -185,7 +186,7 @@ class SignupPasswordOverwriteTest extends TestCase
 
         // The real gate: email_verified_at, enforced by LoginController:66.
         $this->postJson('/api/auth/login', [
-            'email'    => 'brand-new@test.com',
+            'email' => 'brand-new@test.com',
             'password' => self::PASSWORD_ATTACKER,
         ])->assertStatus(403)->assertJsonPath('code', 'EMAIL_NOT_VERIFIED');
     }

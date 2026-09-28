@@ -12,17 +12,17 @@ use App\Enums\ScoreAction;
 final class ScoreResult
 {
     public function __construct(
-        public readonly int         $points,
+        public readonly int $points,
         public readonly ScoreAction $action,
-        public readonly string      $reason,
-        public readonly bool        $highCancelRateApplied = false,
+        public readonly string $reason,
+        public readonly bool $highCancelRateApplied = false,
     ) {}
 
     public static function of(
-        int         $points,
+        int $points,
         ScoreAction $action,
-        string      $reason,
-        bool        $highCancelRateApplied = false,
+        string $reason,
+        bool $highCancelRateApplied = false,
     ): self {
         return new self($points, $action, $reason, $highCancelRateApplied);
     }
@@ -45,9 +45,9 @@ final class ScoreResult
     public function toArray(): array
     {
         return [
-            'points'                   => $this->points,
-            'action'                   => $this->action->value,
-            'reason'                   => $this->reason,
+            'points' => $this->points,
+            'action' => $this->action->value,
+            'reason' => $this->reason,
             'high_cancel_rate_applied' => $this->highCancelRateApplied,
         ];
     }

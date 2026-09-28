@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Docs;
 
 /**
@@ -8,10 +9,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Search rides (GET)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="from",  in="query", @OA\Schema(type="string")),
  *     @OA\Parameter(name="to",    in="query", @OA\Schema(type="string")),
  *     @OA\Parameter(name="date",  in="query", @OA\Schema(type="string", format="date")),
  *     @OA\Parameter(name="seats", in="query", @OA\Schema(type="integer")),
+ *
  *     @OA\Response(response=200, description="Matching rides")
  * )
  *
@@ -21,14 +24,18 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Search rides (POST)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(
+ *
  *             @OA\Property(property="from",  type="string"),
  *             @OA\Property(property="to",    type="string"),
  *             @OA\Property(property="date",  type="string", format="date"),
  *             @OA\Property(property="seats", type="integer")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Matching rides")
  * )
  *
@@ -38,12 +45,16 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Get route options before creating a ride",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"from","to"},
+ *
  *             @OA\Property(property="from", type="string"),
  *             @OA\Property(property="to",   type="string")
  *         )
  *     ),
+ *
  *     @OA\Response(response=200, description="Route options returned")
  * )
  *
@@ -53,9 +64,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Create a ride with a pre-selected route",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(
  *             required={"from","to","date","seats","price"},
+ *
  *             @OA\Property(property="from",  type="string"),
  *             @OA\Property(property="to",    type="string"),
  *             @OA\Property(property="date",  type="string", format="date-time"),
@@ -65,6 +79,7 @@ namespace App\Docs;
  *                 description="Route object returned from route-options")
  *         )
  *     ),
+ *
  *     @OA\Response(response=201, description="Ride created")
  * )
  *
@@ -74,6 +89,7 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="List current user's rides",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Response(response=200, description="Rides list"),
  *     @OA\Response(response=401, description="Unauthenticated")
  * )
@@ -84,9 +100,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Create a new ride",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(
  *             required={"from","to","date","seats","price"},
+ *
  *             @OA\Property(property="from",   type="string"),
  *             @OA\Property(property="to",     type="string"),
  *             @OA\Property(property="date",   type="string", format="date-time"),
@@ -94,6 +113,7 @@ namespace App\Docs;
  *             @OA\Property(property="price",  type="number")
  *         )
  *     ),
+ *
  *     @OA\Response(response=201, description="Ride created"),
  *     @OA\Response(response=422, description="Validation error")
  * )
@@ -104,9 +124,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Get ride details",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="rideId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Ride details"),
  *     @OA\Response(response=404, description="Not found")
  * )
@@ -117,9 +140,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Cancel a ride (driver)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="rideId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Ride cancelled"),
  *     @OA\Response(response=403, description="Forbidden")
  * )
@@ -130,14 +156,20 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Book a ride (passenger)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="rideId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\RequestBody(required=true,
+ *
  *         @OA\JsonContent(required={"seats"},
+ *
  *             @OA\Property(property="seats", type="integer")
  *         )
  *     ),
+ *
  *     @OA\Response(response=201, description="Booking created")
  * )
  *
@@ -147,9 +179,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Mark a ride as finished (driver)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="rideId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Ride finished")
  * )
  *
@@ -159,9 +194,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Driver confirms ride completion",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="rideId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Confirmed")
  * )
  *
@@ -171,9 +209,12 @@ namespace App\Docs;
  *     tags={"Rides"},
  *     summary="Report driver no-show (passenger)",
  *     security={{"bearerAuth":{}}},
+ *
  *     @OA\Parameter(name="rideId", in="path", required=true,
+ *
  *         @OA\Schema(type="integer")
  *     ),
+ *
  *     @OA\Response(response=200, description="Report submitted")
  * )
  */

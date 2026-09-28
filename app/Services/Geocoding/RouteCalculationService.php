@@ -2,8 +2,8 @@
 
 namespace App\Services\Geocoding;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\Log;
 final class RouteCalculationService
 {
     private string $apiKey;
+
     private string $baseUrl = 'https://api.openrouteservice.org/';
+
     private int $cacheTtl = 3600;
 
     public function __construct()
@@ -40,14 +42,14 @@ final class RouteCalculationService
         $this->validateCoordinates($origin, 'Origin');
         $this->validateCoordinates($destination, 'Destination');
 
-        $cacheKey = "route:v2:" . md5(json_encode([$origin, $destination]));
+        $cacheKey = 'route:v2:'.md5(json_encode([$origin, $destination]));
 
         return Cache::remember($cacheKey, $this->cacheTtl, function () use ($origin, $destination) {
             try {
                 return $this->fetchRoute($origin, $destination);
             } catch (\Exception $e) {
                 Log::warning('Route calculation failed, using fallback', [
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
 
                 return $this->calculateFallbackRoute($origin, $destination);
@@ -63,14 +65,14 @@ final class RouteCalculationService
         $this->validateCoordinates($origin, 'Origin');
         $this->validateCoordinates($destination, 'Destination');
 
-        $cacheKey = "routes:v2:" . md5(json_encode([$origin, $destination, $maxAlternatives]));
+        $cacheKey = 'routes:v2:'.md5(json_encode([$origin, $destination, $maxAlternatives]));
 
         return Cache::remember($cacheKey, $this->cacheTtl, function () use ($origin, $destination, $maxAlternatives) {
             try {
                 return $this->fetchAlternatives($origin, $destination, $maxAlternatives);
             } catch (\Exception $e) {
                 Log::warning('Alternative routes failed, using fallback', [
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
 
                 return [$this->calculateFallbackRoute($origin, $destination)];
@@ -83,7 +85,7 @@ final class RouteCalculationService
      */
     private function fetchRoute(array $origin, array $destination): array
     {
-        $url = $this->baseUrl . 'v2/directions/driving-car/json';
+        $url = $this->baseUrl.'v2/directions/driving-car/json';
 
         $payload = [
             'coordinates' => [
@@ -99,7 +101,7 @@ final class RouteCalculationService
             ->timeout(30)
             ->post($url, $payload);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new \Exception("Route API error: HTTP {$response->status()}");
         }
 
@@ -123,7 +125,7 @@ final class RouteCalculationService
      */
     private function fetchAlternatives(array $origin, array $destination, int $count): array
     {
-        $url = $this->baseUrl . 'v2/directions/driving-car/json';
+        $url = $this->baseUrl.'v2/directions/driving-car/json';
 
         $payload = [
             'coordinates' => [
@@ -152,14 +154,14 @@ final class RouteCalculationService
             ->timeout(30)
             ->post($url, $payload);
 
-        if (!$response->successful() || empty($response->json()['routes'])) {
+        if (! $response->successful() || empty($response->json()['routes'])) {
             throw new \Exception('No routes found');
         }
 
         $routes = [];
 
         foreach ($response->json()['routes'] as $index => $route) {
-            if (!isset($route['summary']['distance'], $route['summary']['duration'])) {
+            if (! isset($route['summary']['distance'], $route['summary']['duration'])) {
                 continue;
             }
 
@@ -227,11 +229,11 @@ final class RouteCalculationService
      */
     private function validateCoordinates(array $coords, string $label): void
     {
-        if (!isset($coords['lat'], $coords['lng'])) {
+        if (! isset($coords['lat'], $coords['lng'])) {
             throw new \InvalidArgumentException("{$label}: Missing lat or lng");
         }
 
-        if (!is_numeric($coords['lat']) || !is_numeric($coords['lng'])) {
+        if (! is_numeric($coords['lat']) || ! is_numeric($coords['lng'])) {
             throw new \InvalidArgumentException("{$label}: Coordinates must be numeric");
         }
 

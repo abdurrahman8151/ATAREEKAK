@@ -17,6 +17,7 @@ class ComplaintRepository implements ComplaintRepositoryInterface
     {
         return Complaint::with(['assignedAgent:id,first_name,last_name', 'attachments'])->find($id);
     }
+
     public function getUserComplaints(int $userId): Collection
     {
         return Complaint::where('user_id', $userId)

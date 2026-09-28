@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Security;
 
+use Illuminate\Support\Env;
 use Tests\TestCase;
 
 /**
@@ -36,6 +37,7 @@ class SessionCookieAndCorsTest extends TestCase
                 return $c;
             }
         }
+
         return null;
     }
 
@@ -84,7 +86,7 @@ class SessionCookieAndCorsTest extends TestCase
      */
     private function configWithEnv(string $file, string $var, ?string $value): array
     {
-        $repo = \Illuminate\Support\Env::getRepository();
+        $repo = Env::getRepository();
         $saved = getenv($var);
 
         $repo->clear($var);

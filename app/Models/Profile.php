@@ -28,13 +28,14 @@ class Profile extends Model
         'driving_license_pic',
         'mechanic_card_pic',
         'address',
-        'gender'
+        'gender',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
     }
+
     public function comments(): HasMany
     {
         return $this->hasMany(ProfileComment::class, 'profile_id');

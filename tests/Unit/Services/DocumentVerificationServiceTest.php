@@ -2,10 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Models\Photo;
-use App\Models\User;
 use App\Services\Verification\DocumentVerificationService;
-use Mockery;
 use PHPUnit\Framework\TestCase;
 
 class DocumentVerificationServiceTest extends TestCase
@@ -15,15 +12,15 @@ class DocumentVerificationServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new DocumentVerificationService();
+        $this->service = new DocumentVerificationService;
     }
 
     public function test_required_driver_document_types(): void
     {
         $types = $this->service->getRequiredDriverDocumentTypes();
-        $this->assertContains('face_id',      $types);
-        $this->assertContains('back_id',      $types);
-        $this->assertContains('license',      $types);
+        $this->assertContains('face_id', $types);
+        $this->assertContains('back_id', $types);
+        $this->assertContains('license', $types);
         $this->assertContains('mechanic_card', $types);
     }
 

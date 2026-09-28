@@ -11,10 +11,10 @@ namespace App\Domain\Payment\Strategies;
 final class PaymentResult
 {
     public function __construct(
-        public readonly bool    $success,
-        public readonly string  $message,
-        public readonly ?array  $transactionIds = null,
-        public readonly ?array  $metadata       = null,
+        public readonly bool $success,
+        public readonly string $message,
+        public readonly ?array $transactionIds = null,
+        public readonly ?array $metadata = null,
     ) {}
 
     public static function success(

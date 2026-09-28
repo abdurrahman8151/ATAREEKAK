@@ -5,6 +5,7 @@ namespace App\Services\Chat;
 use App\Interfaces\ChatRepositoryInterface;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use App\Services\File\FileUploadService;
 use App\Services\MessageTypes\MessageTypeFactory;
@@ -52,10 +53,10 @@ final class ChatMessageHandler
         $conversation = Cache::remember(
             "conversation.{$conversationId}",
             300, // 5 minutes
-            fn() => $this->chatRepository->findConversation($conversationId)
+            fn () => $this->chatRepository->findConversation($conversationId)
         );
 
-        if (!$conversation || !$conversation->isParticipant($sender)) {
+        if (! $conversation || ! $conversation->isParticipant($sender)) {
             throw new \Exception('Conversation not found or access denied');
         }
 
@@ -63,14 +64,14 @@ final class ChatMessageHandler
         $messageType = $data['type'] ?? 'text';
 
         // Validate message type
-        if (!in_array($messageType, $this->messageTypeFactory->getAvailableTypes())) {
+        if (! in_array($messageType, $this->messageTypeFactory->getAvailableTypes())) {
             throw new \Exception('Invalid message type');
         }
 
         // Get handler for message type
         $handler = $this->messageTypeFactory->create($messageType);
 
-        if (!$handler->validate($data)) {
+        if (! $handler->validate($data)) {
             throw new \Exception('Invalid message data');
         }
 
@@ -106,7 +107,7 @@ final class ChatMessageHandler
         User $sender,
         array $data
     ): Message {
-        if (!isset($data['image']) || !($data['image'] instanceof UploadedFile)) {
+        if (! isset($data['image']) || ! ($data['image'] instanceof UploadedFile)) {
             throw new \Exception('Invalid image file');
         }
 
@@ -129,7 +130,7 @@ final class ChatMessageHandler
             $uploadResult['path'],
             'image',
             array_merge($uploadResult['metadata'], [
-                'caption' => $data['caption'] ?? ''
+                'caption' => $data['caption'] ?? '',
             ])
         );
     }
@@ -154,19 +155,19 @@ final class ChatMessageHandler
         $profilePhoto = $this->getUserProfilePhoto($message->sender);
 
         return [
-            'id'         => $message->id,
-            'sender'     => [
-                'id'            => $message->sender->id,
-                'name'          => $message->sender->first_name . ' ' . $message->sender->last_name,
+            'id' => $message->id,
+            'sender' => [
+                'id' => $message->sender->id,
+                'name' => $message->sender->first_name.' '.$message->sender->last_name,
                 'profile_photo' => $profilePhoto,
             ],
-            'type'       => $message->type,
-            'content'    => $message->type === 'image'
+            'type' => $message->type,
+            'content' => $message->type === 'image'
                 ? $this->fileUploadService->url($message->content)
                 : $message->content,
-            'metadata'   => $message->metadata,
+            'metadata' => $message->metadata,
             'created_at' => $message->created_at->toIso8601String(),
-            'is_edited'  => $message->is_edited,
+            'is_edited' => $message->is_edited,
         ];
     }
 
@@ -182,13 +183,13 @@ final class ChatMessageHandler
     {
         $profile = $user->relationLoaded('profile')
             ? $user->profile
-            : \App\Models\Profile::where('user_id', $user->id)->first();
+            : Profile::where('user_id', $user->id)->first();
 
-        if (!$profile || !$profile->profile_photo) {
+        if (! $profile || ! $profile->profile_photo) {
             return null;
         }
 
-        if (!$this->fileUploadService->exists($profile->profile_photo)) {
+        if (! $this->fileUploadService->exists($profile->profile_photo)) {
             return null;
         }
 

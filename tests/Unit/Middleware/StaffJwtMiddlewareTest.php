@@ -36,7 +36,9 @@ class StaffJwtMiddlewareTest extends TestCase
     use RefreshDatabase;
 
     private Employee $agent;
+
     private Employee $admin;
+
     private Employee $inactiveAgent;
 
     protected function setUp(): void
@@ -46,18 +48,18 @@ class StaffJwtMiddlewareTest extends TestCase
         // Point system_admin config at a deterministic test identity so that
         // handleAdminToken() can resolve the email and auto-create an Employee row.
         Config::set('admin.system_admin', [
-            'email'      => 'sysadmin@mw.test',
-            'password'   => 'sysadmin_pass',
-            'username'   => 'sysadmin_mw',
+            'email' => 'sysadmin@mw.test',
+            'password' => 'sysadmin_pass',
+            'username' => 'sysadmin_mw',
             'first_name' => 'System',
-            'last_name'  => 'Admin',
-            'phone'      => '0910000099',
+            'last_name' => 'Admin',
+            'phone' => '0910000099',
         ]);
 
         Config::set('admin.sycash', [
-            'email'    => 'sycash@mw.test',
+            'email' => 'sycash@mw.test',
             'password' => 'sycash_pass',
-            'phone'    => '0910000098',
+            'phone' => '0910000098',
         ]);
 
         $this->agent = $this->makeEmployee(
@@ -120,9 +122,9 @@ class StaffJwtMiddlewareTest extends TestCase
         // User JWTs are signed by JwtService (different from StaffJwtService).
         // handleStaffToken() fails, then handleAdminToken() sees the user is not
         // the system admin → returns 401 FORBIDDEN.
-        $user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $user = User::factory()->create(['password' => bcrypt('password123')]);
         $token = $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
 
@@ -135,11 +137,11 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         // Only the system_admin JWT is accepted by handleAdminToken(); sycash is not.
         $sycashToken = $this->postJson('/api/admin/login', [
-            'email'    => 'sycash@mw.test',
+            'email' => 'sycash@mw.test',
             'password' => 'sycash_pass',
         ])->json('tokens.access_token');
 
-        if (!$sycashToken) {
+        if (! $sycashToken) {
             $this->markTestSkipped('sycash login failed — verify config/admin.php path.');
         }
 
@@ -189,7 +191,7 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         $loginResponse = $this->postJson('/api/staff/login', [
             'identifier' => 'mw_agent@test.test',
-            'password'   => 'password123',
+            'password' => 'password123',
         ]);
 
         $refreshToken = $loginResponse->json('tokens.refresh_token');
@@ -301,11 +303,11 @@ class StaffJwtMiddlewareTest extends TestCase
         // on staff routes — StaffJwtMiddleware::handleAdminToken() accepts it
         // and auto-creates the corresponding Employee row (SYSTEM_ADMIN role).
         $sysAdminToken = $this->postJson('/api/admin/login', [
-            'email'    => 'sysadmin@mw.test',
+            'email' => 'sysadmin@mw.test',
             'password' => 'sysadmin_pass',
         ])->json('tokens.access_token');
 
-        if (!$sysAdminToken) {
+        if (! $sysAdminToken) {
             $this->markTestSkipped('System admin login failed — verify config/admin.php settings.');
         }
 
@@ -318,11 +320,11 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         // system_admin role satisfies middleware('staff:admin,system_admin')
         $sysAdminToken = $this->postJson('/api/admin/login', [
-            'email'    => 'sysadmin@mw.test',
+            'email' => 'sysadmin@mw.test',
             'password' => 'sysadmin_pass',
         ])->json('tokens.access_token');
 
-        if (!$sysAdminToken) {
+        if (! $sysAdminToken) {
             $this->markTestSkipped('System admin login failed — verify config/admin.php settings.');
         }
 
@@ -339,7 +341,7 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'mw_agent@test.test',
-            'password'   => 'password123',
+            'password' => 'password123',
         ])->assertStatus(200)
             ->assertJsonPath('status', 'success')
             ->assertJsonStructure(['tokens' => ['access_token', 'refresh_token']]);
@@ -349,7 +351,7 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         $response = $this->postJson('/api/staff/login', [
             'identifier' => 'mw_agent@test.test',
-            'password'   => 'password123',
+            'password' => 'password123',
         ]);
 
         $response->assertStatus(200);
@@ -361,7 +363,7 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'mw_agent@test.test',
-            'password'   => 'wrong_password',
+            'password' => 'wrong_password',
         ])->assertStatus(401);
     }
 
@@ -369,7 +371,7 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         $this->postJson('/api/staff/login', [
             'identifier' => 'mw_support_agent',   // username, not email
-            'password'   => 'password123',
+            'password' => 'password123',
         ])->assertStatus(200);
     }
 
@@ -393,7 +395,7 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         $loginResponse = $this->postJson('/api/staff/login', [
             'identifier' => 'mw_agent@test.test',
-            'password'   => 'password123',
+            'password' => 'password123',
         ]);
 
         $refreshToken = $loginResponse->json('tokens.refresh_token');
@@ -413,18 +415,18 @@ class StaffJwtMiddlewareTest extends TestCase
 
     private function makeEmployee(
         StaffRole $role,
-        string    $email,
-        string    $username,
-        bool      $isActive = true,
+        string $email,
+        string $username,
+        bool $isActive = true,
     ): Employee {
         return Employee::create([
-            'username'      => $username,
-            'email'         => $email,
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Test',
-            'last_name'     => 'Employee',
-            'role'          => $role->value,
-            'is_active'     => $isActive,
+            'username' => $username,
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'first_name' => 'Test',
+            'last_name' => 'Employee',
+            'role' => $role->value,
+            'is_active' => $isActive,
             'token_version' => 0,
         ]);
     }
@@ -433,7 +435,7 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         return $this->postJson('/api/staff/login', [
             'identifier' => $identifier,
-            'password'   => $password,
+            'password' => $password,
         ])->json('tokens.access_token');
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Photo;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -15,41 +16,43 @@ class RideTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $driver;
+    private User $driver;
+
     private string $token;
+
     private string $driverPhone;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->driverPhone = '091' . rand(1000000, 9999999);
+        $this->driverPhone = '091'.rand(1000000, 9999999);
 
         $this->driver = User::factory()->create([
-            'is_verified_driver'  => true,
+            'is_verified_driver' => true,
             'verification_status' => 'approved',
-            'password'            => bcrypt('password123'),
+            'password' => bcrypt('password123'),
         ]);
 
-        if (!$this->driver->profile) {
+        if (! $this->driver->profile) {
             $this->driver->profile()->create(['full_name' => 'Test Driver', 'number_of_rides' => 0]);
         }
 
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $type) {
             Photo::create([
                 'user_id' => $this->driver->id,
-                'type'    => $type,
-                'path'    => "verifications/{$type}/test.jpg",
+                'type' => $type,
+                'path' => "verifications/{$type}/test.jpg",
             ]);
         }
 
         $this->seedAdminWallets();
 
         $wallet = Wallet::create([
-            'user_id'       => $this->driver->id,
-            'phone_number'  => $this->driverPhone,
-            'wallet_number' => 'WLT-DRV-' . Str::random(6),
-            'balance'       => 1_000_000,
+            'user_id' => $this->driver->id,
+            'phone_number' => $this->driverPhone,
+            'wallet_number' => 'WLT-DRV-'.Str::random(6),
+            'balance' => 1_000_000,
         ]);
         $this->driver->update(['wallet_id' => $wallet->id]);
 
@@ -67,7 +70,7 @@ class RideTest extends TestCase
     {
         $unverified = User::factory()->create([
             'is_verified_driver' => false,
-            'password'           => bcrypt('password123'),
+            'password' => bcrypt('password123'),
         ]);
 
         // Controller returns 422 (InvalidArgumentException) not 500
@@ -85,7 +88,7 @@ class RideTest extends TestCase
 
         $this->withToken($this->token)
             ->postJson('/api/rides/create-with-route', array_merge($this->validRidePayload(), [
-                'price_per_seat'  => 10_000,
+                'price_per_seat' => 10_000,
                 'available_seats' => 4,
             ]))->assertStatus(201);
 
@@ -137,7 +140,7 @@ class RideTest extends TestCase
     public function test_driver_cannot_cancel_others_ride(): void
     {
         $other = User::factory()->create();
-        $ride  = $this->insertRide(['driver_id' => $other->id]);
+        $ride = $this->insertRide(['driver_id' => $other->id]);
         $this->withToken($this->token)->patchJson("/api/rides/{$ride->id}/cancel")->assertStatus(422);
     }
 
@@ -163,10 +166,10 @@ class RideTest extends TestCase
 
     private function insertRide(array $overrides = []): Ride
     {
-        $driverId  = $overrides['driver_id']      ?? $this->driver->id;
-        $status    = $overrides['status']         ?? 'active';
+        $driverId = $overrides['driver_id'] ?? $this->driver->id;
+        $status = $overrides['status'] ?? 'active';
         $departure = $overrides['departure_time'] ?? now()->addHours(3);
-        $depStr    = $departure instanceof \Carbon\Carbon
+        $depStr = $departure instanceof Carbon
             ? $departure->format('Y-m-d H:i:s')
             : $departure;
 
@@ -193,17 +196,17 @@ class RideTest extends TestCase
     private function seedAdminWallets(): void
     {
         foreach (['system_admin', 'sycash'] as $type) {
-            $cfg  = config("admin.{$type}");
+            $cfg = config("admin.{$type}");
             $user = User::firstOrCreate(
                 ['email' => $cfg['email']],
                 ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
             );
 
-            if (!Wallet::where('phone_number', $cfg['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
                 $w = Wallet::create([
-                    'user_id'      => $user->id,
+                    'user_id' => $user->id,
                     'phone_number' => $cfg['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                     // wallet_number omitted — 'WLT-' . strtoupper($type) . '-' . Str::random(4)
                     // is 20+ chars once $type is 'system_admin'; let the model auto-generate instead
                 ]);
@@ -221,27 +224,27 @@ class RideTest extends TestCase
     private function validRidePayload(): array
     {
         return [
-            'pickup_lat'           => 33.5138,
-            'pickup_lng'           => 36.2765,
-            'destination_lat'      => 36.2021,
-            'destination_lng'      => 37.1343,
-            'pickup_address'       => 'دمشق - ساحة المرجة',
-            'destination_address'  => 'حلب - العزيزية',
-            'departure_time'       => now()->addHours(48)->toISOString(),
-            'available_seats'      => 3,
-            'price_per_seat'       => 50_000,
-            'vehicle_type'         => 'Toyota Camry',   // ← FIX: was missing
-            'payment_method'       => 'cash',
-            'booking_type'         => 'direct',
+            'pickup_lat' => 33.5138,
+            'pickup_lng' => 36.2765,
+            'destination_lat' => 36.2021,
+            'destination_lng' => 37.1343,
+            'pickup_address' => 'دمشق - ساحة المرجة',
+            'destination_address' => 'حلب - العزيزية',
+            'departure_time' => now()->addHours(48)->toISOString(),
+            'available_seats' => 3,
+            'price_per_seat' => 50_000,
+            'vehicle_type' => 'Toyota Camry',   // ← FIX: was missing
+            'payment_method' => 'cash',
+            'booking_type' => 'direct',
             'communication_number' => $this->driverPhone,
-            'route_index'          => 0,
+            'route_index' => 0,
         ];
     }
 
     private function getToken(User $user): string
     {
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }

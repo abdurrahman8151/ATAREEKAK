@@ -14,6 +14,7 @@ class StaffReviewControllerTest extends TestCase
     use RefreshDatabase;
 
     private Employee $agent;
+
     private ?string $token = null;    // ← was: private string $token
 
     protected function setUp(): void
@@ -21,19 +22,19 @@ class StaffReviewControllerTest extends TestCase
         parent::setUp();
 
         $this->agent = Employee::create([
-            'username'      => 'review_agent',
-            'email'         => 'review@staff.test',
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Review',
-            'last_name'     => 'Agent',
-            'role'          => 'support_agent',
-            'is_active'     => true,
+            'username' => 'review_agent',
+            'email' => 'review@staff.test',
+            'password' => bcrypt('password123'),
+            'first_name' => 'Review',
+            'last_name' => 'Agent',
+            'role' => 'support_agent',
+            'is_active' => true,
             'token_version' => 0,
         ]);
 
         $loginResponse = $this->postJson('/api/staff/login', [
             'identifier' => 'review_agent',
-            'password'   => 'password123',
+            'password' => 'password123',
         ]);
 
         $this->token = $loginResponse->json('tokens.access_token');
@@ -41,7 +42,7 @@ class StaffReviewControllerTest extends TestCase
         // Gives a clear error if login is broken, rather than a cryptic TypeError
         $this->assertNotNull(
             $this->token,
-            'Staff login failed in setUp: ' . $loginResponse->getContent()
+            'Staff login failed in setUp: '.$loginResponse->getContent()
         );
     }
 
@@ -173,15 +174,15 @@ class StaffReviewControllerTest extends TestCase
 
     private function createComment(): ProfileComment
     {
-        $owner     = User::factory()->create();
+        $owner = User::factory()->create();
         $commenter = User::factory()->create();
 
         $profile = Profile::where('user_id', $owner->id)->firstOrFail();
 
         return ProfileComment::create([
             'profile_id' => $profile->id,
-            'user_id'    => $commenter->id,
-            'comment'    => 'Test review comment ' . uniqid(),
+            'user_id' => $commenter->id,
+            'comment' => 'Test review comment '.uniqid(),
         ]);
     }
 }

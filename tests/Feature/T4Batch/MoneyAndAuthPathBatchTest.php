@@ -2,9 +2,7 @@
 
 namespace Tests\Feature\T4Batch;
 
-use App\Models\Booking;
 use App\Models\Employee;
-use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\StaffRefreshToken;
 use App\Models\User;
@@ -43,6 +41,7 @@ class MoneyAndAuthPathBatchTest extends TestCase
     use RefreshDatabase;
 
     private User $driver;
+
     private User $passenger;
 
     protected function setUp(): void
@@ -127,7 +126,7 @@ class MoneyAndAuthPathBatchTest extends TestCase
     public function test_cleanup_deletes_expired_and_revoked_tokens_only(): void
     {
         $employee = Employee::create([
-            'username' => 'cleanup_' . uniqid(), 'email' => 'c' . uniqid() . '@t.com',
+            'username' => 'cleanup_'.uniqid(), 'email' => 'c'.uniqid().'@t.com',
             'password' => 'Password123!', 'first_name' => 'C', 'last_name' => 'L',
             'role' => 'admin', 'is_active' => true, 'token_version' => 0,
         ]);
@@ -135,16 +134,16 @@ class MoneyAndAuthPathBatchTest extends TestCase
         $make = function (bool $expired, bool $revoked) use ($employee): StaffRefreshToken {
             return StaffRefreshToken::create([
                 'employee_id' => $employee->id,
-                'token'       => hash('sha256', Str::random(40) . uniqid()),
-                'expires_at'  => $expired ? now()->subDay() : now()->addDay(),
-                'revoked'     => $revoked,
+                'token' => hash('sha256', Str::random(40).uniqid()),
+                'expires_at' => $expired ? now()->subDay() : now()->addDay(),
+                'revoked' => $revoked,
             ]);
         };
 
-        $stale       = $make(true, false);   // expired  → must go
-        $revoked     = $make(false, true);   // revoked  → must go
-        $live        = $make(false, false);  // live     → must stay
-        $expiredRev  = $make(true, true);    // both     → must go
+        $stale = $make(true, false);   // expired  → must go
+        $revoked = $make(false, true);   // revoked  → must go
+        $live = $make(false, false);  // live     → must stay
+        $expiredRev = $make(true, true);    // both     → must go
 
         $deleted = app(StaffJwtService::class)->cleanupExpiredTokens();
 
@@ -182,7 +181,7 @@ class MoneyAndAuthPathBatchTest extends TestCase
     public function test_staff_access_token_ttl_comes_from_config(): void
     {
         $employee = Employee::create([
-            'username' => 'ttl_' . uniqid(), 'email' => 't' . uniqid() . '@t.com',
+            'username' => 'ttl_'.uniqid(), 'email' => 't'.uniqid().'@t.com',
             'password' => 'Password123!', 'first_name' => 'T', 'last_name' => 'L',
             'role' => 'admin', 'is_active' => true, 'token_version' => 0,
         ]);

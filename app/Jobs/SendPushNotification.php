@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Jobs;
 
 use App\Models\User;
@@ -15,6 +16,7 @@ class SendPushNotification implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $userId;
+
     protected $notificationData;
 
     public function __construct($userId, array $notificationData)
@@ -32,7 +34,7 @@ class SendPushNotification implements ShouldQueue
                 Log::info("Push notification sent to user {$this->userId}");
             }
         } catch (\Exception $e) {
-            Log::error('Failed to send push notification: ' . $e->getMessage());
+            Log::error('Failed to send push notification: '.$e->getMessage());
             throw $e;
         }
     }

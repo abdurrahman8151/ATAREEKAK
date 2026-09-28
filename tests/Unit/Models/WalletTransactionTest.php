@@ -13,8 +13,10 @@ class WalletTransactionTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User             $user;
-    private Wallet           $wallet;
+    private User $user;
+
+    private Wallet $wallet;
+
     private WalletTransaction $transaction;
 
     protected function setUp(): void
@@ -24,22 +26,22 @@ class WalletTransactionTest extends TestCase
         $this->user = User::factory()->create();
 
         $this->wallet = Wallet::create([
-            'user_id'       => $this->user->id,
-            'phone_number'  => '09' . rand(10000000, 99999999), // unique per test
-            'wallet_number' => 'WLT-' . Str::random(8),
-            'balance'       => 0,
+            'user_id' => $this->user->id,
+            'phone_number' => '09'.rand(10000000, 99999999), // unique per test
+            'wallet_number' => 'WLT-'.Str::random(8),
+            'balance' => 0,
         ]);
 
         $this->transaction = WalletTransaction::create([
-            'wallet_id'        => $this->wallet->id,
-            'user_id'          => $this->user->id,
-            'type'             => 'test_credit',
-            'amount'           => 500.00,
+            'wallet_id' => $this->wallet->id,
+            'user_id' => $this->user->id,
+            'type' => 'test_credit',
+            'amount' => 500.00,
             'previous_balance' => 0.00,
-            'new_balance'      => 500.00,
-            'description'      => 'Test transaction',
-            'transaction_id'   => 'TX-' . Str::uuid(), // unique per test — no duplicate key
-            'status'           => 'completed',
+            'new_balance' => 500.00,
+            'description' => 'Test transaction',
+            'transaction_id' => 'TX-'.Str::uuid(), // unique per test — no duplicate key
+            'status' => 'completed',
         ]);
     }
 
@@ -48,10 +50,10 @@ class WalletTransactionTest extends TestCase
         $fillable = $this->transaction->getFillable();
 
         foreach ([
-                     'wallet_id', 'user_id', 'type', 'amount',
-                     'previous_balance', 'new_balance', 'description',
-                     'transaction_id', 'status', 'reference',
-                 ] as $field) {
+            'wallet_id', 'user_id', 'type', 'amount',
+            'previous_balance', 'new_balance', 'description',
+            'transaction_id', 'status', 'reference',
+        ] as $field) {
             $this->assertContains($field, $fillable);
         }
     }

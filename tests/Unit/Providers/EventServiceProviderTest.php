@@ -2,6 +2,14 @@
 
 namespace Tests\Unit\Providers;
 
+use App\Events\MessageReceived;
+use App\Events\RideBooked;
+use App\Events\RideCancelled;
+use App\Events\UserVerified;
+use App\Listeners\SendMessageNotification;
+use App\Listeners\SendRideBookedNotification;
+use App\Listeners\SendRideCancelledNotification;
+use App\Listeners\SendUserVerifiedNotification;
 use App\Providers\EventServiceProvider;
 use Tests\TestCase;
 
@@ -32,55 +40,55 @@ class EventServiceProviderTest extends TestCase
     public function test_ride_booked_event_has_listener_registered(): void
     {
         $provider = $this->app->getProvider(EventServiceProvider::class);
-        $listen   = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
+        $listen = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
 
-        $this->assertArrayHasKey(\App\Events\RideBooked::class, $listen);
+        $this->assertArrayHasKey(RideBooked::class, $listen);
         $this->assertContains(
-            \App\Listeners\SendRideBookedNotification::class,
-            $listen[\App\Events\RideBooked::class]
+            SendRideBookedNotification::class,
+            $listen[RideBooked::class]
         );
     }
 
     public function test_ride_cancelled_event_has_listener_registered(): void
     {
         $provider = $this->app->getProvider(EventServiceProvider::class);
-        $listen   = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
+        $listen = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
 
-        $this->assertArrayHasKey(\App\Events\RideCancelled::class, $listen);
+        $this->assertArrayHasKey(RideCancelled::class, $listen);
         $this->assertContains(
-            \App\Listeners\SendRideCancelledNotification::class,
-            $listen[\App\Events\RideCancelled::class]
+            SendRideCancelledNotification::class,
+            $listen[RideCancelled::class]
         );
     }
 
     public function test_message_received_event_has_listener_registered(): void
     {
         $provider = $this->app->getProvider(EventServiceProvider::class);
-        $listen   = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
+        $listen = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
 
-        $this->assertArrayHasKey(\App\Events\MessageReceived::class, $listen);
+        $this->assertArrayHasKey(MessageReceived::class, $listen);
         $this->assertContains(
-            \App\Listeners\SendMessageNotification::class,
-            $listen[\App\Events\MessageReceived::class]
+            SendMessageNotification::class,
+            $listen[MessageReceived::class]
         );
     }
 
     public function test_user_verified_event_has_listener_registered(): void
     {
         $provider = $this->app->getProvider(EventServiceProvider::class);
-        $listen   = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
+        $listen = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
 
-        $this->assertArrayHasKey(\App\Events\UserVerified::class, $listen);
+        $this->assertArrayHasKey(UserVerified::class, $listen);
         $this->assertContains(
-            \App\Listeners\SendUserVerifiedNotification::class,
-            $listen[\App\Events\UserVerified::class]
+            SendUserVerifiedNotification::class,
+            $listen[UserVerified::class]
         );
     }
 
     public function test_four_events_are_registered_in_total(): void
     {
         $provider = $this->app->getProvider(EventServiceProvider::class);
-        $listen   = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
+        $listen = (new \ReflectionProperty($provider, 'listen'))->getValue($provider);
 
         $this->assertCount(4, $listen);
     }

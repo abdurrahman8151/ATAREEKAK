@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\AppFuture;
 
-use Laravel\Octane\Contracts\OperationTerminated;
 use Laravel\Octane\Listeners\FlushUploadedFiles;
 use Tests\TestCase;
 
@@ -37,7 +36,7 @@ class TlsAndOctaneHygieneTest extends TestCase
             if (! $f->isFile() || $f->getExtension() !== 'php') {
                 continue;
             }
-            $src   = file_get_contents($f->getPathname());
+            $src = file_get_contents($f->getPathname());
             $clean = '';
             foreach (token_get_all($src) as $t) {
                 if (is_array($t) && in_array($t[0], [T_COMMENT, T_DOC_COMMENT], true)) {
@@ -56,10 +55,10 @@ class TlsAndOctaneHygieneTest extends TestCase
         $offenders = [];
         foreach ($this->codeOnlySources() as $path => $clean) {
             if (preg_match("/(['\"]verify['\"]\s*=>\s*false)/i", $clean)) {
-                $offenders[] = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path);
+                $offenders[] = str_replace(base_path().DIRECTORY_SEPARATOR, '', $path);
             }
             if (preg_match('/CURLOPT_SSL_VERIFYPEER\s*(=>|,)\s*(false|0)\b/i', $clean)) {
-                $offenders[] = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path) . ' (VERIFYPEER=false)';
+                $offenders[] = str_replace(base_path().DIRECTORY_SEPARATOR, '', $path).' (VERIFYPEER=false)';
             }
         }
 
@@ -67,7 +66,7 @@ class TlsAndOctaneHygieneTest extends TestCase
             [],
             $offenders,
             'AF-1: TLS peer verification must never be disabled in app code. Offenders: '
-                . implode(', ', $offenders)
+                .implode(', ', $offenders)
         );
     }
 
@@ -94,7 +93,7 @@ class TlsAndOctaneHygieneTest extends TestCase
 
         $this->assertSame(
             1,
-            substr_count($src, 'new Client('),
+            preg_match_all('/\bnew\s+Client\b/', $src),
             'WhatsAppOtpService must construct one (verified) client, not per-call insecure ones'
         );
     }

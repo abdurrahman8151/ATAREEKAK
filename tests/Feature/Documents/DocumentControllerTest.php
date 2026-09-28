@@ -13,7 +13,8 @@ class DocumentControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $user;
+    private User $user;
+
     private string $token;
 
     protected function setUp(): void
@@ -24,7 +25,7 @@ class DocumentControllerTest extends TestCase
         $this->user = User::factory()->create(['password' => bcrypt('password123')]);
 
         $this->token = $this->postJson('/api/auth/login', [
-            'email'    => $this->user->email,
+            'email' => $this->user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }
@@ -129,7 +130,7 @@ class DocumentControllerTest extends TestCase
 
         $this->assertDatabaseHas('photos', [
             'user_id' => $this->user->id,
-            'type'    => 'face_id',
+            'type' => 'face_id',
         ]);
     }
 
@@ -154,8 +155,8 @@ class DocumentControllerTest extends TestCase
     public function test_upload_resets_verification_status_to_none(): void
     {
         $this->user->update([
-            'verification_status'   => 'approved',
-            'is_verified_driver'    => true,
+            'verification_status' => 'approved',
+            'is_verified_driver' => true,
             'is_verified_passenger' => true,
         ]);
 

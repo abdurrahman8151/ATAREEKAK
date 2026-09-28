@@ -25,24 +25,24 @@ class AdminBanControllerTest extends TestCase
         parent::setUp();
 
         Config::set('admin.system_admin', [
-            'email'         => 'primary@admin.test',
-            'password'      => 'primary_pass',
-            'username'      => 'primary_admin',
-            'first_name'    => 'Primary',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000001',
+            'email' => 'primary@admin.test',
+            'password' => 'primary_pass',
+            'username' => 'primary_admin',
+            'first_name' => 'Primary',
+            'last_name' => 'Admin',
+            'phone' => '0910000001',
             'wallet_prefix' => 'PRIM',
-            'permissions'   => ['*'],
+            'permissions' => ['*'],
         ]);
 
         Config::set('admin.sycash', [
-            'email'         => 'sycash@admin.test',
-            'password'      => 'sycash_pass',
-            'first_name'    => 'SyCash',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000002',
+            'email' => 'sycash@admin.test',
+            'password' => 'sycash_pass',
+            'first_name' => 'SyCash',
+            'last_name' => 'Admin',
+            'phone' => '0910000002',
             'wallet_prefix' => 'SYCSH',
-            'permissions'   => ['view_wallet'],
+            'permissions' => ['view_wallet'],
         ]);
 
         $this->seedAdminWallets();
@@ -59,7 +59,7 @@ class AdminBanControllerTest extends TestCase
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Repeated violation of community guidelines.',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ])
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -73,8 +73,8 @@ class AdminBanControllerTest extends TestCase
 
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
-                'reason'     => 'Temporary ban for policy violation today.',
-                'type'       => 'temporary',
+                'reason' => 'Temporary ban for policy violation today.',
+                'type' => 'temporary',
                 'expires_at' => now()->addDays(7)->toDateTimeString(),
             ])
             ->assertStatus(200)
@@ -90,7 +90,7 @@ class AdminBanControllerTest extends TestCase
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Verified policy breach documented case.',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ]);
 
         $fresh = $user->fresh();
@@ -104,7 +104,7 @@ class AdminBanControllerTest extends TestCase
 
         $this->postJson("/api/admin/users/{$user->id}/ban", [
             'reason' => 'Test reason long enough.',
-            'type'   => 'permanent',
+            'type' => 'permanent',
         ])->assertStatus(401);
     }
 
@@ -124,7 +124,7 @@ class AdminBanControllerTest extends TestCase
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Short',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ])
             ->assertStatus(422);
     }
@@ -147,7 +147,7 @@ class AdminBanControllerTest extends TestCase
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Long enough reason for this test case.',
-                'type'   => 'forever',
+                'type' => 'forever',
             ])
             ->assertStatus(422);
     }
@@ -159,7 +159,7 @@ class AdminBanControllerTest extends TestCase
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Long enough reason for this test case.',
-                'type'   => 'temporary',
+                'type' => 'temporary',
             ])
             ->assertStatus(422);
     }
@@ -170,8 +170,8 @@ class AdminBanControllerTest extends TestCase
 
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
-                'reason'     => 'Long enough reason for this test case.',
-                'type'       => 'temporary',
+                'reason' => 'Long enough reason for this test case.',
+                'type' => 'temporary',
                 'expires_at' => now()->subDay()->toDateTimeString(),
             ])
             ->assertStatus(422);
@@ -184,7 +184,7 @@ class AdminBanControllerTest extends TestCase
         $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Attempting to ban already banned user.',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ])
             ->assertStatus(422);
     }
@@ -194,7 +194,7 @@ class AdminBanControllerTest extends TestCase
         $this->withToken($this->primaryToken())
             ->postJson('/api/admin/users/999999/ban', [
                 'reason' => 'Nonexistent user ban attempt here.',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ])
             ->assertStatus(404);
     }
@@ -206,7 +206,7 @@ class AdminBanControllerTest extends TestCase
         $response = $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Complete policy violation with evidence.',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ]);
 
         $response->assertStatus(200)
@@ -220,7 +220,7 @@ class AdminBanControllerTest extends TestCase
         $response = $this->withToken($this->primaryToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Serious community guideline violation.',
-                'type'   => 'permanent',
+                'type' => 'permanent',
             ]);
 
         $this->assertEquals('banned', $response->json('data.account_status'));
@@ -233,9 +233,9 @@ class AdminBanControllerTest extends TestCase
     public function test_admin_can_unban_a_banned_user(): void
     {
         $user = User::factory()->create([
-            'status'     => -1,
+            'status' => -1,
             'ban_reason' => 'Test',
-            'ban_type'   => 'permanent',
+            'ban_type' => 'permanent',
         ]);
 
         $this->withToken($this->primaryToken())
@@ -249,9 +249,9 @@ class AdminBanControllerTest extends TestCase
     public function test_unban_clears_all_ban_fields(): void
     {
         $user = User::factory()->create([
-            'status'     => -1,
+            'status' => -1,
             'ban_reason' => 'Policy violation',
-            'ban_type'   => 'temporary',
+            'ban_type' => 'temporary',
         ]);
 
         $this->withToken($this->primaryToken())
@@ -335,9 +335,9 @@ class AdminBanControllerTest extends TestCase
     public function test_can_get_status_for_banned_user_with_ban_block(): void
     {
         $user = User::factory()->create([
-            'status'     => -1,
+            'status' => -1,
             'ban_reason' => 'Severe violation',
-            'ban_type'   => 'permanent',
+            'ban_type' => 'permanent',
         ]);
 
         $response = $this->withToken($this->primaryToken())
@@ -402,7 +402,7 @@ class AdminBanControllerTest extends TestCase
     private function primaryToken(): string
     {
         return $this->postJson('/api/admin/login', [
-            'email'    => 'primary@admin.test',
+            'email' => 'primary@admin.test',
             'password' => 'primary_pass',
         ])->json('tokens.access_token');
     }
@@ -410,25 +410,25 @@ class AdminBanControllerTest extends TestCase
     private function seedAdminWallets(): void
     {
         foreach (['system_admin', 'sycash'] as $type) {
-            $config    = config("admin.{$type}");
+            $config = config("admin.{$type}");
             $adminUser = User::firstOrCreate(
                 ['email' => $config['email']],
                 [
-                    'first_name'        => $config['first_name'],
-                    'last_name'         => $config['last_name'],
-                    'password'          => bcrypt($config['password']),
-                    'gender'            => 'M',
-                    'address'           => 'دمشق',
-                    'status'            => 1,
+                    'first_name' => $config['first_name'],
+                    'last_name' => $config['last_name'],
+                    'password' => bcrypt($config['password']),
+                    'gender' => 'M',
+                    'address' => 'دمشق',
+                    'status' => 1,
                     'email_verified_at' => now(),
                 ]
             );
 
-            if (!Wallet::where('phone_number', $config['phone'])->exists()) {
+            if (! Wallet::where('phone_number', $config['phone'])->exists()) {
                 $wallet = Wallet::create([
-                    'user_id'      => $adminUser->id,
+                    'user_id' => $adminUser->id,
                     'phone_number' => $config['phone'],
-                    'balance'      => 10_000_000,
+                    'balance' => 10_000_000,
                 ]);
                 $adminUser->update(['wallet_id' => $wallet->id]);
             }

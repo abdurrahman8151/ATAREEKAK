@@ -19,14 +19,15 @@ class ComplaintControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $user;
+    private User $user;
+
     private string $token;
 
     protected function setUp(): void
     {
         parent::setUp();
         Storage::fake('public');
-        $this->user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user = User::factory()->create(['password' => bcrypt('password123')]);
         $this->token = $this->getToken($this->user);
     }
 
@@ -53,9 +54,9 @@ class ComplaintControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
-                'title'       => 'Driver was very rude',
+                'title' => 'Driver was very rude',
                 'description' => 'The driver insulted me during the entire trip and refused to follow the agreed route.',
-                'type'        => ComplaintType::DRIVER_BEHAVIOR->value,
+                'type' => ComplaintType::DRIVER_BEHAVIOR->value,
             ])
             ->assertStatus(201)
             ->assertJsonPath('status', 'success');
@@ -65,14 +66,14 @@ class ComplaintControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
-                'title'       => 'Payment issue',
+                'title' => 'Payment issue',
                 'description' => 'I was charged twice for the same ride and require an immediate refund.',
-                'type'        => ComplaintType::FINANCIAL_ISSUE->value,
+                'type' => ComplaintType::FINANCIAL_ISSUE->value,
             ]);
 
         $this->assertDatabaseHas('complaints', [
             'user_id' => $this->user->id,
-            'title'   => 'Payment issue',
+            'title' => 'Payment issue',
         ]);
     }
 
@@ -80,14 +81,14 @@ class ComplaintControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
-                'title'       => 'Test complaint',
+                'title' => 'Test complaint',
                 'description' => 'Detailed description of the issue that occurred during my trip.',
-                'type'        => ComplaintType::OTHER->value,
+                'type' => ComplaintType::OTHER->value,
             ]);
 
         $this->assertDatabaseHas('complaints', [
             'user_id' => $this->user->id,
-            'status'  => ComplaintStatus::PENDING->value,
+            'status' => ComplaintStatus::PENDING->value,
         ]);
     }
 
@@ -95,9 +96,9 @@ class ComplaintControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
-                'title'       => 'Trip safety issue',
+                'title' => 'Trip safety issue',
                 'description' => 'The driver was speeding excessively throughout the trip without any warning.',
-                'type'        => ComplaintType::TRIP_SAFETY->value,
+                'type' => ComplaintType::TRIP_SAFETY->value,
             ])
             ->assertStatus(201)
             ->assertJsonStructure(['status', 'message', 'complaint']);
@@ -108,7 +109,7 @@ class ComplaintControllerTest extends TestCase
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
                 'description' => 'Description without a title',
-                'type'        => ComplaintType::OTHER->value,
+                'type' => ComplaintType::OTHER->value,
             ])
             ->assertStatus(422);
     }
@@ -118,7 +119,7 @@ class ComplaintControllerTest extends TestCase
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
                 'title' => 'Title with no description',
-                'type'  => ComplaintType::OTHER->value,
+                'type' => ComplaintType::OTHER->value,
             ])
             ->assertStatus(422);
     }
@@ -127,7 +128,7 @@ class ComplaintControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
-                'title'       => 'Valid title here',
+                'title' => 'Valid title here',
                 'description' => 'Valid description here that is long enough.',
             ])
             ->assertStatus(422);
@@ -137,9 +138,9 @@ class ComplaintControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/complaints', [
-                'title'       => 'Valid title',
+                'title' => 'Valid title',
                 'description' => 'Valid description.',
-                'type'        => 'not_a_real_type',
+                'type' => 'not_a_real_type',
             ])
             ->assertStatus(422);
     }
@@ -149,9 +150,9 @@ class ComplaintControllerTest extends TestCase
         foreach (ComplaintType::cases() as $type) {
             $response = $this->withToken($this->token)
                 ->postJson('/api/complaints', [
-                    'title'       => "Complaint type: {$type->name}",
+                    'title' => "Complaint type: {$type->name}",
                     'description' => 'Detailed description of the issue provided for testing purposes.',
-                    'type'        => $type->value,
+                    'type' => $type->value,
                 ]);
 
             $this->assertEquals(201, $response->status(), "Failed for type: {$type->value}");
@@ -162,10 +163,10 @@ class ComplaintControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->post('/api/complaints', [
-                'title'           => 'Complaint with attachment',
-                'description'     => 'Here is evidence attached as a file for this complaint.',
-                'type'            => ComplaintType::TRIP_SAFETY->value,
-                'attachments'     => [UploadedFile::fake()->image('evidence.jpg')],
+                'title' => 'Complaint with attachment',
+                'description' => 'Here is evidence attached as a file for this complaint.',
+                'type' => ComplaintType::TRIP_SAFETY->value,
+                'attachments' => [UploadedFile::fake()->image('evidence.jpg')],
             ], ['Accept' => 'application/json'])
             ->assertStatus(201);
     }
@@ -176,9 +177,9 @@ class ComplaintControllerTest extends TestCase
 
         $this->withToken($this->token)
             ->post('/api/complaints', [
-                'title'       => 'Too many attachments',
+                'title' => 'Too many attachments',
                 'description' => 'Description here.',
-                'type'        => ComplaintType::OTHER->value,
+                'type' => ComplaintType::OTHER->value,
                 'attachments' => $files,
             ], ['Accept' => 'application/json'])
             ->assertStatus(422);
@@ -241,7 +242,7 @@ class ComplaintControllerTest extends TestCase
 
     public function test_user_cannot_view_another_users_complaint(): void
     {
-        $other     = User::factory()->create();
+        $other = User::factory()->create();
         $complaint = Complaint::create($this->complaint(['user_id' => $other->id]));
 
         $this->withToken($this->token)
@@ -261,18 +262,18 @@ class ComplaintControllerTest extends TestCase
     private function complaint(array $overrides = []): array
     {
         return array_merge([
-            'user_id'     => $this->user->id,
-            'title'       => 'Default complaint title',
+            'user_id' => $this->user->id,
+            'title' => 'Default complaint title',
             'description' => 'Default complaint description for testing.',
-            'type'        => ComplaintType::OTHER->value,
-            'status'      => ComplaintStatus::PENDING->value,
+            'type' => ComplaintType::OTHER->value,
+            'status' => ComplaintStatus::PENDING->value,
         ], $overrides);
     }
 
     private function getToken(User $user): string
     {
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }

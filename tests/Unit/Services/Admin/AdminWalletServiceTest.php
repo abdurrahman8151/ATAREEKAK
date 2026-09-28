@@ -7,8 +7,10 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\Admin\AdminWalletService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AdminWalletServiceTest extends TestCase
@@ -16,35 +18,37 @@ class AdminWalletServiceTest extends TestCase
     use RefreshDatabase;
 
     private AdminWalletService $service;
+
     private array $primaryConfig;
+
     private array $sycashConfig;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->service = new AdminWalletService();
+        $this->service = new AdminWalletService;
 
         $this->primaryConfig = [
-            'email'         => 'primary@admin.test',
-            'password'      => 'primary_pass',
-            'first_name'    => 'Primary',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000001',
-            'type'          => 'system_admin',
+            'email' => 'primary@admin.test',
+            'password' => 'primary_pass',
+            'first_name' => 'Primary',
+            'last_name' => 'Admin',
+            'phone' => '0910000001',
+            'type' => 'system_admin',
             'wallet_prefix' => 'PRIM',
-            'permissions'   => ['*'],
+            'permissions' => ['*'],
         ];
 
         $this->sycashConfig = [
-            'email'         => 'sycash@admin.test',
-            'password'      => 'sycash_pass',
-            'first_name'    => 'SyCash',
-            'last_name'     => 'Admin',
-            'phone'         => '0910000002',
-            'type'          => 'sycash',
+            'email' => 'sycash@admin.test',
+            'password' => 'sycash_pass',
+            'first_name' => 'SyCash',
+            'last_name' => 'Admin',
+            'phone' => '0910000002',
+            'type' => 'sycash',
             'wallet_prefix' => 'SYCSH',
-            'permissions'   => ['view_wallet'],
+            'permissions' => ['view_wallet'],
         ];
 
         // FIX: config key is admin.system_admin in the real app, not admin.primary
@@ -63,11 +67,11 @@ class AdminWalletServiceTest extends TestCase
             ['email' => $cfg['email']],
             [
                 'first_name' => $cfg['first_name'],
-                'last_name'  => $cfg['last_name'],
-                'password'   => bcrypt($cfg['password']),
-                'gender'     => 'M',
-                'address'    => 'دمشق',
-                'status'     => 1,
+                'last_name' => $cfg['last_name'],
+                'password' => bcrypt($cfg['password']),
+                'gender' => 'M',
+                'address' => 'دمشق',
+                'status' => 1,
             ]
         );
 
@@ -82,7 +86,7 @@ class AdminWalletServiceTest extends TestCase
             ]
         );
 
-        if (!$user->wallet_id) {
+        if (! $user->wallet_id) {
             $user->update(['wallet_id' => $wallet->id]);
         }
 
@@ -100,7 +104,7 @@ class AdminWalletServiceTest extends TestCase
 
     public function test_get_or_create_wallet_returns_same_wallet_on_repeat_calls(): void
     {
-        $first  = $this->service->getOrCreateWallet($this->primaryConfig);
+        $first = $this->service->getOrCreateWallet($this->primaryConfig);
         $second = $this->service->getOrCreateWallet($this->primaryConfig);
 
         $this->assertEquals($first->id, $second->id);
@@ -120,7 +124,7 @@ class AdminWalletServiceTest extends TestCase
         $unseededConfig = [
             'email' => 'ghost@admin.test',
             'phone' => '0999999999',
-            'type'  => 'ghost',
+            'type' => 'ghost',
         ];
 
         $this->expectException(\RuntimeException::class);
@@ -150,10 +154,10 @@ class AdminWalletServiceTest extends TestCase
             $this->primaryConfig
         );
 
-        $this->assertArrayHasKey('wallet',           $result);
-        $this->assertArrayHasKey('transaction',      $result);
+        $this->assertArrayHasKey('wallet', $result);
+        $this->assertArrayHasKey('transaction', $result);
         $this->assertArrayHasKey('previous_balance', $result);
-        $this->assertArrayHasKey('new_balance',      $result);
+        $this->assertArrayHasKey('new_balance', $result);
     }
 
     public function test_charge_wallet_creates_transaction_record(): void
@@ -164,8 +168,8 @@ class AdminWalletServiceTest extends TestCase
 
         $this->assertDatabaseHas('wallet_transactions', [
             'wallet_id' => $wallet->id,
-            'type'      => 'admin_credit',
-            'amount'    => 300,
+            'type' => 'admin_credit',
+            'amount' => 300,
         ]);
     }
 
@@ -186,7 +190,7 @@ class AdminWalletServiceTest extends TestCase
 
     public function test_charge_wallet_throws_when_phone_not_found(): void
     {
-        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->expectException(ModelNotFoundException::class);
         $this->service->chargeWallet('0000000000', Money::from(100), $this->primaryConfig);
     }
 
@@ -204,12 +208,12 @@ class AdminWalletServiceTest extends TestCase
         $wallets = $this->service->getAdminWallets();
 
         foreach ($wallets as $wallet) {
-            $this->assertArrayHasKey('id',            $wallet);
+            $this->assertArrayHasKey('id', $wallet);
             $this->assertArrayHasKey('wallet_number', $wallet);
-            $this->assertArrayHasKey('phone_number',  $wallet);
-            $this->assertArrayHasKey('balance',       $wallet);
-            $this->assertArrayHasKey('name',          $wallet); // was 'owner'
-            $this->assertArrayHasKey('admin_type',    $wallet);
+            $this->assertArrayHasKey('phone_number', $wallet);
+            $this->assertArrayHasKey('balance', $wallet);
+            $this->assertArrayHasKey('name', $wallet); // was 'owner'
+            $this->assertArrayHasKey('admin_type', $wallet);
         }
     }
 
@@ -220,14 +224,14 @@ class AdminWalletServiceTest extends TestCase
 
         $result = $this->service->getWalletTransactions($wallet->id);
 
-        $this->assertArrayHasKey('wallet',       $result);
+        $this->assertArrayHasKey('wallet', $result);
         $this->assertArrayHasKey('transactions', $result);
         $this->assertEquals($wallet->id, $result['wallet']->id);
     }
 
     public function test_get_wallet_transactions_throws_for_nonexistent_wallet(): void
     {
-        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->expectException(ModelNotFoundException::class);
         $this->service->getWalletTransactions(999999);
     }
 
@@ -237,22 +241,22 @@ class AdminWalletServiceTest extends TestCase
 
         for ($i = 0; $i < 15; $i++) {
             WalletTransaction::create([
-                'wallet_id'        => $wallet->id,
-                'user_id'          => $wallet->user_id,
-                'type'             => 'admin_credit',
-                'amount'           => 10,
+                'wallet_id' => $wallet->id,
+                'user_id' => $wallet->user_id,
+                'type' => 'admin_credit',
+                'amount' => 10,
                 'previous_balance' => 0,
-                'new_balance'      => 10,
-                'description'      => "Transaction {$i}",
-                'transaction_id'   => "TEST_{$i}_" . uniqid(),
-                'status'           => 'completed',
+                'new_balance' => 10,
+                'description' => "Transaction {$i}",
+                'transaction_id' => "TEST_{$i}_".uniqid(),
+                'status' => 'completed',
             ]);
         }
 
-        $result5  = $this->service->getWalletTransactions($wallet->id, 5);
+        $result5 = $this->service->getWalletTransactions($wallet->id, 5);
         $result10 = $this->service->getWalletTransactions($wallet->id, 10);
 
-        $this->assertEquals(5,  $result5['transactions']->perPage());
+        $this->assertEquals(5, $result5['transactions']->perPage());
         $this->assertEquals(10, $result10['transactions']->perPage());
     }
 
@@ -276,12 +280,12 @@ class AdminWalletServiceTest extends TestCase
 
         $this->assertNotEmpty($wallets);
         foreach ($wallets as $wallet) {
-            $this->assertArrayHasKey('id',            $wallet);
+            $this->assertArrayHasKey('id', $wallet);
             $this->assertArrayHasKey('wallet_number', $wallet);
-            $this->assertArrayHasKey('phone_number',  $wallet);
-            $this->assertArrayHasKey('balance',       $wallet);
-            $this->assertArrayHasKey('owner',         $wallet);
-            $this->assertArrayHasKey('created_at',    $wallet);
+            $this->assertArrayHasKey('phone_number', $wallet);
+            $this->assertArrayHasKey('balance', $wallet);
+            $this->assertArrayHasKey('owner', $wallet);
+            $this->assertArrayHasKey('created_at', $wallet);
         }
     }
 
@@ -290,13 +294,13 @@ class AdminWalletServiceTest extends TestCase
         $w1 = $this->createUserWallet('0911111141', 0);
         $w2 = $this->createUserWallet('0911111142', 0);
 
-        \Illuminate\Support\Facades\DB::table('wallets')
+        DB::table('wallets')
             ->where('id', $w1->id)
             ->update(['created_at' => now()->subDay()]);
 
         $wallets = $this->service->getAllWallets();
 
-        $ids   = array_column($wallets, 'id');
+        $ids = array_column($wallets, 'id');
         $posW1 = array_search($w1->id, $ids);
         $posW2 = array_search($w2->id, $ids);
 
@@ -311,10 +315,10 @@ class AdminWalletServiceTest extends TestCase
         $user = User::factory()->create(['password' => bcrypt('password123')]);
 
         $wallet = Wallet::create([
-            'user_id'       => $user->id,
-            'phone_number'  => $phone,
-            'wallet_number' => 'WLT' . rand(1000000, 9999999),
-            'balance'       => $balance,
+            'user_id' => $user->id,
+            'phone_number' => $phone,
+            'wallet_number' => 'WLT'.rand(1000000, 9999999),
+            'balance' => $balance,
         ]);
 
         $user->update(['wallet_id' => $wallet->id]);

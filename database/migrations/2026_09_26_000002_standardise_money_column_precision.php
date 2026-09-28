@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     private const TARGET_SCALE = 2;
+
     private const TARGET_PRECISION = 15;
 
     /** table => columns that hold money */

@@ -21,14 +21,14 @@ final class CashPaymentStrategy implements PaymentStrategy
 
     public function processBookingPayment(
         Booking $booking,
-        Ride    $ride,
-        User    $passenger,
+        Ride $ride,
+        User $passenger,
     ): PaymentResult {
         Log::info('Cash booking recorded – payment will be collected offline', [
-            'booking_id'   => $booking->id,
-            'ride_id'      => $ride->id,
+            'booking_id' => $booking->id,
+            'ride_id' => $ride->id,
             'passenger_id' => $passenger->id,
-            'amount'       => $booking->seats * $ride->price_per_seat,
+            'amount' => $booking->seats * $ride->price_per_seat,
         ]);
 
         return PaymentResult::success('Cash payment will be collected offline');
@@ -43,13 +43,13 @@ final class CashPaymentStrategy implements PaymentStrategy
      */
     public function processRideCompletionPayment(
         Booking $booking,
-        Ride    $ride,
-        User    $driver,
+        Ride $ride,
+        User $driver,
     ): PaymentResult {
         Log::info('Cash ride completion acknowledged – no digital transfer required', [
             'booking_id' => $booking->id,
-            'ride_id'    => $ride->id,
-            'driver_id'  => $driver->id,
+            'ride_id' => $ride->id,
+            'driver_id' => $driver->id,
         ]);
 
         return PaymentResult::success('Cash ride completed – no digital transfer required');
@@ -59,11 +59,11 @@ final class CashPaymentStrategy implements PaymentStrategy
 
     public function processRefund(
         Booking $booking,
-        Ride    $ride,
-        User    $passenger,
+        Ride $ride,
+        User $passenger,
     ): RefundResult {
         Log::info('Cash refund recorded – will be processed offline', [
-            'booking_id'   => $booking->id,
+            'booking_id' => $booking->id,
             'passenger_id' => $passenger->id,
         ]);
 

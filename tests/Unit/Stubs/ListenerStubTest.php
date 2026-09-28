@@ -11,10 +11,9 @@ use App\Listeners\SendRideBookedNotification;
 use App\Listeners\SendRideCancelledNotification;
 use App\Listeners\SendUserVerifiedNotification;
 use App\Models\User;
+use App\Models\UserNotification;
 use App\Models\UserRating;
-use App\Models\Notification;
 use App\Services\NotificationService;
-use App\Services\PushNotification\PushNotificationService;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 
@@ -28,7 +27,7 @@ class ListenerStubTest extends TestCase
 {
     public function test_send_message_notification_listener_can_be_instantiated(): void
     {
-        $listener = new SendMessageNotification();
+        $listener = new SendMessageNotification;
         $this->assertInstanceOf(SendMessageNotification::class, $listener);
     }
 
@@ -39,7 +38,7 @@ class ListenerStubTest extends TestCase
 
     public function test_send_otp_notification_listener_can_be_instantiated(): void
     {
-        $listener = new SendOtpNotification();
+        $listener = new SendOtpNotification;
         $this->assertInstanceOf(SendOtpNotification::class, $listener);
     }
 
@@ -50,7 +49,7 @@ class ListenerStubTest extends TestCase
 
     public function test_send_ride_booked_notification_can_be_instantiated(): void
     {
-        $listener = new SendRideBookedNotification();
+        $listener = new SendRideBookedNotification;
         $this->assertInstanceOf(SendRideBookedNotification::class, $listener);
     }
 
@@ -61,13 +60,13 @@ class ListenerStubTest extends TestCase
 
     public function test_send_ride_cancelled_notification_can_be_instantiated(): void
     {
-        $listener = new SendRideCancelledNotification();
+        $listener = new SendRideCancelledNotification;
         $this->assertInstanceOf(SendRideCancelledNotification::class, $listener);
     }
 
     public function test_send_user_verified_notification_can_be_instantiated(): void
     {
-        $listener = new SendUserVerifiedNotification();
+        $listener = new SendUserVerifiedNotification;
         $this->assertInstanceOf(SendUserVerifiedNotification::class, $listener);
     }
 }
@@ -92,9 +91,9 @@ class JobStubTest extends TestCase
     public function test_send_scheduled_notification_job_can_be_instantiated(): void
     {
         $job = new SendScheduledNotification([
-            'title'   => 'Scheduled',
+            'title' => 'Scheduled',
             'message' => 'Hello',
-            'type'    => 'test',
+            'type' => 'test',
             'user_id' => 1,
         ]);
         $this->assertInstanceOf(SendScheduledNotification::class, $job);
@@ -109,13 +108,13 @@ class JobStubTest extends TestCase
     {
         $notifService = Mockery::mock(NotificationService::class);
         $notifService->shouldReceive('create')->once()->andReturn(
-            new \App\Models\UserNotification()
+            new UserNotification
         );
 
         $job = new SendScheduledNotification([
-            'title'   => 'Test',
+            'title' => 'Test',
             'message' => 'Body',
-            'type'    => 'test',
+            'type' => 'test',
             'user_id' => 1,
         ]);
 
@@ -137,69 +136,70 @@ class UserVerifiedEventTest extends TestCase
     private function makeUser(): User
     {
         $user = Mockery::mock(User::class)->makePartial();
-        $user->id                    = 1;
-        $user->first_name            = 'Ahmad';
-        $user->last_name             = 'Ali';
-        $user->is_verified_driver    = true;
+        $user->id = 1;
+        $user->first_name = 'Ahmad';
+        $user->last_name = 'Ali';
+        $user->is_verified_driver = true;
         $user->is_verified_passenger = true;
+
         return $user;
     }
 
     public function test_user_verified_event_stores_user(): void
     {
-        $user  = $this->makeUser();
+        $user = $this->makeUser();
         $event = new UserVerified($user, 'driver');
         $this->assertSame($user, $event->user);
     }
 
     public function test_user_verified_event_stores_verification_type(): void
     {
-        $user  = $this->makeUser();
+        $user = $this->makeUser();
         $event = new UserVerified($user, 'passenger');
         $this->assertEquals('passenger', $event->verificationType);
     }
 
     public function test_broadcast_on_returns_private_channel(): void
     {
-        $user     = $this->makeUser();
-        $event    = new UserVerified($user, 'driver');
+        $user = $this->makeUser();
+        $event = new UserVerified($user, 'driver');
         $channels = $event->broadcastOn();
         $this->assertNotEmpty($channels);
     }
 
     public function test_broadcast_as_returns_correct_event_name(): void
     {
-        $user  = $this->makeUser();
+        $user = $this->makeUser();
         $event = new UserVerified($user, 'driver');
         $this->assertEquals('user.verified', $event->broadcastAs());
     }
 
     public function test_broadcast_with_contains_required_keys(): void
     {
-        $user  = $this->makeUser();
+        $user = $this->makeUser();
         $event = new UserVerified($user, 'driver');
-        $data  = $event->broadcastWith();
+        $data = $event->broadcastWith();
 
-        $this->assertArrayHasKey('user_id',            $data);
-        $this->assertArrayHasKey('verification_type',  $data);
+        $this->assertArrayHasKey('user_id', $data);
+        $this->assertArrayHasKey('verification_type', $data);
         $this->assertArrayHasKey('is_verified_driver', $data);
-        $this->assertArrayHasKey('message',            $data);
-        $this->assertArrayHasKey('verified_at',        $data);
+        $this->assertArrayHasKey('message', $data);
+        $this->assertArrayHasKey('verified_at', $data);
     }
 
     public function test_driver_verification_message(): void
     {
-        $user  = $this->makeUser();
+        $user = $this->makeUser();
         $event = new UserVerified($user, 'driver');
-        $data  = $event->broadcastWith();
+        $data = $event->broadcastWith();
         $this->assertStringContainsString('driver', strtolower($data['message']));
     }
 
     public function test_passenger_verification_message(): void
     {
-        $user  = $this->makeUser();
+        $user = $this->makeUser();
         $event = new UserVerified($user, 'passenger');
-        $data  = $event->broadcastWith();
+        $data = $event->broadcastWith();
         $this->assertStringContainsString('passenger', strtolower($data['message']));
     }
 
@@ -217,17 +217,17 @@ class UserRatingModelTest extends TestCase
 {
     public function test_fillable_contains_expected_fields(): void
     {
-        $model    = new UserRating();
+        $model = new UserRating;
         $fillable = $model->getFillable();
 
-        $this->assertContains('rater_id',      $fillable);
+        $this->assertContains('rater_id', $fillable);
         $this->assertContains('rated_user_id', $fillable);
-        $this->assertContains('rating',        $fillable);
+        $this->assertContains('rating', $fillable);
     }
 
     public function test_rating_is_cast_to_float(): void
     {
-        $casts = (new UserRating())->getCasts();
+        $casts = (new UserRating)->getCasts();
         $this->assertEquals('float', $casts['rating']);
     }
 

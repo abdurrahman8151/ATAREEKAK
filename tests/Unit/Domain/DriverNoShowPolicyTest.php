@@ -16,7 +16,7 @@ class DriverNoShowPolicyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->policy = new DriverNoShowPolicy();
+        $this->policy = new DriverNoShowPolicy;
     }
 
     // ─── supports() ───────────────────────────────────────────────────────────
@@ -99,8 +99,8 @@ class DriverNoShowPolicyTest extends TestCase
     {
         // No-show is always fixed at -15; cancel rate has no effect.
         $highRate = new UserScore([
-            'score'               => 70,
-            'total_rides'         => 5,
+            'score' => 70,
+            'total_rides' => 5,
             'total_cancellations' => 5,  // 50% cancel rate
         ]);
 
@@ -112,7 +112,7 @@ class DriverNoShowPolicyTest extends TestCase
 
     public function test_penalty_is_identical_regardless_of_cancel_rate(): void
     {
-        $low  = new UserScore(['score' => 70, 'total_rides' => 10, 'total_cancellations' => 0]);
+        $low = new UserScore(['score' => 70, 'total_rides' => 10, 'total_cancellations' => 0]);
         $high = new UserScore(['score' => 70, 'total_rides' => 10, 'total_cancellations' => 9]);
 
         $r1 = $this->policy->calculate(ScoreAction::DRIVER_NO_SHOW, $low);
@@ -142,11 +142,11 @@ class DriverNoShowPolicyTest extends TestCase
     public function test_result_to_array_has_expected_keys(): void
     {
         $result = $this->policy->calculate(ScoreAction::DRIVER_NO_SHOW, $this->makeScore());
-        $array  = $result->toArray();
+        $array = $result->toArray();
 
-        $this->assertArrayHasKey('points',                   $array);
-        $this->assertArrayHasKey('action',                   $array);
-        $this->assertArrayHasKey('reason',                   $array);
+        $this->assertArrayHasKey('points', $array);
+        $this->assertArrayHasKey('action', $array);
+        $this->assertArrayHasKey('reason', $array);
         $this->assertArrayHasKey('high_cancel_rate_applied', $array);
     }
 
@@ -155,8 +155,8 @@ class DriverNoShowPolicyTest extends TestCase
     private function makeScore(int $rides = 5, int $cancellations = 1): UserScore
     {
         return new UserScore([
-            'score'               => 70,
-            'total_rides'         => $rides,
+            'score' => 70,
+            'total_rides' => $rides,
             'total_cancellations' => $cancellations,
         ]);
     }

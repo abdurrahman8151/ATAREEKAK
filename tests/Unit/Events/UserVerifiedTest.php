@@ -12,8 +12,10 @@ class UserVerifiedTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User        $user;
+    private User $user;
+
     private UserVerified $driverEvent;
+
     private UserVerified $passengerEvent;
 
     protected function setUp(): void
@@ -21,11 +23,11 @@ class UserVerifiedTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create([
-            'is_verified_driver'    => true,
+            'is_verified_driver' => true,
             'is_verified_passenger' => true,
         ]);
 
-        $this->driverEvent    = new UserVerified($this->user, 'driver');
+        $this->driverEvent = new UserVerified($this->user, 'driver');
         $this->passengerEvent = new UserVerified($this->user, 'passenger');
     }
 
@@ -52,11 +54,11 @@ class UserVerifiedTest extends TestCase
     {
         $data = $this->driverEvent->broadcastWith();
 
-        $this->assertArrayHasKey('user_id',            $data);
-        $this->assertArrayHasKey('verification_type',  $data);
+        $this->assertArrayHasKey('user_id', $data);
+        $this->assertArrayHasKey('verification_type', $data);
         $this->assertArrayHasKey('is_verified_driver', $data);
-        $this->assertArrayHasKey('message',            $data);
-        $this->assertArrayHasKey('verified_at',        $data);
+        $this->assertArrayHasKey('message', $data);
+        $this->assertArrayHasKey('verified_at', $data);
     }
 
     public function test_broadcast_with_has_correct_user_id(): void
@@ -80,7 +82,7 @@ class UserVerifiedTest extends TestCase
     public function test_unknown_type_returns_generic_message(): void
     {
         $event = new UserVerified($this->user, 'unknown');
-        $data  = $event->broadcastWith();
+        $data = $event->broadcastWith();
 
         $this->assertIsString($data['message']);
         $this->assertNotEmpty($data['message']);

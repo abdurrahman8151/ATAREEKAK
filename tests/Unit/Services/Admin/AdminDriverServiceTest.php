@@ -46,13 +46,14 @@ class AdminDriverServiceTest extends TestCase
     use RefreshDatabase;
 
     private AdminDriverService $service;
+
     private Carbon $frozenNow;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->service = new AdminDriverService();
+        $this->service = new AdminDriverService;
 
         Config::set('admin.system_admin.email', 'no-admin-configured@test.invalid');
 
@@ -220,9 +221,9 @@ class AdminDriverServiceTest extends TestCase
 
     public function test_get_stats_average_rating_only_includes_verified_drivers(): void
     {
-        $verified   = $this->makeUser(['is_verified_driver' => true]);
+        $verified = $this->makeUser(['is_verified_driver' => true]);
         $unverified = $this->makeUser(['is_verified_driver' => false]);
-        $rater      = $this->makeUser();
+        $rater = $this->makeUser();
 
         $this->rate($rater, $verified, 5.0);
         $this->rate($rater, $unverified, 1.0);
@@ -294,7 +295,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_drivers_verified_filter_excludes_pending_applicants(): void
     {
         $verified = $this->makeUser(['is_verified_driver' => true]);
-        $pending  = $this->makeUser(['verification_status' => 'pending']);
+        $pending = $this->makeUser(['verification_status' => 'pending']);
         $this->attachDriverDocs($pending);
 
         $result = $this->service->getDrivers('verified');
@@ -436,7 +437,7 @@ class AdminDriverServiceTest extends TestCase
         $formatted = $this->service->formatDriver($this->reloadDriver($driver->id));
 
         $this->assertEquals($driver->id, $formatted['id']);
-        $this->assertEquals('#DR-' . $driver->id, $formatted['driver_ref']);
+        $this->assertEquals('#DR-'.$driver->id, $formatted['driver_ref']);
     }
 
     public function test_format_driver_trims_full_name(): void
@@ -543,11 +544,11 @@ class AdminDriverServiceTest extends TestCase
     public static function driverStatusProvider(): array
     {
         return [
-            'verified'                       => [['is_verified_driver' => true, 'status' => 1], 'verified'],
-            'pending'                        => [['verification_status' => 'pending', 'status' => 1], 'pending'],
-            'rejected'                       => [['verification_status' => 'rejected', 'status' => 1], 'rejected'],
-            'unverified (status none)'      => [['verification_status' => 'none', 'status' => 1], 'unverified'],
-            'suspended overrides verified'  => [['is_verified_driver' => true, 'status' => 0], 'suspended'],
+            'verified' => [['is_verified_driver' => true, 'status' => 1], 'verified'],
+            'pending' => [['verification_status' => 'pending', 'status' => 1], 'pending'],
+            'rejected' => [['verification_status' => 'rejected', 'status' => 1], 'rejected'],
+            'unverified (status none)' => [['verification_status' => 'none', 'status' => 1], 'unverified'],
+            'suspended overrides verified' => [['is_verified_driver' => true, 'status' => 0], 'suspended'],
         ];
     }
 
@@ -616,10 +617,10 @@ class AdminDriverServiceTest extends TestCase
         $profile = $this->service->getDriverProfile($driver->id);
 
         foreach ([
-                     'id', 'driver_ref', 'full_name', 'email', 'profile_photo', 'phone', 'address', 'gender',
-                     'verification_status', 'is_verified_driver', 'status', 'joined_at', 'vehicle',
-                     'documents', 'rating', 'stats', 'recent_rides',
-                 ] as $key) {
+            'id', 'driver_ref', 'full_name', 'email', 'profile_photo', 'phone', 'address', 'gender',
+            'verification_status', 'is_verified_driver', 'status', 'joined_at', 'vehicle',
+            'documents', 'rating', 'stats', 'recent_rides',
+        ] as $key) {
             $this->assertArrayHasKey($key, $profile, "Missing key: {$key}");
         }
     }
@@ -628,15 +629,15 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser([
             'first_name' => 'Zaid',
-            'last_name'  => 'Alzoubi',
-            'email'      => 'zaid@example.com',
-            'gender'     => 'M',
-            'address'    => 'دمشق',
+            'last_name' => 'Alzoubi',
+            'email' => 'zaid@example.com',
+            'gender' => 'M',
+            'address' => 'دمشق',
         ]);
 
         $profile = $this->service->getDriverProfile($driver->id);
 
-        $this->assertEquals('#DR-' . $driver->id, $profile['driver_ref']);
+        $this->assertEquals('#DR-'.$driver->id, $profile['driver_ref']);
         $this->assertEquals('Zaid Alzoubi', $profile['full_name']);
         $this->assertEquals('zaid@example.com', $profile['email']);
         $this->assertEquals('M', $profile['gender']);
@@ -687,10 +688,10 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         $driver->profile->update([
-            'type_of_car'     => 'Kia Sportage',
-            'color_of_car'    => 'Black',
+            'type_of_car' => 'Kia Sportage',
+            'color_of_car' => 'Black',
             'number_of_seats' => 4,
-            'car_pic'         => 'cars/kia.jpg',
+            'car_pic' => 'cars/kia.jpg',
         ]);
 
         $vehicle = $this->service->getDriverProfile($driver->id)['vehicle'];
@@ -767,8 +768,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_recent_rides_ordered_newest_first(): void
     {
         $driver = $this->makeUser();
-        $older  = $this->insertRide($driver->id, ['created_at' => now()->subDays(2)]);
-        $newer  = $this->insertRide($driver->id, ['created_at' => now()]);
+        $older = $this->insertRide($driver->id, ['created_at' => now()->subDays(2)]);
+        $newer = $this->insertRide($driver->id, ['created_at' => now()]);
 
         $recentRides = $this->service->getDriverProfile($driver->id)['recent_rides'];
 
@@ -780,9 +781,9 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         $this->insertRide($driver->id, [
-            'pickup_address'      => 'Damascus',
+            'pickup_address' => 'Damascus',
             'destination_address' => 'Aleppo',
-            'status'              => 'active',
+            'status' => 'active',
         ]);
 
         $ride = $this->service->getDriverProfile($driver->id)['recent_rides'][0];
@@ -797,7 +798,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_recent_rides_include_booking_counts(): void
     {
         $driver = $this->makeUser();
-        $ride   = $this->insertRide($driver->id);
+        $ride = $this->insertRide($driver->id);
         $this->makeBooking($ride, $this->makeUser(), 1, 'confirmed');
         $this->makeBooking($ride, $this->makeUser(), 1, 'confirmed');
 
@@ -822,10 +823,10 @@ class AdminDriverServiceTest extends TestCase
         $dashboard = $this->service->getDriverDashboard($driver->id);
 
         foreach ([
-                     'id', 'driver_ref', 'full_name', 'email', 'phone', 'gender', 'address', 'joined_at',
-                     'status', 'is_verified', 'verification_status', 'profile_photo', 'rating', 'stats',
-                     'vehicle', 'documents', 'recent_rides', 'favorite_destination',
-                 ] as $key) {
+            'id', 'driver_ref', 'full_name', 'email', 'phone', 'gender', 'address', 'joined_at',
+            'status', 'is_verified', 'verification_status', 'profile_photo', 'rating', 'stats',
+            'vehicle', 'documents', 'recent_rides', 'favorite_destination',
+        ] as $key) {
             $this->assertArrayHasKey($key, $dashboard, "Missing key: {$key}");
         }
     }
@@ -849,7 +850,7 @@ class AdminDriverServiceTest extends TestCase
 
         $dashboard = $this->service->getDriverDashboard($driver->id);
 
-        $this->assertEquals('#DR-' . $driver->id, $dashboard['driver_ref']);
+        $this->assertEquals('#DR-'.$driver->id, $dashboard['driver_ref']);
         $this->assertEquals('Zaid Alzoubi', $dashboard['full_name']);
         $this->assertEquals('zaid@example.com', $dashboard['email']);
     }
@@ -951,7 +952,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_earnings_is_zero_without_completed_bookings(): void
     {
         $driver = $this->makeUser();
-        $ride   = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
+        $ride = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
         $this->makeBooking($ride, $this->makeUser(), 2, 'confirmed'); // not completed
 
         $this->assertEquals(0.0, $this->service->getDriverDashboard($driver->id)['stats']['total_earnings']);
@@ -960,7 +961,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_earnings_applies_five_percent_commission(): void
     {
         $driver = $this->makeUser();
-        $ride   = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
+        $ride = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
         $this->makeBooking($ride, $this->makeUser(), 2, 'completed');
         // 2 seats * 50000 * 0.95 = 95000
 
@@ -970,8 +971,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_earnings_sum_across_multiple_completed_bookings(): void
     {
         $driver = $this->makeUser();
-        $ride1  = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
-        $ride2  = $this->insertRide($driver->id, ['price_per_seat' => 20000]);
+        $ride1 = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
+        $ride2 = $this->insertRide($driver->id, ['price_per_seat' => 20000]);
         $this->makeBooking($ride1, $this->makeUser(), 1, 'completed'); // 47500
         $this->makeBooking($ride2, $this->makeUser(), 3, 'completed'); // 57000
 
@@ -980,10 +981,10 @@ class AdminDriverServiceTest extends TestCase
 
     public function test_get_driver_dashboard_earnings_ignores_other_drivers_rides(): void
     {
-        $driver      = $this->makeUser();
+        $driver = $this->makeUser();
         $otherDriver = $this->makeUser();
-        $ownRide     = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
-        $otherRide   = $this->insertRide($otherDriver->id, ['price_per_seat' => 50000]);
+        $ownRide = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
+        $otherRide = $this->insertRide($otherDriver->id, ['price_per_seat' => 50000]);
 
         $this->makeBooking($ownRide, $this->makeUser(), 1, 'completed');
         $this->makeBooking($otherRide, $this->makeUser(), 1, 'completed');
@@ -1004,8 +1005,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_recent_rides_ordered_newest_first(): void
     {
         $driver = $this->makeUser();
-        $older  = $this->insertRide($driver->id, ['created_at' => now()->subDays(2)]);
-        $newer  = $this->insertRide($driver->id, ['created_at' => now()]);
+        $older = $this->insertRide($driver->id, ['created_at' => now()->subDays(2)]);
+        $newer = $this->insertRide($driver->id, ['created_at' => now()]);
 
         $recentRides = $this->service->getDriverDashboard($driver->id)['recent_rides'];
 
@@ -1017,9 +1018,9 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         $this->insertRide($driver->id, [
-            'pickup_address'      => 'Damascus',
+            'pickup_address' => 'Damascus',
             'destination_address' => 'Aleppo',
-            'price_per_seat'      => 30000,
+            'price_per_seat' => 30000,
         ]);
 
         $ride = $this->service->getDriverDashboard($driver->id)['recent_rides'][0];
@@ -1078,10 +1079,10 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         $driver->profile->update([
-            'type_of_car'     => 'Hyundai Elantra',
-            'color_of_car'    => 'Silver',
+            'type_of_car' => 'Hyundai Elantra',
+            'color_of_car' => 'Silver',
             'number_of_seats' => 4,
-            'car_pic'         => 'cars/hyundai.jpg',
+            'car_pic' => 'cars/hyundai.jpg',
         ]);
 
         $vehicle = $this->service->getDriverDashboard($driver->id)['vehicle'];
@@ -1135,10 +1136,10 @@ class AdminDriverServiceTest extends TestCase
         string $expectedMessageFragment
     ): void {
         $applicant = $this->makeUser([
-            'first_name'          => 'Zaid',
-            'last_name'           => 'Alzoubi',
+            'first_name' => 'Zaid',
+            'last_name' => 'Alzoubi',
             'verification_status' => $status,
-            'is_verified_driver'  => $status === 'approved',
+            'is_verified_driver' => $status === 'approved',
         ]);
         $this->attachDriverDocs($applicant);
 
@@ -1155,7 +1156,7 @@ class AdminDriverServiceTest extends TestCase
     public static function verificationEventProvider(): array
     {
         return [
-            'pending'  => ['pending',  'verification_pending',  'clock', 'blue',  'Zaid Alzoubi', 'submitted by'],
+            'pending' => ['pending',  'verification_pending',  'clock', 'blue',  'Zaid Alzoubi', 'submitted by'],
             'approved' => ['approved', 'verification_approved', 'check', 'green', 'Admin',         'accepted'],
             'rejected' => ['rejected', 'verification_rejected', 'x',     'red',   'Admin',         'rejected'],
         ];
@@ -1522,9 +1523,9 @@ class AdminDriverServiceTest extends TestCase
     private function rate(User $rater, User $rated, float $rating): UserRating
     {
         return UserRating::create([
-            'rater_id'      => $rater->id,
+            'rater_id' => $rater->id,
             'rated_user_id' => $rated->id,
-            'rating'        => $rating,
+            'rating' => $rating,
         ]);
     }
 
@@ -1541,18 +1542,18 @@ class AdminDriverServiceTest extends TestCase
      */
     private function insertRide(int $driverId, array $overrides = []): Ride
     {
-        $status              = $overrides['status']              ?? 'active';
-        $pickupAddress       = $overrides['pickup_address']       ?? 'دمشق';
-        $destinationAddress  = $overrides['destination_address']  ?? 'حلب';
-        $pricePerSeat        = $overrides['price_per_seat']       ?? 50000;
+        $status = $overrides['status'] ?? 'active';
+        $pickupAddress = $overrides['pickup_address'] ?? 'دمشق';
+        $destinationAddress = $overrides['destination_address'] ?? 'حلب';
+        $pricePerSeat = $overrides['price_per_seat'] ?? 50000;
         $communicationNumber = array_key_exists('communication_number', $overrides)
             ? $overrides['communication_number']
             : '0912345678';
         $departureTime = $overrides['departure_time'] ?? now()->addHours(3);
-        $createdAt     = $overrides['created_at']     ?? now();
+        $createdAt = $overrides['created_at'] ?? now();
 
         $departureStr = $departureTime instanceof Carbon ? $departureTime->format('Y-m-d H:i:s') : $departureTime;
-        $createdStr   = $createdAt instanceof Carbon ? $createdAt->format('Y-m-d H:i:s') : $createdAt;
+        $createdStr = $createdAt instanceof Carbon ? $createdAt->format('Y-m-d H:i:s') : $createdAt;
 
         DB::statement("
             INSERT INTO rides (
@@ -1581,10 +1582,10 @@ class AdminDriverServiceTest extends TestCase
     private function makeBooking(Ride $ride, User $passenger, int $seats = 1, string $status = 'completed'): Booking
     {
         return Booking::create([
-            'user_id'              => $passenger->id,
-            'ride_id'              => $ride->id,
-            'seats'                => $seats,
-            'status'               => $status,
+            'user_id' => $passenger->id,
+            'ride_id' => $ride->id,
+            'seats' => $seats,
+            'status' => $status,
             'communication_number' => '0911111111',
         ]);
     }

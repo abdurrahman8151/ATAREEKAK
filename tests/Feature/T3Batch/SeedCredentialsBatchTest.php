@@ -3,7 +3,6 @@
 namespace Tests\Feature\T3Batch;
 
 use Database\Seeders\ResolvesSeedCredentials;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -22,6 +21,7 @@ class SeedCredentialsBatchTest extends TestCase
         foreach ($paths as $rel) {
             $out[$rel] = (string) file_get_contents(base_path($rel));
         }
+
         return $out;
     }
 
@@ -58,7 +58,7 @@ class SeedCredentialsBatchTest extends TestCase
             foreach ($literals as $lit) {
                 // match it only in a Hash::make(...) / quoted-password position
                 $this->assertFalse(
-                    (bool) preg_match("/Hash::make\(\s*'[^']*" . preg_quote($lit, '/') . "[^']*'\s*\)/", $src),
+                    (bool) preg_match("/Hash::make\(\s*'[^']*".preg_quote($lit, '/')."[^']*'\s*\)/", $src),
                     "$rel still hashes the committed literal '$lit'"
                 );
             }
@@ -116,10 +116,10 @@ class SeedCredentialsBatchTest extends TestCase
         putenv('T39_TEST_PW'); // unset
         $resolver = $this->resolver();
 
-        $a = $resolver('T39_UNSET_KEY_' . uniqid());
+        $a = $resolver('T39_UNSET_KEY_'.uniqid());
         $b = $resolver('T39_UNSET_KEY_SAME');
         // two calls with the SAME key must memoise to the same value:
-        $k = 'T39_MEMO_' . uniqid();
+        $k = 'T39_MEMO_'.uniqid();
         $this->assertSame($resolver($k), $resolver($k), 'per-process memoisation');
         $this->assertNotSame($a, $b, 'different keys must not share a value');
         $this->assertMatchesRegularExpression('/.{16}#\d{2}$/', $a, 'generated shape: 16 random chars + #NN');
@@ -128,20 +128,23 @@ class SeedCredentialsBatchTest extends TestCase
     public function test_the_generated_password_never_equals_a_known_literal(): void
     {
         putenv('T39_TEST_PW');
-        $pw = $this->resolver()('T39_RANDOM_' . uniqid());
+        $pw = $this->resolver()('T39_RANDOM_'.uniqid());
         $this->assertFalse(in_array($pw, ['password', 'password123', 'Password@123'], true));
     }
 
     /** @return callable(string):string */
     private function resolver(): callable
     {
-        $seed = new class {
+        $seed = new class
+        {
             use ResolvesSeedCredentials;
+
             public function make(string $key): string
             {
                 return $this->seedPassword($key);
             }
         };
+
         return fn (string $k): string => $seed->make($k);
     }
 }

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Console;
 
-use Illuminate\Support\Facades\Config;
+use App\Console\Commands\JwtSecretCommand;
 use Tests\TestCase;
 
 /**
@@ -63,12 +63,12 @@ class JwtSecretCommandTest extends TestCase
 
     public function test_command_class_exists(): void
     {
-        $this->assertTrue(class_exists(\App\Console\Commands\JwtSecretCommand::class));
+        $this->assertTrue(class_exists(JwtSecretCommand::class));
     }
 
     public function test_command_has_correct_signature(): void
     {
-        $command = new \App\Console\Commands\JwtSecretCommand();
+        $command = new JwtSecretCommand;
 
         $reflection = new \ReflectionProperty($command, 'signature');
         $reflection->setAccessible(true);
@@ -81,7 +81,7 @@ class JwtSecretCommandTest extends TestCase
 
     public function test_command_has_description(): void
     {
-        $command = new \App\Console\Commands\JwtSecretCommand();
+        $command = new JwtSecretCommand;
 
         $reflection = new \ReflectionProperty($command, 'description');
         $reflection->setAccessible(true);

@@ -7,6 +7,7 @@ use App\Http\Resources\ScoreTransactionResource;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\ScoreTransaction;
+use App\Models\UserScore;
 use App\Services\Score\ScoreService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class ScoreController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $data,
+            'data' => $data,
         ]);
     }
 
@@ -45,26 +46,26 @@ class ScoreController extends Controller
     public function history(Request $request): JsonResponse
     {
         $userId = $request->user()->id;
-        $limit  = min((int) $request->get('limit', 20), 50);
+        $limit = min((int) $request->get('limit', 20), 50);
 
         $data = Cache::remember("score.history.{$userId}.{$limit}", 60, function () use ($request, $limit) {
-            return $this->scoreService->getHistory($request->user(), $limit)->map(fn($tx) => [
-                'id'                       => $tx->id,
-                'action'                   => $tx->action,
-                'points'                   => $tx->formatted_points,
-                'previous_score'           => $tx->previous_score,
-                'new_score'                => $tx->new_score,
-                'reason'                   => $tx->reason,
+            return $this->scoreService->getHistory($request->user(), $limit)->map(fn ($tx) => [
+                'id' => $tx->id,
+                'action' => $tx->action,
+                'points' => $tx->formatted_points,
+                'previous_score' => $tx->previous_score,
+                'new_score' => $tx->new_score,
+                'reason' => $tx->reason,
                 'high_cancel_rate_applied' => $tx->high_cancel_rate_applied,
-                'reference_type'           => class_basename($tx->reference_type ?? ''),
-                'reference_id'             => $tx->reference_id,
-                'created_at'               => $tx->created_at->toIso8601String(),
+                'reference_type' => class_basename($tx->reference_type ?? ''),
+                'reference_id' => $tx->reference_id,
+                'created_at' => $tx->created_at->toIso8601String(),
             ])->all();
         });
 
         return response()->json([
             'success' => true,
-            'data'    => $data,
+            'data' => $data,
         ]);
     }
 
@@ -134,12 +135,12 @@ class ScoreController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => ScoreTransactionResource::collection($paginator),
-            'meta'    => [
-                'total'        => $paginator->total(),
-                'per_page'     => $paginator->perPage(),
+            'data' => ScoreTransactionResource::collection($paginator),
+            'meta' => [
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
                 'current_page' => $paginator->currentPage(),
-                'last_page'    => $paginator->lastPage(),
+                'last_page' => $paginator->lastPage(),
             ],
         ]);
     }
@@ -149,16 +150,16 @@ class ScoreController extends Controller
     // =========================================================================
 
     /** Reusable score formatter used by other controllers. */
-    public static function formatScore(\App\Models\UserScore $userScore): array
+    public static function formatScore(UserScore $userScore): array
     {
         return [
-            'score'               => $userScore->score,
-            'tier'                => $userScore->tier,
-            'cancel_rate'         => round($userScore->cancel_rate, 2),
-            'total_rides'         => $userScore->total_rides,
+            'score' => $userScore->score,
+            'tier' => $userScore->tier,
+            'cancel_rate' => round($userScore->cancel_rate, 2),
+            'total_rides' => $userScore->total_rides,
             'total_cancellations' => $userScore->total_cancellations,
-            'can_create_rides'    => $userScore->score >= 50,
-            'can_book_rides'      => $userScore->score >= 40,
+            'can_create_rides' => $userScore->score >= 50,
+            'can_book_rides' => $userScore->score >= 40,
         ];
     }
 
@@ -171,7 +172,7 @@ class ScoreController extends Controller
      *
      * Booking references also eager-load their parent Ride in the same query.
      *
-     * @param ScoreTransaction[] $transactions
+     * @param  ScoreTransaction[]  $transactions
      */
     private function hydrateReferences(array $transactions): void
     {
@@ -183,12 +184,12 @@ class ScoreController extends Controller
                 continue; // transactions with no reference (edge case)
             }
 
-            $ids  = $txGroup->pluck('reference_id')->filter()->unique()->values();
+            $ids = $txGroup->pluck('reference_id')->filter()->unique()->values();
             $type = class_basename($className);
 
             // One query per reference type with any required eager loads
             $models = match ($type) {
-                'Ride'    => Ride::whereIn('id', $ids)
+                'Ride' => Ride::whereIn('id', $ids)
                     ->get()
                     ->keyBy('id'),
 
@@ -197,7 +198,7 @@ class ScoreController extends Controller
                     ->get()
                     ->keyBy('id'),
 
-                default   => collect(),
+                default => collect(),
             };
 
             // Attach the resolved model so ScoreTransactionResource can read it

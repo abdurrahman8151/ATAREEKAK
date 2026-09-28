@@ -4,8 +4,10 @@ namespace Tests\Unit\Notifications;
 
 use App\Models\User;
 use App\Notifications\RideCancelledNotification;
+use Illuminate\Bus\Queueable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Notifications\Notification;
 use Tests\TestCase;
 
 /**
@@ -20,14 +22,15 @@ class RideCancelledNotificationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User                      $user;
+    private User $user;
+
     private RideCancelledNotification $notification;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user         = User::factory()->create();
-        $this->notification = new RideCancelledNotification();
+        $this->user = User::factory()->create();
+        $this->notification = new RideCancelledNotification;
     }
 
     // ─── Instantiation ────────────────────────────────────────────────────────
@@ -45,7 +48,7 @@ class RideCancelledNotificationTest extends TestCase
     public function test_extends_notification_base_class(): void
     {
         $this->assertInstanceOf(
-            \Illuminate\Notifications\Notification::class,
+            Notification::class,
             $this->notification
         );
     }
@@ -100,7 +103,7 @@ class RideCancelledNotificationTest extends TestCase
     {
         $this->assertTrue(
             in_array(
-                \Illuminate\Bus\Queueable::class,
+                Queueable::class,
                 class_uses_recursive(RideCancelledNotification::class)
             )
         );

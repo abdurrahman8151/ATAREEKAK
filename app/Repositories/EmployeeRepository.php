@@ -33,6 +33,7 @@ class EmployeeRepository implements EmployeeRepositoryInterface
     {
         $employee = Employee::findOrFail($id);
         $employee->update($data);
+
         return $employee->fresh();
     }
 
@@ -54,7 +55,7 @@ class EmployeeRepository implements EmployeeRepositoryInterface
     public function listManageableBy(Employee $manager): Collection
     {
         $manageableRoles = array_map(
-            fn(StaffRole $r) => $r->value,
+            fn (StaffRole $r) => $r->value,
             $manager->role->creatableRoles()
         );
 

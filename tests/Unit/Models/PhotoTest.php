@@ -23,17 +23,17 @@ class PhotoTest extends TestCase
 
     public function test_fillable_contains_user_id(): void
     {
-        $this->assertContains('user_id', (new Photo())->getFillable());
+        $this->assertContains('user_id', (new Photo)->getFillable());
     }
 
     public function test_fillable_contains_type(): void
     {
-        $this->assertContains('type', (new Photo())->getFillable());
+        $this->assertContains('type', (new Photo)->getFillable());
     }
 
     public function test_fillable_contains_path(): void
     {
-        $this->assertContains('path', (new Photo())->getFillable());
+        $this->assertContains('path', (new Photo)->getFillable());
     }
 
     // ─── Relationships ────────────────────────────────────────────────────────────
@@ -47,8 +47,8 @@ class PhotoTest extends TestCase
     {
         $photo = Photo::create([
             'user_id' => $this->user->id,
-            'type'    => 'face_id',
-            'path'    => 'verifications/face_id/test.jpg',
+            'type' => 'face_id',
+            'path' => 'verifications/face_id/test.jpg',
         ]);
 
         $this->assertEquals($this->user->id, $photo->user->id);
@@ -60,13 +60,13 @@ class PhotoTest extends TestCase
     {
         Photo::create([
             'user_id' => $this->user->id,
-            'type'    => 'face_id',
-            'path'    => 'verifications/face_id/test.jpg',
+            'type' => 'face_id',
+            'path' => 'verifications/face_id/test.jpg',
         ]);
 
         $this->assertDatabaseHas('photos', [
             'user_id' => $this->user->id,
-            'type'    => 'face_id',
+            'type' => 'face_id',
         ]);
     }
 
@@ -75,8 +75,8 @@ class PhotoTest extends TestCase
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $type) {
             Photo::create([
                 'user_id' => $this->user->id,
-                'type'    => $type,
-                'path'    => "verifications/{$type}/test.jpg",
+                'type' => $type,
+                'path' => "verifications/{$type}/test.jpg",
             ]);
         }
 
@@ -87,8 +87,8 @@ class PhotoTest extends TestCase
     {
         Photo::create([
             'user_id' => $this->user->id,
-            'type'    => 'back_id',
-            'path'    => 'verifications/back_id/test.jpg',
+            'type' => 'back_id',
+            'path' => 'verifications/back_id/test.jpg',
         ]);
 
         $userId = $this->user->id;
@@ -101,11 +101,11 @@ class PhotoTest extends TestCase
 
     public function test_photo_path_is_stored_correctly(): void
     {
-        $path  = 'verifications/license/driver_42_1234567890.jpg';
+        $path = 'verifications/license/driver_42_1234567890.jpg';
         $photo = Photo::create([
             'user_id' => $this->user->id,
-            'type'    => 'license',
-            'path'    => $path,
+            'type' => 'license',
+            'path' => $path,
         ]);
 
         $this->assertEquals($path, $photo->fresh()->path);
@@ -115,8 +115,8 @@ class PhotoTest extends TestCase
     {
         $photo = Photo::create([
             'user_id' => $this->user->id,
-            'type'    => 'mechanic_card',
-            'path'    => 'verifications/mechanic_card/test.jpg',
+            'type' => 'mechanic_card',
+            'path' => 'verifications/mechanic_card/test.jpg',
         ]);
 
         $this->assertEquals('mechanic_card', $photo->fresh()->type);

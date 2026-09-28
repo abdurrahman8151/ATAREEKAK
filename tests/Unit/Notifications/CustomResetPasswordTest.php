@@ -4,6 +4,8 @@ namespace Tests\Unit\Notifications;
 
 use App\Models\User;
 use App\Notifications\CustomResetPassword;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Bus\Queueable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Messages\MailMessage;
 use Tests\TestCase;
@@ -12,13 +14,14 @@ class CustomResetPasswordTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User                $user;
+    private User $user;
+
     private CustomResetPassword $notification;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user         = User::factory()->create(['email' => 'test@example.com']);
+        $this->user = User::factory()->create(['email' => 'test@example.com']);
         $this->notification = new CustomResetPassword('fake-reset-token-abc123');
     }
 
@@ -104,7 +107,7 @@ class CustomResetPasswordTest extends TestCase
     {
         $this->assertTrue(
             in_array(
-                \Illuminate\Bus\Queueable::class,
+                Queueable::class,
                 class_uses_recursive(CustomResetPassword::class)
             )
         );
@@ -113,7 +116,7 @@ class CustomResetPasswordTest extends TestCase
     public function test_notification_extends_reset_password_notification(): void
     {
         $this->assertInstanceOf(
-            \Illuminate\Auth\Notifications\ResetPassword::class,
+            ResetPassword::class,
             $this->notification
         );
     }

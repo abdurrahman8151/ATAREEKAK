@@ -4,17 +4,17 @@ namespace App\Enums;
 
 enum StaffRole: string
 {
-    case SYSTEM_ADMIN   = 'system_admin';
-    case SYCASH         = 'sycash';         // Financial administrator
-    case ADMIN          = 'admin';
-    case SUPPORT_AGENT  = 'support_agent';
+    case SYSTEM_ADMIN = 'system_admin';
+    case SYCASH = 'sycash';         // Financial administrator
+    case ADMIN = 'admin';
+    case SUPPORT_AGENT = 'support_agent';
 
     public function label(): string
     {
         return match ($this) {
-            self::SYSTEM_ADMIN  => 'System Administrator',
-            self::SYCASH        => 'Financial Administrator (SyCash)',
-            self::ADMIN         => 'Administrator',
+            self::SYSTEM_ADMIN => 'System Administrator',
+            self::SYCASH => 'Financial Administrator (SyCash)',
+            self::ADMIN => 'Administrator',
             self::SUPPORT_AGENT => 'Support Agent',
         };
     }
@@ -25,9 +25,9 @@ enum StaffRole: string
     public function level(): int
     {
         return match ($this) {
-            self::SYSTEM_ADMIN  => 4,
-            self::SYCASH        => 3,
-            self::ADMIN         => 2,
+            self::SYSTEM_ADMIN => 4,
+            self::SYCASH => 3,
+            self::ADMIN => 2,
             self::SUPPORT_AGENT => 1,
         };
     }
@@ -83,7 +83,7 @@ enum StaffRole: string
     {
         return array_values(array_filter(
             self::cases(),
-            fn(self $role) => $this->canManage($role)
+            fn (self $role) => $this->canManage($role)
         ));
     }
 }

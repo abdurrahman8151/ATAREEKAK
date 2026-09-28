@@ -6,6 +6,7 @@ use App\Models\ProfileComment;
 use App\Models\User;
 use App\Services\Staff\ReviewModerationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -23,14 +24,16 @@ class ReviewModerationServiceTest extends TestCase
     use RefreshDatabase;
 
     private ReviewModerationService $service;
-    private User                    $commenter;
-    private User                    $recipient;
+
+    private User $commenter;
+
+    private User $recipient;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->service   = app(ReviewModerationService::class);
+        $this->service = app(ReviewModerationService::class);
         $this->commenter = User::factory()->create();
         $this->recipient = User::factory()->create();
     }
@@ -63,7 +66,7 @@ class ReviewModerationServiceTest extends TestCase
         $other = User::factory()->create();
 
         $this->makeComment('On recipient', commenter: $this->commenter, recipient: $this->recipient);
-        $this->makeComment('On other',     commenter: $this->commenter, recipient: $other);
+        $this->makeComment('On other', commenter: $this->commenter, recipient: $other);
 
         $result = $this->service->getComments(
             userId: $this->recipient->id, search: null, date: null, perPage: 15, page: 1
@@ -118,7 +121,7 @@ class ReviewModerationServiceTest extends TestCase
     public function test_get_comments_filters_last_7_days(): void
     {
         $recent = $this->makeComment('Recent');
-        $old    = $this->makeComment('Old');
+        $old = $this->makeComment('Old');
         DB::table('profile_comments')
             ->where('id', $old->id)
             ->update(['created_at' => now()->subDays(30)]);
@@ -133,7 +136,7 @@ class ReviewModerationServiceTest extends TestCase
 
     public function test_format_returns_array_with_required_keys(): void
     {
-        $comment   = $this->makeComment('A test comment');
+        $comment = $this->makeComment('A test comment');
         $formatted = $this->service->format($comment->load('commenter'));
 
         foreach (['id', 'comment', 'commenter', 'created_at'] as $key) {
@@ -143,7 +146,7 @@ class ReviewModerationServiceTest extends TestCase
 
     public function test_format_includes_correct_comment_text(): void
     {
-        $comment   = $this->makeComment('Specific text here');
+        $comment = $this->makeComment('Specific text here');
         $formatted = $this->service->format($comment->load('commenter'));
 
         $this->assertEquals('Specific text here', $formatted['comment']);
@@ -151,17 +154,17 @@ class ReviewModerationServiceTest extends TestCase
 
     public function test_format_includes_commenter_id_and_name(): void
     {
-        $comment   = $this->makeComment('Test');
+        $comment = $this->makeComment('Test');
         $formatted = $this->service->format($comment->load('commenter'));
 
-        $this->assertArrayHasKey('id',   $formatted['commenter']);
+        $this->assertArrayHasKey('id', $formatted['commenter']);
         $this->assertArrayHasKey('name', $formatted['commenter']);
         $this->assertEquals($this->commenter->id, $formatted['commenter']['id']);
     }
 
     public function test_format_id_matches_comment_id(): void
     {
-        $comment   = $this->makeComment('Test');
+        $comment = $this->makeComment('Test');
         $formatted = $this->service->format($comment->load('commenter'));
 
         $this->assertEquals($comment->id, $formatted['id']);
@@ -187,7 +190,7 @@ class ReviewModerationServiceTest extends TestCase
 
     public function test_delete_comment_throws_for_nonexistent_id(): void
     {
-        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->expectException(ModelNotFoundException::class);
 
         $this->service->deleteComment(999999);
     }
@@ -195,7 +198,7 @@ class ReviewModerationServiceTest extends TestCase
     public function test_delete_comment_does_not_affect_other_comments(): void
     {
         $toDelete = $this->makeComment('Delete me');
-        $toKeep   = $this->makeComment('Keep me');
+        $toKeep = $this->makeComment('Keep me');
 
         $this->service->deleteComment($toDelete->id);
 
@@ -206,8 +209,8 @@ class ReviewModerationServiceTest extends TestCase
 
     private function makeComment(
         string $text,
-        ?User  $commenter = null,
-        ?User  $recipient = null
+        ?User $commenter = null,
+        ?User $recipient = null
     ): ProfileComment {
         $commenter = $commenter ?? $this->commenter;
         $recipient = $recipient ?? $this->recipient;
@@ -217,8 +220,8 @@ class ReviewModerationServiceTest extends TestCase
 
         return ProfileComment::create([
             'profile_id' => $profile->id,
-            'user_id'    => $commenter->id,
-            'comment'    => $text,
+            'user_id' => $commenter->id,
+            'comment' => $text,
         ]);
     }
 }

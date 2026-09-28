@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\GoogleProvider;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Mockery;
 use Tests\TestCase;
@@ -28,7 +29,7 @@ class GoogleControllerTest extends TestCase
 
     public function test_redirect_returns_a_redirect_response(): void
     {
-        $mockDriver = Mockery::mock(\Laravel\Socialite\Two\GoogleProvider::class);
+        $mockDriver = Mockery::mock(GoogleProvider::class);
         $mockDriver->shouldReceive('redirect')
             ->once()
             ->andReturn(redirect('https://accounts.google.com/o/oauth2/auth?mock=1'));
@@ -67,7 +68,7 @@ class GoogleControllerTest extends TestCase
     public function test_callback_links_google_id_to_existing_user_with_same_email(): void
     {
         $existing = User::factory()->create([
-            'email'     => 'existing@gmail.com',
+            'email' => 'existing@gmail.com',
             'google_id' => null,
         ]);
 
@@ -82,7 +83,7 @@ class GoogleControllerTest extends TestCase
     public function test_callback_returns_existing_user_when_google_id_matches(): void
     {
         User::factory()->create([
-            'email'     => 'returning@gmail.com',
+            'email' => 'returning@gmail.com',
             'google_id' => 'known_google_id_123',
         ]);
 
@@ -120,7 +121,7 @@ class GoogleControllerTest extends TestCase
         $user->shouldReceive('getName')->andReturn("{$firstName} {$lastName}");
         $user->shouldReceive('getAvatar')->andReturn('https://example.com/avatar.jpg');
         $user->user = [
-            'given_name'  => $firstName,
+            'given_name' => $firstName,
             'family_name' => $lastName,
         ];
 
@@ -129,7 +130,7 @@ class GoogleControllerTest extends TestCase
 
     private function mockSocialiteCallback(SocialiteUser $socialiteUser): void
     {
-        $mockDriver = Mockery::mock(\Laravel\Socialite\Two\GoogleProvider::class);
+        $mockDriver = Mockery::mock(GoogleProvider::class);
         $mockDriver->shouldReceive('setHttpClient')->andReturnSelf();
         $mockDriver->shouldReceive('user')->andReturn($socialiteUser);
 

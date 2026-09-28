@@ -31,13 +31,13 @@ class StaffRefreshTokenTest extends TestCase
         parent::setUp();
 
         $this->employee = Employee::create([
-            'username'      => 'staff_token_tester',
-            'email'         => 'staff_token@test.com',
-            'password'      => bcrypt('password123'),
-            'first_name'    => 'Staff',
-            'last_name'     => 'Token',
-            'role'          => 'support_agent',
-            'is_active'     => true,
+            'username' => 'staff_token_tester',
+            'email' => 'staff_token@test.com',
+            'password' => bcrypt('password123'),
+            'first_name' => 'Staff',
+            'last_name' => 'Token',
+            'role' => 'support_agent',
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
@@ -46,7 +46,7 @@ class StaffRefreshTokenTest extends TestCase
 
     public function test_fillable_contains_expected_fields(): void
     {
-        $fillable = (new StaffRefreshToken())->getFillable();
+        $fillable = (new StaffRefreshToken)->getFillable();
 
         foreach (['employee_id', 'token', 'expires_at', 'revoked', 'user_agent', 'ip_address'] as $field) {
             $this->assertContains($field, $fillable, "Expected '{$field}' to be fillable");
@@ -57,14 +57,14 @@ class StaffRefreshTokenTest extends TestCase
 
     public function test_expires_at_is_cast_to_datetime(): void
     {
-        $casts = (new StaffRefreshToken())->getCasts();
+        $casts = (new StaffRefreshToken)->getCasts();
         $this->assertArrayHasKey('expires_at', $casts);
         $this->assertEquals('datetime', $casts['expires_at']);
     }
 
     public function test_revoked_is_cast_to_boolean(): void
     {
-        $casts = (new StaffRefreshToken())->getCasts();
+        $casts = (new StaffRefreshToken)->getCasts();
         $this->assertArrayHasKey('revoked', $casts);
         $this->assertEquals('boolean', $casts['revoked']);
     }
@@ -138,15 +138,15 @@ class StaffRefreshTokenTest extends TestCase
 
         StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => $tokenString,
-            'expires_at'  => Carbon::now()->addWeek(),
-            'revoked'     => false,
+            'token' => $tokenString,
+            'expires_at' => Carbon::now()->addWeek(),
+            'revoked' => false,
         ]);
 
         $this->assertDatabaseHas('staff_refresh_tokens', [
             'employee_id' => $this->employee->id,
-            'token'       => $tokenString,
-            'revoked'     => false,
+            'token' => $tokenString,
+            'revoked' => false,
         ]);
     }
 
@@ -154,8 +154,8 @@ class StaffRefreshTokenTest extends TestCase
     {
         $token = StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', Str::random(64)),
-            'expires_at'  => Carbon::now()->addHour(),
+            'token' => hash('sha256', Str::random(64)),
+            'expires_at' => Carbon::now()->addHour(),
         ]);
 
         $this->assertFalse((bool) $token->revoked);
@@ -165,11 +165,11 @@ class StaffRefreshTokenTest extends TestCase
     {
         $token = StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', Str::random(64)),
-            'expires_at'  => Carbon::now()->addHour(),
-            'revoked'     => false,
-            'user_agent'  => 'Mozilla/5.0 Staff Browser',
-            'ip_address'  => '10.0.0.1',
+            'token' => hash('sha256', Str::random(64)),
+            'expires_at' => Carbon::now()->addHour(),
+            'revoked' => false,
+            'user_agent' => 'Mozilla/5.0 Staff Browser',
+            'ip_address' => '10.0.0.1',
         ]);
 
         $this->assertEquals('Mozilla/5.0 Staff Browser', $token->user_agent);
@@ -181,9 +181,9 @@ class StaffRefreshTokenTest extends TestCase
         for ($i = 0; $i < 3; $i++) {
             StaffRefreshToken::create([
                 'employee_id' => $this->employee->id,
-                'token'       => hash('sha256', Str::random(64)),
-                'expires_at'  => Carbon::now()->addHour(),
-                'revoked'     => false,
+                'token' => hash('sha256', Str::random(64)),
+                'expires_at' => Carbon::now()->addHour(),
+                'revoked' => false,
             ]);
         }
 
@@ -199,9 +199,9 @@ class StaffRefreshTokenTest extends TestCase
     {
         return StaffRefreshToken::create([
             'employee_id' => $this->employee->id,
-            'token'       => hash('sha256', Str::random(64)),
-            'expires_at'  => $expiresAt ?? Carbon::now()->addHour(),
-            'revoked'     => $revoked,
+            'token' => hash('sha256', Str::random(64)),
+            'expires_at' => $expiresAt ?? Carbon::now()->addHour(),
+            'revoked' => $revoked,
         ]);
     }
 }

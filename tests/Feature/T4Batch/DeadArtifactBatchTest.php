@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\T4Batch;
 
+use App\Http\Controllers\API\AdminDashboardController;
+use App\Models\UserRating;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -35,10 +37,10 @@ class DeadArtifactBatchTest extends TestCase
     private function removedArtifacts(): array
     {
         return [
-            'fix.php'                          => 'blind str_replace against /var/www/html production paths',
-            'UserRating.php'                    => 'root-level duplicate of app/Models/UserRating.php (same App\Models namespace)',
-            'cacert.pem'                        => 'unreferenced CA bundle',
-            'resources/js/firebase.js'          => 'unreferenced placeholder using Laravel-Mix process.env syntax in a Vite project',
+            'fix.php' => 'blind str_replace against /var/www/html production paths',
+            'UserRating.php' => 'root-level duplicate of app/Models/UserRating.php (same App\Models namespace)',
+            'cacert.pem' => 'unreferenced CA bundle',
+            'resources/js/firebase.js' => 'unreferenced placeholder using Laravel-Mix process.env syntax in a Vite project',
             'app/Jobs/ProcessBulkNotifications.php' => 'empty handle(), zero dispatch sites (T4-7)',
             'tests/Unit/Jobs/ProcessBulkNotificationsTest.php' => 'asserted the stub was a stub (T4-7)',
         ];
@@ -56,7 +58,7 @@ class DeadArtifactBatchTest extends TestCase
         // The real model is the one composer can autoload (PSR-4 App\Models\ -> app/).
         $this->assertFileExists(base_path('app/Models/UserRating.php'));
         $this->assertFileDoesNotExist(base_path('UserRating.php'));
-        $this->assertTrue(class_exists(\App\Models\UserRating::class), 'the canonical model must still autoload');
+        $this->assertTrue(class_exists(UserRating::class), 'the canonical model must still autoload');
     }
 
     public function test_the_misfiled_geocoding_test_now_sits_at_its_canonical_path(): void
@@ -105,7 +107,7 @@ class DeadArtifactBatchTest extends TestCase
         $this->assertMatchesRegularExpression(
             "/'openroute'\s*=>\s*\[\s*'key'\s*=>\s*env\('OPENROUTE_API_KEY'\)/s",
             $raw,
-            "the openroute key is a distinct entry inside services.openroute, not a duplicate of app.key"
+            'the openroute key is a distinct entry inside services.openroute, not a duplicate of app.key'
         );
     }
 
@@ -127,7 +129,7 @@ class DeadArtifactBatchTest extends TestCase
     public function test_the_no_op_photo_method_is_gone(): void
     {
         $this->assertFalse(
-            method_exists(\App\Http\Controllers\API\AdminDashboardController::class, 'uploadAdminPhoto'),
+            method_exists(AdminDashboardController::class, 'uploadAdminPhoto'),
             'a method that returns "Photo uploaded" without uploading must not come back (T4-7)'
         );
     }

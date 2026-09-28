@@ -20,6 +20,7 @@ use Illuminate\Support\Str;
 final class FileUploadService
 {
     private const MAX_IMAGE_SIZE = 2048; // KB
+
     private const ALLOWED_IMAGE_MIMES = ['jpeg', 'png', 'jpg', 'gif', 'webp'];
 
     /**
@@ -29,7 +30,7 @@ final class FileUploadService
     {
         $this->validateImage($file);
 
-        $filename = $userId . '_' . now()->timestamp . '.' . $file->getClientOriginalExtension();
+        $filename = $userId.'_'.now()->timestamp.'.'.$file->getClientOriginalExtension();
 
         return $file->storeAs('profiles/profile_photo', $filename, 'public');
     }
@@ -44,7 +45,7 @@ final class FileUploadService
     ): string {
         $this->validateImage($file);
 
-        $filename = $userId . '_' . now()->timestamp . '.' . $file->getClientOriginalExtension();
+        $filename = $userId.'_'.now()->timestamp.'.'.$file->getClientOriginalExtension();
         $folder = "verifications/{$documentType}";
 
         return $file->storeAs($folder, $filename, 'public');
@@ -57,7 +58,7 @@ final class FileUploadService
     {
         $this->validateImage($file);
 
-        $filename = $userId . '_' . now()->timestamp . '.' . $file->getClientOriginalExtension();
+        $filename = $userId.'_'.now()->timestamp.'.'.$file->getClientOriginalExtension();
 
         return $file->storeAs('verifications/car_pic', $filename, 'public');
     }
@@ -69,7 +70,7 @@ final class FileUploadService
     {
         $this->validateImage($file);
 
-        $filename = "{$senderId}_{$receiverId}_" . now()->timestamp . '.' . $file->getClientOriginalExtension();
+        $filename = "{$senderId}_{$receiverId}_".now()->timestamp.'.'.$file->getClientOriginalExtension();
         $path = $file->storeAs('chat-images', $filename, 'public');
 
         return [
@@ -79,7 +80,7 @@ final class FileUploadService
                 'original_name' => $file->getClientOriginalName(),
                 'size' => $file->getSize(),
                 'mime_type' => $file->getMimeType(),
-            ]
+            ],
         ];
     }
 
@@ -93,7 +94,7 @@ final class FileUploadService
     ): string {
         $this->validateImage($file);
 
-        $filename = $customFilename ?? Str::random(40) . '.' . $file->getClientOriginalExtension();
+        $filename = $customFilename ?? Str::random(40).'.'.$file->getClientOriginalExtension();
 
         return $file->storeAs($folder, $filename, 'public');
     }
@@ -146,22 +147,22 @@ final class FileUploadService
     private function validateImage(UploadedFile $file): void
     {
         // Check if it's an image
-        if (!$file->isValid()) {
+        if (! $file->isValid()) {
             throw new \InvalidArgumentException('Invalid file upload');
         }
 
         // Check file size
         if ($file->getSize() > self::MAX_IMAGE_SIZE * 1024) {
             throw new \InvalidArgumentException(
-                'File size exceeds maximum allowed size of ' . self::MAX_IMAGE_SIZE . 'KB'
+                'File size exceeds maximum allowed size of '.self::MAX_IMAGE_SIZE.'KB'
             );
         }
 
         // Check MIME type
         $extension = strtolower($file->getClientOriginalExtension());
-        if (!in_array($extension, self::ALLOWED_IMAGE_MIMES)) {
+        if (! in_array($extension, self::ALLOWED_IMAGE_MIMES)) {
             throw new \InvalidArgumentException(
-                'Invalid file type. Allowed types: ' . implode(', ', self::ALLOWED_IMAGE_MIMES)
+                'Invalid file type. Allowed types: '.implode(', ', self::ALLOWED_IMAGE_MIMES)
             );
         }
 
@@ -203,6 +204,6 @@ final class FileUploadService
             $i++;
         }
 
-        return round($bytes, 2) . ' ' . $units[$i];
+        return round($bytes, 2).' '.$units[$i];
     }
 }

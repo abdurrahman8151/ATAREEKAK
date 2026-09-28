@@ -35,13 +35,13 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
     private function employee(string $role): Employee
     {
         return Employee::create([
-            'username'      => "fin_{$role}_" . uniqid(),
-            'email'         => "fin_{$role}_" . uniqid() . '@test.com',
-            'password'      => 'Password123!',
-            'first_name'    => 'Fin',
-            'last_name'     => ucfirst($role),
-            'role'          => $role,
-            'is_active'     => true,
+            'username' => "fin_{$role}_".uniqid(),
+            'email' => "fin_{$role}_".uniqid().'@test.com',
+            'password' => 'Password123!',
+            'first_name' => 'Fin',
+            'last_name' => ucfirst($role),
+            'role' => $role,
+            'is_active' => true,
             'token_version' => 0,
         ]);
     }
@@ -51,7 +51,7 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
     {
         return (string) $this->postJson('/api/staff/login', [
             'identifier' => $e->username,
-            'password'   => 'Password123!',
+            'password' => 'Password123!',
         ])->json('tokens.access_token');
     }
 
@@ -66,10 +66,10 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
     private function seedSystemWallet(): void
     {
         Wallet::create([
-            'user_id'       => null,
-            'phone_number'  => config('admin.system_admin.phone'),
-            'wallet_number' => 'ADM' . random_int(1000000000, 9999999999),
-            'balance'       => 0,
+            'user_id' => null,
+            'phone_number' => config('admin.system_admin.phone'),
+            'wallet_number' => 'ADM'.random_int(1000000000, 9999999999),
+            'balance' => 0,
         ]);
     }
 
@@ -78,10 +78,10 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
         $user = User::factory()->create(['status' => 1]);
 
         Wallet::create([
-            'user_id'       => $user->id,
-            'phone_number'  => '0912' . random_int(100000, 999999),
-            'wallet_number' => 'USR' . random_int(1000000000, 9999999999),
-            'balance'       => 0,
+            'user_id' => $user->id,
+            'phone_number' => '0912'.random_int(100000, 999999),
+            'wallet_number' => 'USR'.random_int(1000000000, 9999999999),
+            'balance' => 0,
         ]);
 
         return $user;
@@ -164,11 +164,11 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
     {
         $this->seedSystemWallet();
         $token = $this->adminToken($this->employee('system_admin'));
-        $user  = $this->userWithWallet();
+        $user = $this->userWithWallet();
 
         $this->withToken($token)
             ->postJson("/api/admin/passengers/{$user->id}/charge-wallet", [
-                'amount'      => 5000,
+                'amount' => 5000,
                 'admin_notes' => 'T2-2 regression check',
             ])
             ->assertStatus(200);
@@ -183,7 +183,7 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
     public function test_admin_can_still_reach_non_financial_admin_routes(): void
     {
         $token = $this->staffToken($this->employee('admin'));
-        $user  = User::factory()->create(['status' => 1]);
+        $user = User::factory()->create(['status' => 1]);
 
         // Read-only operational surface the `admin` role legitimately keeps.
         $this->withToken($token)->getJson('/api/admin/users')->assertStatus(200);

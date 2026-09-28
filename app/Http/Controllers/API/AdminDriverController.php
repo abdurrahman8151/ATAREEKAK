@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Services\Admin\AdminDriverService;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\ModelNotFoundException;      // ← added
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;      // ← added
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
@@ -70,12 +73,13 @@ final class AdminDriverController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Driver dashboard failed', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load driver dashboard',
             ], 500);
         }
@@ -101,12 +105,13 @@ final class AdminDriverController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Driver stats failed', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load driver stats',
             ], 500);
         }
@@ -134,10 +139,10 @@ final class AdminDriverController extends Controller
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'filter'   => 'sometimes|in:all,verified,pending,suspended',
+            'filter' => 'sometimes|in:all,verified,pending,suspended',
             'per_page' => 'sometimes|integer|min:1|max:50',
-            'page'     => 'sometimes|integer|min:1',
-            'search'   => 'sometimes|string|max:100',
+            'page' => 'sometimes|integer|min:1',
+            'search' => 'sometimes|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -147,33 +152,34 @@ final class AdminDriverController extends Controller
             ], 422);
         }
 
-        $filter  = $request->get('filter', 'all');
+        $filter = $request->get('filter', 'all');
         $perPage = (int) $request->get('per_page', 10);
-        $page    = (int) $request->get('page', 1);
-        $search  = $request->get('search');
+        $page = (int) $request->get('page', 1);
+        $search = $request->get('search');
 
         try {
             $paginator = $this->driverService->getDrivers($filter, $perPage, $page, $search);
 
             $data = $paginator->getCollection()
-                ->map(fn($driver) => $this->driverService->formatDriver($driver))
+                ->map(fn ($driver) => $this->driverService->formatDriver($driver))
                 ->values();
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
-                'meta'   => [
+                'data' => $data,
+                'meta' => [
                     'current_page' => $paginator->currentPage(),
-                    'last_page'    => $paginator->lastPage(),
-                    'per_page'     => $paginator->perPage(),
-                    'total'        => $paginator->total(),
-                    'filter'       => $filter,
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'filter' => $filter,
                 ],
             ]);
         } catch (\Exception $e) {
             Log::error('Driver index failed', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load drivers',
             ], 500);
         }
@@ -216,12 +222,13 @@ final class AdminDriverController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Driver activity feed failed', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load activity feed',
             ], 500);
         }
@@ -250,20 +257,21 @@ final class AdminDriverController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $profile,
+                'data' => $profile,
             ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        } catch (ModelNotFoundException) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Driver not found',
             ], 404);
         } catch (\Exception $e) {
             Log::error('Driver profile failed', [
                 'driver_id' => $driverId,
-                'error'     => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load driver profile',
             ], 500);
         }
@@ -282,21 +290,21 @@ final class AdminDriverController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        } catch (ModelNotFoundException) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Driver not found',
             ], 404);
         } catch (\Exception $e) {
             Log::error('Driver dashboard failed', [
                 'driver_id' => $driverId,
-                'error'     => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load driver dashboard',
             ], 500);
         }
@@ -334,12 +342,13 @@ final class AdminDriverController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Verification efficiency failed', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load verification efficiency',
             ], 500);
         }
@@ -351,35 +360,35 @@ final class AdminDriverController extends Controller
 
     private function resolvePeriodBounds(string $period): array
     {
-        $now = \Carbon\Carbon::now();
+        $now = Carbon::now();
 
         switch ($period) {
             case 'day':
-                $currentStart  = $now->copy()->startOfDay();
-                $currentEnd    = $now->copy()->endOfDay();
+                $currentStart = $now->copy()->startOfDay();
+                $currentEnd = $now->copy()->endOfDay();
                 $previousStart = $now->copy()->subDay()->startOfDay();
-                $previousEnd   = $now->copy()->subDay()->endOfDay();
-                $label         = 'day';
-                $prevLabel     = 'day';
+                $previousEnd = $now->copy()->subDay()->endOfDay();
+                $label = 'day';
+                $prevLabel = 'day';
                 break;
 
             case 'month':
-                $currentStart  = $now->copy()->startOfMonth();
-                $currentEnd    = $now->copy()->endOfMonth();
+                $currentStart = $now->copy()->startOfMonth();
+                $currentEnd = $now->copy()->endOfMonth();
                 $previousStart = $now->copy()->subMonth()->startOfMonth();
-                $previousEnd   = $now->copy()->subMonth()->endOfMonth();
-                $label         = 'month';
-                $prevLabel     = 'month';
+                $previousEnd = $now->copy()->subMonth()->endOfMonth();
+                $label = 'month';
+                $prevLabel = 'month';
                 break;
 
             case 'week':
             default:
-                $currentStart  = $now->copy()->startOfWeek();
-                $currentEnd    = $now->copy()->endOfWeek();
+                $currentStart = $now->copy()->startOfWeek();
+                $currentEnd = $now->copy()->endOfWeek();
                 $previousStart = $now->copy()->subWeek()->startOfWeek();
-                $previousEnd   = $now->copy()->subWeek()->endOfWeek();
-                $label         = 'week';
-                $prevLabel     = 'week';
+                $previousEnd = $now->copy()->subWeek()->endOfWeek();
+                $label = 'week';
+                $prevLabel = 'week';
                 break;
         }
 
@@ -387,20 +396,20 @@ final class AdminDriverController extends Controller
     }
 
     private function countProcessedVerifications(
-        \Carbon\Carbon $start,
-        \Carbon\Carbon $end
+        Carbon $start,
+        Carbon $end
     ): int {
-        return \App\Models\User::whereIn('verification_status', ['approved', 'rejected'])
-            ->whereHas('photos', fn($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+        return User::whereIn('verification_status', ['approved', 'rejected'])
+            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->whereBetween('updated_at', [$start, $end])
             ->count();
     }
 
     private function countIncomingVerifications(
-        \Carbon\Carbon $start,
-        \Carbon\Carbon $end
+        Carbon $start,
+        Carbon $end
     ): int {
-        return \App\Models\User::whereHas('photos', function ($q) use ($start, $end) {
+        return User::whereHas('photos', function ($q) use ($start, $end) {
             $q->whereIn('type', ['license', 'mechanic_card'])
                 ->whereBetween('created_at', [$start, $end]);
         })

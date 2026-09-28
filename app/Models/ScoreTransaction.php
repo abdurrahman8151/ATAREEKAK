@@ -32,11 +32,11 @@ class ScoreTransaction extends Model
     ];
 
     protected $casts = [
-        'points'                   => 'integer',
-        'previous_score'           => 'integer',
-        'new_score'                => 'integer',
+        'points' => 'integer',
+        'previous_score' => 'integer',
+        'new_score' => 'integer',
         'high_cancel_rate_applied' => 'boolean',
-        'metadata'                 => 'array',
+        'metadata' => 'array',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────────
@@ -55,6 +55,6 @@ class ScoreTransaction extends Model
 
     public function getFormattedPointsAttribute(): string
     {
-        return ($this->points >= 0 ? '+' : '') . $this->points;
+        return ($this->points >= 0 ? '+' : '').$this->points;
     }
 }

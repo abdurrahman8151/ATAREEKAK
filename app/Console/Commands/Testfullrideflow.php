@@ -36,11 +36,14 @@ use Illuminate\Support\Facades\Hash;
  */
 class Testfullrideflow extends Command
 {
-    protected $signature   = 'syride:test-noshow {--commit : Persist data instead of rolling back}';
+    protected $signature = 'syride:test-noshow {--commit : Persist data instead of rolling back}';
+
     protected $description = 'End-to-end test: no-show reports, penalties, refunds, disputes, complaints';
 
-    private int  $pass     = 0;
-    private int  $fail     = 0;
+    private int $pass = 0;
+
+    private int $fail = 0;
+
     private bool $scenFail = false;
 
     /** bcrypt hash, computed once and reused across scenarios */
@@ -75,7 +78,7 @@ class Testfullrideflow extends Command
                 }
 
                 $this->check('Gate blocked (exception thrown)', true, $gateBlocked);
-                $this->check('No NoshowReport row created',     0,    NoshowReport::where('booking_id', $booking->id)->count());
+                $this->check('No NoshowReport row created', 0, NoshowReport::where('booking_id', $booking->id)->count());
             }
         );
 
@@ -88,16 +91,16 @@ class Testfullrideflow extends Command
                 $scoreBefore = $this->score($driver);
 
                 $r = $noshowService->reportDriverNoShow($booking->ride_id, $passenger);
-                $this->check('Report accepted (report_id present)',  true,      isset($r['report_id']));
-                $this->check('Report status = pending',              'pending', NoshowReport::where('booking_id', $booking->id)->value('status'));
+                $this->check('Report accepted (report_id present)', true, isset($r['report_id']));
+                $this->check('Report status = pending', 'pending', NoshowReport::where('booking_id', $booking->id)->value('status'));
 
                 NoshowReport::where('booking_id', $booking->id)->update(['expires_at' => now()->subMinute()]);
 
                 $resolved = $noshowService->resolveExpiredReports();
-                $this->check('Scheduler resolved 1 report',     1,                        $resolved);
+                $this->check('Scheduler resolved 1 report', 1, $resolved);
                 $this->check('Report = resolved_reporter_wins', 'resolved_reporter_wins', NoshowReport::where('booking_id', $booking->id)->value('status'));
-                $this->check('Booking status = no_show',        'no_show',                $booking->fresh()->status);
-                $this->check('Driver score −15',                -15,                      $this->score($driver) - $scoreBefore);
+                $this->check('Booking status = no_show', 'no_show', $booking->fresh()->status);
+                $this->check('Driver score −15', -15, $this->score($driver) - $scoreBefore);
             }
         );
 
@@ -115,8 +118,8 @@ class Testfullrideflow extends Command
                 NoshowReport::where('booking_id', $booking->id)->update(['expires_at' => now()->subMinute()]);
                 $noshowService->resolveExpiredReports();
 
-                $this->check('Booking = no_show',   'no_show', $booking->fresh()->status);
-                $this->check('Passenger score −15', -15,       $this->score($passenger) - $scoreBefore);
+                $this->check('Booking = no_show', 'no_show', $booking->fresh()->status);
+                $this->check('Passenger score −15', -15, $this->score($passenger) - $scoreBefore);
             }
         );
 
@@ -143,7 +146,7 @@ class Testfullrideflow extends Command
                 $this->check('Complaint count +1', 1, $newComplaintCount);
 
                 $complaint = Complaint::latest()->first();
-                $this->check('Complaint type = no_show',  'no_show', $complaint->type);
+                $this->check('Complaint type = no_show', 'no_show', $complaint->type);
                 $this->check(
                     'Complaint user_id is a dispute party',
                     true,
@@ -169,8 +172,8 @@ class Testfullrideflow extends Command
                 $resolved = $noshowService->resolveExpiredReports();
 
                 $this->check('Scheduler resolved 0 (disputed skipped)', 0, $resolved);
-                $this->check('Driver score unchanged',                   0, $this->score($driver)    - $dScoreBefore);
-                $this->check('Passenger score unchanged',                0, $this->score($passenger) - $pScoreBefore);
+                $this->check('Driver score unchanged', 0, $this->score($driver) - $dScoreBefore);
+                $this->check('Passenger score unchanged', 0, $this->score($passenger) - $pScoreBefore);
             }
         );
 
@@ -187,7 +190,7 @@ class Testfullrideflow extends Command
                 );
 
                 $pBalanceBefore = (float) $passengerWallet->fresh()->balance;
-                $dScoreBefore   = $this->score($driver);
+                $dScoreBefore = $this->score($driver);
 
                 $noshowService->reportDriverNoShow($booking->ride_id, $passenger);
                 NoshowReport::where('booking_id', $booking->id)->update(['expires_at' => now()->subMinute()]);
@@ -205,7 +208,7 @@ class Testfullrideflow extends Command
                     round($escrowAmount, 2),
                     round($pBalanceAfter - $pBalanceBefore, 2)
                 );
-                $this->check('Driver score −15',  -15,       $this->score($driver) - $dScoreBefore);
+                $this->check('Driver score −15', -15, $this->score($driver) - $dScoreBefore);
                 $this->check('Booking = no_show', 'no_show', $booking->fresh()->status);
             }
         );
@@ -223,7 +226,7 @@ class Testfullrideflow extends Command
                 );
 
                 $dBalanceBefore = (float) $driverWallet->fresh()->balance;
-                $pScoreBefore   = $this->score($passenger);
+                $pScoreBefore = $this->score($passenger);
 
                 $noshowService->reportPassengerNoShow($booking->id, $driver);
                 NoshowReport::where('booking_id', $booking->id)->update(['expires_at' => now()->subMinute()]);
@@ -260,16 +263,16 @@ class Testfullrideflow extends Command
                     $dupBlocked = true;
                 }
                 $this->check('Duplicate rejected (exception thrown)', true, $dupBlocked);
-                $this->check('Still only 1 NoshowReport row',         1,    NoshowReport::where('booking_id', $booking->id)->count());
+                $this->check('Still only 1 NoshowReport row', 1, NoshowReport::where('booking_id', $booking->id)->count());
             }
         );
 
         // ── Summary ─────────────────────────────────────────────────────────────
         $this->line('');
         $this->line('  ═══════════════════════════════════════════════════════');
-        $total  = $this->pass + $this->fail;
+        $total = $this->pass + $this->fail;
         $colour = $this->fail > 0 ? 'red' : 'green';
-        $this->line("  <fg={$colour}>  RESULTS: {$this->pass}/{$total} passed" . ($this->fail ? ", {$this->fail} failed" : ' — all green ✅') . '</>');
+        $this->line("  <fg={$colour}>  RESULTS: {$this->pass}/{$total} passed".($this->fail ? ", {$this->fail} failed" : ' — all green ✅').'</>');
         $this->line('  ═══════════════════════════════════════════════════════');
 
         if ($this->option('commit')) {
@@ -306,7 +309,7 @@ class Testfullrideflow extends Command
             DB::rollBack();
         }
 
-        $this->line('  └─ ' . ($this->scenFail ? '<fg=red>FAIL</>' : '<fg=green>PASS</>'));
+        $this->line('  └─ '.($this->scenFail ? '<fg=red>FAIL</>' : '<fg=green>PASS</>'));
     }
 
     // =========================================================================
@@ -332,10 +335,19 @@ class Testfullrideflow extends Command
 
     private function v(mixed $v): string
     {
-        if (is_bool($v))               return $v ? 'true' : 'false';
-        if (is_null($v))               return 'null';
-        if ($v instanceof \BackedEnum) return $v->value;
-        if ($v instanceof \UnitEnum)   return strtolower($v->name);
+        if (is_bool($v)) {
+            return $v ? 'true' : 'false';
+        }
+        if (is_null($v)) {
+            return 'null';
+        }
+        if ($v instanceof \BackedEnum) {
+            return $v->value;
+        }
+        if ($v instanceof \UnitEnum) {
+            return strtolower($v->name);
+        }
+
         return (string) $v;
     }
 
@@ -349,55 +361,55 @@ class Testfullrideflow extends Command
         $n = $this->seq;
 
         $driver = User::forceCreate([
-            'first_name'          => 'NS',
-            'last_name'           => "Driver {$n}",
-            'email'               => "ns.driver.{$n}@test.local",
-            'password'            => $this->hash,
-            'status'              => 1,
+            'first_name' => 'NS',
+            'last_name' => "Driver {$n}",
+            'email' => "ns.driver.{$n}@test.local",
+            'password' => $this->hash,
+            'status' => 1,
             'verification_status' => 'none',
-            'token_version'       => 1,
+            'token_version' => 1,
         ]);
 
         $passenger = User::forceCreate([
-            'first_name'          => 'NS',
-            'last_name'           => "Passenger {$n}",
-            'email'               => "ns.passenger.{$n}@test.local",
-            'password'            => $this->hash,
-            'status'              => 1,
+            'first_name' => 'NS',
+            'last_name' => "Passenger {$n}",
+            'email' => "ns.passenger.{$n}@test.local",
+            'password' => $this->hash,
+            'status' => 1,
             'verification_status' => 'none',
-            'token_version'       => 1,
+            'token_version' => 1,
         ]);
 
         $rideId = DB::table('rides')->insertGetId([
-            'driver_id'            => $driver->id,
-            'pickup_address'       => 'Test Pickup — Damascus',
-            'destination_address'  => 'Test Destination — Aleppo',
-            'pickup_location'      => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
+            'driver_id' => $driver->id,
+            'pickup_address' => 'Test Pickup — Damascus',
+            'destination_address' => 'Test Destination — Aleppo',
+            'pickup_location' => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
             'destination_location' => DB::raw("ST_GeomFromText('POINT(37.1343 36.2021)')"),
-            'departure_time'       => now()->subHours(2),
-            'status'               => 'launched',
-            'available_seats'      => 2,
-            'price_per_seat'       => 5000,
-            'distance'             => 349.0,
-            'duration'             => 240,
-            'vehicle_type'         => 'sedan',
-            'payment_method'       => $payment,
-            'booking_type'         => 'direct',
+            'departure_time' => now()->subHours(2),
+            'status' => 'launched',
+            'available_seats' => 2,
+            'price_per_seat' => 5000,
+            'distance' => 349.0,
+            'duration' => 240,
+            'vehicle_type' => 'sedan',
+            'payment_method' => $payment,
+            'booking_type' => 'direct',
             'communication_number' => "09100{$n}001",
-            'created_at'           => now(),
-            'updated_at'           => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $ride = Ride::with('driver')->findOrFail($rideId);
 
         $bookingId = DB::table('bookings')->insertGetId([
-            'ride_id'              => $ride->id,
-            'user_id'              => $passenger->id,
-            'seats'                => 1,
-            'status'               => 'confirmed',
+            'ride_id' => $ride->id,
+            'user_id' => $passenger->id,
+            'seats' => 1,
+            'status' => 'confirmed',
             'communication_number' => "09100{$n}002",
-            'created_at'           => now(),
-            'updated_at'           => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $booking = Booking::with(['ride', 'user'])->findOrFail($bookingId);
@@ -441,7 +453,7 @@ class Testfullrideflow extends Command
 
         // Roles and their config keys — must match what WalletTransactionService calls
         $roles = [
-            'sycash'       => config('admin.sycash.phone'),
+            'sycash' => config('admin.sycash.phone'),
             'system_admin' => config('admin.system_admin.phone'),
         ];
 
@@ -452,7 +464,7 @@ class Testfullrideflow extends Command
             if (! $wallet) {
                 // Wallet not seeded yet — create one the service will find.
                 // We need a user_id: try to resolve it from the employee record first.
-                $employee  = Employee::where('role', $role)->orderBy('id')->first();
+                $employee = Employee::where('role', $role)->orderBy('id')->first();
                 $adminUser = null;
 
                 if ($employee?->user_id) {
@@ -465,20 +477,20 @@ class Testfullrideflow extends Command
                     // No employee row exists either — create a shadow user just
                     // to satisfy the wallets.user_id FK.
                     $adminUser = User::forceCreate([
-                        'first_name'          => 'Test',
-                        'last_name'           => $role,
-                        'email'               => "wallet.{$role}.{$n}@test.local",
-                        'password'            => $this->hash,
-                        'status'              => 1,
+                        'first_name' => 'Test',
+                        'last_name' => $role,
+                        'email' => "wallet.{$role}.{$n}@test.local",
+                        'password' => $this->hash,
+                        'status' => 1,
                         'verification_status' => 'none',
-                        'token_version'       => 1,
+                        'token_version' => 1,
                     ]);
                 }
 
                 $wallet = Wallet::create([
-                    'user_id'      => $adminUser->id,
+                    'user_id' => $adminUser->id,
                     'phone_number' => $configPhone,
-                    'balance'      => 0,
+                    'balance' => 0,
                 ]);
             }
 
@@ -494,16 +506,16 @@ class Testfullrideflow extends Command
 
         // ── Driver wallet (empty — receives payment on passenger no-show) ──────
         $driverWallet = Wallet::create([
-            'user_id'      => $driver->id,
+            'user_id' => $driver->id,
             'phone_number' => "09100{$n}991",
-            'balance'      => 0,
+            'balance' => 0,
         ]);
 
         // ── Passenger wallet (empty — receives refund on driver no-show) ───────
         $passengerWallet = Wallet::create([
-            'user_id'      => $passenger->id,
+            'user_id' => $passenger->id,
             'phone_number' => "09100{$n}992",
-            'balance'      => 0,
+            'balance' => 0,
         ]);
 
         return [$adminWallet, $driverWallet, $passengerWallet];

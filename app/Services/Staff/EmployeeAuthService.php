@@ -17,7 +17,7 @@ final class EmployeeAuthService
 {
     public function __construct(
         private readonly EmployeeRepositoryInterface $employeeRepository,
-        private readonly StaffJwtService             $jwtService,
+        private readonly StaffJwtService $jwtService,
     ) {}
 
     // ── Login ─────────────────────────────────────────────────────────────────
@@ -32,18 +32,21 @@ final class EmployeeAuthService
     {
         $employee = $this->resolveEmployee($identifier);
 
-        if (!$employee) {
+        if (! $employee) {
             Log::warning('Staff login: unknown identifier', ['identifier' => $identifier]);
+
             return null;
         }
 
-        if (!Hash::check($password, $employee->password)) {
+        if (! Hash::check($password, $employee->password)) {
             Log::warning('Staff login: bad password', ['employee_id' => $employee->id]);
+
             return null;
         }
 
-        if (!$employee->is_active) {
+        if (! $employee->is_active) {
             Log::warning('Staff login: inactive account', ['employee_id' => $employee->id]);
+
             return null;
         }
 
@@ -53,11 +56,11 @@ final class EmployeeAuthService
 
         Log::info('Staff login successful', [
             'employee_id' => $employee->id,
-            'role'        => $employee->role->value,
+            'role' => $employee->role->value,
         ]);
 
         return [
-            'tokens'   => $tokens,
+            'tokens' => $tokens,
             'employee' => $this->formatEmployee($employee),
         ];
     }
@@ -82,15 +85,15 @@ final class EmployeeAuthService
     public function formatEmployee(Employee $employee): array
     {
         return [
-            'id'             => $employee->id,
-            'username'       => $employee->username,
-            'email'          => $employee->email,
-            'full_name'      => $employee->fullName(),
-            'role'           => $employee->role->value,
-            'role_label'     => $employee->role->label(),
-            'is_active'      => $employee->is_active,
-            'last_login_at'  => $employee->last_login_at?->toIso8601String(),
-            'created_at'     => $employee->created_at->toIso8601String(),
+            'id' => $employee->id,
+            'username' => $employee->username,
+            'email' => $employee->email,
+            'full_name' => $employee->fullName(),
+            'role' => $employee->role->value,
+            'role_label' => $employee->role->label(),
+            'is_active' => $employee->is_active,
+            'last_login_at' => $employee->last_login_at?->toIso8601String(),
+            'created_at' => $employee->created_at->toIso8601String(),
         ];
     }
 

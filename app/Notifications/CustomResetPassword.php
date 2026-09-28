@@ -2,19 +2,20 @@
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 
 class CustomResetPassword extends ResetPassword
 {
     use Queueable;
+
     // app/Notifications/CustomResetPassword.php
     public function toMail($notifiable)
     {
         $url = url(route('password.reset', [
             'token' => $this->token,
-            'email' => $notifiable->getEmailForPasswordReset()
+            'email' => $notifiable->getEmailForPasswordReset(),
         ]));
 
         return (new MailMessage)

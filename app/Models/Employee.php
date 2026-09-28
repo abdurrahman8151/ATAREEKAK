@@ -30,11 +30,11 @@ class Employee extends Authenticatable
     ];
 
     protected $casts = [
-        'role'          => StaffRole::class,
-        'is_active'     => 'boolean',
+        'role' => StaffRole::class,
+        'is_active' => 'boolean',
         'token_version' => 'integer',
         'last_login_at' => 'datetime',
-        'password'      => 'hashed',
+        'password' => 'hashed',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────

@@ -13,13 +13,14 @@ class WalletRequestControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User   $user;
+    private User $user;
+
     private string $token;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user  = User::factory()->create(['password' => bcrypt('password123')]);
+        $this->user = User::factory()->create(['password' => bcrypt('password123')]);
         $this->token = $this->getToken($this->user);
     }
 
@@ -46,7 +47,7 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => WalletRequestType::TOP_UP->value,
+                'type' => WalletRequestType::TOP_UP->value,
                 'amount' => 100.00,
             ])
             ->assertStatus(201)
@@ -57,7 +58,7 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => WalletRequestType::WITHDRAWAL->value,
+                'type' => WalletRequestType::WITHDRAWAL->value,
                 'amount' => 50.00,
             ])
             ->assertStatus(201)
@@ -68,13 +69,13 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => WalletRequestType::TOP_UP->value,
+                'type' => WalletRequestType::TOP_UP->value,
                 'amount' => 75.00,
             ]);
 
         $this->assertDatabaseHas('wallet_requests', [
             'user_id' => $this->user->id,
-            'amount'  => 75.00,
+            'amount' => 75.00,
         ]);
     }
 
@@ -82,13 +83,13 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => WalletRequestType::TOP_UP->value,
+                'type' => WalletRequestType::TOP_UP->value,
                 'amount' => 50.00,
             ]);
 
         $this->assertDatabaseHas('wallet_requests', [
             'user_id' => $this->user->id,
-            'status'  => WalletRequestStatus::PENDING->value,
+            'status' => WalletRequestStatus::PENDING->value,
         ]);
     }
 
@@ -96,7 +97,7 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => WalletRequestType::TOP_UP->value,
+                'type' => WalletRequestType::TOP_UP->value,
                 'amount' => 200.00,
             ])
             ->assertStatus(201)
@@ -121,7 +122,7 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => 'not_a_valid_type',
+                'type' => 'not_a_valid_type',
                 'amount' => 100.00,
             ])
             ->assertStatus(422);
@@ -131,7 +132,7 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => WalletRequestType::TOP_UP->value,
+                'type' => WalletRequestType::TOP_UP->value,
                 'amount' => 0,
             ])
             ->assertStatus(422);
@@ -141,7 +142,7 @@ class WalletRequestControllerTest extends TestCase
     {
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
-                'type'   => WalletRequestType::TOP_UP->value,
+                'type' => WalletRequestType::TOP_UP->value,
                 'amount' => -50.00,
             ])
             ->assertStatus(422);
@@ -205,7 +206,7 @@ class WalletRequestControllerTest extends TestCase
 
     public function test_user_cannot_view_another_users_request(): void
     {
-        $other   = User::factory()->create();
+        $other = User::factory()->create();
         $request = WalletRequest::create($this->walletRequestData(['user_id' => $other->id]));
 
         $this->withToken($this->token)
@@ -242,7 +243,7 @@ class WalletRequestControllerTest extends TestCase
             ->assertStatus(200);
 
         $this->assertDatabaseHas('wallet_requests', [
-            'id'     => $request->id,
+            'id' => $request->id,
             'status' => WalletRequestStatus::CANCELLED->value,
         ]);
     }
@@ -260,7 +261,7 @@ class WalletRequestControllerTest extends TestCase
 
     public function test_user_cannot_cancel_another_users_request(): void
     {
-        $other   = User::factory()->create();
+        $other = User::factory()->create();
         $request = WalletRequest::create($this->walletRequestData(['user_id' => $other->id]));
 
         $this->withToken($this->token)
@@ -274,16 +275,16 @@ class WalletRequestControllerTest extends TestCase
     {
         return array_merge([
             'user_id' => $this->user->id,
-            'type'    => WalletRequestType::TOP_UP->value,
-            'amount'  => 100.00,
-            'status'  => WalletRequestStatus::PENDING->value,
+            'type' => WalletRequestType::TOP_UP->value,
+            'amount' => 100.00,
+            'status' => WalletRequestStatus::PENDING->value,
         ], $overrides);
     }
 
     private function getToken(User $user): string
     {
         return $this->postJson('/api/auth/login', [
-            'email'    => $user->email,
+            'email' => $user->email,
             'password' => 'password123',
         ])->json('tokens.access_token');
     }

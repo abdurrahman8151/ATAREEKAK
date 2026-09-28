@@ -43,13 +43,13 @@ final class StaffJwtMiddleware
     {
         // ── 1. Extract Bearer token ───────────────────────────────────────────
         $token = $this->extractToken($request);
-        if (!$token) {
+        if (! $token) {
             return $this->fail('TOKEN_MISSING', 'Staff access token is required.');
         }
 
         // ── 2. Decode with StaffJwtService (staff-specific secret + claims) ───
         $payload = $this->staffJwtService->decodeToken($token);
-        if (!$payload) {
+        if (! $payload) {
             return $this->fail('TOKEN_INVALID', 'Invalid or expired token.');
         }
 
@@ -60,21 +60,21 @@ final class StaffJwtMiddleware
 
         // ── 4. Load Employee ──────────────────────────────────────────────────
         $employee = Employee::find($payload['sub']);
-        if (!$employee) {
+        if (! $employee) {
             return $this->fail('EMPLOYEE_NOT_FOUND', 'Employee account not found.');
         }
 
-        if (!$employee->is_active) {
+        if (! $employee->is_active) {
             return $this->fail('ACCOUNT_INACTIVE', 'This employee account has been deactivated.');
         }
 
         // ── 5. Token version check ────────────────────────────────────────────
-        if (!$this->staffJwtService->validateTokenVersion($payload, $employee)) {
+        if (! $this->staffJwtService->validateTokenVersion($payload, $employee)) {
             return $this->fail('TOKEN_INVALIDATED', 'Session invalidated. Please log in again.');
         }
 
         // ── 6. Role gate ──────────────────────────────────────────────────────
-        if (!$this->checkRoles($employee->role->value, $roles)) {
+        if (! $this->checkRoles($employee->role->value, $roles)) {
             return $this->forbidden($roles);
         }
 
@@ -101,7 +101,7 @@ final class StaffJwtMiddleware
         // pay nothing. Returns null when the employee has no email, matching the
         // previous (null) behaviour for such accounts rather than failing.
         $request->setUserResolver(function () use ($employee) {
-            if (!$employee->email) {
+            if (! $employee->email) {
                 return null;
             }
 
@@ -118,12 +118,14 @@ final class StaffJwtMiddleware
         if (empty($allowedRoles)) {
             return true; // No restriction — any active employee passes
         }
+
         return in_array($actualRole, array_map('trim', $allowedRoles), strict: true);
     }
 
     private function extractToken(Request $request): ?string
     {
         $header = $request->header('Authorization', '');
+
         return str_starts_with($header, 'Bearer ') ? substr($header, 7) : null;
     }
 
@@ -135,9 +137,9 @@ final class StaffJwtMiddleware
     private function forbidden(array $roles): Response
     {
         return response()->json([
-            'status'  => 'error',
-            'code'    => 'FORBIDDEN',
-            'message' => 'This action requires one of: ' . implode(', ', $roles),
+            'status' => 'error',
+            'code' => 'FORBIDDEN',
+            'message' => 'This action requires one of: '.implode(', ', $roles),
         ], 403);
     }
 }

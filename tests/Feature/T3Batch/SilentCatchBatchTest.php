@@ -41,7 +41,7 @@ class SilentCatchBatchTest extends TestCase
                 }
                 $src = file_get_contents($f->getPathname());
                 foreach ($this->emptyCatchBodies($src) as $line) {
-                    $offenders[] = substr($f->getPathname(), strlen(base_path('/') ?: base_path())) . ':' . $line;
+                    $offenders[] = substr($f->getPathname(), strlen(base_path('/') ?: base_path())).':'.$line;
                 }
             }
         }
@@ -63,7 +63,7 @@ class SilentCatchBatchTest extends TestCase
     {
         $hits = [];
         $re = '/catch\s*\(([^)]*)\)\s*\{/';
-        if (!preg_match_all($re, $src, $m, PREG_OFFSET_CAPTURE)) {
+        if (! preg_match_all($re, $src, $m, PREG_OFFSET_CAPTURE)) {
             return [];
         }
 
@@ -100,7 +100,7 @@ class SilentCatchBatchTest extends TestCase
             $lineEnd = strpos($src, "\n", $i);
             $lineTail = substr($src, $i, ($lineEnd === false ? strlen($src) : $lineEnd) - $i);
 
-            if (!str_contains($body, 'intentionally silent') && !str_contains($lineTail, 'intentionally silent')) {
+            if (! str_contains($body, 'intentionally silent') && ! str_contains($lineTail, 'intentionally silent')) {
                 $hits[] = substr_count(substr($src, 0, $match[1]), "\n") + 1;
             }
         }
@@ -113,7 +113,7 @@ class SilentCatchBatchTest extends TestCase
         $user = User::factory()->create();
         $wallet = Wallet::create([
             'user_id' => $user->id,
-            'phone_number' => '0944' . rand(100000, 999999),
+            'phone_number' => '0944'.rand(100000, 999999),
             'balance' => 1000,
         ]);
         $user->update(['wallet_id' => $wallet->id]);

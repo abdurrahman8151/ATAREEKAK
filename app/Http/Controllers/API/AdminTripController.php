@@ -65,9 +65,9 @@ final class AdminTripController extends Controller
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'filter'   => 'sometimes|in:all,active,scheduled,completed,cancelled,awaiting',
+            'filter' => 'sometimes|in:all,active,scheduled,completed,cancelled,awaiting',
             'per_page' => 'sometimes|integer|min:1|max:50',
-            'page'     => 'sometimes|integer|min:1',
+            'page' => 'sometimes|integer|min:1',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -76,26 +76,26 @@ final class AdminTripController extends Controller
             ], 422);
         }
 
-        $filter  = $request->get('filter', 'all');
+        $filter = $request->get('filter', 'all');
         $perPage = (int) $request->get('per_page', 15);
-        $page    = (int) $request->get('page', 1);
+        $page = (int) $request->get('page', 1);
 
         try {
             $paginator = $this->tripService->getFilteredTrips($filter, $perPage, $page);
 
             $data = $paginator->getCollection()
-                ->map(fn($ride) => $this->tripService->formatTrip($ride))
+                ->map(fn ($ride) => $this->tripService->formatTrip($ride))
                 ->values();
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
-                'meta'   => [
+                'data' => $data,
+                'meta' => [
                     'current_page' => $paginator->currentPage(),
-                    'last_page'    => $paginator->lastPage(),
-                    'per_page'     => $paginator->perPage(),
-                    'total'        => $paginator->total(),
-                    'filter'       => $filter,
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'filter' => $filter,
                 ],
                 'counts' => $this->tripService->getStatusCounts(),
             ]);
@@ -103,7 +103,7 @@ final class AdminTripController extends Controller
             Log::error('Admin trip list failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load trips',
             ], 500);
         }
@@ -133,14 +133,14 @@ final class AdminTripController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $trips,
-                'total'  => count($trips),
+                'data' => $trips,
+                'total' => count($trips),
             ]);
         } catch (\Exception $e) {
             Log::error('Admin live trips failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load live trips',
             ], 500);
         }
@@ -186,13 +186,13 @@ final class AdminTripController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Popular routes failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load popular routes',
             ], 500);
         }
@@ -237,13 +237,13 @@ final class AdminTripController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data'   => $data,
+                'data' => $data,
             ]);
         } catch (\Exception $e) {
             Log::error('Top drivers failed', ['error' => $e->getMessage()]);
 
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Failed to load top drivers',
             ], 500);
         }
