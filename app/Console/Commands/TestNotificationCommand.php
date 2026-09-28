@@ -8,6 +8,8 @@ use Illuminate\Console\Command;
 
 class TestNotificationCommand extends Command
 {
+    use GuardsAgainstProductionExecution; // AF-4
+
     protected $signature = 'notification:test {user_id?} {--type=welcome}';
 
     protected $description = 'Send a test notification to a user';

@@ -23,6 +23,8 @@ interface RideRepositoryInterface
 
     public function bookRide(int $rideId, array $bookingData): Booking;
 
-    public function searchRides(array $criteria): Collection;
+    // AF-4: searchRides() removed from the persistence contract — spatial
+    // querying belongs to RideSearchService, and the repository's parallel copy
+    // was deleted with it. One search path, one owner.
     //    public function cancelRide(int $rideId, int $driverId): Ride;
 }

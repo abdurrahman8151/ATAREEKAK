@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  */
 class Testridecompletionflow extends Command
 {
+    use GuardsAgainstProductionExecution; // AF-4
+
     protected $signature = 'syride:test-completion
                             {--payment=cash     : Payment method to test — cash or e-pay}
                             {--passengers=2     : Number of passengers to simulate (1–4)}

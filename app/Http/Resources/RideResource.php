@@ -27,7 +27,14 @@ class RideResource extends JsonResource
                 'avatar' => $this->driver->profile?->profile_photo
                     ? asset('storage/'.$this->driver->profile->profile_photo)
                     : $this->driver->avatar,
-                'rating' => $this->driver->driver_rating ?? 0,
+                // AF-4: `driver_rating` is not a column on users; it evaluated
+                // to null and `?? 0` silently returned a rating of 0 for EVERY
+                // driver — a fake number in the API response. average_rating is
+                // the model's single-source accessor; it reads the batch-loaded
+                // relation when present (search/list eager-load driver.
+                // receivedRatings) and falls back to one query for single-model
+                // paths, so this never turns a list into an N+1.
+                'rating' => round((float) $this->driver->average_rating, 2),
             ],
 
             'pickup' => [

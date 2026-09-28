@@ -9,11 +9,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    // AF-4 (app-future audit): HasApiTokens (Sanctum) removed. The owner
+    // decision was "JWT for everything": no route uses auth:sanctum, nothing
+    // calls createToken(), and T2-9 deliberately deleted the one call site
+    // (GoogleController). The trait advertised a token API the app never
+    // serves; three auth systems with a documented boundary is honest, a
+    // third one that is unused is not.
+    use HasFactory, Notifiable;
 
     // status: -1 = banned | 0 = logged out | 1 = active
 
@@ -146,7 +151,15 @@ class User extends Authenticatable
 
     public function getAverageRatingAttribute()
     {
-        return $this->receivedRatings()->avg('rating') ?? 0;
+        // AF-4: rating is shown in the ride/booking API responses. This used to
+        // call ->avg() unconditionally, i.e. one query per row — which is why
+        // presenters avoided it and instead read a nonexistent driver_rating
+        // column (always 0). When the relation is eager-loaded (the search and
+        // list paths do this in one batched query), average the loaded rows in
+        // memory; the lazy query remains the fallback for single-model paths.
+        return ($this->relationLoaded('receivedRatings')
+            ? $this->receivedRatings->avg('rating')
+            : $this->receivedRatings()->avg('rating')) ?? 0;
     }
 
     public function getTotalRatingsAttribute()

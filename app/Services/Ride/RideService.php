@@ -513,7 +513,15 @@ final class RideService
 
     public function searchRides(array $criteria): Collection
     {
-        return $this->rideRepository->searchRides($criteria);
+        // AF-4: the live search now runs the extracted RideSearchService. Until
+        // this line changed the service was bound in the container and injected
+        // into this class (:29) but never called — every search went through
+        // RideRepository::searchRides, a persistence object that also owned
+        // spatial query logic. Same OR-route semantics, now with the RideStatus
+        // enum, eager loading and booked-seat counts; the repository copy is
+        // deleted, so there is exactly one search path to reason about and to
+        // load-test.
+        return $this->searchService->searchRides($criteria);
     }
 
     // =========================================================================

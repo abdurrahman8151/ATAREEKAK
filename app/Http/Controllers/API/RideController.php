@@ -462,36 +462,12 @@ class RideController extends Controller
         ]);
     }
 
-    public function search(Request $request): JsonResponse
-    {
-        $request->validate([
-            'source_lat' => 'required|numeric',
-            'source_lng' => 'required|numeric',
-            'dest_lat' => 'required|numeric',
-            'dest_lng' => 'required|numeric',
-            'departure_date' => 'required|date',
-            'seats_required' => 'required|integer|min:1',
-        ]);
-
-        try {
-            $rides = $this->rideService->searchRides($request->all());
-            $rides->loadCount(['bookings as total_booked_seats' => function ($query) {
-                $query->select(DB::raw('COALESCE(SUM(seats), 0)'));
-            }]);
-
-            return response()->json([
-                'success' => true,
-                'data' => RideResource::collection($rides),
-                'count' => $rides->count(),
-            ]);
-
-        } catch (\Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
+    // AF-4: the old `search()` controller method was DELETED. It was a fourth
+    // copy of the search feature (validation + rideService->searchRides +
+    // loadCount + RideResource) with NO route wired to it — routes/api.php maps
+    // /rides/search to searchRides() instead. Shipping an unrouted duplicate of
+    // a hot path is exactly the "one concept, N places" defect the architecture
+    // audit flagged, and it invites future callers to guess wrong.
 
     public function myBookings(Request $request): JsonResponse
     {

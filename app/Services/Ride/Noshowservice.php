@@ -48,15 +48,21 @@ use Illuminate\Support\Facades\Log;
  */
 final class Noshowservice
 {
-    // Gate: button unlocks this many hours after departure
-    // private const GATE_HOURS = 1;
+    // AF-4 (app-future audit): GATE_MINUTES=1 / DISPUTE_MINUTES=2 were testing
+    // values with the real hours commented out above them — a two-minute
+    // dispute window shipped to production, and money-path timings that a
+    // deploy could not tune without editing code. The real 1h/2h defaults now
+    // live in config/rides.php (rides.noshow.*); see the config comment.
 
-    // Window: the other party has this many hours to file a counter-report
-    //   private const DISPUTE_HOURS = 2;
-    // AFTER (testing mode)
-    private const GATE_MINUTES = 1;
+    private function gateHours(): float
+    {
+        return (float) config('rides.noshow.gate_hours', 1);
+    }
 
-    private const DISPUTE_MINUTES = 2;
+    private function disputeHours(): float
+    {
+        return (float) config('rides.noshow.dispute_hours', 2);
+    }
 
     public function __construct(
         private readonly ScoreService $scoreService,
@@ -100,12 +106,12 @@ final class Noshowservice
                 );
             }
 
-            // ── TIME GATE: 1 hour after departure ────────────────────────────
-            $gateOpensAt = $ride->departure_time->copy()->addMinutes(self::GATE_MINUTES);
+            // ── TIME GATE: config hours after departure (default 1h) ─────────
+            $gateOpensAt = $ride->departure_time->copy()->addHours($this->gateHours());
             if (now()->lt($gateOpensAt)) {
                 $remaining = now()->diffInSeconds($gateOpensAt);
                 throw new \InvalidArgumentException(
-                    'No-show reporting unlocks '.self::GATE_MINUTES." minute(s) after departure. {$remaining} second(s) remaining."
+                    'No-show reporting unlocks '.$this->gateHours()." hour(s) after departure. {$remaining} second(s) remaining."
                 );
             }
 
@@ -154,7 +160,7 @@ final class Noshowservice
                 'target_role' => 'passenger',
                 'payment_method' => $ride->payment_method,
                 'status' => 'pending',
-                'expires_at' => now()->addMinutes(self::DISPUTE_MINUTES),
+                'expires_at' => now()->addHours($this->disputeHours()),
             ]);
 
             // Notify passenger: you have 2 hours to contest
@@ -224,12 +230,12 @@ final class Noshowservice
                 );
             }
 
-            // ── TIME GATE: 1 hour after departure ────────────────────────────
-            $gateOpensAt = $ride->departure_time->copy()->addMinutes(self::GATE_MINUTES);
+            // ── TIME GATE: config hours after departure (default 1h) ─────────
+            $gateOpensAt = $ride->departure_time->copy()->addHours($this->gateHours());
             if (now()->lt($gateOpensAt)) {
                 $remaining = now()->diffInSeconds($gateOpensAt);
                 throw new \InvalidArgumentException(
-                    'No-show reporting unlocks '.self::GATE_MINUTES." minute(s) after departure. {$remaining} second(s) remaining."
+                    'No-show reporting unlocks '.$this->gateHours()." hour(s) after departure. {$remaining} second(s) remaining."
                 );
             }
 
@@ -277,7 +283,7 @@ final class Noshowservice
                 'target_role' => 'driver',
                 'payment_method' => $ride->payment_method,
                 'status' => 'pending',
-                'expires_at' => now()->addMinutes(self::DISPUTE_MINUTES),
+                'expires_at' => now()->addHours($this->disputeHours()),
             ]);
 
             // Notify driver: passenger reported you, 2 hours to contest

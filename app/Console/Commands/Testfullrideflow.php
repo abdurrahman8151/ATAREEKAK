@@ -36,6 +36,8 @@ use Illuminate\Support\Facades\Hash;
  */
 class Testfullrideflow extends Command
 {
+    use GuardsAgainstProductionExecution; // AF-4
+
     protected $signature = 'syride:test-noshow {--commit : Persist data instead of rolling back}';
 
     protected $description = 'End-to-end test: no-show reports, penalties, refunds, disputes, complaints';

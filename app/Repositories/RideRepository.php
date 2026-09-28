@@ -249,6 +249,7 @@ class RideRepository implements RideRepositoryInterface
         Log::info('RideRepository: Fetching driver rides', ['user_id' => $userId]);
 
         return Ride::where('driver_id', $userId)
+            ->with('driver.receivedRatings') // AF-4: batch the rating for RideResource
             ->withCount('bookings')
             ->orderBy('departure_time', 'desc')
             ->get();
@@ -281,21 +282,6 @@ class RideRepository implements RideRepositoryInterface
 
             return $booking->load('user', 'ride');
         });
-    }
-
-    /**
-     * Search rides based on criteria.
-     */
-    public function searchRides(array $params): Collection
-    {
-        $query = Ride::query()
-            ->whereDate('departure_time', '=', Carbon::parse($params['departure_date']))
-            ->where('available_seats', '>=', $params['seats_required'])
-            ->where('status', 'active');
-
-        $this->applySpatialFilters($query, $params);
-
-        return $query->with('driver')->get();
     }
 
     /**
@@ -333,37 +319,10 @@ class RideRepository implements RideRepositoryInterface
     }
 
     /**
-     * Apply spatial filters (unchanged)
+     * AF-4 (app-future audit): searchRides() and applySpatialFilters() were
+     * deleted from this repository. A persistence object owning a second,
+     * parallel spatial query (unstructured, string status, no eager loading) is
+     * exactly the "one concept, two places" defect; the live path was
+     * RideService::searchRides, which now delegates solely to RideSearchService.
      */
-    private function applySpatialFilters($query, array $params): void
-    {
-        $maxDistance = 20 * 1000;
-        $srcWkt = sprintf('POINT(%F %F)', $params['source_lng'], $params['source_lat']);
-        $dstWkt = sprintf('POINT(%F %F)', $params['dest_lng'], $params['dest_lat']);
-
-        $query->where(function ($q) use ($maxDistance, $srcWkt, $dstWkt) {
-            $q->whereRaw(
-                'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?',
-                [$srcWkt, $maxDistance]
-            )
-                ->whereRaw(
-                    'ST_Distance_Sphere(destination_location, ST_GeomFromText(?, 4326)) <= ?',
-                    [$dstWkt, $maxDistance]
-                )
-                ->orWhere(function ($q2) use ($srcWkt, $dstWkt) {
-                    $q2->whereNotNull('route_geometry')
-                        ->whereRaw('JSON_VALID(route_geometry)')
-                        ->whereRaw("JSON_EXTRACT(route_geometry, '$.coordinates') IS NOT NULL")
-                        ->whereRaw("JSON_TYPE(JSON_EXTRACT(route_geometry, '$.coordinates')) = 'ARRAY'")
-                        ->whereRaw(
-                            'ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))',
-                            [$srcWkt]
-                        )
-                        ->whereRaw(
-                            'ST_Contains(ST_Buffer(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0.05), ST_GeomFromText(?, 4326))',
-                            [$dstWkt]
-                        );
-                });
-        });
-    }
 }

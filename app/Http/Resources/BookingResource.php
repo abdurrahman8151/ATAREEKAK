@@ -33,7 +33,10 @@ class BookingResource extends JsonResource
                 'avatar' => $this->user->profile?->profile_photo
                     ? asset('storage/'.$this->user->profile->profile_photo)
                     : $this->user->avatar,
-                'rating' => $this->user->passenger_rating ?? 0,
+                // AF-4: same defect as RideResource — `passenger_rating` is not
+                // a column on users, so every passenger was shown with rating 0.
+                // average_rating is the single-source accessor; batch-safe.
+                'rating' => round((float) $this->user->average_rating, 2),
             ],
 
             'ride' => [

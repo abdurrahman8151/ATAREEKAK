@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\Hash;
  */
 class Testridegatedinteractioncommand extends Command
 {
+    use GuardsAgainstProductionExecution; // AF-4
+
     protected $signature = 'syride:test-ride-interaction {--commit : Persist data instead of rolling back}';
 
     protected $description = '[DEV] End-to-end test: ride-gated comments & ratings';

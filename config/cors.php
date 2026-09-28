@@ -11,7 +11,8 @@ return [
         'web/*',
         'api/*',
         'admin/*',
-        'sanctum/csrf-cookie',
+        // AF-4: 'sanctum/csrf-cookie' removed together with the Sanctum
+        // package — CORS must not advertise a route the app no longer ships.
         // T2-12: the previous 'session-debug' entry pointed at a route that does
         // not exist anywhere in routes/ (grep: zero matches). Dead debug hook;
         // removed so CORS does not advertise a path the app never serves.

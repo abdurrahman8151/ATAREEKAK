@@ -29,6 +29,8 @@ use Illuminate\Console\Command;
 
 class Getloadtesttokens extends Command
 {
+    use GuardsAgainstProductionExecution; // AF-4
+
     protected $signature = 'loadtest:tokens {--count=5} {--export=table}';
 
     protected $description = 'Generate JWT tokens for seeded test users (for k6 load testing)';

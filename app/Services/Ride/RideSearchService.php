@@ -22,9 +22,18 @@ use Illuminate\Database\Eloquent\Collection;
  */
 final class RideSearchService
 {
-    private const MAX_DISTANCE_KM = 20;
+    // AF-4: thresholds are config so the live search is tunable per environment
+    // (load tests vs. production) instead of compile-time constants. The
+    // previous 20 km default is preserved exactly.
+    private int $maxDistanceMeters;
 
-    private const ROUTE_BUFFER_DEGREES = 0.05; // ~5km buffer around route
+    private float $routeBufferDegrees;
+
+    public function __construct()
+    {
+        $this->maxDistanceMeters = (int) config('rides.search.max_distance_km', 20) * 1000;
+        $this->routeBufferDegrees = (float) config('rides.search.route_buffer_degrees', 0.05);
+    }
 
     /**
      * Search for available rides matching criteria
@@ -40,12 +49,19 @@ final class RideSearchService
 
         return $query
             ->with([
-                'driver' => function ($query) {
-                    $query->select('id', 'first_name', 'last_name', 'driver_rating');
-                },
-                'driver.profile' => function ($query) {
-                    $query->select('user_id', 'profile_photo');
-                },
+                // AF-4: this used to select a `driver_rating` column that does
+                // not exist on users — one reason the service could never have
+                // served the live endpoint. NOTE: no select-restrictions here.
+                // The repository path this replaces loaded the FULL driver row,
+                // and the controller serializes raw models (no Resource), so any
+                // trimmed column list would SUBTRACT fields from a live response
+                // shape. The wired search must be strictly additive: existing
+                // keys unchanged, new ones (profile, received_ratings,
+                // total_booked_seats) appended. Ratings arrive in ONE batched
+                // eager load (see the N+1 test), never per row.
+                'driver',
+                'driver.profile',
+                'driver.receivedRatings',
             ])
             ->withCount(['bookings as total_booked_seats' => function ($query) {
                 $query->selectRaw('COALESCE(SUM(seats), 0)');
@@ -63,7 +79,7 @@ final class RideSearchService
      */
     private function applySpatialFilters(Builder $query, array $params): void
     {
-        $maxDistanceMeters = self::MAX_DISTANCE_KM * 1000;
+        $maxDistanceMeters = $this->maxDistanceMeters;
         $srcWkt = sprintf('POINT(%F %F)', $params['source_lng'], $params['source_lat']);
         $dstWkt = sprintf('POINT(%F %F)', $params['dest_lng'], $params['dest_lat']);
 
@@ -117,7 +133,7 @@ final class RideSearchService
                     ),
                     ST_GeomFromText(?, 4326)
                 )',
-                [self::ROUTE_BUFFER_DEGREES, $srcWkt]
+                [$this->routeBufferDegrees, $srcWkt]
             )
             // Check if destination point is near route
             ->whereRaw(
@@ -128,7 +144,7 @@ final class RideSearchService
                     ),
                     ST_GeomFromText(?, 4326)
                 )',
-                [self::ROUTE_BUFFER_DEGREES, $dstWkt]
+                [$this->routeBufferDegrees, $dstWkt]
             );
     }
 

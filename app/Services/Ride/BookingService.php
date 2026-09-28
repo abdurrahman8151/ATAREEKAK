@@ -573,6 +573,7 @@ final class BookingService
     {
         return Booking::with([
             'ride',
+            'user.receivedRatings', // AF-4: batch the passenger rating for BookingResource
             'ride.driver',
             'ride.driver.profile',
         ])

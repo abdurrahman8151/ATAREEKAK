@@ -13,6 +13,12 @@ enum BookingStatus: string
     case CONFIRMED = 'confirmed';
     case CANCELLED = 'cancelled';
     case COMPLETED = 'completed';
+    // AF-4: this state existed in the DB enum (migration 2025_07_21_181158) and
+    // Noshowservice writes it in two places, but the PHP enum never declared it
+    // — so BookingStatus::tryFrom('no_show') returned null for a live status,
+    // and the exhaustive match() arms below could never name it. Enum and
+    // database now agree.
+    case NO_SHOW = 'no_show';
 
     /**
      * Get human-readable label
@@ -24,6 +30,7 @@ enum BookingStatus: string
             self::CONFIRMED => 'Confirmed',
             self::CANCELLED => 'Cancelled',
             self::COMPLETED => 'Completed',
+            self::NO_SHOW => 'No Show',
         };
     }
 
@@ -53,6 +60,7 @@ enum BookingStatus: string
             self::CONFIRMED => 'green',
             self::CANCELLED => 'red',
             self::COMPLETED => 'blue',
+            self::NO_SHOW => 'darkred',
         };
     }
 
