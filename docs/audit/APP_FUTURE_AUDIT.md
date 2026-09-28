@@ -462,6 +462,62 @@ feature surface.** None of it needs a different architecture — it needs the ar
 they already drew to be finished.
 
 ---
+
+## J. Remediation log (started 2026-09-26)
+
+Executed with the same discipline as the bug audit: one finding at a time to a terminal
+state, causality proven by needle-patching the defect back in.
+
+### AF-1 — TLS honesty + Octane upload hygiene — VERIFIED FIX
+
+**Finding (§A3.2, §D4, §F-P0.3):** outbound provider calls shipped with TLS peer
+verification disabled — `Http::withOptions(['verify' => false])` twice in
+`RouteCalculationService` (the response drives ride **distance**, and distance drives
+**fare** — a MITM target), and a dedicated `new Client(['verify' => false])` in
+`WhatsAppOtpService::sendViaCallMeBot()` built a *second* insecure client on a class that
+already owned a verified one (constructor line 21) — sending the API key over an
+unverified channel. Separately, `config/octane.php` had `FlushUploadedFiles::class`
+commented out in the `RequestTerminated` group, leaking one uploaded temp file per request
+for the lifetime of each of the 5 resident RoadRunner workers.
+
+**Root cause:** both were dev-box conveniences (a missing CA bundle on WAMP) that rode to
+production. **Causality evidence gathered before the fix:** verified HTTPS
+(`VERIFYPEER + VERIFYHOST=2`) was tested working from this very machine against both
+`api.callmebot.com` and `api.openrouteservice.org` (HTTP 200, CA from
+`curl.cainfo` in php.ini) — the workaround had no surviving excuse.
+
+**Files changed:**
+- `app/Services/Geocoding/RouteCalculationService.php` — both `verify => false`
+  wrappers removed (verified calls now ride Laravel's default Guzzle handler).
+- `app/Services/WhatsAppOtpService.php` — insecure client deleted; send path reuses
+  `$this->client` (the verified constructor client).
+- `config/octane.php` — `FlushUploadedFiles::class` re-enabled (import was already present).
+- New `tests/Feature/AppFuture/TlsAndOctaneHygieneTest.php` (3 tests): comment-aware
+  tokenizer scan proves **no** `verify=>false`/`VERIFYPEER=false` anywhere in `app/`
+  source (my explanatory comments quote the string and do NOT trip it); octane listener
+  config contains the flush listener; WhatsApp service constructs exactly one client.
+
+**Verification:**
+- Pin suite green; causality proven with three separate needle patches — (1) re-inserting
+  `['verify' => false]` in RouteCalculation → TLS pin fails naming that file; (2)
+  re-adding the second client → BOTH TLS pin and the "one verified client" pin fail;
+  (3) re-commenting FlushUploadedFiles → octane pin fails with the leak message. Every
+  needle restored byte-exact; post-restore diffs contain only the AF-1 edits (CRLF +
+  UTF-8 intact, `git diff --check` clean).
+- Regression sweep: AppFuture 3/3, T3Batch 37/436, T4Batch 16/50,
+  SessionCookieAndCors 11, DebugEndpointDisclosure 9, AppServiceProviderTest 18,
+  ArabicPlaceNameServiceTest 18 — all OK. GeocodingServiceTest is 17/11E/4F, identical to
+  its baseline recorded under T4-6 (pre-existing, different service, untouched by AF-1).
+
+**Genuinely unverified:** the live network call to each provider inside the running app
+(the handshake test above proves the TLS path, and the unit suite proves the code no
+longer disables it; a full OTP round-trip needs a real CallMeBot key). On Linux/docker the
+CA bundle comes from the OS store (the repo-shipped cacert was deleted under T4-6; the
+image does not rely on it).
+
+**Next:** AF-2 (CI gates: Pint + Larastan + tests-required).
+
+---
 *Maintained as the future-state companion to the bug audit. If any item here graduates to a
 fix task, mirror it into the `SYRIDE_COMPREHENSIVE_AUDIT.md` workflow (one problem at a
 time, verification to terminal state).*

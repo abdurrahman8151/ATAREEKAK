@@ -94,8 +94,8 @@ final class RouteCalculationService
             'geometry' => true,
         ];
 
-        $response = Http::withOptions(['verify' => false])
-            ->withHeaders(['Authorization' => $this->apiKey])
+        // AF-1: verified TLS (see the comment at getRouteInfo() for the story).
+        $response = Http::withHeaders(['Authorization' => $this->apiKey])
             ->timeout(30)
             ->post($url, $payload);
 
@@ -139,8 +139,16 @@ final class RouteCalculationService
             ],
         ];
 
-        $response = Http::withOptions(['verify' => false])
-            ->withHeaders(['Authorization' => $this->apiKey])
+        // AF-1 (app-future audit): `withOptions(['verify' => false])` was
+        // disabled TLS peer verification on every provider call. It existed only
+        // to work around a missing CA bundle on one WAMP dev box — but it shipped
+        // to the 5 production replicas too, where every outbound route request
+        // was MITM-able (this response drives ride DISTANCE, and distance drives
+        // fare). Verified TLS was proven working against
+        // api.openrouteservice.org from this very machine (HTTP 200 with
+        // VERIFYPEER+VERIFYHOST enabled, CA from php.ini curl.cainfo), so the
+        // workaround had outlived its excuse.
+        $response = Http::withHeaders(['Authorization' => $this->apiKey])
             ->timeout(30)
             ->post($url, $payload);
 

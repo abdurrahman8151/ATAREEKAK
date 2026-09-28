@@ -209,8 +209,14 @@ class WhatsAppOtpService
                     'apikey' => $this->apiKey,
                 ]);
 
-            $insecureClient = new Client(['verify' => false]);
-            $response       = $insecureClient->get($url);
+            // AF-1 (app-future audit): this built a SEPARATE Guzzle client with
+            // ['verify' => false] — disabled TLS peer verification on an
+            // endpoint that carries an API key. The class already owns a
+            // properly-verified $this->client (constructor, line 21); the
+            // insecure one existed only as a dev-box CA workaround. Verified
+            // HTTPS to api.callmebot.com was proven working from this machine,
+            // so the workaround had outlived its excuse.
+            $response       = $this->client->get($url);
             $statusCode     = $response->getStatusCode();
             $responseBody   = $response->getBody()->getContents();
 

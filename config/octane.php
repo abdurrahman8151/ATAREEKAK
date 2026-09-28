@@ -81,7 +81,14 @@ return [
         ],
 
         RequestTerminated::class => [
-            // FlushUploadedFiles::class,
+            // AF-1 (app-future audit): re-enabled. Under RoadRunner's resident
+            // workers, uploaded temp files are not garbage-collected with the
+            // PHP process — without this listener every KYC/document upload
+            // leaks a temp file per request for the life of the worker (the
+            // upload endpoints are authed but rate-limited only at 10/min, so
+            // a slow leak still accumulates across 5 replicas). The import for
+            // FlushUploadedFiles is already present at the top of this file.
+            FlushUploadedFiles::class,
         ],
 
         TaskReceived::class => [
