@@ -1,0 +1,81 @@
+# ============================================================
+# SyRide — LOCAL DEVELOPMENT override. Never used by the deploy workflow.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# The base file is production-shaped: credentials come from the environment and
+# the container runs the code baked into the image. This override re-adds the two
+# conveniences that only make sense on a developer machine:
+#
+#   1. The host source tree mounted over /var/www/html, so edits take effect
+#      without rebuilding. This is exactly what makes the image non-reproducible,
+#      which is why it lives here and not in docker-compose.yml.
+#   2. phpMyAdmin, bound to 127.0.0.1 only.
+#
+# Credentials are still read from the environment - no literal secrets here
+# either. Set DB_PASSWORD and MYSQL_ROOT_PASSWORD in your local .env
+# (see .env.example).
+# ============================================================
+
+services:
+
+    app1:
+        volumes:
+            - ./app:/var/www/html/app
+            - ./database:/var/www/html/database
+            - ./config:/var/www/html/config
+            - ./routes:/var/www/html/routes
+            - ./phpunit.xml:/var/www/html/phpunit.xml
+
+    app2:
+        volumes:
+            - ./app:/var/www/html/app
+            - ./database:/var/www/html/database
+            - ./config:/var/www/html/config
+            - ./routes:/var/www/html/routes
+
+    app3:
+        volumes:
+            - ./app:/var/www/html/app
+            - ./database:/var/www/html/database
+            - ./config:/var/www/html/config
+            - ./routes:/var/www/html/routes
+
+    app4:
+        volumes:
+            - ./app:/var/www/html/app
+            - ./database:/var/www/html/database
+            - ./config:/var/www/html/config
+            - ./routes:/var/www/html/routes
+
+    app5:
+        volumes:
+            - ./app:/var/www/html/app
+            - ./database:/var/www/html/database
+            - ./config:/var/www/html/config
+            - ./routes:/var/www/html/routes
+
+    queue:
+        volumes:
+            - ./app:/var/www/html/app
+            - ./config:/var/www/html/config
+
+    scheduler:
+        volumes:
+            - ./app:/var/www/html/app
+
+    # Loopback only - never bind this to 0.0.0.0.
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        container_name: syride_phpmyadmin
+        restart: unless-stopped
+        ports:
+            - "127.0.0.1:8081:80"
+        environment:
+            PMA_HOST: mysql
+            PMA_PORT: 3306
+            MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set - see .env.example}"
+            UPLOAD_LIMIT: 100M
+        depends_on:
+            mysql:
+                condition: service_healthy

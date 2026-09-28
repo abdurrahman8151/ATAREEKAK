@@ -1,0 +1,7 @@
+vendor/
+node_modules/
+*.sql
+dump.sql
+composer.lock
+package-lock.json
+.phpunit.result.cache

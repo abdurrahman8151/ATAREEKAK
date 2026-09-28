@@ -566,7 +566,7 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json([
                 'success' => true,
@@ -604,7 +604,7 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json([
                 'success' => true,
@@ -638,7 +638,7 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json([
                 'success' => true,
@@ -826,8 +826,9 @@ class RideController extends Controller
                         );
                     }
                 }
-            } catch (\Throwable) {
-                // Notification failure must never block the confirmation response
+            } catch (\Throwable $e) {
+                // T3-13: non-fatal by intent, but it must be visible.
+                Log::warning('ride confirmation notification failed (non-fatal): ' . $e->getMessage());
             }
 
             return response()->json([
@@ -883,7 +884,7 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json([
                 'status'  => 'success',
@@ -926,7 +927,7 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json(['status' => 'success', 'message' => $result['message']]);
 
@@ -953,7 +954,7 @@ class RideController extends Controller
                         'ride'
                     );
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('ride event notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json(['status' => 'success', 'message' => $result['message']]);
 

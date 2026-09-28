@@ -4,19 +4,22 @@ namespace App\Http\Controllers\API\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Interfaces\UserRepositoryInterface;
+use App\Services\JwtService;
 use Illuminate\Http\Request; // Ensure this is imported
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
 
-class GoogleController extends Controller
+class                                        GoogleController extends Controller
 {
     private UserRepositoryInterface $userRepo;
+    private JwtService $jwtService;
 
-    public function __construct(UserRepositoryInterface $userRepo)
+    public function __construct(UserRepositoryInterface $userRepo, JwtService $jwtService)
     {
-        $this->userRepo = $userRepo;
+        $this->userRepo   = $userRepo;
+        $this->jwtService = $jwtService;
     }
 
 
@@ -108,13 +111,57 @@ class GoogleController extends Controller
                 return response()->json(['error' => 'User processing failed after Google authentication.'], 500);
             }
 
-            $token = $user->createToken('google-auth-token')->plainTextToken;
+            // ── Block banned accounts BEFORE issuing any credential ──────────
+            // Parity with LoginController:77-83. This matters specifically
+            // because of T2-9: the token below is now a REAL credential that
+            // the jwt middleware accepts, so without this gate a suspended
+            // account finishing Google OAuth would be handed a working access
+            // token plus a 7-day refresh-token row. (The middleware still
+            // refuses status == -1 on every request, so this closes the
+            // credential-issuance step rather than a bypass.)
+            if ((int) $user->status === -1) {
+                Log::warning('Google OAuth Callback: refused to issue tokens for a banned account.', [
+                    'user_id' => $user->id,
+                ]);
 
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Your account has been suspended. Please contact support.',
+                    'code'    => 'ACCOUNT_BANNED',
+                ], 403);
+            }
+
+            // Parity with LoginController:86-88, and required for the fix to
+            // actually work: LogoutController:39 leaves a signed-out account at
+            // status 0, and JwtAuthMiddleware:97 rejects status 0 with
+            // USER_INACTIVE. Completing Google OAuth IS an authentication
+            // event, so it must clear the "logged out" flag exactly as password
+            // login does — otherwise the token issued below would be rejected
+            // by the very middleware it is meant to satisfy.
+            $this->userRepo->updateUserStatus($user->id, 1);
+            $user->refresh();
+
+            // T2-9: this used to be $user->createToken('google-auth-token'), i.e.
+            // a Sanctum personal-access token. Every protected endpoint is
+            // guarded by the custom `jwt` middleware, which decodes with
+            // JwtService and requires a `type === 'access'` claim; a Sanctum
+            // token has none of those claims, so the value returned here was
+            // accepted by nothing and Google sign-in was broken end-to-end.
+            // Issue the same access/refresh pair LoginController:90 issues.
+            $tokens = $this->jwtService->generateTokenPair($user);
+
+            // `tokens` matches the rest of the auth API (LoginController). The
+            // flat `token` / `token_type` keys are KEPT for backward
+            // compatibility: they were the only shape this endpoint ever
+            // returned, the consuming client is outside this repository and so
+            // cannot be checked from here, and a client reading `token` now
+            // receives a credential that actually works.
             return response()->json([
                 'message' => 'Authentication successful.',
                 'user' => $user,
-                'token' => $token,
-                'token_type' => 'Bearer',
+                'token' => $tokens['access_token'],
+                'token_type' => $tokens['token_type'],
+                'tokens' => $tokens,
             ]);
 
 

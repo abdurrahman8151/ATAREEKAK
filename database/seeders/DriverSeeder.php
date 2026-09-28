@@ -30,6 +30,8 @@ use Illuminate\Support\Facades\Hash;
  */
 class DriverSeeder extends Seeder
 {
+    use ResolvesSeedCredentials;
+
     // Syrian phone numbers in the format stored on rides/wallets
     private const COMM_NUMBER = '+963983337214';
 
@@ -52,6 +54,10 @@ class DriverSeeder extends Seeder
 
     public function run(): void
     {
+        // T3-9: same key as PassengerSeeder, so one db:seed run yields ONE
+        // login password for all seeded accounts; never a committed literal.
+        $password = $this->seedPassword('SEED_USER_PASSWORD');
+
         foreach ($this->drivers as $data) {
             $n = $data['suffix'];
 
@@ -61,7 +67,7 @@ class DriverSeeder extends Seeder
                 'first_name'          => "Driver{$n}",
                 'last_name'           => 'Test',
                 'email'               => "driver{$n}@syride.test",
-                'password'            => Hash::make('password'),
+                'password'            => Hash::make($password),
                 'gender'              => 'M',
                 'address'             => 'دمشق',
                 'status'              => 1,
@@ -112,6 +118,7 @@ class DriverSeeder extends Seeder
             $this->command->info("  ✅  Driver{$n} created → verified → wallet ready.");
         }
 
+        $this->reportPassword('Driver password (all 10 accounts)', 'SEED_USER_PASSWORD');
         $this->command->info('✅  All 10 drivers seeded with 3.0 base rating.');
     }
 }

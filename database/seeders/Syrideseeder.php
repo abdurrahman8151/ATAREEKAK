@@ -21,6 +21,8 @@ use Illuminate\Support\Str;
 
 class SyrideSeeder extends Seeder
 {
+    use ResolvesSeedCredentials;
+
     private const VERIFIED_DRIVERS    = 250;
     private const VERIFIED_PASSENGERS = 400;
     private const PENDING_USERS       = 200;
@@ -225,19 +227,27 @@ class SyrideSeeder extends Seeder
     {
         $this->command->info('Seeding staff…');
 
-        $this->ensureEmployee('system_admin', 'sys@syride.com',    'SystemAdmin2024!',  StaffRole::SYSTEM_ADMIN,  'System',  'Administrator');
-        $this->ensureEmployee('sycash',       'sycash@syride.com', 'SyCash2024!',       StaffRole::SYCASH,        'SyCash',  'Administrator');
+        // T3-9: staff passwords come from env (the same keys
+        // SpecialAccountSeeder/SystemAdminSeeder use) or are generated
+        // once per run and reported in the summary. Never a literal.
+        $sysAdminPw = $this->seedPassword('SYSTEM_ADMIN_PASSWORD');
+        $sycashPw   = $this->seedPassword('SYCASH_PASSWORD');
+        $adminPw    = $this->seedPassword('SEED_ADMIN_PASSWORD');
+        $agentPw    = $this->seedPassword('SEED_AGENT_PASSWORD');
+
+        $this->ensureEmployee('system_admin', 'sys@syride.com',    $sysAdminPw, StaffRole::SYSTEM_ADMIN,  'System',  'Administrator');
+        $this->ensureEmployee('sycash',       'sycash@syride.com', $sycashPw,   StaffRole::SYCASH,        'SyCash',  'Administrator');
 
         for ($i = 1; $i <= self::ADMINS; $i++) {
             $this->ensureEmployee(
-                "admin_{$i}", "admin{$i}@syride.com", "Admin{$i}@2024",
+                "admin_{$i}", "admin{$i}@syride.com", $adminPw,
                 StaffRole::ADMIN, 'مدير', "النظام {$i}"
             );
         }
 
         for ($i = 1; $i <= self::SUPPORT_AGENTS; $i++) {
             $this->ensureEmployee(
-                "agent_{$i}", "agent{$i}@syride.com", "Agent{$i}@2024",
+                "agent_{$i}", "agent{$i}@syride.com", $agentPw,
                 StaffRole::SUPPORT_AGENT, 'وكيل', "الدعم {$i}"
             );
         }
@@ -341,7 +351,7 @@ class SyrideSeeder extends Seeder
             'first_name'            => $this->driverFirstNames[$idx % count($this->driverFirstNames)],
             'last_name'             => $this->lastNames[$idx % count($this->lastNames)],
             'email'                 => "driver_{$idx}@syride.test",
-            'password'              => Hash::make('Password@123'),
+            'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
             'gender'                => $idx % 5 === 0 ? 'F' : 'M',
             'address'               => $city,
             'status'                => 1,
@@ -389,7 +399,7 @@ class SyrideSeeder extends Seeder
             'first_name'            => $this->passengerFirstNames[$idx % count($this->passengerFirstNames)],
             'last_name'             => $this->lastNames[$idx % count($this->lastNames)],
             'email'                 => "passenger_{$idx}@syride.test",
-            'password'              => Hash::make('Password@123'),
+            'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
             'gender'                => $idx % 3 === 0 ? 'F' : 'M',
             'address'               => $city,
             'status'                => 1,
@@ -433,7 +443,7 @@ class SyrideSeeder extends Seeder
             'first_name'            => 'مستخدم',
             'last_name'             => $this->lastNames[$idx % count($this->lastNames)],
             'email'                 => "pending_{$idx}@syride.test",
-            'password'              => Hash::make('Password@123'),
+            'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
             'gender'                => 'M',
             'address'               => $city,
             'status'                => 1,
@@ -473,7 +483,7 @@ class SyrideSeeder extends Seeder
             'first_name'            => 'جديد',
             'last_name'             => $this->lastNames[$idx % count($this->lastNames)],
             'email'                 => "new_{$idx}@syride.test",
-            'password'              => Hash::make('Password@123'),
+            'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
             'gender'                => 'M',
             'address'               => $city,
             'status'                => 1,
@@ -1431,11 +1441,13 @@ class SyrideSeeder extends Seeder
 
         $this->command->line('');
         $this->command->line('Login credentials (all test accounts):');
-        $this->command->line('  Password  : Password@123');
+        $this->reportPassword('User password', 'SEED_USER_PASSWORD');
         $this->command->line('  Drivers   : driver_0@syride.test … driver_249@syride.test');
         $this->command->line('  Passengers: passenger_0@syride.test … passenger_399@syride.test');
-        $this->command->line('  Admins    : admin_1@syride.com (Admin1@2024) … admin_3@syride.com');
-        $this->command->line('  Agents    : agent_1@syride.com (Agent1@2024) … agent_5@syride.com');
+        $this->reportPassword('Admin password', 'SEED_ADMIN_PASSWORD');
+        $this->command->line('  Admins    : admin_1@syride.com to admin_3@syride.com');
+        $this->reportPassword('Agent password', 'SEED_AGENT_PASSWORD');
+        $this->command->line('  Agents    : agent_1@syride.com to agent_5@syride.com');
         $this->command->line('');
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\API\Staff;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Enums\ComplaintStatus;
 use App\Http\Controllers\Controller;
 use App\Services\Staff\StaffComplaintService;
@@ -184,7 +186,7 @@ final class StaffComplaintController extends Controller
                         'system'
                     );
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('staff complaint status notification failed (non-fatal): ' . $e->getMessage()); }
 
             // Status transition changes resolved/closed/in_review badge counts
             Cache::forget('staff.complaint-counts');

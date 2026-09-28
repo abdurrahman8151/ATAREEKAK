@@ -8,7 +8,25 @@ return new class extends Migration
 {
     private function idx(string $table, string $name): bool
     {
-        return count(\DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$name])) > 0;
+        // T3-5: this guard used raw SHOW INDEX (MySQL-only) which made the
+        // migration unrunnable on SQLite/CI, and it checked only its OWN names
+        // so it never noticed the equivalent indexes created by
+        // 2026_08_14_144934 under *_index names — producing duplicates
+        // (rides_driver_status + rides_driver_status_index on the same columns).
+        // Kept by name (a later migration collapses the duplicates) but made
+        // driver-agnostic via Schema::getIndexes().
+        if (! Schema::hasTable($table)) {
+            return false;
+        }
+
+        return in_array(
+            $name,
+            array_map(
+                static fn (array $i): string => (string) ($i['name'] ?? ''),
+                Schema::getIndexes($table)
+            ),
+            true
+        );
     }
 
     public function up(): void

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\API;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Http\Controllers\Controller;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
@@ -97,7 +99,7 @@ class VerificationController extends Controller
                     'normal',
                     'system'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('verification notification failed (non-fatal): ' . $e->getMessage()); }
 
             Cache::forget("verification.status.{$user->id}");
 
@@ -200,7 +202,7 @@ class VerificationController extends Controller
                     'normal',
                     'system'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('verification notification failed (non-fatal): ' . $e->getMessage()); }
 
             Cache::forget("verification.status.{$user->id}");
 

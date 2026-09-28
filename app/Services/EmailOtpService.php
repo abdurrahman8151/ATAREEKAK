@@ -82,12 +82,25 @@ final class EmailOtpService implements EmailOtpServiceInterface
         try {
             $identifier = $dto->email->address();
 
-            $otp = $this->otpRepository->findByPhoneAndCode(
-                $identifier,
-                $dto->otpCode
-            );
+            // Look the issued code up WITHOUT filtering on the guessed value.
+            // Filtering by code made a wrong guess return null, so there was
+            // nothing to record the attempt against and the 3-attempt cap in
+            // Otp::isValid() could never be reached — a 6-digit code stayed
+            // brute-forceable for its whole 10-minute lifetime.
+            $otp = $this->otpRepository->findLatestByPhone($identifier);
 
             if (!$otp || !$otp->isValid()) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid or expired verification code.',
+                ];
+            }
+
+            if (!$otp->matchesCode($dto->otpCode)) {
+                // Count the miss; once the cap is hit the row is no longer
+                // isValid() and the code is dead even if later guessed correctly.
+                $otp->registerFailedAttempt();
+
                 return [
                     'success' => false,
                     'message' => 'Invalid or expired verification code.',

@@ -44,6 +44,8 @@ use Illuminate\Support\Str;
  */
 class UserRealFlowSeeder extends Seeder
 {
+    use ResolvesSeedCredentials;
+
     private const TARGET_USER_ID  = 36;
     private const PASSENGER_PHONE = '0991110036';
     private const DUMMY_PHONE     = '0991110099';
@@ -307,7 +309,7 @@ class UserRealFlowSeeder extends Seeder
             [
                 'first_name'            => 'Test',
                 'last_name'             => 'Driver',
-                'password'              => Hash::make('password123'),
+                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
                 'gender'                => 'M',
                 'address'               => 'دمشق',
                 'status'                => 1,
@@ -345,7 +347,7 @@ class UserRealFlowSeeder extends Seeder
             [
                 'first_name'            => 'Ghost',
                 'last_name'             => 'Passenger',
-                'password'              => Hash::make('password123'),
+                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
                 'gender'                => 'M',
                 'address'               => 'دمشق',
                 'status'                => 1,

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\API;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Http\Controllers\Controller;
 use App\Services\Complaint\ComplaintService;
 use Illuminate\Http\JsonResponse;
@@ -45,7 +47,7 @@ final class ComplaintController extends Controller
                 'normal',
                 'system'
             );
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { Log::warning('complaint acknowledgement notification failed (non-fatal): ' . $e->getMessage()); }
 
         return response()->json([
             'status'    => 'success',

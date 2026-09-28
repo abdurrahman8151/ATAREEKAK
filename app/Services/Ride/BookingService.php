@@ -493,10 +493,20 @@ final class BookingService
                 );
             }
 
-            if (in_array($ride->status, [RideStatus::ACTIVE->value, RideStatus::FULL->value])) {
-                $ride->status = RideStatus::LAUNCHED->value;
-                $ride->save();
-            } elseif ($ride->status !== RideStatus::LAUNCHED->value) {
+            // A ride may be confirmed once passengers are allowed to be on it
+            // (active/full) or it is already in a confirmable state (launched,
+            // or the legacy awaiting_confirmation value still stored on rows
+            // created before LAUNCHED replaced it).
+            $rideStatus = RideStatus::tryFrom($ride->status);
+
+            if ($rideStatus && ($rideStatus->canBeBooked() || $rideStatus->isConfirmable())) {
+                // The first confirmation moves the ride into its confirmable
+                // state; legacy awaiting_confirmation rows normalise to launched.
+                if ($ride->status !== RideStatus::LAUNCHED->value) {
+                    $ride->status = RideStatus::LAUNCHED->value;
+                    $ride->save();
+                }
+            } else {
                 throw new \InvalidArgumentException(
                     "This ride cannot be confirmed (current status: {$ride->status})."
                 );

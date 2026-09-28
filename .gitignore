@@ -48,3 +48,9 @@ wstderr.txt
 wstdout.txt
 tests_code.txt
 all_code.txt
+dump.sql
+
+# T3-12: generated API spec — an artifact, not a source. It enumerates the
+# whole API surface (admin/staff routes included) and must not ship in the
+# repo/image. Generate on the host with: php artisan l5-swagger:generate
+/storage/api-docs

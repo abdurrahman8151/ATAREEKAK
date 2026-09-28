@@ -10,9 +10,11 @@ use App\Services\Payment\CashRideFeeService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * AdminWalletRequestController
@@ -40,7 +42,7 @@ final class AdminWalletRequestController extends Controller
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'status'   => 'sometimes|in:pending,approved,rejected',
+            'status'   => 'sometimes|in:pending,approved,rejected,cancelled',
             'type'     => 'sometimes|in:charge,withdraw',
             'per_page' => 'sometimes|integer|min:1|max:50',
             'page'     => 'sometimes|integer|min:1',
@@ -75,9 +77,10 @@ final class AdminWalletRequestController extends Controller
             ->pluck('total', 'status');
 
         $counts = [
-            'pending'  => (int) ($countRows['pending']  ?? 0),
-            'approved' => (int) ($countRows['approved'] ?? 0),
-            'rejected' => (int) ($countRows['rejected'] ?? 0),
+            'pending'   => (int) ($countRows['pending']   ?? 0),
+            'approved'  => (int) ($countRows['approved']  ?? 0),
+            'rejected'  => (int) ($countRows['rejected']  ?? 0),
+            'cancelled' => (int) ($countRows['cancelled'] ?? 0),
         ];
 
         return response()->json([
@@ -152,7 +155,15 @@ final class AdminWalletRequestController extends Controller
                     'previous_balance' => $previousBalance,
                     'new_balance'      => $newBalance,
                     'description'      => $description,
-                    'transaction_id'   => 'WR-' . $walletRequest->id . '-' . now()->timestamp,
+                    // T3-1: was 'WR-'.$walletRequest->id.'-'.now()->timestamp.
+                    // Honest note: because the request id is itself unique, this
+                    // generator could not actually collide — the real collision
+                    // was in PassengerProfileController::chargeWallet() where the
+                    // id was 'ADM-'.$user->id.'-'.timestamp (same passenger, same
+                    // second, UNIQUE transaction_id → 500 + rollback). Normalised
+                    // to UUID anyway so both money paths share one collision-free
+                    // scheme; the readable prefix is kept for ops.
+                    'transaction_id'   => 'WR-' . $walletRequest->id . '-' . (string) Str::uuid(),
                     'status'           => 'completed',
                     'reference'        => 'wallet_request:' . $walletRequest->id,
                 ]);
@@ -178,6 +189,8 @@ final class AdminWalletRequestController extends Controller
                 'user:id,first_name,last_name,email',
                 'wallet:id,wallet_number,phone_number,balance,cash_ride_debt',
             ]);
+
+            Cache::forget("wallet.requests.{$walletRequest->user_id}");
 
             // ── Auto-clear cash ride debt after a top-up ────────────────────
             // Only for charges; withdrawals reduce the balance so debt clearing
@@ -217,7 +230,7 @@ final class AdminWalletRequestController extends Controller
                     'high',
                     'system'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('wallet-request decision notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json([
                 'status'  => 'success',
@@ -268,6 +281,8 @@ final class AdminWalletRequestController extends Controller
                 'processed_at' => now(),
             ]);
 
+            Cache::forget("wallet.requests.{$walletRequest->user_id}");
+
             Log::info('Wallet request rejected', [
                 'request_id' => $walletRequest->id,
                 'type'       => $walletRequest->type,
@@ -288,7 +303,7 @@ final class AdminWalletRequestController extends Controller
                     'normal',
                     'system'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('wallet-request decision notification failed (non-fatal): ' . $e->getMessage()); }
 
             return response()->json([
                 'status'  => 'success',

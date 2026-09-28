@@ -221,7 +221,7 @@ final class StaffAdminController extends Controller
                     'high',
                     'system'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('user verification decision notification failed (non-fatal): ' . $e->getMessage()); }
 
             // User leaves the pending list; their staff profile now shows new verification status
             Cache::forget('staff.pending-verifications');

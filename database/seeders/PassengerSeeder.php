@@ -28,6 +28,8 @@ use Illuminate\Support\Facades\Hash;
  */
 class PassengerSeeder extends Seeder
 {
+    use ResolvesSeedCredentials;
+
     private const COMM_NUMBER = '+963983337214';
 
     private array $passengers = [
@@ -49,6 +51,10 @@ class PassengerSeeder extends Seeder
 
     public function run(): void
     {
+        // T3-9: single password for all seeded test accounts, from
+        // SEED_USER_PASSWORD or randomly generated for this run (reported below).
+        $password = $this->seedPassword('SEED_USER_PASSWORD');
+
         foreach ($this->passengers as $data) {
             $n = $data['suffix'];
 
@@ -58,7 +64,7 @@ class PassengerSeeder extends Seeder
                 'first_name'          => "Passenger{$n}",
                 'last_name'           => 'Test',
                 'email'               => "passenger{$n}@syride.test",
-                'password'            => Hash::make('password'),
+                'password'            => Hash::make($password),
                 'gender'              => $data['gender'],
                 'address'             => 'دمشق',
                 'status'              => 1,
@@ -94,6 +100,7 @@ class PassengerSeeder extends Seeder
             $this->command->info("  ✅  Passenger{$n} created → verified → wallet ready.");
         }
 
+        $this->reportPassword('Passenger password (all 10 accounts)', 'SEED_USER_PASSWORD');
         $this->command->info('✅  All 10 passengers seeded with 3.0 base rating.');
     }
 }

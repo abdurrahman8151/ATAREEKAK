@@ -309,10 +309,13 @@ final class AdminDashboardController extends Controller
         }
     }
 
-    public function uploadAdminPhoto(Request $request): JsonResponse
-    {
-        return response()->json(['status' => 'success', 'message' => 'Photo uploaded']);
-    }
+    // T4-7: uploadAdminPhoto() was removed. It returned
+    // {'status':'success','message':'Photo uploaded'} while uploading nothing
+    // — the employees table has no photo column, so there was nothing to write
+    // to. Reporting success for an action that never happened is worse than a
+    // missing endpoint; its route was removed alongside it.
+    // A real admin-photo upload needs a schema column + storage policy and
+    // should be designed, not re-added as a stub.
 
     // =========================================================================
     // FINANCIAL REPORT  [primary only]

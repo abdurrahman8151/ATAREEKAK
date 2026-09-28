@@ -4,7 +4,6 @@ namespace App\Events;
 
 use App\Models\Ride;
 use App\Models\User;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -33,7 +32,9 @@ class RideCancelled implements  ShouldBroadcast
     public function broadcastOn(): array
     {
         $channels = [
-            new Channel('rides'),
+            // T2-7: was a public Channel('rides'); private so the client must
+            // authorize through /broadcasting/auth (jwt) before subscribing.
+            new PrivateChannel('rides'),
             new PrivateChannel('user.' . $this->driver->id)
         ];
 

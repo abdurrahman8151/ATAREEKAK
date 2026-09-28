@@ -25,6 +25,8 @@ use Illuminate\Support\Str;
 
 class Atarikaktestseeder extends Seeder
 {
+    use ResolvesSeedCredentials;
+
     private array $cities = [
         'دمشق', 'درعا', 'القنيطرة', 'السويداء',
         'ريف دمشق', 'حمص', 'حماة', 'اللاذقية',
@@ -60,12 +62,12 @@ class Atarikaktestseeder extends Seeder
 
         $this->command->info('🚀 Atarikak Test Seeder starting...');
 
-        // Verify system wallets exist (AdminUserSeeder + SystemWalletSeeder must run first)
+        // Verify system wallets exist (SystemWalletSeeder must run first)
         $syCash  = Wallet::where('phone_number', config('admin.sycash.phone'))->first();
         $primary = Wallet::where('phone_number', config('admin.system_admin.phone'))->first();
 
         if (!$syCash || !$primary) {
-            $this->command->error('System wallets not found. Run AdminUserSeeder + SystemWalletSeeder first.');
+            $this->command->error('System wallets not found. Run SystemWalletSeeder first.');
             return;
         }
 
@@ -136,7 +138,7 @@ class Atarikaktestseeder extends Seeder
                 'first_name'            => "Driver{$i}",
                 'last_name'             => 'Test',
                 'email'                 => "driver{$i}@test.com",
-                'password'              => Hash::make('password123'),
+                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
                 'gender'                => $i % 2 === 0 ? 'M' : 'F',
                 'address'               => $this->cities[array_rand($this->cities)],
                 'status'                => 1,
@@ -207,7 +209,7 @@ class Atarikaktestseeder extends Seeder
                 'first_name'            => "Passenger{$i}",
                 'last_name'             => 'Test',
                 'email'                 => "passenger{$i}@test.com",
-                'password'              => Hash::make('password123'),
+                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
                 'gender'                => $i % 2 === 0 ? 'M' : 'F',
                 'address'               => $this->cities[array_rand($this->cities)],
                 'status'                => 1,
@@ -275,7 +277,7 @@ class Atarikaktestseeder extends Seeder
                 'first_name'            => "Unverified{$i}",
                 'last_name'             => 'User',
                 'email'                 => "unverified{$i}@test.com",
-                'password'              => Hash::make('password123'),
+                'password'              => Hash::make($this->seedPassword('SEED_USER_PASSWORD')),
                 'gender'                => 'M',
                 'address'               => $this->cities[array_rand($this->cities)],
                 'status'                => 1,

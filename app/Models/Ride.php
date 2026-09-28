@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 class Ride extends Model
@@ -142,9 +142,22 @@ class Ride extends Model
     public function scopeNearLocation(Builder $query, float $latitude, float $longitude, int $radiusKm = 10): void
     {
         $radiusMeters = $radiusKm * 1000;
+
+        // T4-2: the old version passed ST_GeomFromText('POINT(? ?)', 4326) with
+        // [$longitude, $latitude, $radiusMeters] as bindings — the '?' sat INSIDE
+        // a single-quoted SQL string literal, so it was never a placeholder: no
+        // binding occurred, the geometry argument was the literal text
+        // "POINT(? ?)", MySQL raised an invalid-geometry error, and the extra
+        // bindings collided with whereRaw's parameter counting. Build the WKT in
+        // PHP (exactly what RideSearchService::getNearbyRides does correctly)
+        // and bind it as ONE value. %F is a locale-independent float format, so
+        // coordinates can never inject and no comma-decimal locale can corrupt
+        // the WKT.
+        $pointWkt = sprintf('POINT(%F %F)', $longitude, $latitude);
+
         $query->whereRaw(
-            "ST_Distance_Sphere( `pickup_location`, ST_GeomFromText('POINT(? ?)', 4326) ) <= ?",
-            [$longitude, $latitude, $radiusMeters]
+            'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?',
+            [$pointWkt, $radiusMeters]
         );
     }
 }

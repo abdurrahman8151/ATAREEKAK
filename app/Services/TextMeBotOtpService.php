@@ -100,7 +100,10 @@ class TextMeBotOtpService
         try {
             $validatedPhone = $this->validateSyrianPhone($phoneNumber);
 
-            $otp = $this->otpRepository->findByPhoneAndCode($validatedPhone, $code);
+            // Look the issued code up WITHOUT filtering on the guessed value.
+            // Filtering by code made a wrong guess return null, so no attempt was
+            // ever recorded and Otp::isValid()'s 3-attempt cap was unreachable.
+            $otp = $this->otpRepository->findLatestByPhone($validatedPhone);
 
             if (!$otp) {
                 return [
@@ -113,6 +116,15 @@ class TextMeBotOtpService
                 return [
                     'success' => false,
                     'message' => 'OTP has expired or exceeded maximum attempts'
+                ];
+            }
+
+            if (!$otp->matchesCode($code)) {
+                $otp->registerFailedAttempt();
+
+                return [
+                    'success' => false,
+                    'message' => 'Invalid or expired OTP'
                 ];
             }
 

@@ -1,6 +1,11 @@
 node_modules
 vendor
 .env
+.env.backup
+.env.production
+.env.local
+*.env
+!.env.example
 .git
 docker-compose.yml
 README.md
@@ -19,3 +24,18 @@ rr.bat
 
 rr
 bootstrap/cache/*.php
+
+# C1: never bake local secrets, DB dumps, or code dumps into images
+# (final stage does `COPY . .`, so anything not listed here lands in layers)
+dump.sql
+all_code.txt
+tests_code.txt
+wstderr.txt
+wstdout.txt
+
+# C2: never bake Firebase service-account keys into images
+# Runtime reads the path from FCM_CREDENTIALS env; inject via secret volume
+config/firebase-credentials.json
+config/*firebase*.json
+config/*service-account*.json
+storage/app/firebase/

@@ -10,6 +10,9 @@ class Otp extends Model
 {
     use HasFactory;
 
+    /** Verification attempts allowed per issued code before it is burned. */
+    public const MAX_ATTEMPTS = 3;
+
     protected $fillable = [
         'phone_number',
         'otp_code',
@@ -39,7 +42,31 @@ class Otp extends Model
      */
     public function isValid(): bool
     {
-        return !$this->is_verified && !$this->isExpired() && $this->attempts < 3;
+        return !$this->is_verified && !$this->isExpired() && $this->attempts < self::MAX_ATTEMPTS;
+    }
+
+    /**
+     * Does the supplied code match this OTP?
+     *
+     * Compared in constant time so verification does not leak the code through
+     * response timing. This is also why the code is no longer matched inside the
+     * lookup query: a wrong guess has to reach the row so the attempt is counted.
+     */
+    public function matchesCode(string $code): bool
+    {
+        return hash_equals((string) $this->otp_code, $code);
+    }
+
+    /**
+     * Record a failed verification attempt and report whether the code is burned.
+     *
+     * @return bool true while further attempts are still permitted
+     */
+    public function registerFailedAttempt(): bool
+    {
+        $this->incrementAttempts();
+
+        return $this->attempts < self::MAX_ATTEMPTS;
     }
 
     /**
@@ -76,7 +103,7 @@ class Otp extends Model
     {
         return $query->where('is_verified', false)
             ->where('expires_at', '>', Carbon::now())
-            ->where('attempts', '<', 3);
+            ->where('attempts', '<', self::MAX_ATTEMPTS);
     }
 
     /**

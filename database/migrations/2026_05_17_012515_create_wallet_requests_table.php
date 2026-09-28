@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('wallet_id')->constrained()->cascadeOnDelete();
             $table->enum('type', ['charge', 'withdraw']);
             $table->decimal('amount', 12, 2);
-            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
+            $table->enum('status', ['pending', 'approved', 'rejected', 'cancelled'])->default('pending');
             $table->text('user_notes')->nullable();
             $table->text('admin_notes')->nullable();
             $table->foreignId('processed_by')->nullable()->constrained('users')->nullOnDelete();

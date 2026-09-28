@@ -17,12 +17,11 @@
         <include>
             <directory>app</directory>
         </include>
-        <exclude>
-            <directory>app/Http/Middleware</directory>
-            <directory>app/Console</directory>
-            <directory>app/Providers</directory>
-            <file>app/Http/Kernel.php</file>
-        </exclude>
+        <!-- T4-1: app/Http/Middleware, app/Console, app/Providers and Kernel.php
+             were excluded here — precisely where the audit's highest-severity
+             classes (T2-1, T3-7, boot guards, throttle keys) live. Coverage now
+             counts the whole app tree; a bug in middleware can no longer hide
+             behind a green coverage number. -->
     </source>
 
     <php>

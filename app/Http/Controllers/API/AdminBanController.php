@@ -121,8 +121,9 @@ final class AdminBanController extends Controller
                     'high',
                     'system'
                 );
-            } catch (\Throwable) {
-                // Notification failure must never block the ban
+            } catch (\Throwable $e) {
+                // T3-13: non-fatal by intent, but it must be visible.
+                Log::warning('ban notification failed (non-fatal): ' . $e->getMessage());
             }
 
             return response()->json([
@@ -201,8 +202,9 @@ final class AdminBanController extends Controller
                     'high',
                     'system'
                 );
-            } catch (\Throwable) {
-                // Notification failure must never block the unban
+            } catch (\Throwable $e) {
+                // T3-13: non-fatal by intent, but it must be visible.
+                Log::warning('unban notification failed (non-fatal): ' . $e->getMessage());
             }
 
             return response()->json([

@@ -156,7 +156,10 @@ class Getloadtesttokens extends Command
 
         // ── Helpful DB query for ride IDs (needed by the k6 test) ─────────────
         $this->info('── Also run this to get real RIDE_IDS for the test ───────────');
-        $this->line('docker exec syride_mysql mysql -uroot -psecret 4th_year_project_db \\');
+        // Password is intentionally omitted: mysql prompts for it, so the
+        // credential never lands in shell history, process listings, or logs.
+        // It comes from MYSQL_ROOT_PASSWORD in .env.
+        $this->line('docker exec -it syride_mysql mysql -uroot -p ' . config('database.connections.mysql.database', '4th_year_project_db') . ' \\');
         $this->line("  -e \"SELECT id, status FROM rides WHERE status='active' LIMIT 20;\"");
 
         return 0;

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Employee;
+use App\Services\Staff\EmployeeManagementService;
 use App\Services\Staff\StaffJwtService;
 use Closure;
 use Illuminate\Http\Request;
@@ -31,6 +32,7 @@ final class StaffJwtMiddleware
 {
     public function __construct(
         private readonly StaffJwtService $staffJwtService,
+        private readonly EmployeeManagementService $managementService,
     ) {}
 
     /**
@@ -78,6 +80,33 @@ final class StaffJwtMiddleware
 
         // ── 7. Inject context ─────────────────────────────────────────────────
         $request->attributes->set('staffEmployee', $employee);
+
+        // ── 8. Bind a user resolver ───────────────────────────────────────────
+        // Admin controllers attribute writes to `$request->user()?->id`
+        // (wallet_requests.processed_by, users.banned_by, wallet_transactions
+        // .user_id, the admin photo lookup, ...). Without a resolver the default
+        // `web`/session guard returns null, so every one of those silently wrote
+        // NULL and the audit trail was lost.
+        //
+        // These columns reference the `users` table, not `employees` — and
+        // `wallet_requests.processed_by` / `wallet_transactions.user_id` carry
+        // real foreign keys to `users`. An Employee id there raises
+        // SQLSTATE[23000] 1452 and aborts the money-moving transaction, so we
+        // resolve through the existing Employee::email → User::email shadow-user
+        // bridge (EmployeeManagementService::ensureShadowUser) that the chat
+        // system already relies on.
+        //
+        // The closure is lazy: the shadow User is only looked up/created when a
+        // controller actually calls $request->user(), so routes that never do
+        // pay nothing. Returns null when the employee has no email, matching the
+        // previous (null) behaviour for such accounts rather than failing.
+        $request->setUserResolver(function () use ($employee) {
+            if (!$employee->email) {
+                return null;
+            }
+
+            return $this->managementService->ensureShadowUser($employee);
+        });
 
         return $next($request);
     }

@@ -65,11 +65,23 @@ class SignupController extends Controller
                 ], 409);
             }
 
-            // Unverified → update password and resend OTP
+            // Unverified → resend the verification code ONLY.
+            //
+            // This branch used to overwrite the existing account's password with
+            // the request-supplied value. Nothing here proves the caller controls
+            // the mailbox, so anyone who knew an abandoned (unverified) address
+            // could set that account's password to a value of their choosing —
+            // a pre-account-takeover: the victim's own password stops working and
+            // the attacker's chosen one becomes the live credential.
+            //
+            // Requesting a new code must not be a credential-change primitive.
+            // The password is left untouched; it can only be changed through the
+            // OTP-verified reset flow under /api/auth/password/*.
+            //
+            // The response is deliberately neutral: it echoes no account identity
+            // (id/first_name/email) and no otp_code. The dev affordance for the
+            // code is the existing Log::info in EmailOtpService::sendOtp().
             try {
-                $existingUser->password = Hash::make($request->password);
-                $existingUser->save();
-
                 $dto       = SendEmailOtpDTO::fromUser($existingUser);
                 $otpResult = $this->emailOtpService->sendOtp($dto);
 
@@ -80,21 +92,10 @@ class SignupController extends Controller
                     ], 500);
                 }
 
-                $response = [
+                return response()->json([
                     'status'  => 'success',
                     'message' => 'A new verification code has been sent to your email.',
-                    'user'    => [
-                        'id'         => $existingUser->id,
-                        'first_name' => $existingUser->first_name,
-                        'email'      => $existingUser->email,
-                    ],
-                ];
-
-                if (isset($otpResult['otp_code'])) {
-                    $response['otp_code'] = $otpResult['otp_code'];
-                }
-
-                return response()->json($response, 200);
+                ], 200);
 
             } catch (\Throwable $e) {
                 Log::error('Signup: resend OTP failed (Path A)', [
@@ -138,7 +139,12 @@ class SignupController extends Controller
 
             DB::commit();
 
-            $response = [
+            // NOTE: the response intentionally does NOT include otp_code.
+            // Echoing the verification code in an API response turns any
+            // EMAIL_OTP_MODE misconfiguration (or a non-production default) into
+            // an instant account takeover. The code is delivered by email only;
+            // the dev affordance is the Log::info in EmailOtpService::sendOtp().
+            return response()->json([
                 'status'  => 'success',
                 'message' => 'Registration successful. Check your email for a verification code.',
                 'user'    => [
@@ -146,13 +152,7 @@ class SignupController extends Controller
                     'first_name' => $user->first_name,
                     'email'      => $user->email,
                 ],
-            ];
-
-            if (isset($otpResult['otp_code'])) {
-                $response['otp_code'] = $otpResult['otp_code'];
-            }
-
-            return response()->json($response, 201);
+            ], 201);
 
         } catch (\Throwable $e) {
             DB::rollBack();

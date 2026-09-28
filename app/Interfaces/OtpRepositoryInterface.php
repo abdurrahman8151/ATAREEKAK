@@ -22,6 +22,16 @@ interface OtpRepositoryInterface
     public function findActiveByPhoneAndType(string $phoneNumber, string $type): ?Otp;
 
     /**
+     * Find the most recent OTP for a phone number, regardless of code,
+     * verification state, expiry or attempt count.
+     *
+     * Verification has to locate the live code first and compare the guess
+     * afterwards: filtering by code in the query makes a wrong guess return no
+     * row at all, leaving nothing to record the attempt against.
+     */
+    public function findLatestByPhone(string $phoneNumber): ?Otp;
+
+    /**
      * Delete expired OTPs
      */
     public function deleteExpired(): int;

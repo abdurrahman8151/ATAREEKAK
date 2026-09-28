@@ -9,6 +9,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // T3-6: raw MySQL-only statement(s) below. Skip cleanly on other
+        // drivers instead of fataling a fresh migrate (no-op on MySQL).
+        if (\Illuminate\Support\Facades\DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         Schema::table('bookings', function (Blueprint $table) {
             // 1. add new timestamp columns if they do not exist
             if (!Schema::hasColumn('bookings', 'completed_at')) {

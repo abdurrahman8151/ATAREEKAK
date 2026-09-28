@@ -51,6 +51,21 @@ class OtpRepository implements OtpRepositoryInterface
     }
 
     /**
+     * Find the most recent OTP for a phone number, regardless of code,
+     * verification state, expiry or attempt count.
+     *
+     * Callers must still gate on Otp::isValid() before honouring it — the point
+     * is that a *wrong* guess can reach the row and record its attempt.
+     */
+    public function findLatestByPhone(string $phoneNumber): ?Otp
+    {
+        return $this->model
+            ->where('phone_number', $phoneNumber)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
      * Delete expired OTPs
      */
     public function deleteExpired(): int

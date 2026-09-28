@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Models\User;
 use App\Models\UserNotification;
 use App\Models\Notification;
@@ -73,7 +75,7 @@ class NotificationService
 
         try {
             broadcast(new NotificationSent($user, $notification));
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { Log::warning('broadcast NotificationSent after persist failed (non-fatal): ' . $e->getMessage()); }
 
         return $userNotification->load('notification');
     }

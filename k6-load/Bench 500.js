@@ -14,10 +14,16 @@ export const options = {
     },
 };
 
+// T3-9: credentials come from the environment, never from this file.
+// Run with: k6 run --env K6_ADMIN_EMAIL=... --env K6_ADMIN_PASSWORD=... script.js
+if (!__ENV.K6_ADMIN_EMAIL || !__ENV.K6_ADMIN_PASSWORD) {
+    throw new Error('K6_ADMIN_EMAIL and K6_ADMIN_PASSWORD must be provided via --env');
+}
+
 export function setup() {
     const res = http.post(
         "http://localhost:8080/api/admin/login",
-        JSON.stringify({ email: "primary@admin.com", password: "admin" }),
+        JSON.stringify({ email: __ENV.K6_ADMIN_EMAIL, password: __ENV.K6_ADMIN_PASSWORD }),
         { headers: { "Content-Type": "application/json" } }
     );
     const token = res.json("tokens.access_token");

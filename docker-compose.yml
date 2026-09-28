@@ -1,3 +1,23 @@
+# ============================================================
+# SyRide — PRODUCTION compose.
+#
+# This file is production-shaped and is what the deploy workflow uses:
+#   docker compose up -d --build
+#
+# Two rules it enforces:
+#   1. No credentials are written here. Every secret is injected from the
+#      environment and the `${VAR:?message}` form makes compose HARD-FAIL when
+#      the value is missing rather than silently falling back to a known
+#      default. `${VAR:-default}` is deliberately not used anywhere.
+#   2. Only ./storage/logs is bind-mounted. The application source tree is NOT
+#      mounted over the image, so the container runs the artifact that
+#      Dockerfile built (COPY . . at Dockerfile:72).
+#
+# Local development that wants the host source tree mounted, or phpMyAdmin,
+# must opt in explicitly:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# ============================================================
+
 services:
 
     app1:
@@ -13,18 +33,13 @@ services:
             APP_DEBUG: "false"
             DB_HOST: mysql
             DB_REPLICA_HOST: mysql_replica
-            DB_PASSWORD: "secret"
+            DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set - see .env.example}"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
             QUEUE_CONNECTION: redis
             SESSION_DRIVER: redis
         volumes:
             - ./storage/logs:/var/www/html/storage/logs
-            - ./app:/var/www/html/app
-            - ./database:/var/www/html/database
-            - ./config:/var/www/html/config
-            - ./routes:/var/www/html/routes
-            - ./phpunit.xml:/var/www/html/phpunit.xml
         command: >
             sh -c "php artisan octane:start
             --server=roadrunner
@@ -48,17 +63,13 @@ services:
             APP_DEBUG: "false"
             DB_HOST: mysql
             DB_REPLICA_HOST: mysql_replica
-            DB_PASSWORD: "secret"
+            DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set - see .env.example}"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
             QUEUE_CONNECTION: redis
             SESSION_DRIVER: redis
         volumes:
             - ./storage/logs:/var/www/html/storage/logs
-            - ./app:/var/www/html/app
-            - ./database:/var/www/html/database
-            - ./config:/var/www/html/config
-            - ./routes:/var/www/html/routes
         command: >
             sh -c "php artisan octane:start
             --server=roadrunner
@@ -82,17 +93,13 @@ services:
             APP_DEBUG: "false"
             DB_HOST: mysql
             DB_REPLICA_HOST: mysql_replica
-            DB_PASSWORD: "secret"
+            DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set - see .env.example}"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
             QUEUE_CONNECTION: redis
             SESSION_DRIVER: redis
         volumes:
             - ./storage/logs:/var/www/html/storage/logs
-            - ./app:/var/www/html/app
-            - ./database:/var/www/html/database
-            - ./config:/var/www/html/config
-            - ./routes:/var/www/html/routes
         command: >
             sh -c "php artisan octane:start
             --server=roadrunner
@@ -116,17 +123,13 @@ services:
             APP_DEBUG: "false"
             DB_HOST: mysql
             DB_REPLICA_HOST: mysql_replica
-            DB_PASSWORD: "secret"
+            DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set - see .env.example}"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
             QUEUE_CONNECTION: redis
             SESSION_DRIVER: redis
         volumes:
             - ./storage/logs:/var/www/html/storage/logs
-            - ./app:/var/www/html/app
-            - ./database:/var/www/html/database
-            - ./config:/var/www/html/config
-            - ./routes:/var/www/html/routes
         command: >
             sh -c "php artisan octane:start
             --server=roadrunner
@@ -150,17 +153,13 @@ services:
             APP_DEBUG: "false"
             DB_HOST: mysql
             DB_REPLICA_HOST: mysql_replica
-            DB_PASSWORD: "secret"
+            DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set - see .env.example}"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
             QUEUE_CONNECTION: redis
             SESSION_DRIVER: redis
         volumes:
             - ./storage/logs:/var/www/html/storage/logs
-            - ./app:/var/www/html/app
-            - ./database:/var/www/html/database
-            - ./config:/var/www/html/config
-            - ./routes:/var/www/html/routes
         command: >
             sh -c "php artisan octane:start
             --server=roadrunner
@@ -174,6 +173,8 @@ services:
             redis:
                 condition: service_started
 
+    # Reverse proxy. Published on loopback only - the public entry point is
+    # expected to be a TLS terminator in front of this host.
     nginx:
         image: nginx:alpine
         container_name: syride_nginx
@@ -194,22 +195,27 @@ services:
         container_name: syride_redis
         restart: unless-stopped
 
+    # No published port: reachable only from the compose network.
     mysql:
         image: mysql:8.0
         container_name: syride_mysql
         environment:
-            MYSQL_ROOT_PASSWORD: "secret"
-            MYSQL_DATABASE: "4th_year_project_db"
+            MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set - see .env.example}"
+            MYSQL_DATABASE: "${DB_DATABASE:-4th_year_project_db}"
+            # MYSQL_PWD lets the healthcheck authenticate without putting the
+            # password on the command line (where it would show up in ps).
+            MYSQL_PWD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set - see .env.example}"
         volumes:
             - mysql_data:/var/lib/mysql
             - ./docker/mysql/primary.cnf:/etc/mysql/conf.d/primary.cnf
         healthcheck:
-            test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-psecret"]
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root"]
             interval: 5s
             timeout: 5s
             retries: 15
         restart: unless-stopped
 
+    # No published port: reachable only from the compose network.
     mysql_replica:
         image: mysql:8.0
         container_name: syride_mysql_replica
@@ -219,7 +225,8 @@ services:
             --read-only=1
             --skip-slave-start=OFF
         environment:
-            MYSQL_ROOT_PASSWORD: "secret"
+            MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set - see .env.example}"
+            MYSQL_PWD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set - see .env.example}"
         volumes:
             # No persistent volume — replica always resyncs from primary on recreate.
             # On plain restarts the container layer retains data and slave auto-resumes.
@@ -229,20 +236,8 @@ services:
                 condition: service_healthy
         restart: unless-stopped
 
-    phpmyadmin:
-        image: phpmyadmin/phpmyadmin
-        container_name: syride_phpmyadmin
-        restart: unless-stopped
-        ports:
-            - "8081:80"
-        environment:
-            PMA_HOST: mysql
-            PMA_PORT: 3306
-            MYSQL_ROOT_PASSWORD: "secret"
-            UPLOAD_LIMIT: 100M
-        depends_on:
-            mysql:
-                condition: service_healthy
+    # phpMyAdmin is intentionally NOT defined here. It is an interactive SQL
+    # console; it belongs in docker-compose.dev.yml, bound to loopback.
 
     queue:
         image: syride_octane:latest
@@ -253,14 +248,12 @@ services:
             APP_ENV: production
             DB_HOST: mysql
             DB_REPLICA_HOST: mysql_replica
-            DB_PASSWORD: "secret"
+            DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set - see .env.example}"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
             QUEUE_CONNECTION: redis
         volumes:
             - ./storage/logs:/var/www/html/storage/logs
-            - ./app:/var/www/html/app
-            - ./config:/var/www/html/config
         depends_on:
             mysql:
                 condition: service_healthy
@@ -281,13 +274,12 @@ services:
             APP_ENV: production
             DB_HOST: mysql
             DB_REPLICA_HOST: mysql_replica
-            DB_PASSWORD: "secret"
+            DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set - see .env.example}"
             REDIS_HOST: redis
             CACHE_DRIVER: redis
             QUEUE_CONNECTION: redis
         volumes:
             - ./storage/logs:/var/www/html/storage/logs
-            - ./app:/var/www/html/app
         depends_on:
             mysql:
                 condition: service_healthy

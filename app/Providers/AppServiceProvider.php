@@ -106,6 +106,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Services\Staff\StaffComplaintService::class);
 
         // ========================================
+        // WALLET SERVICES
+        // ========================================
+        $this->app->singleton(\App\Services\Wallet\WalletRequestService::class);
+
+        // ========================================
         // NOTIFICATION SERVICE
         // ========================================
         $this->app->singleton(\App\Services\NotificationService::class);
@@ -190,7 +195,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(CacheHit::class, function () {
             try {
                 request()->attributes->set('cache_status', 'HIT');
-            } catch (\Throwable) {}
+            } catch (\Throwable) {} // intentionally silent: fires per cache event on every request
         });
 
         Event::listen(CacheMissed::class, function () {
@@ -199,12 +204,53 @@ class AppServiceProvider extends ServiceProvider
                 if ($req->attributes->get('cache_status') !== 'HIT') {
                     $req->attributes->set('cache_status', 'MISS');
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable) {} // intentionally silent: fires per cache event on every request
         });
         $scheduledLogPath = storage_path('logs/scheduled');
 
         if (! is_dir($scheduledLogPath)) {
             mkdir($scheduledLogPath, 0755, true);
+        }
+
+        // T2-8: the pusher credentials used to be in-code literals, so a deploy
+        // that lost its env still booted "successfully" on a shared, publicly
+        // committed credential. With no defaults left in config/broadcasting.php
+        // the correct behaviour is a hard stop, mirroring SpecialAccountSeeder's
+        // existing env()-missing -> refuse pattern. Exempted in local AND
+        // testing, so it can never brick a developer machine or the suite
+        // (which legitimately runs without real broadcast credentials); every
+        // real deployment environment — production, staging, or any environment
+        // added later — is still covered.
+        if (! app()->environment('local', 'testing')
+            && config('broadcasting.default') === 'pusher'
+            && (empty(config('broadcasting.connections.pusher.key'))
+                || empty(config('broadcasting.connections.pusher.secret')))) {
+            throw new \RuntimeException(
+                'BROADCAST_DRIVER=pusher requires PUSHER_APP_KEY and PUSHER_APP_SECRET to be set in the '
+                . 'environment. They are no longer defaulted in config/broadcasting.php because the '
+                . 'previous defaults were committed to version control (see docs/audit). Set the env vars '
+                . 'with rotated credentials, or set BROADCAST_DRIVER=null.'
+            );
+        }
+
+        // T3-14: SendPushNotificationJob is ShouldQueue with tries/backoff, but
+        // config/queue.php defaults QUEUE_CONNECTION to `sync`, which runs it
+        // inline — a slow or failing FCM call (3 retries + backoff) then executes
+        // inside the HTTP request and the retry configuration is meaningless
+        // there. Previously an unset env silently degraded every notification
+        // into a request-blocking call. Fail fast outside local/testing,
+        // mirroring the T2-8 guard above: a deploy that lost its env refuses to
+        // boot instead of serving request-blocking pushes. local/testing stay
+        // exempt because the suite deliberately runs on sync.
+        if (! app()->environment('local', 'testing')
+            && config('queue.default') === 'sync') {
+            throw new \RuntimeException(
+                'QUEUE_CONNECTION must be set to an async driver (redis/database) in '
+                . 'production-like environments. It currently resolves to "sync", which '
+                . 'runs push notifications inline and blocks requests on FCM failures. '
+                . 'Set QUEUE_CONNECTION=redis (see .env.example) or deploy with an '
+                . 'explicit queue worker.'
+            );
         }
     }
 }

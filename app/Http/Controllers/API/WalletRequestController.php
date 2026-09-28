@@ -3,221 +3,144 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\WalletRequest;
+use App\Http\Requests\Wallet\WalletChargeRequest;
+use App\Http\Requests\Wallet\WalletStoreRequest;
+use App\Http\Requests\Wallet\WalletWithdrawRequest;
+use App\Services\Wallet\WalletRequestService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Validator;
-use App\Services\NotificationService;
-/**
- * WalletRequestController
- *
- * User-facing endpoints for submitting and viewing wallet requests.
- *
- * Routes (all behind `jwt` middleware):
- *   POST /api/wallet/request-charge    → requestCharge()
- *   POST /api/wallet/request-withdraw  → requestWithdraw()
- *   GET  /api/wallet/requests          → myRequests()
- */
+
 class WalletRequestController extends Controller
 {
     public function __construct(
-        private readonly NotificationService $notificationService,
+        private readonly WalletRequestService $service,
     ) {}
-    // ── POST /api/wallet/request-charge ──────────────────────────────────────
 
-    /**
-     * User asks admin to top up their wallet.
-     *
-     * The user specifies the amount they want added; the admin reviews
-     * and, when approved, manually adds the balance (offline transfer).
-     */
-    public function requestCharge(Request $request): JsonResponse
+    public function requestCharge(WalletChargeRequest $request): JsonResponse
     {
-        $user = $request->user();
-
-        if (!$user->wallet) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You do not have a wallet yet. Please create one first.',
-            ], 422);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:1|max:10000000',
-            'notes'  => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        $alreadyPending = WalletRequest::where('user_id', $user->id)
-            ->where('type', 'charge')
-            ->where('status', 'pending')
-            ->exists();
-
-        if ($alreadyPending) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You already have a pending charge request. Please wait for it to be reviewed.',
-            ], 409);
-        }
-
-        $walletRequest = WalletRequest::create([
-            'user_id'    => $user->id,
-            'wallet_id'  => $user->wallet->id,
-            'type'       => 'charge',
-            'amount'     => $request->input('amount'),
-            'status'     => 'pending',
-            'user_notes' => $request->input('notes'),
-        ]);
-
         try {
-            $this->notificationService->createNotification(
-                $user,
-                'charge_request_received',
-                'تم استلام طلب الشحن',
-                'سيتم مراجعة طلب شحن المحفظة من قِبل الإدارة قريباً.',
-                ['wallet_request_id' => $walletRequest->id],
-                'normal',
-                'system'
+            $walletRequest = $this->service->requestCharge(
+                $request->user(),
+                (float) $request->validated('amount'),
+                $request->validated('notes')
             );
-        } catch (\Throwable) {}
 
-        Cache::forget("wallet.requests.{$user->id}");
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Charge request submitted. The admin will review it shortly.',
-            'data'    => $this->formatRequest($walletRequest),
-        ], 201);
+            return response()->json([
+                'success' => true,
+                'status' => 'success',
+                'message' => 'Charge request submitted. The admin will review it shortly.',
+                'data' => $this->service->format($walletRequest),
+            ], 201);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'success' => false,
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], $e->getCode() ?: 422);
+        }
     }
 
-    // ── POST /api/wallet/request-withdraw ────────────────────────────────────
-
-    /**
-     * User asks admin to withdraw funds from their wallet.
-     *
-     * Validated immediately against current balance so the user
-     * gets instant feedback; balance is only deducted on approval.
-     */
-    public function requestWithdraw(Request $request): JsonResponse
+    public function requestWithdraw(WalletWithdrawRequest $request): JsonResponse
     {
-        $user = $request->user();
-
-        if (!$user->wallet) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You do not have a wallet yet.',
-            ], 422);
-        }
-
-        $wallet = $user->wallet;
-
-        $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:1',
-            'notes'  => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        $amount = (float) $request->input('amount');
-
-        if ($amount > (float) $wallet->balance) {
-            return response()->json([
-                'success' => false,
-                'message' => "Insufficient balance. Your current balance is {$wallet->balance} SYP.",
-            ], 422);
-        }
-
-        $pendingTotal = WalletRequest::where('user_id', $user->id)
-            ->where('type', 'withdraw')
-            ->where('status', 'pending')
-            ->sum('amount');
-
-        if (($pendingTotal + $amount) > (float) $wallet->balance) {
-            return response()->json([
-                'success' => false,
-                'message' => "You already have pending withdraw requests totalling {$pendingTotal} SYP. This request would exceed your balance.",
-            ], 422);
-        }
-
-        $walletRequest = WalletRequest::create([
-            'user_id'    => $user->id,
-            'wallet_id'  => $wallet->id,
-            'type'       => 'withdraw',
-            'amount'     => $amount,
-            'status'     => 'pending',
-            'user_notes' => $request->input('notes'),
-        ]);
-
         try {
-            $this->notificationService->createNotification(
-                $user,
-                'withdraw_request_received',
-                'تم استلام طلب السحب',
-                'سيتم مراجعة طلب سحب المحفظة من قِبل الإدارة قريباً.',
-                ['wallet_request_id' => $walletRequest->id],
-                'normal',
-                'system'
+            $walletRequest = $this->service->requestWithdraw(
+                $request->user(),
+                (float) $request->validated('amount'),
+                $request->validated('notes')
             );
-        } catch (\Throwable) {}
 
-        Cache::forget("wallet.requests.{$user->id}");
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Withdraw request submitted. The admin will process it shortly.',
-            'data'    => $this->formatRequest($walletRequest),
-        ], 201);
+            return response()->json([
+                'success' => true,
+                'status' => 'success',
+                'message' => 'Withdraw request submitted. The admin will process it shortly.',
+                'data' => $this->service->format($walletRequest),
+            ], 201);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'success' => false,
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], $e->getCode() ?: 422);
+        }
     }
 
-    // ── GET /api/wallet/requests ──────────────────────────────────────────────
+    public function store(WalletStoreRequest $request): JsonResponse
+    {
+        try {
+            $walletRequest = $this->service->create(
+                $request->user(),
+                $request->validated('type'),
+                (float) $request->validated('amount'),
+                $request->notes()
+            );
 
-    /**
-     * Returns the authenticated user's own wallet requests (newest first).
-     */
+            return response()->json([
+                'status' => 'success',
+                'success' => true,
+                'message' => 'Wallet request submitted.',
+                'data' => $this->service->format($walletRequest),
+            ], 201);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'status' => 'error',
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e->getCode() ?: 422);
+        }
+    }
+
     public function myRequests(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
-
-        $data = Cache::remember("wallet.requests.{$userId}", 120, function () use ($userId) {
-            return WalletRequest::where('user_id', $userId)
-                ->orderByDesc('created_at')
-                ->get()
-                ->map(fn($r) => $this->formatRequest($r))
-                ->values()
-                ->all();
-        });
-
         return response()->json([
             'success' => true,
-            'data'    => $data,
+            'status' => 'success',
+            'data' => $this->service->listForUser($request->user()->id),
         ]);
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
-    private function formatRequest(WalletRequest $r): array
+    public function show(Request $request, int $id): JsonResponse
     {
-        return [
-            'id'           => $r->id,
-            'type'         => $r->type,
-            'amount'       => (float) $r->amount,
-            'status'       => $r->status,
-            'user_notes'   => $r->user_notes,
-            'admin_notes'  => $r->admin_notes,
-            'processed_at' => $r->processed_at?->toIso8601String(),
-            'created_at'   => $r->created_at->toIso8601String(),
-        ];
+        try {
+            $walletRequest = $this->service->getForUser($request->user()->id, $id);
+
+            return response()->json([
+                'status' => 'success',
+                'success' => true,
+                'data' => $this->service->format($walletRequest),
+            ]);
+        } catch (ModelNotFoundException) {
+            return response()->json([
+                'status' => 'error',
+                'success' => false,
+                'message' => 'Request not found.',
+            ], 404);
+        }
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        try {
+            $walletRequest = $this->service->cancelForUser($request->user()->id, $id);
+
+            return response()->json([
+                'status' => 'success',
+                'success' => true,
+                'message' => 'Request cancelled.',
+                'data' => $this->service->format($walletRequest),
+            ]);
+        } catch (ModelNotFoundException) {
+            return response()->json([
+                'status' => 'error',
+                'success' => false,
+                'message' => 'Request not found.',
+            ], 404);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'status' => 'error',
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e->getCode() ?: 422);
+        }
     }
 }

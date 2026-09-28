@@ -15,7 +15,6 @@ use Illuminate\Support\Str;
 final class StaffJwtService
 {
     private const ALGORITHM        = 'HS256';
-    private const ACCESS_TTL       = 3600;        // 1 hour
     private const REFRESH_TTL_DAYS = 30;
     private const SUB_TYPE         = 'employee';
 
@@ -30,8 +29,20 @@ final class StaffJwtService
             'access_token'  => $accessToken,
             'refresh_token' => $refreshEntry['token'],
             'token_type'    => 'Bearer',
-            'expires_in'    => self::ACCESS_TTL,
+            'expires_in'    => $this->accessTtlSeconds(),
         ];
+    }
+
+    /**
+     * T4-4: this used to be a hardcoded constant (ACCESS_TTL = 3600) that
+     * ignored config entirely, so staff token lifetime was unrelated to the
+     * user one and to the documented value. It now reads jwt.staff_ttl
+     * (minutes) exactly like JwtService reads jwt.ttl. The default (60 minutes)
+     * reproduces the old 3600 seconds, so this change is behaviour-preserving.
+     */
+    private function accessTtlSeconds(): int
+    {
+        return max(1, (int) config('jwt.staff_ttl', 60)) * 60;
     }
 
     // ── Token validation ──────────────────────────────────────────────────────
@@ -79,7 +90,10 @@ final class StaffJwtService
      */
     public function refreshAccessToken(string $refreshToken): ?array
     {
-        $tokenRecord = StaffRefreshToken::where('token', $refreshToken)
+        // T2-11: look up by DIGEST. The plaintext value handed to the client is
+        // never the value stored, mirroring JwtService::refreshAccessToken()
+        // (app/Services/JwtService.php:123).
+        $tokenRecord = StaffRefreshToken::where('token', $this->hashToken($refreshToken))
             ->with('employee')
             ->first();
 
@@ -119,8 +133,18 @@ final class StaffJwtService
 
     public function cleanupExpiredTokens(): int
     {
-        return StaffRefreshToken::where('expires_at', '<', now())
-            ->orWhere('revoked', true)
+        // T4-3: this relied on accidental operator precedence —
+        //   where('expires_at', '<', now())->orWhere('revoked', true)->delete()
+        // produced (expires_at < now OR revoked = 1) only because there were no
+        // other clauses; a single added constraint would silently widen the
+        // DELETE across the whole table (revoked rows anywhere). Parenthesised
+        // now so the intent is structural, not incidental. The emitted SQL is
+        // unchanged for today's callers.
+        return StaffRefreshToken::query()
+            ->where(static function ($q): void {
+                $q->where('expires_at', '<', now())
+                  ->orWhere('revoked', true);
+            })
             ->delete();
     }
 
@@ -138,7 +162,7 @@ final class StaffJwtService
             'type'     => 'access',
             'ver'      => $employee->token_version,
             'iat'      => $now,
-            'exp'      => $now + self::ACCESS_TTL,
+            'exp'      => $now + $this->accessTtlSeconds(),
         ];
 
         return JWT::encode($payload, $this->secret(), self::ALGORITHM);
@@ -148,9 +172,14 @@ final class StaffJwtService
     {
         $token = Str::random(64);
 
+        // T2-11: store only the SHA-256 digest, exactly as the user path does
+        // (JwtService::generateRefreshToken() at app/Services/JwtService.php:281).
+        // A refresh token is a 30-day bearer credential that mints fresh access
+        // tokens, so a database disclosure must not hand over usable sessions.
+        // The raw value is returned to the client and is never persisted.
         $record = StaffRefreshToken::create([
             'employee_id' => $employee->id,
-            'token'       => $token,
+            'token'       => $this->hashToken($token),
             'expires_at'  => now()->addDays(self::REFRESH_TTL_DAYS),
             'revoked'     => false,
             'user_agent'  => request()->userAgent(),
@@ -158,6 +187,17 @@ final class StaffJwtService
         ]);
 
         return ['token' => $token, 'record' => $record];
+    }
+
+    /**
+     * Digest used as the persistence/lookup key for staff refresh tokens.
+     * Deliberately identical in form to the user system — hash('sha256', $raw),
+     * lowercase hex, 64 chars — so the two cannot drift apart again and so the
+     * value fits the existing varchar(64) UNIQUE column unchanged.
+     */
+    private function hashToken(string $token): string
+    {
+        return hash('sha256', $token);
     }
 
     private function secret(): string

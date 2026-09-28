@@ -306,8 +306,12 @@ final class AdminReportService
             ->where('type', 'escrow_received');          // ← was 'ride_creation_fee'
 
         // ── SyCash: total released on completion ─────────────────────────────
+        // The live payout path writes the singular 'escrow_release' (one row per
+        // confirmed booking). The plural 'escrow_released' was only ever written
+        // by the legacy ride-wide release, so both are counted to keep any
+        // historical rows in the total.
         $escrowReleasedQ = WalletTransaction::where('wallet_id', $syCashWallet->id)
-            ->where('type', 'escrow_released');
+            ->whereIn('type', ['escrow_release', 'escrow_released']);
 
         // ── SyCash: total refunds paid out ───────────────────────────────────
         $refundsQ = WalletTransaction::where('wallet_id', $syCashWallet->id)

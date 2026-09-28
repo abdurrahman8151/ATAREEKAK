@@ -168,7 +168,7 @@ final class Noshowservice
                     'high',
                     'ride'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
 
             Log::info('Driver filed passenger no-show report', [
                 'report_id'    => $report->id,
@@ -289,7 +289,7 @@ final class Noshowservice
                     'high',
                     'ride'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
 
             Log::info('Passenger filed driver no-show report', [
                 'report_id'    => $report->id,
@@ -323,14 +323,41 @@ final class Noshowservice
 
         foreach ($expired as $report) {
             try {
-                DB::transaction(function () use ($report) {
-                    $this->applyPenalty($report);
+                $applied = DB::transaction(function () use ($report) {
+                    // T3-16: the report was fetched OUTSIDE this transaction and
+                    // never re-read, so applyPenalty() — which moves real money
+                    // (escrow → driver 95% / primary 5%) and flips booking
+                    // status — ran with no lock and no status re-check. Correctness
+                    // depended entirely on the scheduler's withoutOverlapping() +
+                    // onOneServer() topology; any second invocation path (manual
+                    // `noshow:resolve`, a retry, a future API trigger) could
+                    // double-apply a settlement. The row is now locked FOR UPDATE
+                    // and its status re-checked inside the transaction, making the
+                    // operation idempotent by construction: a concurrent resolver
+                    // either blocks here or sees status != pending and skips.
+                    /** @var NoshowReport|null $locked */
+                    $locked = NoshowReport::whereKey($report->id)
+                        ->lockForUpdate()
+                        ->first();
 
-                    $report->update([
+                    if (! $locked || $locked->status !== 'pending') {
+                        return false; // resolved/disputed meanwhile — skip
+                    }
+
+                    $this->applyPenalty($locked);
+
+                    $locked->update([
                         'status'      => 'resolved_reporter_wins',
                         'resolved_at' => now(),
                     ]);
+
+                    return true;
                 });
+
+                if (! $applied) {
+                    continue;
+                }
+
                 $resolved++;
 
                 Log::info('No-show report auto-resolved', [
@@ -423,7 +450,7 @@ final class Noshowservice
                 'high',
                 'system'
             );
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
 
         Log::info('No-show conflict detected — auto-complaint created', [
             'ride_id'      => $ride->id,
@@ -478,7 +505,7 @@ final class Noshowservice
                     'high',
                     'system'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
 
             // Notify driver: you received your earnings
             try {
@@ -492,7 +519,7 @@ final class Noshowservice
                     'normal',
                     'ride'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
 
         } else {
             // ── Passenger won → driver is penalised ───────────────────────────
@@ -517,7 +544,7 @@ final class Noshowservice
                     'high',
                     'system'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
 
             // Notify passenger: refunded (e-pay) or resolved (cash)
             try {
@@ -531,7 +558,7 @@ final class Noshowservice
                     'normal',
                     'ride'
                 );
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) { Log::warning('no-show notification dispatch failed (non-fatal): ' . $e->getMessage()); }
         }
     }
 

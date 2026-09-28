@@ -12,7 +12,7 @@ class WalletRequest extends Model
         'wallet_id',
         'type',        // 'charge' | 'withdraw'
         'amount',
-        'status',      // 'pending' | 'approved' | 'rejected'
+        'status',      // 'pending' | 'approved' | 'rejected' | 'cancelled'
         'user_notes',
         'admin_notes',
         'processed_by',
@@ -51,6 +51,16 @@ class WalletRequest extends Model
     public function isApproved(): bool
     {
         return $this->status === 'approved';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === 'cancelled';
     }
 
     public function isCharge(): bool

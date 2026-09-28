@@ -9,6 +9,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // T3-6: raw MySQL-only statement(s) below. Skip cleanly on other
+        // drivers instead of fataling a fresh migrate (no-op on MySQL).
+        if (\Illuminate\Support\Facades\DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Drop any indexes on phone_number first
         try {
             DB::statement('ALTER TABLE otps DROP INDEX otps_phone_number_index');

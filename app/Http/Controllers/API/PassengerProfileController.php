@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Cache;      // ← added
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * PassengerProfileController
@@ -343,7 +344,13 @@ final class PassengerProfileController extends Controller
                     'previous_balance' => $previousBalance,
                     'new_balance'      => $newBalance,
                     'description'      => $request->input('admin_notes') ?? 'Admin wallet charge',
-                    'transaction_id'   => 'ADM-' . $user->id . '-' . now()->timestamp,
+                    // T3-1: was 'ADM-'.$user->id.'-'.now()->timestamp, i.e.
+                    // unique only per-second per-user. wallet_transactions
+                    // .transaction_id is UNIQUE, so two charges for the same
+                    // passenger inside one second threw and rolled back a
+                    // legitimate money movement. UUID makes it collision-free;
+                    // the readable prefix is kept for ops.
+                    'transaction_id'   => 'ADM-' . $user->id . '-' . (string) Str::uuid(),
                     'status'           => 'completed',
                     'reference'        => 'admin_charge:' . $user->id,
                 ]);
@@ -375,8 +382,9 @@ final class PassengerProfileController extends Controller
                     'normal',
                     'system'
                 );
-            } catch (\Throwable) {
-                // Never let notification failure block the charge
+            } catch (\Throwable $e) {
+                // T3-13: non-fatal by intent, but it must be visible.
+                Log::warning('wallet charge notification failed (non-fatal): ' . $e->getMessage());
             }
 
             $user->wallet->refresh();

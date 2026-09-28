@@ -38,7 +38,6 @@ use App\Http\Controllers\API\VerifyPasswordOtpController;
 use App\Http\Controllers\API\WalletController;
 use App\Http\Controllers\API\WalletRequestController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -61,35 +60,23 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ========================================
-// UTILITY / DEBUG — no throttle
-// Remove /test-db before production (exposes DB config)
+// UTILITY — Liveness only. No throttle (must stay reachable during incidents).
+//
+// These two return fixed constants and expose nothing about the backing
+// services, so they are safe to leave unauthenticated. /ping and /test are
+// used by the k6 load-test scripts and by RouteServiceProviderTest.
+//
+// GET /api/test-db was REMOVED here (original-audit T2-6). It was
+// unauthenticated and unthrottled and returned the internal database name,
+// host, port and table count — and, on failure, the raw driver exception text.
+// That is unauthenticated reconnaissance of internal topology. The code's own
+// comment said "Remove /test-db before production"; this is that removal.
 // ========================================
 Route::get('/ping', fn() => response()->json(['ok' => true]));
 Route::get('/test', fn () => response()->json([
     'message'   => 'API is working!',
     'timestamp' => now(),
 ]));
-
-Route::get('/test-db', function () {
-    try {
-        DB::connection()->getPdo();
-        return response()->json([
-            'message'      => 'Database connection successful',
-            'database'     => config('database.connections.mysql.database'),
-            'host'         => config('database.connections.mysql.host'),
-            'tables_count' => count(DB::select('SHOW TABLES')),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error'  => 'Database connection failed: ' . $e->getMessage(),
-            'config' => [
-                'host'     => config('database.connections.mysql.host'),
-                'database' => config('database.connections.mysql.database'),
-                'port'     => config('database.connections.mysql.port'),
-            ],
-        ], 500);
-    }
-});
 
 // ========================================
 // PUBLIC — OTP (WhatsApp / TextMeBot) [throttle:auth]
@@ -300,7 +287,11 @@ Route::prefix('admin')->group(function () {
 
         // ── Session ────────────────────────────────────────────────────────
         Route::post('/logout', [AdminDashboardController::class, 'logout']);
-        Route::post('/photo',  [AdminDashboardController::class, 'uploadAdminPhoto']);
+        // T4-7: POST /admin/photo was removed. Its handler returned
+        // {'status':'success','message':'Photo uploaded'} without uploading
+        // anything — the employees table has no photo column, so the endpoint
+        // could never work. A 404 is the honest answer; a real admin photo
+        // upload is a feature (schema + storage), not a no-op claiming success.
 
         // ── Dashboard ──────────────────────────────────────────────────────
         Route::prefix('dashboard')->group(function () {
@@ -319,15 +310,26 @@ Route::prefix('admin')->group(function () {
         Route::get('/routes/popular', [AdminTripController::class, 'popularRoutes']);
         Route::get('/drivers/top',    [AdminTripController::class, 'topDrivers']);
 
-        // ── Wallet ─────────────────────────────────────────────────────────
-        Route::prefix('wallet')->group(function () {
-            Route::get('/',                        [AdminDashboardController::class,     'getAdminWallet']);
-            Route::get('/{walletId}/transactions', [AdminDashboardController::class,     'showWalletTransactions']);
-            Route::get('/requests',                [AdminWalletRequestController::class, 'index']);
-            Route::post('/requests/{id}/approve',  [AdminWalletRequestController::class, 'approve']);
-            Route::post('/requests/{id}/reject',   [AdminWalletRequestController::class, 'reject']);
+        // ── Wallet [system_admin only] ─────────────────────────────────────
+        // These endpoints act on the CALLER'S OWN system wallet, resolved by
+        // AdminAuthService::getAdminConfigFromRequest() as
+        // config("admin.<role>.phone"). config/admin.php defines that phone only
+        // for system_admin and sycash — there is no `admin` entry. The outer
+        // gate (staff:admin,system_admin) nevertheless admitted the `admin`
+        // role, so getOrCreateWallet() searched phone_number = NULL, found
+        // nothing and threw RuntimeException → HTTP 500 on GET /admin/wallet.
+        // The whole financial surface is therefore system_admin-only, matching
+        // the existing gate on /wallet/charge, /reports and /export/pdf.
+        Route::middleware('staff:system_admin')->group(function () {
+            Route::prefix('wallet')->group(function () {
+                Route::get('/',                        [AdminDashboardController::class,     'getAdminWallet']);
+                Route::get('/{walletId}/transactions', [AdminDashboardController::class,     'showWalletTransactions']);
+                Route::get('/requests',                [AdminWalletRequestController::class, 'index']);
+                Route::post('/requests/{id}/approve',  [AdminWalletRequestController::class, 'approve']);
+                Route::post('/requests/{id}/reject',   [AdminWalletRequestController::class, 'reject']);
+            });
+            Route::get('/wallets', [AdminDashboardController::class, 'getAdminWallets']);
         });
-        Route::get('/wallets', [AdminDashboardController::class, 'getAdminWallets']);
 
         // ── UC-ADM-12: Ban / Unban ─────────────────────────────────────────
         Route::prefix('users')->group(function () {
@@ -344,7 +346,14 @@ Route::prefix('admin')->group(function () {
             Route::get('/{userId}/recent-trips',   [PassengerProfileController::class, 'recentTrips']);
             Route::get('/{userId}/complaints',     [PassengerProfileController::class, 'complaints']);
             Route::get('/{userId}/wallet-charges', [PassengerProfileController::class, 'walletCharges']);
-            Route::post('/{userId}/charge-wallet', [PassengerProfileController::class, 'chargeWallet']);
+
+            // Moves real money into a passenger's wallet and writes a
+            // wallet_transactions ledger row, so it sits with the rest of the
+            // financial surface (system_admin only) rather than the read-only
+            // passenger dashboard above.
+            Route::middleware('staff:system_admin')->group(function () {
+                Route::post('/{userId}/charge-wallet', [PassengerProfileController::class, 'chargeWallet']);
+            });
         });
 
         // ── System Admin only ──────────────────────────────────────────────
@@ -449,4 +458,11 @@ Route::prefix('employees')->middleware(['staff:system_admin', 'throttle:admin'])
     Route::patch('/{id}/reset-password', [EmployeeManagementController::class, 'resetPassword']);
 });
 
-Route::get('/health', fn() => response()->json(['status' => 'ok', 'node' => gethostname()]));
+// GET /api/health was REMOVED here (original-audit T2-6). It was
+// unauthenticated and returned gethostname(), which disclosed the container
+// identity of whichever of the five app replicas answered and so assisted
+// cluster enumeration. The platform healthcheck uses GET /up (render.yaml:5),
+// not this route, and nothing in the repository consumed it.
+//
+// If an internal liveness probe is needed later, put it behind the internal
+// network or the admin middleware rather than leaving it public.

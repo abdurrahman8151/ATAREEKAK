@@ -2,6 +2,8 @@
 
 namespace App\Services\Staff;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Enums\ComplaintStatus;
 use App\Models\Complaint;
 use App\Models\Employee;
@@ -337,8 +339,9 @@ final class StaffComplaintService
                     'system'
                 );
             }
-        } catch (\Throwable) {
-            // Notification failure must never break the main action
+        } catch (\Throwable $e) {
+            // T3-13: non-fatal by intent, but it must be visible.
+            Log::warning('staff complaint status notification failed (non-fatal): ' . $e->getMessage());
         }
     }
 }

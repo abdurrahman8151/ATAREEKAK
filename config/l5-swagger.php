@@ -65,13 +65,30 @@ return [
 
             /*
              * Middleware allows to prevent unexpected access to API documentation
+             *
+             * T3-12: these arrays were empty, so /docs, /docs/oauth2-callback,
+             * the JSON spec and every swagger asset were served anonymously.
+             * GateDocumentation now allows local/testing and an IP allowlist
+             * (DOCS_ALLOWED_IPS) elsewhere.
              */
             'middleware' => [
-                'api' => [],
-                'asset' => [],
-                'docs' => [],
-                'oauth2_callback' => [],
+                'api' => [\App\Http\Middleware\GateDocumentation::class],
+                'asset' => [\App\Http\Middleware\GateDocumentation::class],
+                'docs' => [\App\Http\Middleware\GateDocumentation::class],
+                'oauth2_callback' => [\App\Http\Middleware\GateDocumentation::class],
             ],
+
+            /*
+             * T3-12: IPs allowed to reach the docs outside local/testing.
+             * Read via config (not env() in the middleware) so it survives
+             * php artisan config:cache. Comma-separated in .env:
+             *   DOCS_ALLOWED_IPS="203.0.113.10,198.51.100.7"
+             * Empty = nobody outside local/testing.
+             */
+            'docs_allowed_ips' => array_filter(array_map(
+                'trim',
+                explode(',', (string) env('DOCS_ALLOWED_IPS', ''))
+            )),
 
             /*
              * Route Group options

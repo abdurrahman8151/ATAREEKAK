@@ -1,0 +1,467 @@
+# Syride — APP-FUTURE Audit: Architecture, Design & Product Direction
+
+> Sister document to `SYRIDE_COMPREHENSIVE_AUDIT.md` (which covers *what breaks* —
+> security/correctness, 39 findings). This document covers **what the system IS, whether
+> its shape is right, and what it must become**. Every claim is measured or has file:line
+> evidence gathered on this checkout. Read-only analysis; no code was modified to produce it.
+
+**Method:** whole-tree token-level measurement of `app/` (class LOC, method count, method
+length via PHP tokenizer), dependency wiring inspection (providers, composer, config),
+migration/schema enumeration, dead-code reachability tracing (who dispatches/calls/binds
+what), plus four parallel deep-dive passes (service layer, HTTP layer, infra/scalability,
+product features). Where a first-pass claim failed verification it is explicitly corrected —
+see §8.
+
+---
+
+## 0. The system in numbers (the context for every verdict below)
+
+| Metric | Value | Note |
+| --- | --- | --- |
+| `app/` size | **27,405 LOC / 233 files** | Http 8,905 (66 files) · Services 9,445 (41) · Models 1,403 (25) · Domain 1,097 (19) · Repositories 844 (10) |
+| Team / history | **2 contributors** (71 + 7 commits), **78 commits, 6 months** (2026-03 → 2026-09) | final-year project, effectively single-developer |
+| API surface | **149 routes** in `routes/api.php` | + admin/staff consoles as pure JSON APIs |
+| Database | 29 domain tables, 66 migrations, MySQL 8 | `rides` uses native `geometry` + 2 spatial indexes |
+| Runtime topology | **5× Octane/RoadRunner app replicas** behind nginx, redis (queue+cache+session), MySQL **primary + replica**, dedicated Horizon container, dedicated scheduler container (`docker-compose.yml`) | |
+| Front end in repo | **7 real Blade views + 755 bytes of JS** | `resources/js/app.js` (22 B) + `bootstrap.js` (753 B) — see §7 |
+| Tests | 133 test files (66 Unit / 65 Feature) | 1,909 executed |
+| Static analysis | **none wired** | Pint in `require-dev`, never run in CI; no PHPStan/Larastan at any level |
+
+No import cycles were found in the dependency graph (verified with the architecture-review
+tool across all 377 scanned files). That is genuinely good for code this young.
+
+---
+
+## A. SYSTEM ARCHITECTURE — monolith vs microservices
+
+### A1. Verdict: the monolith is the correct choice — microservices would be actively harmful
+
+The evidence is unambiguous:
+
+1. **Team size vs service count.** 2 contributors, one of them casual. The industry
+   median for a viable microservice deployment is a team that needs it; a 2-person team
+   gets the *cost* of distribution (149 routes × N boundaries, no contract tests, one DB)
+   and none of the benefit. Every split multiplies every current weakness: there is no
+   error tracking (no Sentry), no static analysis, no per-service CI — you would be
+   shipping 6+ services with the observability of zero.
+2. **Shared single database.** 29 tables with heavy cross-domain joins (`rides`↔`bookings`
+   ↔`wallets`↔`wallet_transactions` are joined in the money flows and in
+   `AdminDashboardController`). Splitting into services *without* splitting data (the
+   honest way) means each "service" still UPDATEs another's tables — worse coupling than
+   today's method calls, because it now crosses a network hop.
+3. **The transaction boundaries prove the domain is one aggregate.** Money movement spans
+   ride booking, escrow hold, completion release, no-show penalty — wrapped in
+   `DB::transaction` across those tables in `BookingService`, `WalletTransactionService`,
+   `Noshowservice` (23 transaction sites repo-wide). In microservices this becomes
+   saga/saga-compensation territory. That complexity buys nothing for a final-year product
+   with no scale requirement.
+4. **Scale is already solved inside the monolith.** App tier is stateless
+   (`SESSION_DRIVER=redis`, `CACHE_DRIVER=redis`, `QUEUE_CONNECTION=redis`), runs Octane,
+   scales to 5 replicas under nginx, and — verified in `config/database.php:50-56` — has a
+   **real MySQL read/write split with `sticky=true`** pointing at a replica container.
+   This is a horizontally-scalable monolith already, which is the architecture most
+   companies of this size *graduate to*, not away from.
+
+### A2. What is actually wrong is not monolith-vs-micro — it's that the monolith isn't *modular*
+
+The right target is a **modular monolith**: strict domain boundaries enforced *today* so
+that if the product ever earns a split, the seams are already there. Syride is 60% of the
+way there and contradicts itself:
+
+- `app/Domain/` (19 files, value objects + payment strategies + score policies) — this is
+  a genuine hexagonal seed. **But it is an island: the code that should consume it does not**
+  (§B2, §C).
+- `app/Services/` and `app/Interfaces/` (10 repository contracts, properly DI-bound —
+  corrected from first-pass, see §8) — good structure, but bypassed inconsistently.
+- Three parallel ride-search implementations, two ledger vocabularies, three auth systems
+  (§D1-D3). Modularity isn't about folders; it's about **one place per concept**. Syride
+  has 2-3 places per concept.
+
+### A3. The scaling ceiling — what breaks *first* inside this monolith
+
+In order of how soon it will bite:
+
+1. **File storage is the only stateful layer, and it's per-replica.**
+   `FILESYSTEM_DISK=local`, uploads go to `storage/app/public`
+   (7 sites using `storeAs/putFile` — KYC docs, photos), and compose mounts **only
+   `./storage/logs`** as a shared volume across the 5 replicas. A KYC document uploaded via
+   app2 is 404 when served by app3. One-line config (`FILESYSTEM_DISK=s3`) plus a
+   MinIO/S3 bucket fixes it. This is the single most concrete P1 in the whole document.
+2. **`FlushUploadedFiles::class` is commented out** in `config/octane.php:84` — under
+   Octane's resident workers, uploaded temp files are not cleaned between requests
+   (disk + memory leak on the long-running worker).
+3. **TLS verification is disabled on outbound calls**: `verify => false` at
+   `RouteCalculationService.php:97,142` and `WhatsAppOtpService.php:212`. Not a scaling
+   limit, but a production-grade claim-killer and MITM risk on provider calls.
+4. **Geo search is O(rows scanned) per query** (endpoint-radius `ST_Distance_Sphere` in
+   `RideRepository::searchRides` :340/:344). Fine at 200 seeded rides; this is a ride app —
+   the day rides are the product's point, the query plan must change (spatial `MBRWithin`
+   pre-filter or Redis GEO).
+5. **No read-your-writes guarantee across the replica split for the money paths.**
+   `sticky=true` covers same-connection, but the admin financial dashboards read through
+   the replica immediately after writes through the primary (the 5-min report cache in
+   `AdminDashboardController::generateReport` partially masks this — verify per screen).
+
+### A4. If you ever split: the only sane seams, in order
+
+(Not recommended now — recorded because "could we?" will be asked at the defense.)
+1. **Wallet/payments** — already an implicit bounded context (4 tables, 2 services, clean
+   event-ish boundary `WalletTransactionService`). First candidate **only when** a real
+   gateway integration forces a webhook ingress anyway.
+2. **Notifications/push** — queue jobs + listeners already decouple it.
+3. **Search/matching** — *if* you build nearest-driver matching, that's a natural
+   worker/service because it wants Redis GEO data that's derived from events.
+Everything else (rides, bookings, users, complaints) must stay one module: the transaction
+boundaries prove it.
+
+---
+
+## B. CODE ARCHITECTURE — layering and its real violations
+
+### B1. The layer map (as it actually behaves, not as folders claim)
+
+```
+routes (149) → Middleware (Sanctum? JWT? StaffJwt — 3 systems, §D3)
+  → Controllers (66 files, 8,905 LOC)          ← the problem layer
+    → Services (41 files, 9,445 LOC)
+      → Repositories (10, interface-bound, DI)  ← genuinely wired (AppServiceProvider, 49 bindings)
+      → Models/Eloquent (25)                    ← used by controllers DIRECTLY too (§B3)
+    → Domain/ (VOs, strategies, policies)       ← partially wired (§C)
+  → Events/Listeners (ShouldQueue) → Horizon   ← correctly wired
+```
+
+### B2. Measured god classes and god methods (tokenizer-verified, `app/`)
+
+Worst classes (LOC / methods / longest methods):
+
+| Class | LOC | Methods | God methods (name@line(len)) |
+| --- | --- | --- | --- |
+| `API/RideController` | **966** | 30 | `createRideWithRoute@661(70)` `passengerConfirmCompletion@785(54)` `driverView@255(53)` |
+| `Payment/WalletTransactionService` | **790** | 11 | ledger dialect problem, see §D2 |
+| `Ride/BookingService` | **738** | 19 | **`passengerConfirmCompletion@452(111)`** `cancelBooking@253(64)` |
+| `API/PassengerProfileController` | 665 | 23 | `chargeWallet@308(62)` |
+| `Admin/AdminDriverService` | 646 | 21 | `getVerificationEfficiency@492(61)` |
+| `Ride/Noshowservice` | 612 | 7 | **`applyPenalty@478(85)`** `handleConflict@390(78)` |
+| `Ride/RideService` | 597 | 20 | **`cancelRide@118(99)`** |
+| `API/AdminDashboardController` | 564 | 26 | `approveVerification@458(63)` |
+| `Staff/StaffOperationsController` | 564 | 11 | **`bookings@277(90)`** `cancelBooking@471(67)` |
+| `Providers/AppServiceProvider` | 257 | 7 | **`register@32(154)`** |
+
+Worst methods **outside** the above (the extreme tail):
+
+| Method | file | length |
+| --- | --- | --- |
+| `Testfullrideflow::handle` | `Console/Commands/Testfullrideflow.php:52` | **221 lines** |
+| `TestRideGatedInteractionCommand::handle` | :37 | **211 lines** |
+| `GoogleController::callback` | `API/Auth/GoogleController.php:31` | **176 lines** |
+| `RideRepository::createRide` | :38 | **128 lines** (a *repository* doing 128 lines of orchestration — §B3) |
+| `SignupController::register` | :23 | 145 |
+| `ProfileController::update` | :108 | 108 |
+| `AdminBanController::ban` | :52 | 89 |
+
+**The admin/staff console cluster is the systemic problem:** 4 admin controllers +
+`StaffOperationsController` + `PassengerProfileController` = ~2,470 LOC where controllers
+inline DB reads, money arithmetic and multi-step state changes that already exist as
+services. `AdminBanController::ban()` (89 lines) does validation + duplicate-ban check +
+transaction + notify — a `BanService` would be ~15 lines of controller left over. The
+read-model services (`AdminDriverService`, `AdminTripService`, `AdminReportService`) are
+acceptable in shape; the *action* controllers are not.
+
+### B3. SOLID, measured
+
+- **SRP** — broken at the boundaries above (controllers as orchestrators,
+  `RideRepository::createRide` as orchestrator). `WalletTransactionService` at 790 lines /
+  11 methods *holds* the ledger: the class is the ledger aggregate root, which is
+  defensible — but it mixes escrow holds, releases, refunds, cash-fee settlement and
+  chargeback-ish paths in one file with two event-name vocabularies.
+- **DIP** — *mostly honest*: 43 controllers constructor-inject services, 10 repository
+  contracts are interface-bound and bound in the provider. The violations are surgical:
+  2 controllers inject `RepositoryInterface` directly (skipping the service layer:
+  `StaffAdminController`→Verification, `AdminDashboardController:494` does
+  `app(VerificationRepositoryInterface::class)` mid-method); **22 `app()` service-locator
+  calls inside `app/` outside providers** (container-as-globals); the `verify=>false` HTTP
+  calls are hard-coupled to the provider choice (no `DirectionsProvider` interface, while
+  a `GeocodingServiceInterface` exists for geocoding — asymmetric).
+- **LSP** — no violating overrides found (small `extends` footprint).
+- **ISP** — `RideRepositoryInterface` grew the way interfaces rot in practice: it carries
+  `createRideWithGeometry`, `getRideById`, `getDriverRides`, `searchRides` (CRUD+query+
+  search in one contract); `BookingService` and `RideService` both take the whole thing.
+  Split into `RideWriter` / `RideQueries` / `RideSearch`.
+- **D** is the one rule this codebase actually obeys consistently (DI via constructors +
+  provider). Say that explicitly at the defense — it's true and it's rare at this level.
+
+---
+
+## C. DESIGN PATTERNS — inventory, and the ones that are cargo-culted
+
+| Pattern | Where | Adoption | Verdict |
+| --- | --- | --- | --- |
+| **Repository** | 10 interfaces + impls, 49 provider bindings | used by 10 services/controllers (recount-corrected, §8) | **genuinely wired** — good |
+| **Strategy** | `Domain/Payment/Strategies/*Factory` + `Domain/Score/Policies/*` | consumed by `BookingService:34` and `ScoreService:20` | **genuinely wired and effective** — the best pattern work in the repo |
+| **Value Object** | `Domain/ValueObjects/Money/Email/Location/PhoneNumber` (264-line `Money`) | `Email/Phone/Location` used by 4 DTOs + auth; **`Money` used by only the reporting layer — ZERO of the 7 money-moving services** | **half-adopted → island** (§D1) |
+| **Factory** | `PaymentStrategyFactory`, `ScorePolicyFactory` | bound in provider | fine |
+| **Event/Listener** | 9 events, 5 listeners, all listeners `ShouldQueue` | queue decoupling correct | **but 3 dead events**: `UserVerified` fired 0× / 3 listeners; `OtpSent` 0×/0; `ConversationCreated` 0×/0; `RideCreated` fired 1× / 0 listeners |
+| **Observer** | `UserObserver`→auto-`ProfileRepository::create` | works | fine |
+| **DTO** | 4 classes (`DTOs/Auth`, `DTOs/Ride`) | used by EmailOtp + ride creation only | correct but tiny — service signatures use **41 `array $` params** instead (§D1) |
+| **Pipeline/Chain** | none, despite `ChatMessageHandler` doing fetch→authorize→transform→persist→broadcast inline | — | candidate, low priority |
+
+The pattern story of this codebase: **it doesn't lack patterns, it lacks completion.**
+Each pattern exists at 1-2 exemplary sites and at 0 adoption sites where the same concept
+appears in raw form. The `Money` VO is the proof: it is a *well-built* class (minor-unit
+integer storage, currency guard, add/sub/mul/div with rounding, comparison, formatting)
+and it was written last and then the services kept doing `round($x * 0.95, 2)` in 66 sites.
+
+---
+
+## D. CODE SMELLS & VIOLATIONS — ranked by harm
+
+### D1. Primitive obsession, specifically about money (P1)
+66 arithmetic/`round()` sites in money paths; **0 `bc*` calls**; `Money` VO unused by the
+mutation layer; `(float)` casts on balances at `WalletTransactionService:720-727`. The
+columns are `decimal(15,2)` — the DB is the only place doing exact arithmetic. `Money.php`
+internally converts `float` input via `(int) round($amount * 100)` — safe enough for the
+scale, but the entry point accepts float and every caller computes in float first, so
+half-cent errors are *created before* the VO could prevent them.
+**Fix:** every service signature that carries an amount takes/returns `Money`; ban `float`
+money args via Larastan's `strict` rules once §E1 tooling lands.
+
+### D2. The ledger has two dialects (P1 — reconciliation risk, not just style)
+Per-seat path writes `ride_booking_payment` / `escrow_release`
+(`WalletTransactionService:742`), whole-ride path writes `escrow_received` /
+`escrow_released` (`:178`) — same economic events, different `type` strings. Any
+reconciliation or analytics query must know both, and the audit history (T1-2: ledger types
+absent from the DB enum) shows the team already fought enum/DB drift here once.
+**Fix:** one `LedgerEvent` enum as the single writer; a nightly `ledger:reconcile` command
+(`sum(wallet_transactions) vs wallets.balance per wallet`) — **no such job exists in
+`Console/Kernel` (4 scheduled commands verified).**
+
+### D3. Three auth systems, no boundary story (P1 for a "production" claim)
+Custom JWT (passengers/drivers) + staff-JWT (employees, own token table, own TTL config) +
+**Sanctum (`personal_access_tokens` table + config present)** — the third is used by
+nothing in `routes/api.php` (no `auth:sanctum`). Either document "Sanctum is for the mobile
+app, not built yet" or remove it.
+
+### D4. Dead-but-wired code — the repo's most characteristic smell (P1: misleading)
+- **`RideSearchService` (route-buffer geo search, the technically superior search) is bound
+  as a singleton (`AppServiceProvider:81`) and injected into `RideService:29` — and called
+  ZERO times.** Every request runs `RideRepository::searchRides` (endpoint-radius) instead
+  (:515). The k6 load tests hammer `/api/rides/search` — i.e. **the performance numbers
+  measured the simple search while the fancy one sits unreachable.**
+- `SendScheduledNotification` job: class exists, **0 dispatch sites** (verified).
+- 3 events with no dispatcher (§C). `BookingStatus` enum has no `no_show` case while
+  18 sites write the `'no_show'` string.
+- Deprecated status string `'awaiting_confirmation'` is still filtered by 7 admin/staff
+  read sites (`AdminTripService:68,138,143` etc.) that no live writer uses.
+- Orphan columns written-never: `rides.pickup_lat/lng/destination_lat/lng` — the
+  repository converts to geometry then **`unset()`s them before insert**
+  (`RideRepository:204-214`): 4 decimal columns are permanently NULL on every row.
+  `rides.passengers_confirmed` (0 app refs), `profiles.number_of_rides` (never incremented).
+- `stripe/stripe-php` in composer.json (`:27`): **0 references in `app/`** — a payment
+  gateway dependency that does nothing except imply functionality that doesn't exist.
+- 11 console commands that are test harnesses (`Testfullrideflow` with a 221-line `handle`,
+  `TestRideGatedInteractionCommand` 211 lines, `Testridecompletionflow`,
+  `Getloadtesttokens`, `TestNotificationCommand`) shipped in `app/` — production image
+  includes debug entry points that create rides and mint load-test tokens.
+
+**Fix:** one `make:dead-audit` pass, then delete-or-wire each item. The `RideSearchService`
+decision is the interesting one: wire it into the live search (with a feature flag) or
+delete it — but don't ship it injected-but-dead.
+
+### D5. Controller-level duplication (P2)
+Wallet lookup, OTP fan-out triplets (email/WhatsApp/TextMeBot — three near-identical
+`sendOtp/verifyOtp` services, 270/226/~250 LOC each), pagination shape rebuilt per
+controller, and validation split inconsistently: 6 controllers with inline
+`validate([...])` vs 6 `FormRequest` classes — the **money endpoints are the inline ones**
+(ride creation `price_per_seat` cap 500 vs `CreateRideRequest` cap — two validators, one
+field, already contradictory on `notes`: 1000 vs 500).
+
+### D6. Naming/convention drift (P3 but defense-day visible)
+`Noshowservice.php` (lowercase-s, class `Noshowservice`, and a stray "PLACE IN:" header at
+`:21`); `Syrideseeder.php` vs PascalCase siblings; test-mode timing constants shipped:
+`Noshowservice:56-58` — `GATE_MINUTES = 1` / `DISPUTE_MINUTES = 2` where the commented-out
+real values are 1 *hour* / 2 *hours* (a "no-show" dispute window of two minutes is not the
+designed product).
+
+### D7. No static analysis, no formatter in CI (P1 as a gate, not as a tool debate)
+PHP 8.2 + Laravel 10 + enums everywhere — and yet no Larastan at any level, no Pint run in
+CI (only sonar + deploy + tests). Given D1 (float money), D4 (dead code), D6 (typo'd
+strings), a `larastan:level-6` + `pint` CI gate would have caught a measurable share of the
+39-findings bug audit class. **This is the highest-leverage 20-minute change in the repo.**
+
+---
+
+## E. WHAT A RIDE-SHARING SYSTEM NEEDS THAT THIS ONE LACKS
+
+### E1. Geospatial / GPS — the named gap, and the biggest one (answers "like gps and so on")
+What exists: creation-time search (endpoint radius), static route polyline chosen at
+creation, geometry columns + spatial indexes. What **doesn't exist, verified**:
+
+| Missing | Evidence | Product impact |
+| --- | --- | --- |
+| **No driver position at all** | 0 tables (`driver_locations` etc. absent from 29-table census); no route accepts a position update (`routes/api.php` GPS grep: 0 hits); `users` has no `is_online/last_seen`/availability column | You cannot show, match, or dispatch against where drivers are |
+| **No live tracking (driver↔passenger)** | broadcast channels are only `conversation.{id}`, `user.{id}`, `rides` (`routes/channels.php:12-57`) — no per-ride channel | The single feature users most expect from "Uber-like" |
+| **No ETA** | the only ETA arithmetic is an admin *display* calc (`AdminTripService:275-304`), not recomputed en route | no arrival promise, no dispatch ordering, no "driver is 4 min away" |
+| **No nearest-driver matching** | search orders by `departure_time` (`RideSearchService:52`, `RideRepository` likewise); no Haversine ranking vs a passenger point | matching is a time table, not a geo system |
+| **Straight-line fare fallback** | `RouteCalculationService:172-191`: fallback = straight line **+30% fudge**; one hardcoded provider (hard-throw if ORS key absent `:28-32`); `verify=false` on its HTTP | price accuracy and availability risk on the one external map provider |
+| **No trip recording/replay, no location privacy** | nothing stores traversed paths; pickup/destination exposed verbatim to any authenticated searcher (`RideResource:76`, `BookingResource:28`) | |
+| **No ride lifecycle events at timestamps** | only "first passenger confirm flips ride to launched" (`BookingService:505-507`); **no cron moves active→launched or launched→completed** (Kernel census: 4 jobs, none lifecycle) | rides can sit "active" forever with nobody confirming |
+
+Minimal credible path (this is what a defense would score): (1) `driver_positions` table +
+`POST /api/rides/{id}/position` (throttled `uploads`) + Redis GEO `GEOADD` on the same
+write; (2) private `ride.{id}` Echo channel broadcasting positions; (3) nearest-driver
+`search` as an add-on route using the GEO set; (4) a `rides:advance-status` scheduled job.
+Each is a day; together they change what the product *is*.
+
+### E2. Money & payments
+- **No payment gateway** — `stripe-php` unused (§D4); funds enter only via
+  admin-approved `wallet_requests` (a human button). README:12 claims "multi-gateway
+  wallet system" — that claim is currently false in code.
+- No webhooks, no payouts, no chargebacks, no reconciliation, **no fare engine**
+  (`price_per_seat` is whatever the driver types; 0 sites for surge/per-km rates).
+- `rides.price_per_seat` is the only money column **not** standardised to (15,2) — it is
+  (8,2) (verified live). Intentional? Record it or fix it.
+
+### E3. Trust & safety (a ride-sharing product's second heart)
+0 hits for SOS / emergency contacts / share-my-trip / pickup-PIN across `app/`. KYC has
+**no document-expiry column anywhere**; no criminal-record/background check; rating is
+user-level only (**no per-ride rating** — the `user_ratings` table has unique(rater,rated)
+but nothing ties a rating to a completed ride); `rater_id` nullable since
+`2026_08_09_184511` means seed-fabricated ratings are indistinguishable from real ones in
+`avg('rating')`; the admin "Suspended" driver bucket is a hardcoded `= 0` with a
+"not implemented" comment (`AdminDriverService:33,90`); no fraud/velocity checks beyond
+rate limiting; no cancellation-reason column anywhere.
+
+### E4. Operations & engagement
+No ride reminders (the dead `SendScheduledNotification` was exactly this feature, §D4);
+no driver online/availability; complaints have no user-side withdraw/outcome/SLA; the
+"OTP channels" are CallMeBot/TextMeBot WhatsApp (free-tier hobby gateways, no real SMS
+provider at all) and both logging paths contain testing-mode dummy-OTP bypasses
+(`WhatsAppOtpService:57-61,175`, `EmailOtpService:53`); admin password rotation is
+**commented out** in the scheduler (`Kernel:64-68`).
+
+### E5. For grading specifically
+- README claims (production-grade / real-time / multi-gateway) diverge from code — a
+  defense examiner greps the claims.
+- **No architecture doc, no ERD, no ADRs** (`docs/` contains only the bug audit; README
+  :94's "layered, domain-oriented architecture" is the whole written architecture).
+- l5-swagger **is** live and gated (T3-12) but its 132 documented paths come from ~11
+  annotated endpoints via hand-written `app/Docs/*Docs.php` stub classes — admin/staff
+  surfaces are undocumented in the spec.
+- The 133 test files with per-finding causality suites *are* the strength story — package
+  them: `php artisan test --filter=T1` is literally a scripted demo of the audit trail.
+
+---
+
+## F. WHAT TO ADD, PRIORITIZED (feature & library decisions)
+
+**P0 — corrects false claims in the existing architecture (each is small)**
+1. Shared object storage: `FILESYSTEM_DISK=s3` (MinIO container in dev, real bucket in
+   prod) — closes A3.1, the actual scaling break.
+2. Uncomment `FlushUploadedFiles` in `config/octane.php` (octane.php:84).
+3. Remove all `verify => false` (3 sites) — the repo already ships a CA trust story
+   (T3 batch deleted the committed cacert; don't re-add its absence as an excuse).
+4. Wire-or-delete the dead set (§D4): `RideSearchService` decision, `stripe-php` (remove
+   or integrate), 3 dead events, test-mode no-show gates → config-driven hours.
+5. CI: Pint + Larastan (start level 4→5), a required-tests workflow.
+6. Delete or hide `Test*` debug commands from the prod image.
+
+**P1 — the domain becomes what it claims**
+7. `Money` VO across the mutation layer (7 services, 66 sites — the T3-2/T1-2 money
+   findings make this the highest-value correctness work left).
+8. Single `LedgerEvent` enum (kills D2's two dialects), `ledger:reconcile` job.
+9. Real payment: **pick one** — integrate Stripe properly (webhook route,
+   `payment_intents`, wallet top-up only) or delete `stripe-php` and document "manual
+   top-up" honestly. A university deployment can get a Stripe test-mode live.
+
+**P2 — what makes it a ride-sharing app (the GPS chapter, E1)**
+10. `driver_positions` + `POST position` (throttle `uploads`) + Redis GEO + `ride.{id}`
+    presence/private channel + nearest-driver search endpoint.
+11. Fare engine: `pricing_rules` table (base + per-km), `RouteCalculationService` polyline
+    distance, quote endpoint at ride creation.
+12. `rides:advance-status` scheduler (active→launched→completed by time + confirmations);
+    cancellation-reason column; per-ride `ride_ratings` table.
+13. Real push (the `FcmSenderService` + firebase config exist — needs production keys +
+    the `push_notification_tokens` surface is already there).
+
+**P3 — trust & polish**
+14. SOS/trip-share (even "call police 911" deep-link + share-link via signed URL),
+    document-expiry dates in KYC, driver availability flag, user-side complaint withdraw.
+15. `docs/ARCHITECTURE.md` + generated ERD + 3 ADRs (monolith-not-micro, MySQL-spatial vs
+    PostGIS, wallet-as-escrow) — grading, cheap, and it forces the A1 reasoning to be
+    written down.
+16. A `driver app` + `passenger app` — currently the product has **149 endpoints and 7
+    views**; everything in this section is invisible to an examiner without at least a
+    map screen consuming the new position channel. (Even a 200-line Inertia/React page.)
+
+Libraries, honestly: Echo/pusher-js/laravel-echo already in `package.json`, Horizon/redis
+already deployed — **the stack is not missing libraries; it is missing the wiring of the
+ones it has.** Resist adding: microservices, Kafka, Kubernetes, a separate search cluster
+— each would be a README feature and an operational tax.
+
+---
+
+## G. THE FRONT-END TRAP (P1 for claims, because "real-time" is currently fiction)
+
+`resources/js` is 755 bytes and **broken by construction**: `bootstrap.js:9-10` reads
+`process.env.MIX_PUSHER_APP_KEY` — Laravel-**Mix** syntax in a **Vite** project (vite does
+not polyfill `process.env`; the value is literally `undefined` at runtime), and the only
+listener (`:16` `window.Echo.private(user.${window.userId})`) is gated on `window.userId`,
+which nothing in the 7 Blade views ever sets. Meanwhile server-side broadcasting is real
+(`RideCreated/RideCancelled` ShouldBroadcast, Horizon + redis queue correct).
+So: the notification/real-time **server** half is production-shaped, the **client** half
+is a 30-line file that has never worked. Either ship a real client (Inertia+React with
+Echo + Vite `import.meta.env.VITE_PUSHER_KEY`) or stop describing the product as real-time.
+
+---
+
+## H. First-pass claims that failed verification (recorded for honesty)
+
+1. **"Repositories are unused" — WRONG.** My first regex had an escaping bug (counted 0).
+   Recount: 10 interfaces, bound in `AppServiceProvider` (49 bindings total), consumed by
+   ~14 service/controller files. The repository layer is real; its main smell is the 128-line
+   `createRide` orchestration living inside one of them.
+2. **"No read/write split" — WRONG.** `config/database.php:50-56` defines
+   read/write/`sticky` with `DB_REPLICA_HOST`, and compose runs a replica container. The
+   split is active via Laravel's automatic routing; explicit `connection('mysql-read')`
+   greps found 0 hits *because none is needed*.
+3. **`config/app.php` "duplicate key" (carried from bug-audit T4-6 re-check)** — confirmed
+   false, top-level vs nested, pinned by a test now.
+4. **k6 coverage of the fancy search** — assumed it exercised route-buffer; traced to
+   `RideRepository::searchRides` only. The load-test numbers do not characterize
+   `RideSearchService`, because nothing calls it (§D4).
+
+---
+
+## I. Executive summary
+
+**Is the current architecture the right one?** The **monolith is correct** and would remain
+correct at 10× users; **microservices would be a mistake** (2 developers, one shared DB,
+no platform team). The honest problem is that it is a *layered* monolith, not a *modular*
+one: the money ledger speaks two dialects, ride search has three implementations (one
+better-but-dead), authentication has three systems, and the domain layer (`Money` VOs,
+Strategies) is exemplary-but-underadopted.
+
+**Is the code architecture right?** Above-average skeleton (DI discipline, interface-bound
+repositories, genuine Strategy/Event/Queue work, zero import cycles) undermined by three
+measurable habits: ~2,500 LOC of business logic living in admin/staff controllers, a
+long-method tail (9 methods ≥ 85 lines), and dead-but-wired code that makes the system's
+claims unverifiable — the same disease T4-1 found in the test harness, in production form.
+
+**The three most important truths found:**
+1. Uploads are on per-replica local disk while the app runs 5 replicas — the product's
+   file layer will corrupt the first time it matters.
+2. Every "real-time" feature is server-wired and client-dead (755-byte broken JS).
+3. GPS — the heart of a ride-sharing app — is entirely absent: no positions, no tracking,
+   no matching, no ETA; the app is today a *ride-listing* product, not a *ride-sharing*
+   product. That, plus the missing payment gateway, are the two decisions to make before
+   any further polish: finish the claims, or fix the README.
+
+**Roadmap is F: P0 (≈2 days) removes the false claims; P1 (≈1-2 weeks) makes money exact
+and single-vocabulary; P2 (≈2-3 weeks) builds the actual geospatial product; P3 is the
+feature surface.** None of it needs a different architecture — it needs the architecture
+they already drew to be finished.
+
+---
+*Maintained as the future-state companion to the bug audit. If any item here graduates to a
+fix task, mirror it into the `SYRIDE_COMPREHENSIVE_AUDIT.md` workflow (one problem at a
+time, verification to terminal state).*

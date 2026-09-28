@@ -12,6 +12,12 @@ return new class extends Migration
      */
     public function up()
     {
+        // T3-6: raw MySQL-only statement(s) below. Skip cleanly on other
+        // drivers instead of fataling a fresh migrate (no-op on MySQL).
+        if (\Illuminate\Support\Facades\DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         Schema::table('rides', function (Blueprint $table) {
             $table->decimal('pickup_lat', 10, 8)->after('pickup_address')->nullable();
             $table->decimal('pickup_lng', 11, 8)->after('pickup_lat')->nullable();
