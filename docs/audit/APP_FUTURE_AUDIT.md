@@ -584,6 +584,122 @@ types on the way. Owner decision needed if you want it attempted now.
 **Next:** AF-4 — un-tangle the dead-but-wired set (search swap, Sanctum removal, 3 dead
 events, no-show gates → config, hide debug commands).
 
+### AF-4 — Un-tangle the dead-but-wired set — VERIFIED FIX (both owner decisions applied)
+
+Owner decisions executed: **search** → wire `RideSearchService`, delete the other;
+**auth** → "I am using JWT" → Sanctum removed entirely.
+
+**4a — the search swap and the three bugs it exposed.** `RideService::searchRides`
+delegated to `RideRepository::searchRides` while `RideSearchService` was bound as a
+singleton (`AppServiceProvider:81`), injected (`RideService:29`) and called zero times.
+Flipping the delegation immediately surfaced why the service had *never* worked:
+`->with(['driver' => fn => select(... 'driver_rating')])` — `users.driver_rating` does
+not exist; the first live search call would have thrown `SQLSTATE 42000`. A fourth
+unrouted copy (`RideController::search`, zero routes) was deleted with it. And the
+presenter read `driver->driver_rating ?? 0` / `user->passenger_rating ?? 0` — the `?? 0`
+made a **fake rating of 0 render silently for every driver and passenger in every API
+response** (`BookingResource:36` had the same disease). Now both resources average the
+real `user_ratings` relation; `User::getAverageRatingAttribute` was made
+relation-aware (batched when eager-loaded, one query when not) — a `withAvg` attempt
+first proved dotted nested aggregates are unsupported on this framework version
+(`BadMethodCallException`), and a response-shape consideration forced dropping the
+column-whitelist selects: the live controller serializes raw models, so trimmed
+selects would SUBTRACT fields the repository path used to include. Eager loads are now
+strictly additive.
+The 3 pre-existing `RideSearchServiceTest` failures were **fixture bugs, not product
+bugs**: `insertRide` wrote `POINT(lat lng)` — WKT is `lng lat` — 397 km off (measured),
+which is why 2 guarded "risky" tests also passed vacuously. Fixed. One scope
+correction mid-task: the live `/rides/search` controller returns raw models (no
+Resource), so the rating assertion targets the service+presenter, not the endpoint.
+
+**4b — Sanctum gone** (owner: JWT for everything): `config/sanctum.php` deleted,
+`HasApiTokens` off `User`, `sanctum/csrf-cookie` out of CORS, package removed via
+composer (lock + vendor updated; `package:discover` regenerated — the stale
+bootstrap-cache entry was caught by a boot check, not guessed). Verified no route ever
+used `auth:sanctum`.
+
+**4c — the dead event chain deleted, the one real gap wired.** First, an honesty
+correction to this audit's own §C: my earlier "dead events" table was built with a
+non-recursive file glob and was wrong. Re-measured with ripgrep: `UserVerified` IS
+dispatched (`StaffAdminController:155`), `RideCreated/RideCancelled/RideBooked` ARE
+dispatched (as broadcasts). The genuinely dead items: events `OtpSent`,
+`ConversationCreated`, `MessageReceived` (zero dispatchers; the last two carry empty
+constructors and a placeholder `channel-name`), listeners with empty `handle()` bodies
+(`SendMessageNotification`, `SendOtpNotification`, `SendRideBooked/Cancelled` — queued
+listeners bound by `event()` never fire from `broadcast()` calls, so booking/cancel
+notifications were never going to come from them; the real path is inline
+`NotificationService::createNotification`), job `SendScheduledNotification` (0 dispatch
+sites), notification `MessageReceivedNotification` (0 app references), and the
+stub-asserting test files that existed only to prove stubs are stubs (same disease as
+T3-7; the deleted suites were 5 of them). `EventServiceProvider` shrank from 4 chains
+to 1 — and that one is now *functional*: while deleting the dead scaffolding I found a
+real user-facing asymmetry — **reject notified inline** (`StaffAdminController:218`)
+but **approve fired `UserVerified` into an empty listener, silently**. `SendUserVerified
+Notification` now creates the in-app notification (queued), closing it.
+
+**4d — `BookingStatus::NO_SHOW` added**: the DB enum and 18 code writes carried
+'no_show' while the PHP enum lacked it → `tryFrom('no_show') === null` for a live state;
+`label()`/`color()` arms added (exhaustive matches would have thrown).
+
+**4e — no-show windows config-driven** (`config/rides.php`): the money path shipped
+`GATE_MINUTES=1 / DISPUTE_MINUTES=2` with the real hours commented out above them —
+a two-minute dispute window on escrow penalties. Default is now the real 1h/2h, env-
+tunable (`NOSHOW_GATE_HOURS`/`NOSHOW_DISPUTE_HOURS`). Verified nothing relied on the
+test values: seeder departures are 3–72 h past, and T3 money tests call
+`resolveExpiredReports()` directly (bypasses the gate).
+
+**4f — production guard trait** on all 5 state-forging debug commands
+(`Testfullrideflow`, `Testridecompletionflow`, `TestRideGatedInteractionCommand`,
+`TestNotificationCommand`, `Getloadtesttokens`): they REFUSE to execute in
+`production` (not just hide from `list`). The guard message is asserted, not just the
+exit code — proven necessary when the first version passed *vacuously* (an unguarded
+command also exits 1 on missing args; caught by a stripped-trait needle).
+
+**Verification:**
+- New `UntangleBatchTest` (8 tests: eager-load presence, repo-search gone, Sanctum
+  absent from config/traits/CORS/routes, enum covers no_show, hours config + minute
+  constants gone, hour-gate refuses a 30-min-past report, prod guard refuses 2 commands
+  by message) + rewritten `EventServiceProviderTest` (6, incl. a real notification-row
+  behavior test and deletion pins) + `RideSearchServiceTest` 15→17 (+rating truth,
+  +N+1 batch proof via `DB::listen`). Deterministic ×3: **OK (43 tests, 292 assertions)**.
+- Causality, syntax-safe needles (a brace-surgery first attempt broke files
+  mid-harness — self-inflicted, caught by lint-inside-harness): degraded eager-load →
+  pin fired; emptied listener → behavior test failed; stripped trait → message
+  assertion failed; all restored green.
+- Full suite **1872 / 374E / 53F** vs post-AF-2′ **1921/374/56**: errors unchanged;
+  **failures −3 = exactly the fixture bug AF-4a fixed**; count −49 = the deleted stub
+  suites minus the new pins. The 2 Enums failures (`ComplaintType` 9≠8, `StaffRole`
+  level 4≠3) are pre-existing drift in files this batch never touched (git-diff
+  verified). Pint tree CLEAN; app boots; composer regenerated (11,372 classes).
+
+**Genuinely unverified:** the owner-decision note said "load-test before the swap" —
+the swap was verified *functionally* (identical SQL semantics: both copies run the same
+endpoint-radius + route-buffer OR logic; the wired one now also batches 3 loads the old
+one ran lazily or not at all), but no k6 run compared them (no k6/Grafana binary here).
+Both copies are gone-or-one now, so a regression run of `syride-breakpoint-test.js`
+against the branch is the honest follow-up if you want numbers before a deploy. Also:
+the approve-notification fires through the queue in production (sync in tests), so its
+delivery rides on Horizon — verified at the service level, not end-to-end through the
+worker.
+
+### Section-J progress snapshot
+
+| Step | State |
+|---|---|
+| AF-1 TLS + Octane hygiene | VERIFIED FIX |
+| AF-2′ modularity foundation (map + ratchet + CI gates + style sweep) | VERIFIED FIX |
+| AF-3 debug commands | **absorbed into AF-4f** (prod-guard supersedes "hide") |
+| AF-4 un-tangle | VERIFIED FIX |
+| AF-5 shared object storage | not started (needs infra decision: MinIO vs bucket) |
+| AF-6 money module (Money VO, LedgerEvent, reconcile) | not started — next |
+| AF-7 controller extraction / Larastan | not started |
+| Geospatial (GPS/tracking), payments, trust features | open product decisions (§E) |
+
+**Next:** AF-6 — the money module: `Money` VO into the mutation layer, one `LedgerEvent`
+enum (kills the two-dialects problem), `ledger:reconcile` scheduled job. That is the
+audit's highest-value correctness work, and the ratchet's `domain_to_services` baseline
+drops as its side effect.
+
 ---
 *Maintained as the future-state companion to the bug audit. If any item here graduates to a
 fix task, mirror it into the `SYRIDE_COMPREHENSIVE_AUDIT.md` workflow (one problem at a
