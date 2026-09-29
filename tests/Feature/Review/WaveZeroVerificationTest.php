@@ -170,7 +170,7 @@ class WaveZeroVerificationTest extends TestCase
         $this->assertNotSame('203.0.113.9', $request->ip());
     }
 
-    public function test_v5_validation_errors_are_stripped_from_the_api_envelope(): void
+    public function test_v5_validation_errors_reach_the_client_in_the_errors_bag(): void
     {
         $user = User::factory()->create();
         $token = app(JwtService::class)->generateTokenPair($user)['access_token'];
@@ -180,20 +180,25 @@ class WaveZeroVerificationTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        // Recorded current truth (APP_DEBUG=true in tests): the message is the
-        // raw validation text and the ERRORS BAG IS GONE — clients cannot show
-        // field-level errors (RV-13 half 1 CONFIRMED). With debug off the
-        // message becomes the generic string while the status stays 422.
-        // Recorded current truth (APP_DEBUG=true in tests): the FormRequest's
-        // field-level `errors` bag is STRIPPED by the catch-all Handler and only
-        // a generic message/code reaches the client (RV-13 half 1 CONFIRMED).
+
+        // V5 originally recorded the OPPOSITE of what is asserted here: the
+        // FormRequest's field-level `errors` bag was stripped by the catch-all
+        // Throwable renderer in App\Exceptions\Handler, so a client could not tell
+        // WHICH field had failed. That is now FIXED (RV-13): a ValidationException
+        // renderer is registered ahead of the catch-all and returns the bag.
+        //
+        // This recorder was flipped as part of that fix's verification, and must NOT
+        // be flipped back — if the bag ever disappears again, this is the test that
+        // should fail.
         $json = $response->json();
-        $this->assertTrue(
-            ! array_key_exists('errors', $json),
-            'V5: errors bag currently absent from the 422 envelope'
+        $this->assertArrayHasKey(
+            'errors',
+            $json,
+            'RV-13: the 422 envelope must carry the field-level `errors` bag'
         );
         $this->assertArrayHasKey('message', $json);
-        $this->assertSame(422, $json['code'] ?? $response->status());
+        // Keyed by the field that actually failed, not just present.
+        $this->assertArrayHasKey('amount', $json['errors']);
     }
 
     public function test_v6_the_committed_phpunit_xml_pins_ci_to_sqlite(): void

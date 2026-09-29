@@ -38,6 +38,33 @@ class Handler extends ExceptionHandler
             return response()->json(['message' => 'Token not provided'], 401);
         });
 
+        // RV-13 / V5: a validation failure must say WHICH field failed and why.
+        //
+        // This is registered BEFORE the catch-all below, deliberately. The catch-all
+        // matches `Throwable`, so it also caught ValidationException, mapped it to
+        // 422, and then REBUILT the response as
+        // {"status":"error","message":…,"code":422} — discarding $e->errors().
+        // Laravel's own default rendering of a ValidationException keeps the bag, so
+        // restoring it here is also the smaller change: the client gets the field
+        // errors it needs and the rest of the catch-all (status mapping, header
+        // preservation, generic 500s) is left exactly as it was.
+        //
+        // Only claims api/* and JSON-negotiated requests; anything else returns null
+        // so Laravel's normal (HTML) rendering still applies.
+        $this->renderable(function (ValidationException $e, $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                return null;
+            }
+
+            // ValidationException carries no contract headers (unlike HttpException,
+            // which is why the catch-all below guards with method_exists), so only the
+            // status is passed through. $e->status exists and defaults to 422.
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ], $e->status);
+        });
+
         // Catch-all for API routes — returns JSON instead of an HTML error page.
         // In debug mode the real message is exposed; in production a generic
         // message is shown so stack traces never leak to clients.

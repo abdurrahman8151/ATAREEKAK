@@ -405,7 +405,8 @@ state lives in the numbered sections above; this table is the index.
 | 1 | RV-03 | BLOCKED on owner decision 6 |
 | 2 | **RV-34** | **DONE — VERIFIED FIX** (§17): errors 443 → 71 (**−372**), 0 regressions; Causes A/B/C all at zero; ratchet green — `5414344` |
 | 2 | **RV-35** | **DONE — VERIFIED FIX** (§19): inventory of all 117 unmasked tests by root cause + owner; found and fixed a 4th Cause-B copy (19 errors → 0); ratchet strengthened; 98 inventoried, not acted on — errors 71 → **52** |
-| 2 | RV-13, RV-14, RV-16, RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING — next is **RV-13** (the validation-shape family, largest actionable group) |
+| 2 | **RV-13** | **PARTIAL** (§20): the verified V5 defect is **VERIFIED FIX** (422 now carries the `errors` bag; failures 74 → 68). The domain-exception refactor, the 96 controller `catch`/`getMessage()` sweep and the envelope change remain **open** — the envelope is a product decision, and the `assertNotEquals` ratchet is deferred until the domain exceptions land (§20.2) |
+| 2 | RV-14, RV-16, RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING — next is **RV-14** (route/controller drift: `geocode()` gone = 9 tests, `POST /api/rides` → nonexistent `createRide`) |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
@@ -1020,6 +1021,9 @@ explicit **next** sequence.
 | `ba45e4b` | RV-02 (L1) double settlement | VERIFIED FIX |
 | `726b094` | audit progress tables added | documentation |
 | `5414344` | RV-34 shared test-support layer | VERIFIED FIX (443 → 71 errors) |
+| `83ecd1d` | audit §18 (commit map, open decisions, next) | documentation |
+| `d381a7a` | RV-35 inventory + 4th Cause-B copy fixed | VERIFIED FIX (71 → 52 errors) |
+| *this commit* | RV-13 validation `errors` bag (V5) | **PARTIAL** — verified half fixed (§20) |
 | `b9643f1`, `92f454e`, `2687872`, `fa33fca` | AF-1, AF-2′, AF-4 (pre-R2) | VERIFIED FIX, see `APP_FUTURE_AUDIT.md` |
 
 ### 18.2 Status summary
@@ -1028,13 +1032,12 @@ explicit **next** sequence.
 Backlog:  RV-01..RV-33 (R1) + RV-34..RV-40 (R2)  =  40 tasks
   VERIFIED FIX (complete) .............................  7   RV-07, RV-06, RV-05, RV-02 (L1),
                                                               RV-34, RV-35
-                                                      +     RV-01, RV-04 verified on code halves
-  PARTIAL (awaiting a decision) ........................  2   RV-01, RV-04
+  PARTIAL (refactor/product decision remaining) .......  3   RV-01, RV-04, RV-13
   BLOCKED on the owner ................................  1   RV-03
-  PENDING / not started ...............................  30
+  PENDING / not started ...............................  29
 Verify checks  V1-V16:  15 recorded, 1 never run (V7 — no replica access)
 
-Suite:  errors 443 -> 52 (-391)   non-passing 468 -> 117   regressions 0
+Suite:  errors 443 -> 52 (-391)   failures 52 -> 68   regressions 0
         117 remaining = 26 schema-decision (19.3) + 91 across 7 other families (19.2)
 ```
 
@@ -1065,19 +1068,24 @@ Decisions 1–10 originate in R1 §6; 11–14 in R2 §5. Their **current** state
 
 ### 18.4 What is next (in order)
 
-Wave 2 remaining, in the order R2 §6 lists them once RV-35 is done:
+Wave 2 remaining, in the order R2 §6 lists them:
 
-1. **RV-13** — the error/validation model. Largest *actionable* group (~20 tests): 422 responses
-   carry no `errors` bag (V5), and several endpoints return 201 where a 422 shape is asserted.
-   This is the one that keeps reappearing across unrelated files.
-2. **RV-14** — route/controller mismatches: `GeocodingService::geocode()` is gone (9 tests),
-   `POST /api/rides` → nonexistent `createRide` (V10).
-3. **RV-16** — OTP and mail flows (4 tests; `putenv('EMAIL_OTP_MODE=…')` also feeds RV-37).
-4. **RV-37** — test determinism: 7 files leak `putenv()` into the shared process (V13),
-   `Http::preventStrayRequests()` absent, order-dependence confirmed (V14). A safety net for the
-   rest, so worth doing before the later waves.
-5. **RV-18, RV-22, RV-36, RV-38** — CI signal, TLS/log hygiene, notification `bulkAction`,
+1. **RV-14** — route/controller drift. `GeocodingService::geocode()` no longer exists (9 tests
+   pin it), `POST /api/rides` → nonexistent `createRide` (V10, a 500 on a documented endpoint),
+   `POST /rides/{id}/finish` and `/driver-confirm` return fabricated state. Also wants a
+   **routes-integrity test** (every route action resolves to a real public method) that would have
+   caught the `createRide` case structurally rather than as a symptom.
+2. **RV-16** — OTP and mail flows (4 tests): `otp_code` is returned whenever a provider key is
+   unset *or* sending fails, in any environment; codes stored in plaintext; the boot guard that
+   refuses to start with a testing OTP mode is missing.
+3. **RV-37** — test determinism: 7 files leak `putenv()` into the shared process (V13),
+   `Http::preventStrayRequests()` absent, order-dependence confirmed (V14). A safety net for
+   everything after it.
+4. **RV-18, RV-22, RV-36, RV-38** — CI signal, TLS/log hygiene, notification `bulkAction`,
    Eloquent strictness.
+5. **RV-13 remainder** (§20.1) — domain exceptions first, then the controller
+   `catch`/`getMessage()` sweep, then the `assertNotEquals` ratchet. Only the envelope change
+   needs the owner.
 
 Then, per the wave plan: **RV-40** (money schema; prerequisite for RV-02 L2 / RV-09 / RV-15),
 **RV-25** (unblocked — V1 recorded; RV-34 deliberately preserved the transposed fixtures so its
@@ -1212,3 +1220,93 @@ rather than chosen. It is also the largest single family in the inventory.
 - **Genuinely unverified:** the 98 tests in families 1–8 were inventoried but not diagnosed to root
   cause, because that is the owning task's job. The counts are exact, but a test counted as
   "family 5" could share a cause with another family once examined.
+
+---
+
+## 20. RV-13 — error model — **PARTIAL: the verified V5 defect is VERIFIED FIX; the refactor is OPEN**
+
+**Problem.** R1 RV-13 is a large, multi-part error-model refactor. This task took only the part that
+is **verified, small, and independently valuable**, and deliberately did **not** start the parts
+that are a client-breaking product decision or a large refactor.
+
+**Verified root cause (V5, confirmed in code).** `App\Exceptions\Handler::register()` installs a
+catch-all `renderable(function (Throwable $e, $request))`. For an `api/*` request it maps
+`ValidationException` → 422 and then **rebuilds** the response as
+`{"status":"error","message":…,"code":422}`, discarding `$e->errors()`.
+
+**Why that mattered.** A validation failure is the one error a client must be able to act on, and
+that shape tells it only that *something* failed — never which field or why. It affected every
+`FormRequest` and `$request->validate()` endpoint (`BookRideRequest`, the OTP requests,
+`Wallet*Request`, `searchRides`, `cancelPartialSeats`, `bulkAction`, …).
+
+**Fix (smallest correct one).** A `ValidationException` renderer registered **ahead of** the
+catch-all, returning Laravel's own shape:
+
+```php
+$this->renderable(function (ValidationException $e, $request) {
+    if (! $request->is('api/*') && ! $request->expectsJson()) {
+        return null;                       // let Laravel render HTML as before
+    }
+    return response()->json([
+        'message' => $e->getMessage(),
+        'errors'  => $e->errors(),
+    ], $e->status);
+});
+```
+
+Registering it before the catch-all is the whole mechanism — renderable callbacks are matched in
+order, and the catch-all's `Throwable` type would otherwise win. Nothing else in the catch-all
+(status mapping, `Retry-After` header preservation, generic 500s) was touched.
+
+**A defect I introduced and fixed during the fix.** The first version passed `$e->headers`, which
+`ValidationException` does not have (only `HttpException` does) → the renderer itself threw and
+every request became a **500**. Caught by running the test, not by reading the code. Validation
+errors carry no contract headers, so only `$e->status` is passed now.
+
+**Verification.**
+
+| | Before | After |
+| --- | --- | --- |
+| `ValidationErrorBagTest` (new, 4 tests) | 3 of 4 fail, `errors` is `null` | **OK (4 tests, 15 assertions)** |
+| Suite failures | 74 | **68** (−6) |
+| Suite errors | 52 | 52 |
+| Regressions vs the original baseline | 0 | **0** |
+
+The 6 tests that flipped to passing were asserting the missing bag. A 404-path assertion is
+included in the new test on purpose: it proves the fix did not disturb the catch-all's other
+branches.
+
+**Recorder updated, as required.** `WaveZeroVerificationTest::test_v5_validation_errors_are_stripped_from_the_api_envelope`
+asserted the *defect* (`! array_key_exists('errors')`) and therefore failed the moment the fix
+landed. It was flipped to assert the fixed behaviour and renamed
+(`…_reach_the_client_in_the_errors_bag`), with a comment stating it must not be flipped back. This
+is the house rule: a recorder is updated as part of its finding's fix, never silently weakened.
+
+### 20.1 What RV-13 still owes — measured, not estimated
+
+The remaining halves are real work and are **not** started:
+
+| Half | Measured size | Why not done here |
+| --- | --- | --- |
+| `App\Exceptions\Domain\*` (code + HTTP status) | **0 classes exist**; **61** services throw `InvalidArgumentException`, which the catch-all maps to **500** | Needs the exception hierarchy designed first; a domain rule violation being a 500 is what the ratchet in §20.2 would otherwise enshrine |
+| Controllers stop catching `Throwable` / stop returning `getMessage()` | **96** catch blocks, **121** `getMessage()` returns (leak SQL text and table names to clients) | Large, touches every controller, and needs the domain exceptions to land first |
+| One envelope `{success,data,error{…}}` + `/api/v1` | — | **Product decision**: this changes the response shape the Flutter client parses. Must not be done unilaterally |
+
+### 20.2 The `assertNotEquals` ratchet — deliberately deferred, with the reason
+
+R2 §1.3 asks for a ratchet banning `assertNotEquals(` in `tests/Feature` and for the 13
+denied-path checks to be replaced with exact statuses. **I did not do this**, because half the
+exception mapping is still missing: `passengerConfirmCompletion` still returns **500** for a domain
+rule violation, and 96 catch blocks still return raw `getMessage()`. Writing "the exact status"
+today would encode those wrong statuses as correct and destroy the signal. The ratchet is correct
+as a task but must land **after** §20.1's first two halves.
+
+The 13 occurrences (surveyed, untouched): `ProfileTest` (4), `NotificationTest` (3), `BookingTest`
+(3), `StaffComplaintControllerTest` (2), `ChatTest` (1).
+
+### 20.3 State: **PARTIAL — verified defect fixed, refactor open**
+
+- Fixed and verified: the validation `errors` bag (V5), the highest-value, lowest-risk half.
+- Recorded with measurements: the four remaining halves, so the next agent does not re-audit them.
+- Deferred on purpose: the `assertNotEquals` ratchet (§20.2) and the envelope change (§20.1, product
+  decision).
