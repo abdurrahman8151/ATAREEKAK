@@ -399,15 +399,20 @@ state lives in the numbered sections above; this table is the index.
 
 | Wave | Tasks | Status |
 | --- | --- | --- |
-| 2 | RV-34, RV-37, RV-18, RV-13, RV-14, RV-16, RV-22, RV-36, RV-38, RV-35 | PENDING (RV-34 first — it un-reds ~340 tests and is Wave 3's safety net) |
+| 1 | RV-07, RV-06, RV-01, RV-04, RV-05, RV-02 (L1) | **DONE** — all VERIFIED FIX (§§10, 11, 13–16) |
+| 1 | RV-03 | BLOCKED on owner decision 6 |
+| 2 | **RV-34** | **DONE — VERIFIED FIX** (§17): errors 443 → 71 (**−372**), 0 regressions; Causes A/B/C all at zero; ratchet green |
+| 2 | RV-37, RV-18, RV-13, RV-14, RV-16, RV-22, RV-36, RV-38, RV-35 | PENDING — next is RV-35 (inventory of the 117 remaining non-passing tests) |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
-| 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch |
+| 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
 | 6 | RV-28, RV-30, RV-31, RV-32, RV-33, RV-39 | PENDING |
 
-**Current task:** Wave 1 is complete except RV-03, which is blocked on you.
-**Next:** RV-03 once decision 6 lands; otherwise Wave 2 opens with **RV-34** (the shared
-test-support layer, which un-reds ~340 tests and is Wave 3's safety net).
+**Current task:** RV-34 complete (§17). Remaining red is 117 non-passing tests, all pre-existing
+and previously masked by `setUp` errors — inventoried for RV-35.
+**Also awaiting the owner:** the `phpunit.xml` remote-database hazard (§17.5) — the worktree file
+points the suite at a reachable Aiven database and `RefreshDatabase` drops tables.
+**Next:** RV-35 (inventory the remaining red), then RV-37/RV-18. RV-03 still needs decision 6.
 **Awaiting the owner:** (a) RV-01 storage half — approve a staff-authenticated document
 streaming route so KYC can move off the public disk; (b) RV-04 — token unification is a
 refactor, and decision 9 (access TTL 600 → 15–60) is yours; (c) RV-08 placement;
@@ -709,3 +714,282 @@ lock's correctness here is argued from `lockForUpdate()` semantics plus the exis
 pattern, and the suite is single-process. A genuine concurrent-resolution test needs a second
 connection and is really L2's territory (it belongs with the idempotency keys, where a
 duplicate posting can be asserted regardless of interleaving).
+
+---
+
+## 17. RV-34 — shared test-support layer — **DONE (VERIFIED FIX, see §17.4)**
+
+**Problem** — the suite's red is largely mechanical fixture rot, in two shapes:
+- **Cause A (~220 tests)** — `seedAdminWallets()` / inline `setUp` read
+  `config("admin.{$type}")['email'|'password'|'first_name']`, but `config/admin.php` now
+  carries only `phone` and `wallet_prefix` (credentials moved to `employees`). The
+  `Undefined array key "email"` fires inside `setUp`, so every test in the file errors
+  before its body runs.
+- **Cause B (~110–130 tests)** — admin-login helpers post a config email/password to
+  `/api/admin/login`, but admin auth now authenticates an **Employee by `username`**.
+
+**Baseline measured before any change (required by the acceptance criterion):**
+`1908 tests, 3446 assertions, 443 errors, 52 failures, 3 skipped`. Note this is higher than
+the 374 recorded earlier in §12 — that figure predates RV-01/02/04/05, so today's number is
+the honest "before" and the target is a drop of **≥300 errors** (443 → ≤143).
+
+**Delivered and VERIFIED so far**
+
+`tests/Support/Concerns/SeedsSystemWallets.php` — idempotent system wallets by
+`config('admin.*.phone')` with `user_id NULL`, no email/password. The seeded admin *user* in
+the old helper was verified vestigial in every Cause-A file (they authenticate as their own
+factory users, and the app locates system wallets by phone), so dropping it preserves the
+real dependency.
+
+`tests/Support/Concerns/ActsAsStaff.php` — `employee()`, `staffToken()` (staff door,
+`identifier`), `adminToken()` (admin door, **`username`** — Cause B's fix), `userToken()`,
+matching the proven `AdminFinancialSurfaceAuthorizationTest` reference.
+
+`tests/Support/RideBuilder.php` + `tests/Support/GeoPoint.php` — the single place a ride is
+inserted, with an explicit SRID and **explicit axis order**.
+
+**Design decision worth recording (geometry).** The model mutator
+(`Ride::setPickupLocationAttribute`) is typed `array $coords` and writes `POINT(lng lat)`,
+while the raw-SQL fixtures write `POINT(lat lng)`. V1 measured that production's stored
+geometry is transposed, but the fix is RV-25 and has **not** landed. So a builder that
+silently normalised the order would change what every migrated test asserts — the exact
+fixture-axis error the audit froze. `GeoPoint` therefore refuses to guess (`LAT_LNG` /
+`LNG_LAT` must be stated), and `RideBuilder` reproduces the existing fixtures' order by
+default, with `viaModelMutators()` available for tests that specifically want production's
+write path.
+
+**Two real bugs the self-test caught in the new builder** (both would have shipped silently):
+1. `$ride->forceFill()` with a raw geometry expression → `TypeError`, because the mutator is
+   typed `array`. Fixed by inserting through the query builder (as the fixtures do) and
+   offering `viaModelMutators()` explicitly.
+2. The query builder quotes a plain string as a literal → MySQL error 1416
+   "Cannot get geometry object". Fixed with `DB::raw`.
+Also: a raw string compare of the WKT failed because MySQL re-serialises with its own
+precision (`POINT(33.513800 36.276500)`); the assertion now compares **parsed coordinates**,
+since comparing text would assert MySQL's float formatting rather than the fixture's meaning.
+
+**Verification so far** — `tests/Feature/Review/SharedTestSupportTest.php` **OK (7 tests, 21
+assertions)**: wallets seeded by phone + idempotent, real staff/admin tokens minted through
+the real doors, a staff token is **still rejected by the user guard** (protects RV-04 against
+a helper that mints the wrong audience), builder inserts real geometry at SRID 4326, and
+preserves the fixtures' existing coordinates exactly. The builder was additionally validated
+against a real money path by migrating `NoshowSettlementGuardTest` onto it — the RV-02
+double-payout pins stay **OK (3/11)**, so escrow still behaves.
+
+**Ratchet (the falsifiable half of the acceptance criterion)** —
+`tests/Feature/Review/NoDuplicatedFixtureHelpersTest.php` fails if any test file declares
+`insertRide()`, `seedAdminWallets()` or `primaryToken()`, and asserts the support layer
+exists. Run before the migration finished it correctly listed **23** violations, so it cannot
+pass vacuously.
+
+**Method constraint discovered and recorded:** the suite must **not** be run concurrently
+against the single scratch MySQL (port 3399) — `RefreshDatabase`/`migrate:fresh` from a
+parallel run drops tables under the other run, producing phantom "table doesn't exist"
+errors. A 3-error result I saw mid-task was exactly this and was **not** a code regression;
+it reproduced clean once the parallel runs stopped. No `migrate:fresh` is to be run while
+other test runs are in flight.
+
+**State: IN PROGRESS** — the support layer and ratchet are done and verified; the per-file
+migration (Cause A and Cause B) is still running. The acceptance number (≥300 error drop)
+must be measured after it lands, and the final state recorded then.
+
+### 17.1 Delegation attempt and its failure (recorded as a method constraint)
+
+Cause A and Cause B were delegated to two parallel subagents. **Both failed before
+finishing, with empty closing messages**, having left partial edits in 11 test files
+(ratchet violations went 23 → 18). Cause of death: both agents ran `phpunit` against the
+**same** scratch MySQL while I was also running it, and `RefreshDatabase`/`migrate:fresh`
+drops tables under a concurrent run.
+
+**What I did about it** (rather than trusting or discarding the partial work):
+1. Syntax-checked all 13 modified files: **0 failures**, so nothing was left un-parseable.
+2. Re-ran every touched file individually and compared each against its **HEAD state via
+   `git stash`**, which is the only way to tell a real regression from an unmasked one.
+3. Finished the file the agent left half-applied (`StaffComplaintControllerTest`).
+4. Fixed a defect **I** introduced (below).
+
+**The rule this establishes:** never run this suite concurrently against the single scratch
+database, and never delegate two agents that both run it. A "table doesn't exist" error is
+contention, not a code regression — it must be re-run serially before being believed.
+
+### 17.2 Cause A / Cause B results — attributed, not assumed
+
+Every file below was in the "all tests error" group. Because a `setUp` error hides a test's
+real assertion result, each was compared against its stashed HEAD state, so the improvement
+is provable rather than claimed:
+
+| File | Before (HEAD) | After | Verdict |
+| --- | --- | --- | --- |
+| AdminBanControllerTest | all erroring | **OK 29/58** | fixed |
+| AdminDriverControllerTest | all erroring | **OK 25/49** | fixed |
+| StaffOperationsControllerTest | all erroring | **OK 80/198** | fixed (largest single file) |
+| StaffComplaintControllerTest | **38 errors** | **OK 38/125** | fixed (I finished it) |
+| StaffAuthControllerTest | all erroring | **OK 17/30** | fixed |
+| RideResourceTest | all erroring | **OK 16/49** | fixed |
+| NationalIdVerificationTest | erroring | **OK 7/12** | fixed |
+| BookingTest | erroring | **OK 11/15** | fixed |
+| RideTest | **13 errors** | 11 pass / 2 fail | improved; 2 pre-existing defects unmasked |
+| RideControllerFullTest | **39 errors** | 31 pass / 8 fail / 2 skip | improved; 8 unmasked |
+| WalletTest | **10 errors** | 7 pass / 3 fail | improved; 3 unmasked |
+| EmployeeManagementControllerTest | 12 errors / 2 fail | 11 pass / 4 fail | improved; 2 more unmasked |
+| RideSearchServiceTest | OK | pending final pass | in progress |
+
+**No file regressed.** The uncovered failures are pre-existing assertion defects that were
+previously invisible behind the `setUp` error — which is precisely RV-34's purpose, and they
+are **RV-35 inventory**, not something to edit green (R2 §0 forbids it). Observed so far:
+wallet OTP-in-testing returns null and wrong-password returns 200 not 401; ride finish
+before departure returns 200 not 400 (twice, plus a completion-status mismatch);
+employee-management returns 403 where 200/201/409 expected; ride creation charging 2000 where
+the test expects no fee.
+
+### 17.3 Self-inflicted defects found and fixed during this task
+
+1. **Removing a "now-unused" import broke type hints.** After migrating
+   `NoshowSettlementGuardTest` off its local `insertRide`, I deleted
+   `use App\Models\Ride;` because no `Ride::` call remained — but the import was
+   load-bearing for the signatures `insertRide(): Ride` and
+   `expiredReport(Ride $ride, ...)`, which then resolved to `Tests\Feature\Review\Ride`.
+   Result: `TypeError ... must be of type Tests\Feature\Review\Ride` on all 3 tests. The
+   import is restored and the file is **OK (3 tests, 11 assertions)**. Lesson recorded: an
+   import can be referenced only by a type declaration, so "no `Class::` usage" is not proof
+   it is unused.
+2. **PowerShell string surgery on PHP failed to parse** while replacing the
+   `StaffComplaintControllerTest` helper (the file contains Arabic text and a shell-quoting
+   hazard). Because PowerShell parses the whole command before executing, nothing was
+   written — confirmed by `php -l` and a byte count — and the replacement was then done with
+   a **PHP script file** instead of shell string manipulation.
+
+**Still outstanding:** none — completed as recorded in §17.4.
+
+### 17.4 RV-34 — FINAL RESULT: **VERIFIED FIX**
+
+**Acceptance criterion (both parts met, both measured):**
+
+| Metric | Baseline | Final | Change |
+| --- | --- | --- | --- |
+| Tests | 1908 | 1918 | +10 (the new self-tests) |
+| Assertions | 3446 | 4260 | **+814** |
+| **Errors** | **443** | **71** | **−372** (required: ≥300) |
+| Failures | 52 | 73 | +21 (unmasked defects, see below) |
+| Skipped | 3 | 5 | +2 |
+
+**Regression proof.** Both runs were captured to disk and their non-passing **test names**
+diffed, not just their counts: 468 non-passing at baseline → 117 at the end, and
+**0 tests that passed at baseline fail now**. The +21 failures are not regressions; they are
+defects that were previously *invisible* because a `setUp` error aborted each test before its
+assertions ran. The `assertions` column is the corroborating evidence — 814 more assertions now
+execute than before, i.e. the suite is genuinely seeing more of the application, not hiding less.
+
+**What was consolidated (three causes, all now zero):**
+
+| Cause | Defect | Before | After |
+| --- | --- | --- | --- |
+| A | helpers reading `config('admin.*.email'\|'password'\|'first_name'\|'last_name')` — keys removed when credentials moved to `employees` | ~20 files | **0** |
+| B | admin/staff login helpers posting a config email; admin auth authenticates an **Employee by username** | ~6 files | **0** |
+| C | copy-pasted `INSERT INTO rides` fixtures, drifting in SRID, axis order, seats, units and addresses | 16 files | **0** |
+
+**Ratchet (`NoDuplicatedFixtureHelpersTest`, now OK 3/6) — strengthened, not weakened.**
+The first version only banned three *names*, which the Cause-C migration could have satisfied
+by renaming. A second, substantive rule was therefore added: **no test file may contain
+`INSERT INTO rides`**. That is the invariant that actually matters, since the raw SQL is what
+drifted (some copies had no SRID, some had transposed geometry, `distance` in metres in some and
+`320.5` in others). The test excludes itself explicitly, because it necessarily contains the
+pattern literal. The per-file ride helper that survived Cause C is a thin shim supplying that
+file's defaults once and delegating to `RideBuilder` — it holds no SQL and cannot drift, and the
+no-raw-SQL rule is what actually prevents the duplication returning.
+
+**Value preservation, and how it was protected.** Every fixture's distinctive values were carried
+across explicitly: seats (3 vs 4), `e-pay` vs `cash`, distance `320.5` vs `320500`, duration
+`240` vs `14400`, Arabic vs Latin addresses, `communication_number`, eager-loaded relations, and
+`created_at` overrides. Two classes of value were treated as load-bearing after checking whether
+tests actually observe them:
+- **Addresses.** Only `AdminDriverServiceTest` asserts them (`'Damascus'`/`'Aleppo'`), so those
+  are passed explicitly there rather than relying on the builder's Arabic default; the other
+  files' addresses are passed too, so no fixture silently changes value.
+- **Axis order.** `RideSearchServiceTest` and `WaveZeroVerificationTest` use **lng-first**
+  (`POINT(36.2765 33.5138)`) while the rest use lat-first. This is V1's transposition, owned by
+  **RV-25**, and the search/geo assertions depend on the literal values, so `rawPickup()`/
+  `rawDestination()` reproduce them verbatim. A builder that quietly normalised axis order would
+  have silently changed what these tests exercise — the exact fixture-axis error the audit froze.
+
+**Four defects I introduced during this task, each caught by running the real tests and fixed:**
+
+1. **Dropped a load-bearing assignment.** My scripted replacement of
+   `AdminDashboardControllerTest::seedAdminWallets()` also deleted
+   `$this->primaryAdminWallet = Wallet::where('phone_number', …)->first();`, which the tests
+   read — producing "typed property … must not be accessed before initialization". Restored, and
+   the `10_000_000` starting balance it also discarded was restored.
+2. **Deleted a "now-unused" import that was not unused.** Removing `use App\Models\Ride;` from
+   `NoshowSettlementGuardTest` (no `Ride::` call remained) broke the signatures
+   `insertRide(): Ride` and `expiredReport(Ride $ride, …)`, which then resolved to
+   `Tests\Feature\Review\Ride` → `TypeError` on all 3 tests. An import referenced only by a type
+   declaration is still load-bearing; restored and the file is OK (3/11).
+3. **Replaced bodies without the trait they call.** The delegation called `seedSystemWallets()`
+   in files that only imported `ActsAsStaff`, giving "undefined method" on 29/25/17 tests. Caught
+   immediately by running them, and the missing `SeedsSystemWallets` imports were added.
+4. **Two dangling `DB::` fragments.** The inline-statement replacement cut at the wrong offset
+   in `CancelSeatsEquivalenceCheck` and `WaveZeroVerificationTest`, leaving `DB::` that bound to
+   the next `$ride` → "Access to undeclared static property DB::$ride". Both fixed; both files are
+   back to their exact prior green counts (2/7 and 9/24).
+
+**One file was missed by the name-based ratchet.** `WalletTransactionServiceTest` seeded admin
+wallets **inline inside `setUp()`** rather than via a named helper, so the ratchet never flagged
+it — it still raised `Undefined array key "email"` and errored all 27 tests. It was found only
+because the full-suite error count was not dropping as far as expected. This is the concrete
+argument for the ratchet's second rule and for not trusting a name-based check alone.
+
+**Method constraints established by this task (all learned the hard way):**
+1. **Never run this suite concurrently against the single scratch database.** Two parallel
+   subagents (plus me) all running `phpunit` on port 3399 → `RefreshDatabase`/`migrate:fresh`
+   drops tables under the other run, producing phantom "table doesn't exist" errors. Both
+   delegated agents died this way. A 3-error result I saw mid-task was exactly this, not a code
+   regression. No `migrate:fresh` while other runs are in flight.
+2. **A partial agent result must be attributed, not trusted or discarded.** Partial edits were
+   syntax-checked (0 failures) and each touched file compared against its stashed HEAD state
+   before being kept.
+3. **Scripted PHP edits must lint the output and refuse to write if it does not parse** — this
+   gate is what prevented two corrupt files from landing.
+4. **"Undefined array key X" in a test `setUp` is a stale-fixture signal**, not a test bug.
+5. **Compare non-passing test *names* across runs, not counts**, or a masked→unmasked failure
+   will be misread as a regression.
+
+**Remaining red is not RV-34's.** 117 non-passing tests remain, in money/wallet, geo, staff
+service and profile areas, and are recorded in the RV-35 inventory below. Representative,
+all pre-existing and previously masked: wallet OTP returns null in testing and wrong-password
+returns 200 not 401; ride finish before departure returns 200 not 400; employee-management
+returns 403 where 200/201/409 are expected; ride creation charges 2000 where a test expects no
+fee; admin login by email returns 401 (the app authenticates by username).
+
+### 17.5 P0 HAZARD found while running this task — the test suite can destroy the owner's remote database
+
+**Not part of RV-34, found during it, and reported because it is a data-loss risk.**
+
+The worktree `phpunit.xml` (the **owner's own file**, mtime Sept 27, present before any of this
+session's work) points the suite at a **remote** database:
+
+```
+DB_HOST = mysql-1e81c0db-atareeqak.b.aivencloud.com   DB_PORT = 10188
+DB_DATABASE = Atareekak-tesdb                         DB_USERNAME = avnadmin
+```
+
+The endpoint is **reachable from this machine** (TCP connect verified). Since `RefreshDatabase`
+and `migrate:fresh` **drop all tables**, running `php vendor/bin/phpunit` **without** overriding
+the database environment variables executes those drops against that remote database.
+
+**Why it has not caused damage so far:** `phpunit.xml` declares its `<env>` entries with **no
+`force` attribute**, so PHPUnit does not override variables that are already set in the
+environment. Every run in this session explicitly exported the scratch-DB variables first, and
+the scratch database (`t3_batch` on 127.0.0.1:3399) is what all reported results refer to. This
+was confirmed by inspecting the file rather than assumed. The committed copy of `phpunit.xml`
+in HEAD is sanitised (`sqlite` `:memory:`), which is why V6 found the money/geo suites skipping
+in CI.
+
+**Residual risk and recommended owner action (not actioned — the file is user-owned):** anyone
+running the suite without the explicit `DB_*` exports, or with `force="true"` added, would
+target the remote database. Recommended, in order of preference: point the worktree `phpunit.xml`
+at a local throwaway MySQL (or SQLite), and/or add `force="true"` to a local-only copy so the
+value is always the intended one. This is recorded for the owner because the correct value
+depends on how they want to run the suite; no change was made to the user's file.
+
+**State: VERIFIED FIX** (RV-34). The `phpunit.xml` hazard is **reported, not fixed** — it needs
+an owner decision, and the file is user-owned.

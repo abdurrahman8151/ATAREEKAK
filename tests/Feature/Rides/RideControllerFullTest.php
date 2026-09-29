@@ -7,15 +7,16 @@ use App\Models\Photo;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 class RideControllerFullTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $driver;
 
@@ -61,7 +62,7 @@ class RideControllerFullTest extends TestCase
             $this->passenger->profile()->create(['full_name' => 'Passenger', 'number_of_rides' => 0]);
         }
 
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000);
 
         $dw = Wallet::create([
             'user_id' => $this->driver->id,
@@ -121,7 +122,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_index_returns_driver_rides(): void
     {
-        $this->insertRide();
+        $this->makeRide();
         $this->withToken($this->driverToken)->getJson('/api/rides')
             ->assertStatus(200)->assertJsonPath('success', true);
     }
@@ -135,7 +136,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_show_returns_ride_details(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->passengerToken)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -151,7 +152,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_search_returns_matching_rides(): void
     {
-        $this->insertRide();
+        $this->makeRide();
 
         $this->withToken($this->passengerToken)
             ->postJson('/api/rides/search', [
@@ -177,7 +178,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_cancel_ride_post_sets_status_to_cancelled(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->driverToken)
             ->patchJson("/api/rides/{$ride->id}/cancel")
             ->assertStatus(200);
@@ -186,7 +187,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_cancel_ride_post_fails_for_non_driver(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->passengerToken)
             ->patchJson("/api/rides/{$ride->id}/cancel")
             ->assertStatus(422);
@@ -194,7 +195,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_cancel_already_cancelled_ride_fails(): void
     {
-        $ride = $this->insertRide(['status' => 'cancelled']);
+        $ride = $this->makeRide(['status' => 'cancelled']);
         $this->withToken($this->driverToken)
             ->patchJson("/api/rides/{$ride->id}/cancel")
             ->assertStatus(422);
@@ -204,7 +205,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_finish_ride_after_departure_succeeds(): void
     {
-        $ride = $this->insertRide(['departure_time' => now()->subMinutes(10)]);
+        $ride = $this->makeRide(['departure_time' => now()->subMinutes(10)]);
         $this->withToken($this->driverToken)
             ->postJson("/api/rides/{$ride->id}/finish")
             ->assertSuccessful();
@@ -212,7 +213,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_finish_ride_before_departure_fails(): void
     {
-        $ride = $this->insertRide(['departure_time' => now()->addHours(2)]);
+        $ride = $this->makeRide(['departure_time' => now()->addHours(2)]);
         $this->withToken($this->driverToken)
             ->postJson("/api/rides/{$ride->id}/finish")
             ->assertStatus(400);
@@ -220,7 +221,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_finish_ride_by_non_driver_fails(): void
     {
-        $ride = $this->insertRide(['departure_time' => now()->subMinutes(10)]);
+        $ride = $this->makeRide(['departure_time' => now()->subMinutes(10)]);
         $this->withToken($this->passengerToken)
             ->postJson("/api/rides/{$ride->id}/finish")
             ->assertStatus(400);
@@ -230,7 +231,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_driver_confirm_completion_succeeds(): void
     {
-        $ride = $this->insertRide(['status' => 'awaiting_confirmation']);
+        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
         $this->withToken($this->driverToken)
             ->postJson("/api/rides/{$ride->id}/driver-confirm")
             ->assertStatus(200)
@@ -239,7 +240,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_driver_confirm_fails_for_active_ride(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $this->withToken($this->driverToken)
             ->postJson("/api/rides/{$ride->id}/driver-confirm")
             ->assertStatus(400);
@@ -247,7 +248,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_driver_confirm_fails_for_non_driver(): void
     {
-        $ride = $this->insertRide(['status' => 'awaiting_confirmation']);
+        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
         $this->withToken($this->passengerToken)
             ->postJson("/api/rides/{$ride->id}/driver-confirm")
             ->assertStatus(400);
@@ -257,7 +258,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_passenger_can_book_ride(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->passengerToken)
             ->postJson("/api/rides/{$ride->id}/book", [
                 'seats' => 1,
@@ -269,7 +270,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_book_ride_fails_when_more_seats_than_available(): void
     {
-        $ride = $this->insertRide(['available_seats' => 2]);
+        $ride = $this->makeRide(['available_seats' => 2]);
         $this->withToken($this->passengerToken)
             ->postJson("/api/rides/{$ride->id}/book", [
                 'seats' => 5,
@@ -295,7 +296,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_driver_can_accept_pending_booking(): void
     {
-        $ride = $this->insertRide(['booking_type' => 'request']);
+        $ride = $this->makeRide(['booking_type' => 'request']);
         $booking = $this->makeBooking('pending', $ride);
 
         $this->withToken($this->driverToken)
@@ -317,7 +318,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_driver_can_reject_pending_booking(): void
     {
-        $ride = $this->insertRide(['booking_type' => 'request']);
+        $ride = $this->makeRide(['booking_type' => 'request']);
         $booking = $this->makeBooking('pending', $ride);
 
         $this->withToken($this->driverToken)
@@ -359,7 +360,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_passenger_can_confirm_completion(): void
     {
-        $ride = $this->insertRide(['status' => 'awaiting_confirmation']);
+        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
         $booking = $this->makeBooking('confirmed', $ride);
 
         $this->withToken($this->passengerToken)
@@ -370,7 +371,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_passenger_confirm_fails_for_active_ride(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking('confirmed', $ride);
 
         $this->withToken($this->passengerToken)
@@ -380,7 +381,7 @@ class RideControllerFullTest extends TestCase
 
     public function test_non_passenger_cannot_confirm_completion(): void
     {
-        $ride = $this->insertRide(['status' => 'awaiting_confirmation']);
+        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
         $booking = $this->makeBooking('confirmed', $ride);
 
         $this->withToken($this->driverToken)
@@ -452,49 +453,28 @@ class RideControllerFullTest extends TestCase
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
-    private function insertRide(array $overrides = []): Ride
+    private function makeRide(array $overrides = []): Ride
     {
-        $bookingType = $overrides['booking_type'] ?? 'direct';
-        $paymentMethod = $overrides['payment_method'] ?? 'cash';
-        $status = $overrides['status'] ?? 'active';
-        $seats = $overrides['available_seats'] ?? 4;
-        $departure = $overrides['departure_time'] ?? now()->addHours(3);
-
-        $departureStr = $departure instanceof Carbon
-            ? $departure->format('Y-m-d H:i:s')
-            : $departure;
-
-        // FIX: added SRID 4326 to ST_GeomFromText so MySQL 8.0 ST_Distance_Sphere
-        // can operate on these points without ER_NOT_IMPLEMENTED_FOR_CARTESIAN_SRS
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at
-            ) VALUES (
-                ?, 'دمشق', 'حلب',
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, ?, 50000, ?, ?, ?, 320.5, 240, ?, NOW(), NOW()
-            )
-        ", [
-            $this->driver->id,
-            $departureStr,
-            $seats,
-            $paymentMethod,
-            $bookingType,
-            $status,
-            $this->driverPhone,
-        ]);
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. Values from the previous fixture: seats 4, price
+        // 50000, cash/direct/active (overridable), distance 320.5, duration 240.
+        return RideBuilder::for($this->driver)
+            ->withAttributes(array_merge([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0911000000',
+            ], $overrides))
+            ->departureTime($overrides['departure_time'] ?? now()->addHours(3))
+            ->create();
     }
 
     private function makeBooking(string $status = 'confirmed', ?Ride $ride = null, int $seats = 1): Booking
     {
-        $ride = $ride ?? $this->insertRide();
+        $ride = $ride ?? $this->makeRide();
 
         return Booking::create([
             'user_id' => $this->passenger->id,
@@ -503,30 +483,6 @@ class RideControllerFullTest extends TestCase
             'status' => $status,
             'communication_number' => $this->passengerPhone,
         ]);
-    }
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $cfg = config("admin.{$type}");
-            $user = User::firstOrCreate(
-                ['email' => $cfg['email']],
-                ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
-            );
-
-            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
-                $w = Wallet::create([
-                    'user_id' => $user->id,
-                    'phone_number' => $cfg['phone'],
-                    'balance' => 10_000_000,
-                    // wallet_number omitted — 'WLT-' . strtoupper($type) . '-' . Str::random(4)
-                    // is 20+ chars once $type is 'system_admin'; let the model auto-generate instead
-                ]);
-                $user->update(['wallet_id' => $w->id]);
-            } else {
-                Wallet::where('phone_number', $cfg['phone'])->update(['balance' => 10_000_000]);
-            }
-        }
     }
 
     /**

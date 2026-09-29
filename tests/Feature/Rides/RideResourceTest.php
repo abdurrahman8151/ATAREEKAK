@@ -6,8 +6,9 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -29,6 +30,7 @@ use Tests\TestCase;
 class RideResourceTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $driver;
 
@@ -55,7 +57,7 @@ class RideResourceTest extends TestCase
             ]);
         }
 
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000);
 
         $wallet = Wallet::create([
             'user_id' => $this->driver->id,
@@ -72,7 +74,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_top_level_success_key(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -81,7 +83,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_id_field(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -91,7 +93,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_driver_nested_object(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -104,7 +106,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_pickup_object(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -117,7 +119,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_destination_object(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -130,7 +132,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_seats_object_with_available_field(): void
     {
-        $ride = $this->insertRide(['available_seats' => 3]);
+        $ride = $this->makeRide(['available_seats' => 3]);
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -140,7 +142,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_price_per_seat(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -150,7 +152,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_status_field(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -160,7 +162,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_vehicle_type(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -170,7 +172,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_payment_method(): void
     {
-        $ride = $this->insertRide(['payment_method' => 'cash']);
+        $ride = $this->makeRide(['payment_method' => 'cash']);
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -180,7 +182,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_departure_time_formatted(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -190,7 +192,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_distance_object(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -203,7 +205,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_duration_object(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -216,7 +218,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_returns_created_at_and_updated_at(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}")
             ->assertStatus(200)
@@ -227,7 +229,7 @@ class RideResourceTest extends TestCase
 
     public function test_show_driver_id_matches_actual_driver(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $response = $this->withToken($this->token)
             ->getJson("/api/rides/{$ride->id}");
 
@@ -239,7 +241,7 @@ class RideResourceTest extends TestCase
 
     public function test_index_returns_collection_wrapped_in_data_key(): void
     {
-        $this->insertRide();
+        $this->makeRide();
         $this->withToken($this->token)
             ->getJson('/api/rides')
             ->assertStatus(200)
@@ -249,59 +251,31 @@ class RideResourceTest extends TestCase
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private function insertRide(array $overrides = []): Ride
+    private function makeRide(array $overrides = []): Ride
     {
-        $status = $overrides['status'] ?? 'active';
-        $seats = $overrides['available_seats'] ?? 4;
-        $paymentMethod = $overrides['payment_method'] ?? 'cash';
+        // RV-34: shared builder. This file's fixture used DISTINCT values from the
+        // others and they are preserved exactly: addresses 'دمشق - المزة' /
+        // 'حلب - العزيزية', distance 320500, duration 14400, communication
+        // $this->driverPhone, seats 4 / price 50000 / cash / direct / active
+        // (overridable). It also returned the ride with driver+profile eager loaded,
+        // which the resource assertions need.
+        $ride = RideBuilder::for($this->driver)
+            ->withAttributes(array_merge([
+                'pickup_address' => 'دمشق - المزة',
+                'destination_address' => 'حلب - العزيزية',
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320500,
+                'duration' => 14400,
+                'communication_number' => $this->driverPhone,
+            ], $overrides))
+            ->departureTime(now()->addHours(3))
+            ->create();
 
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at
-            ) VALUES (
-                ?, 'دمشق - ساحة المرجة', 'حلب - العزيزية',
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, ?, 50000, ?, 'direct', ?, 320500, 14400, ?, NOW(), NOW()
-            )
-        ", [
-            $this->driver->id,
-            now()->addHours(3)->format('Y-m-d H:i:s'),
-            $seats,
-            $paymentMethod,
-            $status,
-            $this->driverPhone,
-        ]);
-
-        return Ride::with(['driver', 'driver.profile'])->latest('id')->first();
-    }
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $cfg = config("admin.{$type}");
-            $user = User::firstOrCreate(
-                ['email' => $cfg['email']],
-                ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
-            );
-
-            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
-                $w = Wallet::create([
-                    'user_id' => $user->id,
-                    'phone_number' => $cfg['phone'],
-                    'balance' => 10_000_000,
-                    // wallet_number omitted — 'WLT-' . strtoupper($type) . '-' . Str::random(4)
-                    // is 20+ chars once $type is 'system_admin'; let the model auto-generate instead
-                ]);
-                $user->update(['wallet_id' => $w->id]);
-            } else {
-                Wallet::where('phone_number', $cfg['phone'])->update(['balance' => 10_000_000]);
-            }
-        }
+        return Ride::with(['driver', 'driver.profile'])->find($ride->id);
     }
 
     private function getToken(User $user): string

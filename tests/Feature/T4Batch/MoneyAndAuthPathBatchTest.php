@@ -10,6 +10,7 @@ use App\Services\Staff\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -58,18 +59,25 @@ class MoneyAndAuthPathBatchTest extends TestCase
     /** Damascus (36.2765, 33.5138) and Aleppo (37.1343, 36.2021) — ~150 km apart. */
     private function insertRideAt(float $lng, float $lat, int $driverId): Ride
     {
-        DB::statement(
-            "INSERT INTO rides (driver_id, pickup_address, destination_address,
-                pickup_location, destination_location, departure_time, available_seats,
-                price_per_seat, payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at)
-             VALUES (?, 'A', 'B',
-                ST_GeomFromText(?, 4326), ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, 3, 50000, 'e-pay', 'direct', 'active', 320.5, 240, '0911000000', NOW(), NOW())",
-            [$driverId, sprintf('POINT(%F %F)', $lng, $lat), now()->addHour()->format('Y-m-d H:i:s')]
-        );
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. Source point stays parametric; the destination and
+        // every other value are reproduced from the previous fixture.
+        return RideBuilder::forUserId($driverId)
+            ->withAttributes([
+                'pickup_address' => 'A',
+                'destination_address' => 'B',
+                'available_seats' => 3,
+                'price_per_seat' => 50000,
+                'payment_method' => 'e-pay',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0911000000',
+            ])
+            ->rawPickup(sprintf('POINT(%F %F)', $lng, $lat))
+            ->rawDestination('POINT(36.2021 37.1343)')
+            ->departureTime(now()->addHour())
+            ->create();
     }
 
     // ── T4-2 ────────────────────────────────────────────────────────────────

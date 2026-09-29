@@ -7,13 +7,15 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 class BookingTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $driver;
 
@@ -42,7 +44,10 @@ class BookingTest extends TestCase
             'password' => bcrypt('password123'),
         ]);
 
-        $this->seedAdminWallets();
+        // Only the SyCash system wallet is seeded here: this file's own driver
+        // wallet already occupies config('admin.system_admin.phone'), and
+        // wallets.phone_number is UNIQUE.
+        $this->syCashWallet(10_000_000);
 
         $dw = Wallet::create(['user_id' => $this->driver->id, 'phone_number' => '0912345678', 'wallet_number' => 'WLT-DRV-001', 'balance' => 1_000_000]);
         $this->driver->update(['wallet_id' => $dw->id]);
@@ -50,7 +55,7 @@ class BookingTest extends TestCase
         $pw = Wallet::create(['user_id' => $this->passenger->id, 'phone_number' => '0911111111', 'wallet_number' => 'WLT-PAS-001', 'balance' => 1_000_000]);
         $this->passenger->update(['wallet_id' => $pw->id]);
 
-        $this->ride = $this->insertRide($this->driver);
+        $this->ride = $this->makeRide($this->driver);
         $this->driverToken = $this->getToken($this->driver);
         $this->passengerToken = $this->getToken($this->passenger);
     }
@@ -146,7 +151,7 @@ class BookingTest extends TestCase
 
     public function test_driver_can_accept_pending_booking(): void
     {
-        $reqRide = $this->insertRide($this->driver, ['booking_type' => 'request', 'payment_method' => 'cash']);
+        $reqRide = $this->makeRide($this->driver, ['booking_type' => 'request', 'payment_method' => 'cash']);
 
         $booking = Booking::create([
             'user_id' => $this->passenger->id, 'ride_id' => $reqRide->id,
@@ -162,7 +167,7 @@ class BookingTest extends TestCase
 
     public function test_driver_can_reject_pending_booking(): void
     {
-        $reqRide = $this->insertRide($this->driver, ['booking_type' => 'request', 'payment_method' => 'cash']);
+        $reqRide = $this->makeRide($this->driver, ['booking_type' => 'request', 'payment_method' => 'cash']);
 
         $booking = Booking::create([
             'user_id' => $this->passenger->id, 'ride_id' => $reqRide->id,
@@ -188,51 +193,26 @@ class BookingTest extends TestCase
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private function insertRide(User $driver, array $overrides = []): Ride
+    private function makeRide(User $driver, array $overrides = []): Ride
     {
-        $bookingType = $overrides['booking_type'] ?? 'direct';
-        $paymentMethod = $overrides['payment_method'] ?? 'cash';
-        $status = $overrides['status'] ?? 'active';
-        $departureTime = now()->addHours(3)->format('Y-m-d H:i:s');
-
-        DB::statement("
-            INSERT INTO rides
-                (driver_id, pickup_address, destination_address,
-                 pickup_location, destination_location,
-                 departure_time, available_seats, price_per_seat,
-                 payment_method, booking_type, status,
-                 distance, duration, communication_number,
-                 created_at, updated_at)
-            VALUES
-                (?, 'دمشق', 'حلب',
-                 ST_GeomFromText('POINT(33.5138 36.2765)'),
-                 ST_GeomFromText('POINT(36.2021 37.1343)'),
-                 ?, 4, 50000, ?, ?, ?,
-                 320.5, 240, '0912345678',
-                 NOW(), NOW())
-        ", [$driver->id, $departureTime, $paymentMethod, $bookingType, $status]);
-
-        return Ride::latest('id')->first();
-    }
-
-    private function seedAdminWallets(): void
-    {
-        $admin = User::firstOrCreate(
-            ['email' => 'twisrmann2002@gmail.com'],
-            ['first_name' => 'Primary', 'last_name' => 'Admin', 'password' => bcrypt('admin123'), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
-        );
-        if (! $admin->wallet_id) {
-            $w = Wallet::create(['user_id' => $admin->id, 'phone_number' => '0987654321', 'wallet_number' => 'WLT-ADMIN-001', 'balance' => 10_000_000]);
-            $admin->update(['wallet_id' => $w->id]);
-        }
-        $sycash = User::firstOrCreate(
-            ['email' => 'sycash-sim@gmail.com'],
-            ['first_name' => 'SyCash', 'last_name' => 'Admin', 'password' => bcrypt('sycash123'), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
-        );
-        if (! $sycash->wallet_id) {
-            $w = Wallet::create(['user_id' => $sycash->id, 'phone_number' => '0987654322', 'wallet_number' => 'WLT-SYCASH-001', 'balance' => 10_000_000]);
-            $sycash->update(['wallet_id' => $w->id]);
-        }
+        // RV-34: shared builder. Values from the previous fixture: seats 4, price
+        // 50000, cash/direct/active (overridable), distance 320.5, duration 240,
+        // communication 0912345678, departure now+3h. The old fixture's
+        // ST_GeomFromText had NO SRID; the builder always writes 4326, which this
+        // schema requires for ST_Distance_Sphere.
+        return RideBuilder::for($driver)
+            ->withAttributes(array_merge([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0912345678',
+            ], $overrides))
+            ->departureTime(now()->addHours(3))
+            ->create();
     }
 
     private function getToken(User $user): string

@@ -9,8 +9,9 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -29,6 +30,7 @@ use Tests\TestCase;
 class StaffOperationsControllerTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private Employee $agent;
 
@@ -70,7 +72,7 @@ class StaffOperationsControllerTest extends TestCase
             'password' => bcrypt('password123'),
         ]);
 
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000);
 
         $dw = Wallet::create([
             'user_id' => $this->driver->id,
@@ -366,7 +368,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_trips_returns_inserted_ride_in_list(): void
     {
-        $this->insertRide();
+        $this->makeRide();
 
         $response = $this->withToken($this->agentToken)->getJson('/api/staff/trips');
 
@@ -376,9 +378,9 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_trips_filter_all_returns_every_ride(): void
     {
-        $this->insertRide(['status' => 'active']);
-        $this->insertRide(['status' => 'finished']);
-        $this->insertRide(['status' => 'cancelled']);
+        $this->makeRide(['status' => 'active']);
+        $this->makeRide(['status' => 'finished']);
+        $this->makeRide(['status' => 'cancelled']);
 
         $response = $this->withToken($this->agentToken)
             ->getJson('/api/staff/trips?filter=all');
@@ -389,8 +391,8 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_trips_filter_completed_returns_only_finished_rides(): void
     {
-        $this->insertRide(['status' => 'finished']);
-        $this->insertRide(['status' => 'active']);
+        $this->makeRide(['status' => 'finished']);
+        $this->makeRide(['status' => 'active']);
 
         $response = $this->withToken($this->agentToken)
             ->getJson('/api/staff/trips?filter=completed');
@@ -401,9 +403,9 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_trips_filter_cancelled_returns_only_cancelled_rides(): void
     {
-        $this->insertRide(['status' => 'cancelled']);
-        $this->insertRide(['status' => 'cancelled']);
-        $this->insertRide(['status' => 'active']);
+        $this->makeRide(['status' => 'cancelled']);
+        $this->makeRide(['status' => 'cancelled']);
+        $this->makeRide(['status' => 'active']);
 
         $response = $this->withToken($this->agentToken)
             ->getJson('/api/staff/trips?filter=cancelled');
@@ -414,8 +416,8 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_trips_filter_awaiting_returns_awaiting_confirmation_rides(): void
     {
-        $this->insertRide(['status' => 'awaiting_confirmation']);
-        $this->insertRide(['status' => 'active']);
+        $this->makeRide(['status' => 'awaiting_confirmation']);
+        $this->makeRide(['status' => 'active']);
 
         $response = $this->withToken($this->agentToken)
             ->getJson('/api/staff/trips?filter=awaiting');
@@ -427,8 +429,8 @@ class StaffOperationsControllerTest extends TestCase
     public function test_trips_filter_active_excludes_scheduled_and_finished(): void
     {
         // "active" filter = status active AND departure <= now
-        $this->insertRide(['status' => 'active', 'departure_time' => now()->subMinutes(5)]);
-        $this->insertRide(['status' => 'finished']);
+        $this->makeRide(['status' => 'active', 'departure_time' => now()->subMinutes(5)]);
+        $this->makeRide(['status' => 'finished']);
 
         $response = $this->withToken($this->agentToken)
             ->getJson('/api/staff/trips?filter=active');
@@ -447,8 +449,8 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_trips_returns_status_counts_in_response(): void
     {
-        $this->insertRide(['status' => 'active']);
-        $this->insertRide(['status' => 'cancelled']);
+        $this->makeRide(['status' => 'active']);
+        $this->makeRide(['status' => 'cancelled']);
 
         $this->withToken($this->agentToken)
             ->getJson('/api/staff/trips')
@@ -459,7 +461,7 @@ class StaffOperationsControllerTest extends TestCase
     public function test_trips_respects_per_page_parameter(): void
     {
         for ($i = 0; $i < 5; $i++) {
-            $this->insertRide();
+            $this->makeRide();
         }
 
         $response = $this->withToken($this->agentToken)
@@ -508,7 +510,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_returns_existing_bookings(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->makeBooking($ride, 'confirmed');
 
         $response = $this->withToken($this->agentToken)->getJson('/api/staff/bookings');
@@ -519,7 +521,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_filters_by_status_confirmed(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->makeBooking($ride, 'confirmed');
         $this->makeBooking($ride, 'cancelled');
 
@@ -532,7 +534,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_filters_by_status_pending(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->makeBooking($ride, 'pending');
         $this->makeBooking($ride, 'confirmed');
 
@@ -545,7 +547,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_filters_by_user_id(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $otherUser = User::factory()->create();
         $this->makeBooking($ride, 'confirmed', $this->passenger);
         $this->makeBooking($ride, 'confirmed', $otherUser);
@@ -559,8 +561,8 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_filters_by_ride_id(): void
     {
-        $ride1 = $this->insertRide();
-        $ride2 = $this->insertRide();
+        $ride1 = $this->makeRide();
+        $ride2 = $this->makeRide();
         $this->makeBooking($ride1, 'confirmed');
         $this->makeBooking($ride2, 'confirmed');
 
@@ -580,7 +582,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_response_contains_passenger_and_ride_info(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -595,7 +597,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_response_nested_passenger_includes_name_and_email(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -610,7 +612,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_total_price_equals_seats_times_price_per_seat(): void
     {
-        $ride = $this->insertRide(['price_per_seat' => 50000]);
+        $ride = $this->makeRide(['price_per_seat' => 50000]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $response = $this->withToken($this->agentToken)->getJson('/api/staff/bookings');
@@ -622,7 +624,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_bookings_respects_per_page_parameter(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         for ($i = 0; $i < 5; $i++) {
             $this->makeBooking($ride, 'confirmed');
         }
@@ -641,7 +643,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_sets_ride_status_to_cancelled(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
 
         $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
@@ -658,7 +660,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_also_cancels_confirmed_bookings(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -675,7 +677,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_also_cancels_pending_bookings(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'pending');
 
         $this->withToken($this->agentToken)
@@ -692,7 +694,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_can_cancel_a_full_ride(): void
     {
-        $ride = $this->insertRide(['status' => 'full']);
+        $ride = $this->makeRide(['status' => 'full']);
 
         $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
@@ -705,7 +707,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_can_cancel_an_awaiting_confirmation_ride(): void
     {
-        $ride = $this->insertRide(['status' => 'awaiting_confirmation']);
+        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
 
         $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
@@ -718,7 +720,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_requires_reason(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
 
         $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [])
@@ -728,7 +730,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_requires_reason_at_least_10_characters(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
 
         $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
@@ -748,7 +750,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_rejects_already_cancelled_ride(): void
     {
-        $ride = $this->insertRide(['status' => 'cancelled']);
+        $ride = $this->makeRide(['status' => 'cancelled']);
 
         $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
@@ -759,7 +761,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_rejects_finished_ride(): void
     {
-        $ride = $this->insertRide(['status' => 'finished']);
+        $ride = $this->makeRide(['status' => 'finished']);
 
         $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
@@ -770,7 +772,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_requires_authentication(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
 
         $this->postJson("/api/staff/trips/{$ride->id}/cancel", [
             'reason' => 'Valid cancellation reason here.',
@@ -779,7 +781,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_response_includes_cancelled_booking_count(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $this->makeBooking($ride, 'confirmed');
         $this->makeBooking($ride, 'confirmed');
 
@@ -794,7 +796,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_new_status_field_is_cancelled(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
 
         $response = $this->withToken($this->agentToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
@@ -807,7 +809,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_leaves_already_cancelled_booking_untouched(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'cancelled');
 
         $this->withToken($this->agentToken)
@@ -829,7 +831,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_sets_booking_status_to_cancelled(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -847,7 +849,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_restores_seats_to_the_ride(): void
     {
-        $ride = $this->insertRide(['status' => 'active', 'available_seats' => 3]);
+        $ride = $this->makeRide(['status' => 'active', 'available_seats' => 3]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $this->withToken($this->agentToken)
@@ -865,7 +867,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_on_full_ride_resets_ride_to_active(): void
     {
-        $ride = $this->insertRide(['status' => 'full', 'available_seats' => 0]);
+        $ride = $this->makeRide(['status' => 'full', 'available_seats' => 0]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $this->withToken($this->agentToken)
@@ -882,7 +884,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_can_cancel_a_pending_booking(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'pending');
 
         $this->withToken($this->agentToken)
@@ -896,7 +898,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_requires_reason(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -907,7 +909,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_requires_reason_at_least_10_characters(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->withToken($this->agentToken)
@@ -928,7 +930,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_rejects_already_cancelled_booking(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'cancelled');
 
         $this->withToken($this->agentToken)
@@ -940,7 +942,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_rejects_completed_booking(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'completed');
 
         $this->withToken($this->agentToken)
@@ -952,7 +954,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_requires_authentication(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $this->postJson("/api/staff/bookings/{$booking->id}/cancel", [
@@ -962,7 +964,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_response_includes_seats_restored_field(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
         $response = $this->withToken($this->agentToken)
@@ -978,7 +980,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_new_status_field_is_cancelled(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $response = $this->withToken($this->agentToken)
@@ -992,7 +994,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_booking_id_in_response_matches_cancelled_booking(): void
     {
-        $ride = $this->insertRide(['status' => 'active']);
+        $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
         $response = $this->withToken($this->agentToken)
@@ -1006,7 +1008,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_on_awaiting_confirmation_ride_keeps_ride_status(): void
     {
-        $ride = $this->insertRide(['status' => 'awaiting_confirmation', 'available_seats' => 2]);
+        $ride = $this->makeRide(['status' => 'awaiting_confirmation', 'available_seats' => 2]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 1);
 
         $this->withToken($this->agentToken)
@@ -1040,43 +1042,27 @@ class StaffOperationsControllerTest extends TestCase
         ]);
     }
 
-    private function insertRide(array $overrides = []): Ride
+    private function makeRide(array $overrides = []): Ride
     {
-        $status = $overrides['status'] ?? 'active';
-        $seats = $overrides['available_seats'] ?? 4;
-        $price = $overrides['price_per_seat'] ?? 50000;
-        $departure = isset($overrides['departure_time'])
-            ? (is_string($overrides['departure_time'])
-                ? $overrides['departure_time']
-                : $overrides['departure_time']->format('Y-m-d H:i:s'))
-            : now()->addHours(3)->format('Y-m-d H:i:s');
-
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status,
-                distance, duration, communication_number,
-                created_at, updated_at
-            ) VALUES (
-                ?, 'Damascus', 'Aleppo',
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, ?, ?, 'cash', 'direct', ?,
-                320.5, 240, ?,
-                NOW(), NOW()
-            )
-        ", [
-            $this->driver->id,
-            $departure,
-            $seats,
-            $price,
-            $status,
-            $this->driverPhone,
-        ]);
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. This fixture used LATIN addresses
+        // ('Damascus'/'Aleppo') unlike most others, and they are preserved: seats 4
+        // (overridable), price 50000 (overridable), cash/direct, status overridable,
+        // distance 320.5, duration 240.
+        return RideBuilder::for($this->driver)
+            ->withAttributes(array_merge([
+                'pickup_address' => 'Damascus',
+                'destination_address' => 'Aleppo',
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0911000000',
+            ], $overrides))
+            ->departureTime($overrides['departure_time'] ?? now()->addHours(3))
+            ->create();
     }
 
     private function makeBooking(
@@ -1092,35 +1078,6 @@ class StaffOperationsControllerTest extends TestCase
             'status' => $status,
             'communication_number' => $this->passengerPhone,
         ]);
-    }
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $cfg = config("admin.{$type}");
-            $user = User::firstOrCreate(
-                ['email' => $cfg['email']],
-                [
-                    'first_name' => $type,
-                    'last_name' => 'Admin',
-                    'password' => bcrypt($cfg['password']),
-                    'gender' => 'M',
-                    'address' => 'Damascus',
-                    'status' => true,
-                ]
-            );
-            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
-                $w = Wallet::create([
-                    'user_id' => $user->id,
-                    'phone_number' => $cfg['phone'],
-                    'balance' => 10_000_000,
-                ]);
-                $user->update(['wallet_id' => $w->id]);
-            } else {
-                Wallet::where('phone_number', $cfg['phone'])
-                    ->update(['balance' => 10_000_000]);
-            }
-        }
     }
 
     private function getStaffToken(string $identifier, string $password): string

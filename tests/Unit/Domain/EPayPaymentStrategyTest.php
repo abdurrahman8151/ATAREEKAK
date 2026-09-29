@@ -12,8 +12,8 @@ use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 class EPayPaymentStrategyTest extends TestCase
@@ -92,7 +92,7 @@ class EPayPaymentStrategyTest extends TestCase
         ]);
         $this->passenger->update(['wallet_id' => $this->passengerWallet->id]);
 
-        $this->ride = $this->insertRide();
+        $this->ride = $this->makeRide();
     }
 
     // ─── canProcess ────────────────────────────────────────────────────────
@@ -200,26 +200,24 @@ class EPayPaymentStrategyTest extends TestCase
 
     // ─── Helpers ───────────────────────────────────────────────────────────
 
-    private function insertRide(): Ride
+    private function makeRide(): Ride
     {
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status,
-                distance, duration, communication_number,
-                created_at, updated_at
-            ) VALUES (
-                ?, 'دمشق', 'حلب',
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, 4, 50000, 'e-pay', 'direct', 'active',
-                320.5, 240, '0912345678', NOW(), NOW()
-            )
-        ", [$this->driver->id, now()->addHours(3)->format('Y-m-d H:i:s')]);
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. Values from the previous raw-SQL fixture: seats 4,
+        // price 50000, e-pay, direct, active, distance 320.5, duration 240,
+        // communication 0912345678, departure now+3h.
+        return RideBuilder::for($this->driver)
+            ->withAttributes([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'e-pay',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0912345678',
+            ])
+            ->departureTime(now()->addHours(3))
+            ->create();
     }
 
     private function makeBooking(int $seats = 1, string $status = 'confirmed'): Booking

@@ -4,9 +4,10 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Photo;
 use App\Models\User;
-use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Tests\Support\Concerns\ActsAsStaff;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
 /**
@@ -21,7 +22,9 @@ use Tests\TestCase;
  */
 class AdminDriverControllerTest extends TestCase
 {
+    use ActsAsStaff;
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $verifiedDriver;
 
@@ -50,7 +53,7 @@ class AdminDriverControllerTest extends TestCase
             'permissions' => ['view_wallet'],
         ]);
 
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000.0);
         $this->verifiedDriver = $this->makeVerifiedDriver();
     }
 
@@ -60,7 +63,7 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_dashboard_returns_200_with_success_status(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/dashboard')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -78,7 +81,7 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_stats_returns_200_with_success_status(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/stats')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -92,7 +95,7 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_stats_total_reflects_verified_drivers(): void
     {
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/stats');
 
         $response->assertStatus(200);
@@ -105,7 +108,7 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_index_returns_paginated_driver_list(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -119,49 +122,49 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_index_accepts_filter_all(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?filter=all')
             ->assertStatus(200);
     }
 
     public function test_index_accepts_filter_verified(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?filter=verified')
             ->assertStatus(200);
     }
 
     public function test_index_accepts_filter_pending(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?filter=pending')
             ->assertStatus(200);
     }
 
     public function test_index_accepts_filter_suspended(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?filter=suspended')
             ->assertStatus(200);
     }
 
     public function test_index_rejects_invalid_filter(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?filter=unknown')
             ->assertStatus(422);
     }
 
     public function test_index_accepts_search_parameter(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?search=Ahmad')
             ->assertStatus(200);
     }
 
     public function test_index_respects_per_page_parameter(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?per_page=5')
             ->assertStatus(200)
             ->assertJsonStructure(['meta' => ['current_page', 'last_page', 'per_page', 'total']]);
@@ -169,14 +172,14 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_index_rejects_per_page_above_fifty(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers?per_page=51')
             ->assertStatus(422);
     }
 
     public function test_index_meta_contains_pagination_fields(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers')
             ->assertStatus(200)
             ->assertJsonStructure([
@@ -190,7 +193,7 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_activity_returns_200_with_data(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/activity')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -204,28 +207,28 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_activity_accepts_limit_parameter(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/activity?limit=5')
             ->assertStatus(200);
     }
 
     public function test_activity_rejects_limit_above_fifty(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/activity?limit=51')
             ->assertStatus(422);
     }
 
     public function test_activity_rejects_limit_of_zero(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/activity?limit=0')
             ->assertStatus(422);
     }
 
     public function test_activity_returns_array_data(): void
     {
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/activity');
 
         $response->assertStatus(200);
@@ -238,7 +241,7 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_driver_profile_returns_data_for_existing_driver(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson("/api/admin/drivers/{$this->verifiedDriver->id}/profile")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -253,7 +256,7 @@ class AdminDriverControllerTest extends TestCase
 
     public function test_driver_profile_returns_404_for_nonexistent_driver(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/drivers/999999/profile')
             ->assertStatus(404);
     }
@@ -282,39 +285,6 @@ class AdminDriverControllerTest extends TestCase
         return $driver;
     }
 
-    private function primaryToken(): string
-    {
-        return $this->postJson('/api/admin/login', [
-            'email' => 'primary@admin.test',
-            'password' => 'primary_pass',
-        ])->json('tokens.access_token');
-    }
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $config = config("admin.{$type}");
-            $adminUser = User::firstOrCreate(
-                ['email' => $config['email']],
-                [
-                    'first_name' => $config['first_name'],
-                    'last_name' => $config['last_name'],
-                    'password' => bcrypt($config['password']),
-                    'gender' => 'M',
-                    'address' => 'دمشق',
-                    'status' => 1,
-                    'email_verified_at' => now(),
-                ]
-            );
-
-            if (! Wallet::where('phone_number', $config['phone'])->exists()) {
-                $wallet = Wallet::create([
-                    'user_id' => $adminUser->id,
-                    'phone_number' => $config['phone'],
-                    'balance' => 10_000_000,
-                ]);
-                $adminUser->update(['wallet_id' => $wallet->id]);
-            }
-        }
-    }
+    // RV-34: primaryToken() (config admin email/password → /api/admin/login) is
+    // gone — admin auth is username-based, so the call sites above now use
 }

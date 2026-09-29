@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Tests\Support\Concerns\ActsAsStaff;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
 /**
@@ -26,7 +28,9 @@ use Tests\TestCase;
  */
 class AdminDashboardControllerTest extends TestCase
 {
+    use ActsAsStaff;
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private Wallet $primaryAdminWallet;
 
@@ -55,7 +59,11 @@ class AdminDashboardControllerTest extends TestCase
             'permissions' => ['view_wallet'],
         ]);
 
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000.0);
+        $this->primaryAdminWallet = Wallet::where(
+            'phone_number',
+            config('admin.system_admin.phone')
+        )->first();
     }
 
     // ─── LOGIN ──────────────────────────────────────────────────────────
@@ -109,7 +117,7 @@ class AdminDashboardControllerTest extends TestCase
     // ─── LOGOUT ─────────────────────────────────────────────────────────
     public function test_authenticated_admin_can_logout(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson('/api/admin/logout')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -123,7 +131,7 @@ class AdminDashboardControllerTest extends TestCase
     // ─── WALLET (own) — known 500, see class docblock ──────────────────
     public function test_authenticated_admin_get_own_wallet_currently_500s(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/wallet')
             ->assertStatus(500);
     }
@@ -136,7 +144,7 @@ class AdminDashboardControllerTest extends TestCase
     // ─── ALL WALLETS (combined endpoint) ────────────────────────────────
     public function test_authenticated_admin_can_list_all_wallets(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/wallets')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -155,7 +163,7 @@ class AdminDashboardControllerTest extends TestCase
         $wallet = Wallet::create(['user_id' => $user->id, 'phone_number' => '0911111111', 'balance' => 0]);
         $user->update(['wallet_id' => $wallet->id]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson('/api/admin/wallet/charge', ['phone_number' => '0911111111', 'amount' => 5000])
             ->assertStatus(500);
     }
@@ -163,7 +171,7 @@ class AdminDashboardControllerTest extends TestCase
     public function test_charge_wallet_fails_validation_with_missing_fields(): void
     {
         // Validation runs before the adminConfig code path, so this still 422s correctly.
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson('/api/admin/wallet/charge', [])
             ->assertStatus(422)
             ->assertJsonPath('code', 'VALIDATION_FAILED');
@@ -171,7 +179,7 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_charge_wallet_fails_with_amount_zero(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson('/api/admin/wallet/charge', ['phone_number' => '0911111111', 'amount' => 0])
             ->assertStatus(422);
     }
@@ -192,7 +200,7 @@ class AdminDashboardControllerTest extends TestCase
     // ─── WALLET TRANSACTIONS — unaffected by the adminConfig gap ───────
     public function test_authenticated_admin_can_view_wallet_transactions(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson("/api/admin/wallet/{$this->primaryAdminWallet->id}/transactions")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -201,7 +209,7 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_wallet_transactions_returns_404_for_nonexistent_wallet(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/wallet/999999/transactions')
             ->assertStatus(404);
     }
@@ -215,7 +223,7 @@ class AdminDashboardControllerTest extends TestCase
     // ─── DASHBOARD ──────────────────────────────────────────────────────
     public function test_authenticated_admin_can_view_dashboard(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/dashboard')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -232,7 +240,7 @@ class AdminDashboardControllerTest extends TestCase
     {
         // Response-shape assumption (['report_data']) — I don't have
         // AdminDashboardController::showReport()'s source to confirm it.
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/reports')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -241,14 +249,14 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_report_accepts_date_range(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/reports?start_date=2024-01-01&end_date=2024-12-31')
             ->assertStatus(200);
     }
 
     public function test_report_rejects_invalid_date_format(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/reports?start_date=not-a-date')
             ->assertStatus(422);
     }
@@ -267,7 +275,7 @@ class AdminDashboardControllerTest extends TestCase
     {
         User::factory()->create(['verification_status' => 'pending']);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/verifications')
             ->assertStatus(200)
             ->assertJsonStructure(['data']);
@@ -287,7 +295,7 @@ class AdminDashboardControllerTest extends TestCase
             'password' => bcrypt('password123'),
         ]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson("/api/admin/verifications/{$user->id}/approve")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -310,7 +318,7 @@ class AdminDashboardControllerTest extends TestCase
             'is_verified_passenger' => true,
         ]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson("/api/admin/verifications/{$user->id}/reject")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -325,54 +333,19 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_approve_verification_returns_422_for_nonexistent_user(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson('/api/admin/verifications/999999/approve')
             ->assertStatus(422);
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────
-    private function primaryToken(): string
-    {
-        return $this->postJson('/api/admin/login', [
-            'email' => 'primary@admin.test', 'password' => 'primary_pass',
-        ])->json('tokens.access_token');
-    }
 
     private function sycashToken(): string
     {
-        return $this->postJson('/api/admin/login', [
-            'email' => 'sycash@admin.test', 'password' => 'sycash_pass',
-        ])->json('tokens.access_token');
-    }
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $config = config("admin.{$type}");
-            $adminUser = User::firstOrCreate(
-                ['email' => $config['email']],
-                [
-                    'first_name' => $config['first_name'],
-                    'last_name' => $config['last_name'],
-                    'password' => bcrypt($config['password']),
-                    'gender' => 'M',
-                    'address' => 'دمشق',
-                    'status' => 1,
-                    'email_verified_at' => now(),
-                ]
-            );
-
-            if (! Wallet::where('phone_number', $config['phone'])->exists()) {
-                $wallet = Wallet::create([
-                    'user_id' => $adminUser->id,
-                    'phone_number' => $config['phone'],
-                    'balance' => 10_000_000,
-                    // wallet_number omitted — auto-generated 16-digit value
-                ]);
-                $adminUser->update(['wallet_id' => $wallet->id]);
-            }
-        }
-
-        $this->primaryAdminWallet = Wallet::where('phone_number', config('admin.system_admin.phone'))->first();
+        // RV-34: same Cause-B defect as primaryToken() — the old body logged in
+        // with the config email/password, which admin auth no longer accepts (it
+        // authenticates an Employee by username), so this returned null and tripped
+        // the `: string` return type.
+        return $this->adminToken(null, 'sycash');
     }
 }

@@ -3,12 +3,11 @@
 namespace Tests\Feature\Admin;
 
 use App\Events\UserVerified;
-use App\Models\Employee;
 use App\Models\Photo;
 use App\Models\User;
-use App\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\Concerns\ActsAsStaff;
 use Tests\TestCase;
 
 /**
@@ -25,6 +24,7 @@ use Tests\TestCase;
  */
 class NationalIdVerificationTest extends TestCase
 {
+    use ActsAsStaff;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -36,47 +36,16 @@ class NationalIdVerificationTest extends TestCase
     }
 
     // ── Auth helpers ──────────────────────────────────────────────────────────
-
-    /**
-     * Create an Employee with the given role, log in via the staff login
-     * endpoint, and return the access token.
-     */
-    private function staffToken(string $role = 'admin'): string
-    {
-        $employee = Employee::create([
-            'username' => 'teststaff_'.uniqid(),
-            'email' => 'staff_'.uniqid().'@test.com',
-            'password' => 'Password123!',
-            'first_name' => 'Test',
-            'last_name' => 'Staff',
-            'role' => $role,
-            'is_active' => true,
-            'token_version' => 0,
-        ]);
-
-        $response = $this->postJson('/api/staff/login', [
-            'identifier' => $employee->username,
-            'password' => 'Password123!',
-        ]);
-
-        return $response->json('tokens.access_token');
-    }
-
-    /**
-     * Override the admin config to a test e-mail, create a matching User in the
-     * DB, then mint a JwtService access token for it.
-     */
-    private function adminToken(): string
-    {
-        $email = 'testadmin_'.uniqid().'@sysride.test';
-
-        config(['admin.system_admin.email' => $email]);
-
-        $admin = User::factory()->create(['email' => $email, 'status' => 1]);
-        $tokens = app(JwtService::class)->generateTokenPair($admin);
-
-        return $tokens['access_token'];
-    }
+    //
+    // RV-34: both local helpers are gone; the call sites below now use the
+    // shared trait (Tests\Support\Concerns\ActsAsStaff).
+    //   - staffToken() re-implemented the Employee + /api/staff/login flow and
+    //     is now $this->staffToken(null, 'admin') — same 'admin' role it had.
+    //   - adminToken() overrode config('admin.system_admin.email') and minted a
+    //     *User* JWT via JwtService. StaffJwtMiddleware no longer accepts user
+    //     tokens, so that token could never authenticate; it is now
+    //     $this->adminToken(), which mints a real system_admin Employee and logs
+    //     in through /api/admin/login with `username`.
 
     // ── Data helpers ──────────────────────────────────────────────────────────
 
@@ -116,7 +85,7 @@ class NationalIdVerificationTest extends TestCase
     {
         $driver = $this->pendingDriver();
 
-        $response = $this->withToken($this->staffToken())
+        $response = $this->withToken($this->staffToken(null, 'admin'))
             ->postJson($this->staffApproveRoute($driver->id), [
                 'national_id' => 'SY-12345678',
             ]);
@@ -140,7 +109,7 @@ class NationalIdVerificationTest extends TestCase
 
         $driver = $this->pendingDriver();
 
-        $response = $this->withToken($this->staffToken())
+        $response = $this->withToken($this->staffToken(null, 'admin'))
             ->postJson($this->staffApproveRoute($driver->id), [
                 'national_id' => 'SY-99999999',
             ]);
@@ -163,7 +132,7 @@ class NationalIdVerificationTest extends TestCase
 
         $driver = $this->pendingDriver();
 
-        $this->withToken($this->staffToken())
+        $this->withToken($this->staffToken(null, 'admin'))
             ->postJson($this->staffApproveRoute($driver->id), [
                 'national_id' => 'SY-11111111',
             ]);
@@ -186,7 +155,7 @@ class NationalIdVerificationTest extends TestCase
         $driver = $this->pendingDriver();
 
         // Submit in uppercase — MySQL's utf8 collation treats them as equal.
-        $response = $this->withToken($this->staffToken())
+        $response = $this->withToken($this->staffToken(null, 'admin'))
             ->postJson($this->staffApproveRoute($driver->id), [
                 'national_id' => 'SY-12345678',
             ]);
@@ -235,7 +204,7 @@ class NationalIdVerificationTest extends TestCase
     {
         $driver = $this->pendingDriver();
 
-        $response = $this->withToken($this->staffToken())
+        $response = $this->withToken($this->staffToken(null, 'admin'))
             ->postJson($this->staffApproveRoute($driver->id), []);
 
         $response->assertStatus(422)

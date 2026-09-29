@@ -11,8 +11,8 @@ use App\Services\JwtService;
 use App\Services\Payment\WalletTransactionService;
 use App\Services\Ride\Noshowservice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -86,27 +86,12 @@ class NoshowSettlementGuardTest extends TestCase
         $this->passenger->update(['wallet_id' => $this->passengerWallet->id]);
     }
 
-    private function insertRide(): Ride
-    {
-        DB::statement(
-            "INSERT INTO rides (driver_id, pickup_address, destination_address,
-                pickup_location, destination_location, departure_time, available_seats,
-                price_per_seat, payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at)
-             VALUES (?, 'دمشق', 'حلب',
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, ?, 50000, 'e-pay', 'direct', 'active', 320.5, 240, '0911000000', NOW(), NOW())",
-            [$this->driver->id, now()->subMinutes(5)->format('Y-m-d H:i:s'), 3]
-        );
-
-        return Ride::latest('id')->first();
-    }
-
     /** One confirmed booking with its fare escrowed into SyCash. */
     private function escrowedBooking(): array
     {
-        $ride = $this->insertRide();
+        // RV-34: the ride now comes from the shared RideBuilder, which reproduces
+        // this file's previous raw-SQL geometry verbatim.
+        $ride = RideBuilder::for($this->driver)->create();
 
         $booking = Booking::create([
             'user_id' => $this->passenger->id,

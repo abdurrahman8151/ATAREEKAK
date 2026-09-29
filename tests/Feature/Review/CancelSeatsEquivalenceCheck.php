@@ -12,6 +12,7 @@ use App\Services\Ride\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -76,18 +77,21 @@ class CancelSeatsEquivalenceCheck extends TestCase
         ]);
         $passenger->update(['wallet_id' => $passengerWallet->id]);
 
-        DB::statement(
-            "INSERT INTO rides (driver_id, pickup_address, destination_address,
-                pickup_location, destination_location, departure_time, available_seats,
-                price_per_seat, payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at)
-             VALUES (?, 'X', 'Y',
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, 3, 50000, ?, 'direct', 'active', 320, 14400, '0911000000', NOW(), NOW())",
-            [$driver->id, now()->addMinutes(20)->format('Y-m-d H:i:s'), $paymentMethod]
-        );
-        $ride = Ride::latest('id')->firstOrFail();
+        $ride = RideBuilder::for($driver)
+            ->withAttributes([
+                'pickup_address' => 'X',
+                'destination_address' => 'Y',
+                'available_seats' => 3,
+                'price_per_seat' => 50000,
+                'payment_method' => $paymentMethod,
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320,
+                'duration' => 14400,
+                'communication_number' => '0911000000',
+            ])
+            ->departureTime(now()->addMinutes(20))
+            ->create();
 
         $booking = Booking::create([
             'user_id' => $passenger->id, 'ride_id' => $ride->id, 'seats' => 1,

@@ -6,6 +6,7 @@ use App\Enums\StaffRole;
 use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Tests\Support\Concerns\ActsAsStaff;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,7 @@ use Tests\TestCase;
  */
 class EmployeeManagementControllerTest extends TestCase
 {
+    use ActsAsStaff;
     use RefreshDatabase;
 
     private Employee $adminEmployee;
@@ -70,7 +72,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_system_admin_can_list_employees(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->getJson('/api/employees')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -79,7 +81,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_staff_admin_can_list_employees(): void
     {
-        $this->withToken($this->staffToken())
+        $this->withToken($this->staffToken(null, StaffRole::ADMIN))
             ->getJson('/api/employees')
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -94,7 +96,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_system_admin_can_create_support_agent(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->postJson('/api/employees', [
                 'username' => 'new_agent',
                 'password' => 'password123',
@@ -109,7 +111,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_system_admin_can_create_admin(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->postJson('/api/employees', [
                 'username' => 'new_admin',
                 'password' => 'password123',
@@ -121,7 +123,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_store_fails_with_missing_required_fields(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->postJson('/api/employees', [])
             ->assertStatus(422)
             ->assertJsonStructure(['errors']);
@@ -129,7 +131,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_store_fails_with_duplicate_username(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->postJson('/api/employees', [
                 'username' => 'admin_mgr', // already exists
                 'password' => 'password123',
@@ -141,7 +143,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_store_fails_with_invalid_role(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->postJson('/api/employees', [
                 'username' => 'tricky',
                 'password' => 'password123',
@@ -154,7 +156,7 @@ class EmployeeManagementControllerTest extends TestCase
     public function test_admin_employee_cannot_create_system_admin(): void
     {
         // admin role level < system_admin — forbidden
-        $this->withToken($this->staffToken())
+        $this->withToken($this->staffToken(null, StaffRole::ADMIN))
             ->postJson('/api/employees', [
                 'username' => 'new_sysadmin',
                 'password' => 'password123',
@@ -168,7 +170,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_system_admin_can_view_employee(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->getJson("/api/employees/{$this->adminEmployee->id}")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -176,7 +178,7 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_show_returns_404_for_nonexistent_employee(): void
     {
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->getJson('/api/employees/999999')
             ->assertStatus(404);
     }
@@ -187,7 +189,7 @@ class EmployeeManagementControllerTest extends TestCase
     {
         $agent = $this->makeAgent();
 
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->putJson("/api/employees/{$agent->id}", [
                 'first_name' => 'Updated',
                 'last_name' => 'Name',
@@ -207,7 +209,7 @@ class EmployeeManagementControllerTest extends TestCase
         $agent = $this->makeAgent();
         $this->assertTrue($agent->is_active);
 
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->patchJson("/api/employees/{$agent->id}/toggle-active")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -221,7 +223,7 @@ class EmployeeManagementControllerTest extends TestCase
     {
         $agent = $this->makeAgent();
 
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->patchJson("/api/employees/{$agent->id}/reset-password", [
                 'new_password' => 'newSecurePass123',
             ])->assertStatus(200)
@@ -232,7 +234,7 @@ class EmployeeManagementControllerTest extends TestCase
     {
         $agent = $this->makeAgent();
 
-        $this->withToken($this->adminJwt())
+        $this->withToken($this->adminToken())
             ->patchJson("/api/employees/{$agent->id}/reset-password", [
                 'new_password' => 'short',
             ])->assertStatus(422);
@@ -240,21 +242,16 @@ class EmployeeManagementControllerTest extends TestCase
 
     // ─── Helpers ───────────────────────────────────────────────────────────
 
-    private function adminJwt(): string
-    {
-        return $this->postJson('/api/admin/login', [
-            'email' => 'sysadmin@test.com',
-            'password' => 'syspass',
-        ])->json('tokens.access_token');
-    }
-
-    private function staffToken(): string
-    {
-        return $this->postJson('/api/staff/login', [
-            'identifier' => 'admin_mgr',
-            'password' => 'admin_mgr_pass',
-        ])->json('tokens.access_token');
-    }
+    // RV-34: the two local token helpers are gone.
+    //   - adminJwt() posted config('admin.system_admin') email/password to
+    //     /api/admin/login; admin auth is username-based now and
+    //     config/admin.php only carries phone + wallet_prefix → null token.
+    //     The system_admin call sites now use $this->adminToken() (trait).
+    //   - staffToken() hard-coded the 'admin_mgr' Employee built in setUp();
+    //     the call sites now use $this->staffToken(null, StaffRole::ADMIN)
+    //     (trait), which mints a fresh ADMIN-role Employee with the same role
+    //     the old helper relied on. $this->adminEmployee stays in setUp because
+    //     test_system_admin_can_view_employee() asserts against it.
 
     private function makeAgent(): Employee
     {

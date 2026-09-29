@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -70,7 +71,7 @@ class RideSearchServiceTest extends TestCase
     public function test_returns_matching_ride_when_conditions_met(): void
     {
         $date = now()->addDays(3)->toDateString();
-        $this->insertRide(['departure_date' => $date]);
+        $this->makeRide(['departure_date' => $date]);
 
         $results = $this->service->searchRides([
             'departure_date' => $date,
@@ -87,7 +88,7 @@ class RideSearchServiceTest extends TestCase
     public function test_does_not_return_cancelled_rides(): void
     {
         $date = now()->addDays(3)->toDateString();
-        $this->insertRide(['departure_date' => $date, 'status' => 'cancelled']);
+        $this->makeRide(['departure_date' => $date, 'status' => 'cancelled']);
 
         $results = $this->service->searchRides([
             'departure_date' => $date,
@@ -104,7 +105,7 @@ class RideSearchServiceTest extends TestCase
     public function test_does_not_return_finished_rides(): void
     {
         $date = now()->addDays(3)->toDateString();
-        $this->insertRide(['departure_date' => $date, 'status' => 'finished']);
+        $this->makeRide(['departure_date' => $date, 'status' => 'finished']);
 
         $results = $this->service->searchRides([
             'departure_date' => $date,
@@ -123,8 +124,8 @@ class RideSearchServiceTest extends TestCase
         $targetDate = now()->addDays(5)->toDateString();
         $otherDate = now()->addDays(10)->toDateString();
 
-        $this->insertRide(['departure_date' => $targetDate]);
-        $this->insertRide(['departure_date' => $otherDate]);
+        $this->makeRide(['departure_date' => $targetDate]);
+        $this->makeRide(['departure_date' => $otherDate]);
 
         $results = $this->service->searchRides([
             'departure_date' => $targetDate,
@@ -150,7 +151,7 @@ class RideSearchServiceTest extends TestCase
     public function test_filters_by_minimum_seats(): void
     {
         $date = now()->addDays(3)->toDateString();
-        $this->insertRide(['departure_date' => $date, 'available_seats' => 1]);
+        $this->makeRide(['departure_date' => $date, 'available_seats' => 1]);
 
         $results = $this->service->searchRides([
             'departure_date' => $date,
@@ -167,7 +168,7 @@ class RideSearchServiceTest extends TestCase
     public function test_returns_ride_when_seats_exactly_match_requirement(): void
     {
         $date = now()->addDays(3)->toDateString();
-        $this->insertRide(['departure_date' => $date, 'available_seats' => 2]);
+        $this->makeRide(['departure_date' => $date, 'available_seats' => 2]);
 
         $results = $this->service->searchRides([
             'departure_date' => $date,
@@ -184,7 +185,7 @@ class RideSearchServiceTest extends TestCase
     public function test_results_include_driver_relationship(): void
     {
         $date = now()->addDays(3)->toDateString();
-        $this->insertRide(['departure_date' => $date]);
+        $this->makeRide(['departure_date' => $date]);
 
         $results = $this->service->searchRides([
             'departure_date' => $date,
@@ -205,8 +206,8 @@ class RideSearchServiceTest extends TestCase
     public function test_orders_results_by_departure_time_ascending(): void
     {
         $baseDate = now()->addDays(3)->toDateString();
-        $this->insertRide(['departure_date' => $baseDate, 'departure_hour' => 9]);
-        $this->insertRide(['departure_date' => $baseDate, 'departure_hour' => 14]);
+        $this->makeRide(['departure_date' => $baseDate, 'departure_hour' => 9]);
+        $this->makeRide(['departure_date' => $baseDate, 'departure_hour' => 14]);
 
         $results = $this->service->searchRides([
             'departure_date' => $baseDate,
@@ -240,7 +241,7 @@ class RideSearchServiceTest extends TestCase
 
     public function test_get_nearby_rides_returns_active_rides_near_location(): void
     {
-        $this->insertRide(['status' => 'active']);
+        $this->makeRide(['status' => 'active']);
 
         $results = $this->service->getNearbyRides(33.5138, 36.2765, 20);
 
@@ -249,7 +250,7 @@ class RideSearchServiceTest extends TestCase
 
     public function test_get_nearby_rides_excludes_cancelled_rides(): void
     {
-        $this->insertRide(['status' => 'cancelled']);
+        $this->makeRide(['status' => 'cancelled']);
 
         $results = $this->service->getNearbyRides(33.5138, 36.2765, 20);
 
@@ -309,7 +310,7 @@ class RideSearchServiceTest extends TestCase
     public function test_search_results_render_the_real_driver_rating_not_zero(): void
     {
         $date = now()->addDays(3)->toDateString();
-        $ride = $this->insertRide(['departure_date' => $date]);
+        $ride = $this->makeRide(['departure_date' => $date]);
 
         // Deterministic fixture: whatever else seeded this driver's ratings,
         // the assertion below is over EXACTLY these two rows.
@@ -342,7 +343,7 @@ class RideSearchServiceTest extends TestCase
         $date = now()->addDays(3)->toDateString();
         for ($i = 0; $i < 4; $i++) {
             $rider = User::factory()->create(['is_verified_driver' => true]);
-            $this->insertRide(['departure_date' => $date], $rider);
+            $this->makeRide(['departure_date' => $date], $rider);
             UserRating::create([
                 'rater_id' => $this->driver->id,
                 'rated_user_id' => $rider->id,
@@ -378,30 +379,37 @@ class RideSearchServiceTest extends TestCase
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private function insertRide(array $overrides = [], ?User $driver = null): Ride
+    private function makeRide(array $overrides = [], ?User $driver = null): Ride
     {
-        $status = $overrides['status'] ?? 'active';
-        $seats = $overrides['available_seats'] ?? 4;
+        // RV-34: shared builder. THE GEOMETRY HERE IS DELIBERATELY TRANSPOSED.
+        // This fixture wrote POINT(36.2765 33.5138) / POINT(37.1343 36.2021)
+        // (lng-first), unlike every other fixture. Those literals are load-bearing
+        // for this file's search tests, so they are reproduced verbatim. The
+        // transposition itself is finding V1, owned by RV-25 — normalising it here
+        // would silently change what these tests exercise.
         $departureDate = $overrides['departure_date'] ?? now()->addDays(3)->toDateString();
         $hour = $overrides['departure_hour'] ?? 10;
-        $departureTime = Carbon::parse($departureDate)->setHour($hour)->format('Y-m-d H:i:s');
-        $driver = $driver ?? $this->driver;
 
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at
-            ) VALUES (
-                ?, 'دمشق', 'حلب',
-                ST_GeomFromText('POINT(36.2765 33.5138)', 4326),
-                ST_GeomFromText('POINT(37.1343 36.2021)', 4326),
-                ?, ?, 50000, 'cash', 'direct', ?, 320500, 14400, ?, NOW(), NOW()
-            )
-        ", [$driver->id, $departureTime, $seats, $status, '09'.rand(1000000, 9999999)]);
+        // departure_date/departure_hour are convenience keys used by this file's
+        // call sites; they are NOT ride columns, so they are consumed here instead of
+        // being forwarded into the insert (forwarding them raised
+        // "Unknown column 'departure_date' in 'field list'").
+        unset($overrides['departure_date'], $overrides['departure_hour']);
 
-        return Ride::latest('id')->first();
+        return RideBuilder::for($driver ?? $this->driver)
+            ->withAttributes(array_merge([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320500,
+                'duration' => 14400,
+                'communication_number' => '09'.rand(1000000, 9999999),
+            ], $overrides))
+            ->rawPickup('POINT(36.2765 33.5138)')
+            ->rawDestination('POINT(37.1343 36.2021)')
+            ->departureTime(Carbon::parse($departureDate)->setHour($hour))
+            ->create();
     }
 }

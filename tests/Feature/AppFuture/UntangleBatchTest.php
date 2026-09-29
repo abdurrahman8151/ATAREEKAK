@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\HasApiTokens;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -187,22 +188,24 @@ class UntangleBatchTest extends TestCase
     /** Raw insert: spatial columns bypass fill() on purpose (mutators own them). */
     private function insertRideAt(User $driver, float $srcLng, float $srcLat, float $dstLng, float $dstLat, int $departureMinutes = 2880): Ride
     {
-        \DB::statement(
-            'INSERT INTO rides (driver_id, pickup_address, destination_address,
-                pickup_location, destination_location, departure_time, available_seats,
-                price_per_seat, payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at)
-             VALUES (?, ?, ?, ST_GeomFromText(?, 4326), ST_GeomFromText(?, 4326),
-                ?, 4, 50000, ?, ?, ?, 320500, 14400, ?, NOW(), NOW())',
-            [
-                $driver->id, 'دمشق', 'حلب',
-                sprintf('POINT(%F %F)', $srcLng, $srcLat),
-                sprintf('POINT(%F %F)', $dstLng, $dstLat),
-                now()->addMinutes($departureMinutes)->format('Y-m-d H:i:s'),
-                'cash', 'direct', 'active', '0911000000',
-            ]
-        );
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. Spatial coordinates stay parametric — the geo tests
+        // depend on the caller choosing the points. The builder writes the geometry
+        // through a raw expression, which is required because the spatial columns are
+        // NOT NULL without defaults and the model mutators own them.
+        return RideBuilder::for($driver)
+            ->withAttributes([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320500,
+                'duration' => 14400,
+                'communication_number' => '0911000000',
+            ])
+            ->rawPickup(sprintf('POINT(%F %F)', $srcLng, $srcLat))
+            ->rawDestination(sprintf('POINT(%F %F)', $dstLng, $dstLat))
+            ->departureTime(now()->addMinutes($departureMinutes))
+            ->create();
     }
 }

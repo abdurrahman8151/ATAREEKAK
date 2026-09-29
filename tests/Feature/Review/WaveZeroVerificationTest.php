@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use ReflectionProperty;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -90,18 +91,25 @@ class WaveZeroVerificationTest extends TestCase
         // bypass fill() by design (mutators own geometry). Endpoints are the
         // real city coords; the ride is >140 km from the SEARCH points, so
         // only strategy B (route proximity) could ever match it.
-        DB::statement(
-            "INSERT INTO rides (driver_id, pickup_address, destination_address,
-                pickup_location, destination_location, departure_time, available_seats,
-                price_per_seat, payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at)
-             VALUES (?, 'دمشق', 'حلب',
-                ST_GeomFromText('POINT(36.2765 33.5138)', 4326),
-                ST_GeomFromText('POINT(37.1343 36.2021)', 4326),
-                ?, 4, 50000, 'cash', 'direct', 'active', 320500, 14400, '0911000000', NOW(), NOW())",
-            [$driver->id, $date.' 10:00:00']
-        );
-        $ride = Ride::latest('id')->firstOrFail();
+        // RV-34: shared builder. THE GEOMETRY HERE IS DELIBERATELY TRANSPOSED
+        // (lng-first): this is the V1/V3 fixture whose route geometry is what makes
+        // ST_Buffer(LINESTRING) fail on MySQL 8 (error 3618). Preserved verbatim —
+        // the transposition is finding V1, owned by RV-25.
+        $ride = RideBuilder::for($driver)
+            ->withAttributes([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320500,
+                'duration' => 14400,
+                'communication_number' => '0911000000',
+            ])
+            ->rawPickup('POINT(36.2765 33.5138)')
+            ->rawDestination('POINT(37.1343 36.2021)')
+            ->departureTime($date.' 10:00:00')
+            ->create();
 
         // Route polyline straight through the search area (the midpoint sits
         // ~2 km from the search points below).

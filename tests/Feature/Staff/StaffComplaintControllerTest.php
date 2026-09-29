@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
 /**
@@ -36,6 +37,7 @@ use Tests\TestCase;
 class StaffComplaintControllerTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private Employee $agent;
 
@@ -50,7 +52,7 @@ class StaffComplaintControllerTest extends TestCase
         // FIX: seed admin User + Wallet rows before any staff login so the
         // login success handler can resolve admin config references without
         // throwing an exception → 500 → null token → TypeError.
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000.0);
 
         $this->complaintUser = User::factory()->create(['password' => bcrypt('password123')]);
         $this->agent = $this->makeEmployee(StaffRole::SUPPORT_AGENT, 'agent@staff.test', 'support_agent_1');
@@ -507,44 +509,5 @@ class StaffComplaintControllerTest extends TestCase
         );
 
         return $token;
-    }
-
-    /**
-     * Create the User + Wallet rows that config('admin.*') references.
-     *
-     * The staff login endpoint (or a service/event it triggers on success)
-     * looks up admin rows by email/phone from the admin config. If those rows
-     * don't exist in the test DB the lookup throws → 500 → null token →
-     * TypeError on the string-typed $agentToken property.
-     *
-     * Must be called BEFORE any staff login attempt in setUp().
-     */
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $cfg = config("admin.{$type}");
-
-            $adminUser = User::firstOrCreate(
-                ['email' => $cfg['email']],
-                [
-                    'first_name' => $cfg['first_name'],
-                    'last_name' => $cfg['last_name'],
-                    'password' => bcrypt($cfg['password']),
-                    'gender' => 'M',
-                    'address' => 'دمشق',
-                    'status' => 1,
-                    'email_verified_at' => now(),
-                ]
-            );
-
-            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
-                $wallet = Wallet::create([
-                    'user_id' => $adminUser->id,
-                    'phone_number' => $cfg['phone'],
-                    'balance' => 10_000_000,
-                ]);
-                $adminUser->update(['wallet_id' => $wallet->id]);
-            }
-        }
     }
 }

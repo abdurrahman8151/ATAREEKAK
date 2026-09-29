@@ -6,15 +6,16 @@ use App\Models\Photo;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 class RideTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $driver;
 
@@ -46,7 +47,7 @@ class RideTest extends TestCase
             ]);
         }
 
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000);
 
         $wallet = Wallet::create([
             'user_id' => $this->driver->id,
@@ -115,13 +116,13 @@ class RideTest extends TestCase
 
     public function test_driver_can_get_own_rides(): void
     {
-        $this->insertRide();
+        $this->makeRide();
         $this->withToken($this->token)->getJson('/api/rides')->assertStatus(200);
     }
 
     public function test_can_get_ride_details(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)->getJson("/api/rides/{$ride->id}")->assertStatus(200);
     }
 
@@ -132,7 +133,7 @@ class RideTest extends TestCase
 
     public function test_driver_can_cancel_own_ride(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $this->withToken($this->token)->patchJson("/api/rides/{$ride->id}/cancel")->assertStatus(200);
         $this->assertDatabaseHas('rides', ['id' => $ride->id, 'status' => 'cancelled']);
     }
@@ -140,81 +141,48 @@ class RideTest extends TestCase
     public function test_driver_cannot_cancel_others_ride(): void
     {
         $other = User::factory()->create();
-        $ride = $this->insertRide(['driver_id' => $other->id]);
+        $ride = $this->makeRide(['driver_id' => $other->id]);
         $this->withToken($this->token)->patchJson("/api/rides/{$ride->id}/cancel")->assertStatus(422);
     }
 
     public function test_already_cancelled_ride_cannot_be_cancelled_again(): void
     {
-        $ride = $this->insertRide(['status' => 'cancelled']);
+        $ride = $this->makeRide(['status' => 'cancelled']);
         $this->withToken($this->token)->patchJson("/api/rides/{$ride->id}/cancel")->assertStatus(422);
     }
 
     public function test_driver_can_finish_active_ride(): void
     {
-        $ride = $this->insertRide(['departure_time' => now()->subMinutes(10)]);
+        $ride = $this->makeRide(['departure_time' => now()->subMinutes(10)]);
         $this->withToken($this->token)->postJson("/api/rides/{$ride->id}/finish")->assertSuccessful();
     }
 
     public function test_cannot_finish_ride_before_departure_time(): void
     {
-        $ride = $this->insertRide(['departure_time' => now()->addHours(2)]);
+        $ride = $this->makeRide(['departure_time' => now()->addHours(2)]);
         $this->withToken($this->token)->postJson("/api/rides/{$ride->id}/finish")->assertStatus(400);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
-    private function insertRide(array $overrides = []): Ride
+    private function makeRide(array $overrides = []): Ride
     {
-        $driverId = $overrides['driver_id'] ?? $this->driver->id;
-        $status = $overrides['status'] ?? 'active';
-        $departure = $overrides['departure_time'] ?? now()->addHours(3);
-        $depStr = $departure instanceof Carbon
-            ? $departure->format('Y-m-d H:i:s')
-            : $departure;
-
-        // FIX: added SRID 4326 to ST_GeomFromText so MySQL 8.0 ST_Distance_Sphere
-        // can operate on these points without throwing ER_NOT_IMPLEMENTED_FOR_CARTESIAN_SRS
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at
-            ) VALUES (
-                ?, ?, ?,
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, 4, 50000, 'cash', 'direct', ?, 320.5, 240, ?, NOW(), NOW()
-            )
-        ", [$driverId, 'دمشق', 'حلب', $depStr, $status, $this->driverPhone]);
-
-        return Ride::latest('id')->first();
-    }
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $cfg = config("admin.{$type}");
-            $user = User::firstOrCreate(
-                ['email' => $cfg['email']],
-                ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
-            );
-
-            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
-                $w = Wallet::create([
-                    'user_id' => $user->id,
-                    'phone_number' => $cfg['phone'],
-                    'balance' => 10_000_000,
-                    // wallet_number omitted — 'WLT-' . strtoupper($type) . '-' . Str::random(4)
-                    // is 20+ chars once $type is 'system_admin'; let the model auto-generate instead
-                ]);
-                $user->update(['wallet_id' => $w->id]);
-            } else {
-                Wallet::where('phone_number', $cfg['phone'])->update(['balance' => 10_000_000]);
-            }
-        }
+        // RV-34: shared builder. Values from the previous fixture: seats 4, price
+        // 50000, cash, direct, distance 320.5, duration 240, communication
+        // $this->driverPhone, and driver_id overridable via $overrides['driver_id'].
+        return RideBuilder::forUserId($overrides['driver_id'] ?? $this->driver->id)
+            ->withAttributes(array_merge([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => $this->driverPhone,
+            ], $overrides))
+            ->departureTime($overrides['departure_time'] ?? now()->addHours(3))
+            ->create();
     }
 
     /**

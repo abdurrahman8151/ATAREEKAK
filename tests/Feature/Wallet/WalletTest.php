@@ -7,11 +7,13 @@ use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
 class WalletTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $user;
 
@@ -30,7 +32,7 @@ class WalletTest extends TestCase
         $this->testPhone = '09'.rand(10000000, 99999999);
 
         $this->user = User::factory()->create(['password' => bcrypt('password123')]);
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000);
         $this->token = $this->getToken($this->user);
     }
 
@@ -182,30 +184,6 @@ class WalletTest extends TestCase
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $cfg = config("admin.{$type}");
-            $user = User::firstOrCreate(
-                ['email' => $cfg['email']],
-                ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
-            );
-
-            if (! Wallet::where('phone_number', $cfg['phone'])->exists()) {
-                $w = Wallet::create([
-                    'user_id' => $user->id,
-                    'phone_number' => $cfg['phone'],
-                    'balance' => 10_000_000,
-                    // wallet_number omitted — 'WLT-' . strtoupper($type) . '-' . Str::random(4)
-                    // is 20+ chars once $type is 'system_admin'; let the model auto-generate instead
-                ]);
-                $user->update(['wallet_id' => $w->id]);
-            } else {
-                Wallet::where('phone_number', $cfg['phone'])->update(['balance' => 10_000_000]);
-            }
-        }
-    }
 
     private function getToken(User $user): string
     {

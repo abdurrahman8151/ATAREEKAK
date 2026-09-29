@@ -11,6 +11,7 @@ use App\Services\Payment\WalletTransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -92,30 +93,24 @@ class PassengerConfirmCompletionTest extends TestCase
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private function insertRide(array $o = []): Ride
+    private function makeRide(array $o = []): Ride
     {
-        $departure = $o['departure_time'] ?? now()->subMinutes(5);
-
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status, distance, duration,
-                communication_number, created_at, updated_at
-            ) VALUES (
-                ?, 'دمشق', 'حلب',
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326),
-                ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, ?, 50000, ?, ?, ?, 320.5, 240, ?, NOW(), NOW()
-            )
-        ", [
-            $this->driver->id, $departure->format('Y-m-d H:i:s'),
-            $o['available_seats'] ?? 3, $o['payment_method'] ?? 'e-pay',
-            $o['booking_type'] ?? 'direct', $o['status'] ?? 'active', '0911000000',
-        ]);
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. Values from the previous fixture: seats 3
+        // (overridable), price 50000, e-pay/direct/active (overridable),
+        // distance 320.5, duration 240, communication 0911000000.
+        return RideBuilder::for($this->driver)
+            ->withAttributes(array_merge([
+                'available_seats' => 3,
+                'price_per_seat' => 50000,
+                'payment_method' => 'e-pay',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0911000000',
+            ], $o))
+            ->departureTime($o['departure_time'] ?? now()->subMinutes(5))
+            ->create();
     }
 
     private function book(Ride $ride, User $passenger): Booking
@@ -142,7 +137,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_each_passenger_releases_their_own_escrow_on_confirm(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $b1 = $this->book($ride, $this->p1);
         $b2 = $this->book($ride, $this->p2);
 
@@ -176,7 +171,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_ride_finishes_only_after_the_last_passenger_confirms(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $b1 = $this->book($ride, $this->p1);
         $b2 = $this->book($ride, $this->p2);
 
@@ -191,7 +186,7 @@ class PassengerConfirmCompletionTest extends TestCase
     {
         // Rows created before LAUNCHED replaced awaiting_confirmation must remain
         // confirmable — otherwise those passengers can never release their escrow.
-        $ride = $this->insertRide(['status' => 'awaiting_confirmation']);
+        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
         $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
@@ -207,7 +202,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_confirming_twice_pays_the_driver_only_once(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(200);
@@ -223,7 +218,7 @@ class PassengerConfirmCompletionTest extends TestCase
         // releaseEarningsToDriver() writes 'escrow_released' (plural). It is a
         // ride-wide payout that would double-pay a booking already released
         // per-passenger, so it must stay unreachable.
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $b1 = $this->book($ride, $this->p1);
         $b2 = $this->book($ride, $this->p2);
 
@@ -239,7 +234,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_confirm_requires_authentication(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $b1 = $this->book($ride, $this->p1);
 
         $this->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(401);
@@ -250,7 +245,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_another_passenger_cannot_confirm_someone_elses_booking(): void
     {
-        $ride = $this->insertRide();
+        $ride = $this->makeRide();
         $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p2Token)
@@ -263,7 +258,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_confirm_before_departure_is_rejected(): void
     {
-        $ride = $this->insertRide(['departure_time' => now()->addHours(2)]);
+        $ride = $this->makeRide(['departure_time' => now()->addHours(2)]);
         $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
@@ -275,7 +270,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_cancelled_ride_cannot_be_confirmed(): void
     {
-        $ride = $this->insertRide(['status' => 'cancelled']);
+        $ride = $this->makeRide(['status' => 'cancelled']);
         $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)
@@ -287,7 +282,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
     public function test_finished_ride_cannot_be_confirmed_again(): void
     {
-        $ride = $this->insertRide(['status' => 'finished']);
+        $ride = $this->makeRide(['status' => 'finished']);
         $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)

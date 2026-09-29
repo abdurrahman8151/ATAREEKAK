@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 /**
@@ -510,8 +511,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_format_driver_phone_uses_most_recently_created_ride(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['communication_number' => '0911111111', 'created_at' => now()->subDay()]);
-        $this->insertRide($driver->id, ['communication_number' => '0922222222', 'created_at' => now()]);
+        $this->makeRide($driver->id, ['communication_number' => '0911111111', 'created_at' => now()->subDay()]);
+        $this->makeRide($driver->id, ['communication_number' => '0922222222', 'created_at' => now()]);
 
         $formatted = $this->service->formatDriver($this->reloadDriver($driver->id));
 
@@ -521,8 +522,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_format_driver_phone_skips_rides_with_null_number(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['communication_number' => '0911111111', 'created_at' => now()->subDay()]);
-        $this->insertRide($driver->id, ['communication_number' => null, 'created_at' => now()]);
+        $this->makeRide($driver->id, ['communication_number' => '0911111111', 'created_at' => now()->subDay()]);
+        $this->makeRide($driver->id, ['communication_number' => null, 'created_at' => now()]);
 
         $formatted = $this->service->formatDriver($this->reloadDriver($driver->id));
 
@@ -654,7 +655,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_phone_resolves_from_latest_ride(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['communication_number' => '0933333333']);
+        $this->makeRide($driver->id, ['communication_number' => '0933333333']);
 
         $this->assertEquals('0933333333', $this->service->getDriverProfile($driver->id)['phone']);
     }
@@ -728,9 +729,9 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_completed_rides_counts_finished_status_only(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'cancelled']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'cancelled']);
 
         $this->assertEquals(2, $this->service->getDriverProfile($driver->id)['stats']['completed_rides']);
     }
@@ -738,8 +739,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_total_rides_matches_actual_count_when_under_the_cap(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id);
-        $this->insertRide($driver->id);
+        $this->makeRide($driver->id);
+        $this->makeRide($driver->id);
 
         $this->assertEquals(2, $this->service->getDriverProfile($driver->id)['stats']['total_rides']);
     }
@@ -749,7 +750,7 @@ class AdminDriverServiceTest extends TestCase
         // Documented behavior, not fixed here: see class docblock.
         $driver = $this->makeUser();
         for ($i = 0; $i < 7; $i++) {
-            $this->insertRide($driver->id, ['created_at' => now()->subMinutes($i)]);
+            $this->makeRide($driver->id, ['created_at' => now()->subMinutes($i)]);
         }
 
         $this->assertEquals(5, $this->service->getDriverProfile($driver->id)['stats']['total_rides']);
@@ -759,7 +760,7 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         for ($i = 0; $i < 7; $i++) {
-            $this->insertRide($driver->id, ['created_at' => now()->subMinutes($i)]);
+            $this->makeRide($driver->id, ['created_at' => now()->subMinutes($i)]);
         }
 
         $this->assertCount(5, $this->service->getDriverProfile($driver->id)['recent_rides']);
@@ -768,8 +769,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_recent_rides_ordered_newest_first(): void
     {
         $driver = $this->makeUser();
-        $older = $this->insertRide($driver->id, ['created_at' => now()->subDays(2)]);
-        $newer = $this->insertRide($driver->id, ['created_at' => now()]);
+        $older = $this->makeRide($driver->id, ['created_at' => now()->subDays(2)]);
+        $newer = $this->makeRide($driver->id, ['created_at' => now()]);
 
         $recentRides = $this->service->getDriverProfile($driver->id)['recent_rides'];
 
@@ -780,7 +781,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_recent_rides_shape(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, [
+        $this->makeRide($driver->id, [
             'pickup_address' => 'Damascus',
             'destination_address' => 'Aleppo',
             'status' => 'active',
@@ -798,7 +799,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_recent_rides_include_booking_counts(): void
     {
         $driver = $this->makeUser();
-        $ride = $this->insertRide($driver->id);
+        $ride = $this->makeRide($driver->id);
         $this->makeBooking($ride, $this->makeUser(), 1, 'confirmed');
         $this->makeBooking($ride, $this->makeUser(), 1, 'confirmed');
 
@@ -865,7 +866,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_phone_resolves_from_latest_ride(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['communication_number' => '0944444444']);
+        $this->makeRide($driver->id, ['communication_number' => '0944444444']);
 
         $this->assertEquals('0944444444', $this->service->getDriverDashboard($driver->id)['phone']);
     }
@@ -890,7 +891,7 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         for ($i = 0; $i < 12; $i++) {
-            $this->insertRide($driver->id, ['status' => 'finished']);
+            $this->makeRide($driver->id, ['status' => 'finished']);
         }
 
         $stats = $this->service->getDriverDashboard($driver->id)['stats'];
@@ -902,10 +903,10 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_stats_completed_and_cancelled_counts(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'cancelled']);
-        $this->insertRide($driver->id, ['status' => 'active']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'cancelled']);
+        $this->makeRide($driver->id, ['status' => 'active']);
 
         $stats = $this->service->getDriverDashboard($driver->id)['stats'];
 
@@ -924,11 +925,11 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_cancel_rate_calculation(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'cancelled']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'cancelled']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
 
         // 1 cancelled / 5 total = 20%
         $this->assertEquals(20.0, $this->service->getDriverDashboard($driver->id)['stats']['cancel_rate']);
@@ -938,13 +939,13 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         // 3 cancelled / 7 total = 42.857...% -> 42.9%
-        $this->insertRide($driver->id, ['status' => 'cancelled']);
-        $this->insertRide($driver->id, ['status' => 'cancelled']);
-        $this->insertRide($driver->id, ['status' => 'cancelled']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
-        $this->insertRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'cancelled']);
+        $this->makeRide($driver->id, ['status' => 'cancelled']);
+        $this->makeRide($driver->id, ['status' => 'cancelled']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
+        $this->makeRide($driver->id, ['status' => 'finished']);
 
         $this->assertEquals(42.9, $this->service->getDriverDashboard($driver->id)['stats']['cancel_rate']);
     }
@@ -952,7 +953,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_earnings_is_zero_without_completed_bookings(): void
     {
         $driver = $this->makeUser();
-        $ride = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
+        $ride = $this->makeRide($driver->id, ['price_per_seat' => 50000]);
         $this->makeBooking($ride, $this->makeUser(), 2, 'confirmed'); // not completed
 
         $this->assertEquals(0.0, $this->service->getDriverDashboard($driver->id)['stats']['total_earnings']);
@@ -961,7 +962,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_earnings_applies_five_percent_commission(): void
     {
         $driver = $this->makeUser();
-        $ride = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
+        $ride = $this->makeRide($driver->id, ['price_per_seat' => 50000]);
         $this->makeBooking($ride, $this->makeUser(), 2, 'completed');
         // 2 seats * 50000 * 0.95 = 95000
 
@@ -971,8 +972,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_earnings_sum_across_multiple_completed_bookings(): void
     {
         $driver = $this->makeUser();
-        $ride1 = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
-        $ride2 = $this->insertRide($driver->id, ['price_per_seat' => 20000]);
+        $ride1 = $this->makeRide($driver->id, ['price_per_seat' => 50000]);
+        $ride2 = $this->makeRide($driver->id, ['price_per_seat' => 20000]);
         $this->makeBooking($ride1, $this->makeUser(), 1, 'completed'); // 47500
         $this->makeBooking($ride2, $this->makeUser(), 3, 'completed'); // 57000
 
@@ -983,8 +984,8 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         $otherDriver = $this->makeUser();
-        $ownRide = $this->insertRide($driver->id, ['price_per_seat' => 50000]);
-        $otherRide = $this->insertRide($otherDriver->id, ['price_per_seat' => 50000]);
+        $ownRide = $this->makeRide($driver->id, ['price_per_seat' => 50000]);
+        $otherRide = $this->makeRide($otherDriver->id, ['price_per_seat' => 50000]);
 
         $this->makeBooking($ownRide, $this->makeUser(), 1, 'completed');
         $this->makeBooking($otherRide, $this->makeUser(), 1, 'completed');
@@ -996,7 +997,7 @@ class AdminDriverServiceTest extends TestCase
     {
         $driver = $this->makeUser();
         for ($i = 0; $i < 12; $i++) {
-            $this->insertRide($driver->id, ['created_at' => now()->subMinutes($i)]);
+            $this->makeRide($driver->id, ['created_at' => now()->subMinutes($i)]);
         }
 
         $this->assertCount(10, $this->service->getDriverDashboard($driver->id)['recent_rides']);
@@ -1005,8 +1006,8 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_recent_rides_ordered_newest_first(): void
     {
         $driver = $this->makeUser();
-        $older = $this->insertRide($driver->id, ['created_at' => now()->subDays(2)]);
-        $newer = $this->insertRide($driver->id, ['created_at' => now()]);
+        $older = $this->makeRide($driver->id, ['created_at' => now()->subDays(2)]);
+        $newer = $this->makeRide($driver->id, ['created_at' => now()]);
 
         $recentRides = $this->service->getDriverDashboard($driver->id)['recent_rides'];
 
@@ -1017,7 +1018,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_recent_rides_shape_excludes_ratings_and_comments(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, [
+        $this->makeRide($driver->id, [
             'pickup_address' => 'Damascus',
             'destination_address' => 'Aleppo',
             'price_per_seat' => 30000,
@@ -1035,7 +1036,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_favorite_destination_is_null_without_finished_rides(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['status' => 'active', 'destination_address' => 'Homs']);
+        $this->makeRide($driver->id, ['status' => 'active', 'destination_address' => 'Homs']);
 
         $this->assertNull($this->service->getDriverDashboard($driver->id)['favorite_destination']);
     }
@@ -1043,9 +1044,9 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_favorite_destination_picks_most_visited(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['status' => 'finished', 'destination_address' => 'Homs']);
-        $this->insertRide($driver->id, ['status' => 'finished', 'destination_address' => 'Homs']);
-        $this->insertRide($driver->id, ['status' => 'finished', 'destination_address' => 'Aleppo']);
+        $this->makeRide($driver->id, ['status' => 'finished', 'destination_address' => 'Homs']);
+        $this->makeRide($driver->id, ['status' => 'finished', 'destination_address' => 'Homs']);
+        $this->makeRide($driver->id, ['status' => 'finished', 'destination_address' => 'Aleppo']);
 
         $favorite = $this->service->getDriverDashboard($driver->id)['favorite_destination'];
 
@@ -1056,9 +1057,9 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_favorite_destination_ignores_non_finished_rides(): void
     {
         $driver = $this->makeUser();
-        $this->insertRide($driver->id, ['status' => 'finished', 'destination_address' => 'Homs']);
-        $this->insertRide($driver->id, ['status' => 'cancelled', 'destination_address' => 'Aleppo']);
-        $this->insertRide($driver->id, ['status' => 'cancelled', 'destination_address' => 'Aleppo']);
+        $this->makeRide($driver->id, ['status' => 'finished', 'destination_address' => 'Homs']);
+        $this->makeRide($driver->id, ['status' => 'cancelled', 'destination_address' => 'Aleppo']);
+        $this->makeRide($driver->id, ['status' => 'cancelled', 'destination_address' => 'Aleppo']);
 
         $this->assertEquals('Homs', $this->service->getDriverDashboard($driver->id)['favorite_destination']['name']);
     }
@@ -1540,43 +1541,27 @@ class AdminDriverServiceTest extends TestCase
      * spatial POINTs, so this mirrors the pattern used across the Ride test
      * suites rather than going through Eloquent's location mutators.
      */
-    private function insertRide(int $driverId, array $overrides = []): Ride
+    private function makeRide(int $driverId, array $overrides = []): Ride
     {
-        $status = $overrides['status'] ?? 'active';
-        $pickupAddress = $overrides['pickup_address'] ?? 'دمشق';
-        $destinationAddress = $overrides['destination_address'] ?? 'حلب';
-        $pricePerSeat = $overrides['price_per_seat'] ?? 50000;
-        $communicationNumber = array_key_exists('communication_number', $overrides)
-            ? $overrides['communication_number']
-            : '0912345678';
-        $departureTime = $overrides['departure_time'] ?? now()->addHours(3);
-        $createdAt = $overrides['created_at'] ?? now();
-
-        $departureStr = $departureTime instanceof Carbon ? $departureTime->format('Y-m-d H:i:s') : $departureTime;
-        $createdStr = $createdAt instanceof Carbon ? $createdAt->format('Y-m-d H:i:s') : $createdAt;
-
-        DB::statement("
-            INSERT INTO rides (
-                driver_id, pickup_address, destination_address,
-                pickup_location, destination_location,
-                departure_time, available_seats, price_per_seat,
-                payment_method, booking_type, status,
-                distance, duration, communication_number, created_at, updated_at
-            ) VALUES (
-                ?, ?, ?,
-                ST_GeomFromText('POINT(33.5138 36.2765)', 4326), ST_GeomFromText('POINT(36.2021 37.1343)', 4326),
-                ?, 4, ?,
-                'cash', 'direct', ?,
-                320.5, 240, ?, ?, ?
-            )
-        ", [
-            $driverId, $pickupAddress, $destinationAddress,
-            $departureStr, $pricePerSeat,
-            $status,
-            $communicationNumber, $createdStr, $createdStr,
-        ]);
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. 'Damascus'/'Aleppo' are ASSERTED by this file's
+        // tests, so they are passed explicitly rather than relying on the builder's
+        // Arabic default. seats 4, price 50000 (overridable), cash/direct,
+        // status overridable, distance 320.5, duration 240, communication 0912345678.
+        return RideBuilder::forUserId($driverId)
+            ->withAttributes(array_merge([
+                'pickup_address' => 'Damascus',
+                'destination_address' => 'Aleppo',
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'cash',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0912345678',
+            ], $overrides))
+            ->departureTime($overrides['departure_time'] ?? now()->addHours(3))
+            ->create();
     }
 
     private function makeBooking(Ride $ride, User $passenger, int $seats = 1, string $status = 'completed'): Booking

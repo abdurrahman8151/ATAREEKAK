@@ -3,9 +3,10 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\User;
-use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Tests\Support\Concerns\ActsAsStaff;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
 /**
@@ -18,7 +19,9 @@ use Tests\TestCase;
  */
 class AdminBanControllerTest extends TestCase
 {
+    use ActsAsStaff;
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     protected function setUp(): void
     {
@@ -45,7 +48,7 @@ class AdminBanControllerTest extends TestCase
             'permissions' => ['view_wallet'],
         ]);
 
-        $this->seedAdminWallets();
+        $this->seedSystemWallets(10_000_000.0);
     }
 
     // =========================================================================
@@ -56,7 +59,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Repeated violation of community guidelines.',
                 'type' => 'permanent',
@@ -71,7 +74,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Temporary ban for policy violation today.',
                 'type' => 'temporary',
@@ -87,7 +90,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Verified policy breach documented case.',
                 'type' => 'permanent',
@@ -112,7 +115,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", ['type' => 'permanent'])
             ->assertStatus(422);
     }
@@ -121,7 +124,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Short',
                 'type' => 'permanent',
@@ -133,7 +136,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Long enough reason for this test case.',
             ])
@@ -144,7 +147,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Long enough reason for this test case.',
                 'type' => 'forever',
@@ -156,7 +159,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Long enough reason for this test case.',
                 'type' => 'temporary',
@@ -168,7 +171,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Long enough reason for this test case.',
                 'type' => 'temporary',
@@ -181,7 +184,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => -1]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Attempting to ban already banned user.',
                 'type' => 'permanent',
@@ -191,7 +194,7 @@ class AdminBanControllerTest extends TestCase
 
     public function test_ban_returns_404_for_nonexistent_user(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson('/api/admin/users/999999/ban', [
                 'reason' => 'Nonexistent user ban attempt here.',
                 'type' => 'permanent',
@@ -203,7 +206,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Complete policy violation with evidence.',
                 'type' => 'permanent',
@@ -217,7 +220,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/ban", [
                 'reason' => 'Serious community guideline violation.',
                 'type' => 'permanent',
@@ -238,7 +241,7 @@ class AdminBanControllerTest extends TestCase
             'ban_type' => 'permanent',
         ]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/unban")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
@@ -254,7 +257,7 @@ class AdminBanControllerTest extends TestCase
             'ban_type' => 'temporary',
         ]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/unban");
 
         $fresh = $user->fresh();
@@ -273,7 +276,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/unban")
             ->assertStatus(422);
     }
@@ -282,14 +285,14 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 0]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/unban")
             ->assertStatus(422);
     }
 
     public function test_unban_returns_404_for_nonexistent_user(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson('/api/admin/users/999999/unban')
             ->assertStatus(404);
     }
@@ -298,7 +301,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => -1, 'ban_type' => 'permanent']);
 
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/unban");
 
         $response->assertStatus(200);
@@ -309,7 +312,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => -1, 'ban_type' => 'temporary']);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->postJson("/api/admin/users/{$user->id}/unban", [
                 'admin_notes' => 'User appealed and ban was lifted after review.',
             ])
@@ -324,7 +327,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson("/api/admin/users/{$user->id}/status")
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
@@ -340,7 +343,7 @@ class AdminBanControllerTest extends TestCase
             'ban_type' => 'permanent',
         ]);
 
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->getJson("/api/admin/users/{$user->id}/status");
 
         $response->assertStatus(200)
@@ -354,7 +357,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson("/api/admin/users/{$user->id}/status")
             ->assertStatus(200)
             ->assertJsonStructure([
@@ -370,7 +373,7 @@ class AdminBanControllerTest extends TestCase
 
     public function test_user_status_returns_404_for_nonexistent_user(): void
     {
-        $this->withToken($this->primaryToken())
+        $this->withToken($this->adminToken())
             ->getJson('/api/admin/users/999999/status')
             ->assertStatus(404);
     }
@@ -379,7 +382,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->getJson("/api/admin/users/{$user->id}/status");
 
         $this->assertEquals($user->id, $response->json('data.user_id'));
@@ -389,7 +392,7 @@ class AdminBanControllerTest extends TestCase
     {
         $user = User::factory()->create(['status' => 1]);
 
-        $response = $this->withToken($this->primaryToken())
+        $response = $this->withToken($this->adminToken())
             ->getJson("/api/admin/users/{$user->id}/status");
 
         $this->assertNull($response->json('data.ban'));
@@ -398,40 +401,10 @@ class AdminBanControllerTest extends TestCase
     // =========================================================================
     // Helpers
     // =========================================================================
-
-    private function primaryToken(): string
-    {
-        return $this->postJson('/api/admin/login', [
-            'email' => 'primary@admin.test',
-            'password' => 'primary_pass',
-        ])->json('tokens.access_token');
-    }
-
-    private function seedAdminWallets(): void
-    {
-        foreach (['system_admin', 'sycash'] as $type) {
-            $config = config("admin.{$type}");
-            $adminUser = User::firstOrCreate(
-                ['email' => $config['email']],
-                [
-                    'first_name' => $config['first_name'],
-                    'last_name' => $config['last_name'],
-                    'password' => bcrypt($config['password']),
-                    'gender' => 'M',
-                    'address' => 'دمشق',
-                    'status' => 1,
-                    'email_verified_at' => now(),
-                ]
-            );
-
-            if (! Wallet::where('phone_number', $config['phone'])->exists()) {
-                $wallet = Wallet::create([
-                    'user_id' => $adminUser->id,
-                    'phone_number' => $config['phone'],
-                    'balance' => 10_000_000,
-                ]);
-                $adminUser->update(['wallet_id' => $wallet->id]);
-            }
-        }
-    }
+    //
+    // RV-34: the token helper that used to post config('admin.system_admin')
+    // email/password to /api/admin/login is GONE. Admin auth now authenticates
+    // an Employee BY USERNAME, and config/admin.php only carries phone +
+    // wallet_prefix — so the old helper always returned a null token.
+    // $this->adminToken() from Tests\Support\Concerns\ActsAsStaff mints a real
 }

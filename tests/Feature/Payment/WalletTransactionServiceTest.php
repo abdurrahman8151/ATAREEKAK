@@ -11,13 +11,15 @@ use App\Services\Payment\WalletTransactionService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
+use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 class WalletTransactionServiceTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private WalletTransactionService $service;
 
@@ -51,22 +53,13 @@ class WalletTransactionServiceTest extends TestCase
         $this->passengerPhone = '092'.rand(1000000, 9999999);
 
         // ── Admin wallets ─────────────────────────────────────────────────────
-        foreach (['system_admin', 'sycash'] as $type) {
-            $cfg = config("admin.{$type}");
-            $user = User::firstOrCreate(
-                ['email' => $cfg['email']],
-                ['first_name' => $type, 'last_name' => 'Admin', 'password' => bcrypt($cfg['password']), 'gender' => 'M', 'address' => 'دمشق', 'status' => true]
-            );
-            if (! $user->wallet_id) {
-                $w = Wallet::create([
-                    'user_id' => $user->id,
-                    'phone_number' => $cfg['phone'],
-                    'balance' => 10_000_000,
-                    // wallet_number omitted — 'WLT-SYSTEM_ADMIN-001' is 20 chars, over the 16-char column
-                ]);
-                $user->update(['wallet_id' => $w->id]);
-            }
-        }
+        // RV-34: delegated to the shared trait (system wallets by phone, user_id
+        // NULL). The previous inline body read config('admin.*.email'|'password'),
+        // keys that were removed when admin credentials moved to the employees
+        // table — that raised "Undefined array key email" in setUp and errored all
+        // 27 tests before the body ever ran. The 10_000_000 starting balance and the
+        // two wallet properties below are preserved.
+        $this->seedSystemWallets(10_000_000.0);
 
         $this->primaryAdminWallet = Wallet::where('phone_number', config('admin.system_admin.phone'))->first();
         $this->syCashWallet = Wallet::where('phone_number', config('admin.sycash.phone'))->first();
@@ -91,7 +84,7 @@ class WalletTransactionServiceTest extends TestCase
         $this->passenger->update(['wallet_id' => $this->passengerWallet->id]);
 
         // ── Ride ──────────────────────────────────────────────────────────────
-        $this->ride = $this->insertRide($this->driver, [
+        $this->ride = $this->makeRide($this->driver, [
             'price_per_seat' => 50_000,
             'available_seats' => 4,
             'payment_method' => 'e-pay',
@@ -428,29 +421,24 @@ class WalletTransactionServiceTest extends TestCase
     // Helpers
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private function insertRide(User $driver, array $overrides = []): Ride
+    private function makeRide(User $driver, array $overrides = []): Ride
     {
-        $price = $overrides['price_per_seat'] ?? 50_000;
-        $seats = $overrides['available_seats'] ?? 4;
-        $payment = $overrides['payment_method'] ?? 'e-pay';
-        $deptTime = now()->addHours(3)->format('Y-m-d H:i:s');
-
-        DB::statement("
-            INSERT INTO rides
-                (driver_id, pickup_address, destination_address,
-                 pickup_location, destination_location,
-                 departure_time, available_seats, price_per_seat,
-                 payment_method, booking_type, status,
-                 distance, duration, communication_number,
-                 created_at, updated_at)
-            VALUES (?, 'دمشق', 'حلب',
-                ST_GeomFromText('POINT(33.5138 36.2765)'),
-                ST_GeomFromText('POINT(36.2021 37.1343)'),
-                ?, ?, ?, ?, 'direct', 'active',
-                320.5, 240, '0912345678', NOW(), NOW())
-        ", [$driver->id, $deptTime, $seats, $price, $payment]);
-
-        return Ride::latest('id')->first();
+        // RV-34: shared builder. Values from the previous fixture: seats 4
+        // (overridable), price 50000 (overridable), e-pay (overridable),
+        // direct/active, distance 320.5, duration 240, communication 0912345678.
+        return RideBuilder::for($driver)
+            ->withAttributes(array_merge([
+                'available_seats' => 4,
+                'price_per_seat' => 50000,
+                'payment_method' => 'e-pay',
+                'booking_type' => 'direct',
+                'status' => 'active',
+                'distance' => 320.5,
+                'duration' => 240,
+                'communication_number' => '0912345678',
+            ], $overrides))
+            ->departureTime(now()->addHours(3))
+            ->create();
     }
 
     private function makeBooking(int $seats = 1, string $status = 'confirmed'): Booking
