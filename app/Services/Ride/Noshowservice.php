@@ -331,6 +331,7 @@ final class Noshowservice
             ->get();
 
         $resolved = 0;
+        $voided = 0;
 
         foreach ($expired as $report) {
             try {
@@ -355,7 +356,19 @@ final class Noshowservice
                         return false; // resolved/disputed meanwhile — skip
                     }
 
-                    $this->applyPenalty($locked);
+                    // RV-02 (L1): applyPenalty() returns false when the booking is
+                    // no longer `confirmed` (already released/cancelled by another
+                    // path). The report is then terminal as `void` rather than
+                    // staying `pending`, which is what made the scheduler retry the
+                    // same settlement every minute (R2 §1.3).
+                    if (! $this->applyPenalty($locked)) {
+                        $locked->update([
+                            'status' => 'void',
+                            'resolved_at' => now(),
+                        ]);
+
+                        return 'voided';
+                    }
 
                     $locked->update([
                         'status' => 'resolved_reporter_wins',
@@ -366,6 +379,20 @@ final class Noshowservice
                 });
 
                 if (! $applied) {
+                    continue;
+                }
+
+                if ($applied === 'voided') {
+                    // Terminal: the booking was already settled/reset elsewhere, so
+                    // no money moved. Counted separately from a real resolution so
+                    // the caller can tell "nothing to do" from "settled".
+                    $voided++;
+
+                    Log::info('No-show report voided: booking was no longer confirmed', [
+                        'report_id' => $report->id,
+                        'target_role' => $report->target_role,
+                    ]);
+
                     continue;
                 }
 
@@ -488,9 +515,29 @@ final class Noshowservice
      * The 2-hour window expired with no counter-report.
      * The reporter wins. The target is penalised.
      */
-    private function applyPenalty(NoshowReport $report): void
+    private function applyPenalty(NoshowReport $report): bool
     {
-        $booking = Booking::with(['ride', 'user'])->findOrFail($report->booking_id);
+        // RV-02 (L1): re-check the BOOKING inside the locked transaction.
+        // resolveExpiredReports() already locks and re-checks the REPORT (T3-16),
+        // but the booking was loaded here with no lock and no status check, so a
+        // settlement ran even when the booking had already been settled by another
+        // path — the passenger confirming completion (escrow already released
+        // 95/5) or any cancel flow. applyPenalty() then flipped the status to
+        // `no_show` and moved the same fare a second time out of SyCash, i.e. out
+        // of OTHER bookings' escrow. Require `confirmed`: the caller voids the
+        // report instead, so a settled booking can never be re-settled.
+        $booking = Booking::lockForUpdate()->with(['ride', 'user'])->findOrFail($report->booking_id);
+
+        if ($booking->status !== BookingStatus::CONFIRMED->value) {
+            Log::warning('No-show penalty skipped: booking is no longer confirmed', [
+                'report_id' => $report->id,
+                'booking_id' => $booking->id,
+                'booking_status' => $booking->status,
+            ]);
+
+            return false;
+        }
+
         $ride = $booking->ride;
         $passenger = User::findOrFail($report->target_role === 'passenger' ? $report->target_id : $report->reporter_id);
         $driver = User::findOrFail($ride->driver_id);
@@ -581,6 +628,8 @@ final class Noshowservice
                 Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
             }
         }
+
+        return true;
     }
 
     // =========================================================================

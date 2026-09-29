@@ -391,7 +391,7 @@ state lives in the numbered sections above; this table is the index.
 | RV-01 | **PARTIAL — authorization + filenames VERIFIED FIX**; storage half OPEN (owner decision: private disk needs a staff streaming route first) | §13 — 5 Review tests incl. causality needle; `Review` 20/120, `Verification` 22/30, `Documents` 16/23; Profile/Complaints/Chat failures proven pre-existing by stash comparison |
 | RV-04 | **PARTIAL — staff→user replay + empty-secret boot guard VERIFIED FIX**; token unification + TTL (decision 9) OPEN | §14 — pin failed 200≠401 before the fix; causality needle; `Review` 25/128, `StaffAdminIdentityAttributionTest` 10/44; Middleware/JwtSecretCommand failures proven pre-existing |
 | RV-05 | **VERIFIED FIX** | §15 — 8 tests (trust off/on, CIDR, untrusted-source spoof denied, separate buckets, nginx directive); causality needle; Review 33/142, RateLimiting 23/151, DebugEndpointDisclosure 9/209, SessionCookieAndCors 11/20 |
-| RV-02 (L1) | PENDING — **scope reduced** by V16 (headline defect refuted; only the `applyPenalty` booking-status re-check remains) | — |
+| RV-02 (L1) | **VERIFIED FIX** (headline refuted by V16; residue fixed) | §16 — needle reproduced a 47,500 double payout (95000 vs 47500); Review 36/153, MoneyPathBatch 7/21, UntangleBatch 8/213, DriverNoShowPolicy 18/26, ScoreTransaction 21/33 |
 | RV-03 | BLOCKED — owner decision 6 required | — |
 | RV-08 | PENDING — listed in R1 §7 Wave 2; R2's wave table omits it (placement to confirm) | — |
 
@@ -400,13 +400,14 @@ state lives in the numbered sections above; this table is the index.
 | Wave | Tasks | Status |
 | --- | --- | --- |
 | 2 | RV-34, RV-37, RV-18, RV-13, RV-14, RV-16, RV-22, RV-36, RV-38, RV-35 | PENDING (RV-34 first — it un-reds ~340 tests and is Wave 3's safety net) |
-| 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15) |
+| 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
 | 6 | RV-28, RV-30, RV-31, RV-32, RV-33, RV-39 | PENDING |
 
-**Current task:** none open — RV-01, RV-04 and RV-05 each reached a terminal state.
-**Next:** RV-02 (L1) → RV-03.
+**Current task:** Wave 1 is complete except RV-03, which is blocked on you.
+**Next:** RV-03 once decision 6 lands; otherwise Wave 2 opens with **RV-34** (the shared
+test-support layer, which un-reds ~340 tests and is Wave 3's safety net).
 **Awaiting the owner:** (a) RV-01 storage half — approve a staff-authenticated document
 streaming route so KYC can move off the public disk; (b) RV-04 — token unification is a
 refactor, and decision 9 (access TTL 600 → 15–60) is yours; (c) RV-08 placement;
@@ -628,3 +629,83 @@ single-hop topology read from the file) — `nginx -t` and a live two-proxy-hop 
 the container image, which is not available here. The `set_real_ip_from`/`real_ip_header`
 recipe from R1 applies only if an outer TLS terminator is added in front; no such hop
 exists in `nginx-docker.conf` today, so adding it now would be speculative.
+
+---
+
+## 16. RV-02 (L1) — no-show settlement could settle a booking twice — VERIFIED FIX
+
+**Scope note first.** V16 refuted RV-02's *headline* claim (cancelling all seats via
+`cancel-seats` and via `cancelBooking` produce the same ledger and the same score), so L1
+was reduced to the residue R1 and R2 both name: the missing **booking-level** re-check.
+
+**Problem** — `Noshowservice::applyPenalty()` loaded the booking with
+`Booking::with(['ride','user'])->findOrFail(...)` — **no lock, no status check** — and then
+unconditionally ran `$booking->update(['status' => 'no_show', ...])` and, for e-pay, moved
+the fare out of SyCash (escrow → driver 95% / primary 5%). `resolveExpiredReports()` had
+already been hardened under T3-16 to lock and re-check the **report**, but nothing
+re-checked the **booking**, so a settlement still ran against a booking that another path
+had already settled:
+- the passenger confirming completion (`passengerConfirmCompletion`, which releases escrow
+  95/5), then the report expires ~2 h later and moves the same fare **again** — the second
+  payment comes out of SyCash, i.e. out of *other* bookings' escrow;
+- any cancel flow (passenger `cancelBooking`, driver `cancelRide`, staff cancel) leaving a
+  pending report that later settles.
+
+R2 §1.3 additionally recorded the retry: when a skip/failure left the report `pending`, the
+scheduler re-attempted it every minute, and `noshow_reports.status` was a DB ENUM with no
+terminal "nothing to do" value.
+
+**Fix**
+- `applyPenalty()` now locks the booking (`Booking::lockForUpdate()`) and requires
+  `status === confirmed`; otherwise it logs and returns **false**. A settled or cancelled
+  booking can therefore never be settled a second time, and the lock makes the check
+  authoritative against a concurrent resolver.
+- `resolveExpiredReports()` treats `false` as terminal: the report is marked **`void`** with
+  `resolved_at`, counted separately (`$voided`) and logged, so the scheduler stops retrying.
+  The method still returns `$resolved` (its existing contract) — no caller changes.
+- New migration `2026_09_30_000000_add_void_to_noshow_reports_status.php`: adds `void` to the
+  `noshow_reports.status` ENUM. **This is the one piece R2 had assigned to RV-40 (wave 3),
+  and L1 cannot function without it** — the smallest correct slice was taken (only `void`).
+  `failed` + the attempt counter were deliberately **not** added: nothing writes them until
+  L2 lands, so shipping an unused enum value would be speculative. `down()` moves any `void`
+  rows back to `disputed` before shrinking the list, so the rollback cannot truncate data.
+- The guard is scoped to the *booking*; the report-level T3-16 lock is unchanged, so the two
+  layers now cover both halves of the original defect.
+
+**Files changed** — `app/Services/Ride/Noshowservice.php`,
+new `database/migrations/2026_09_30_000000_add_void_to_noshow_reports_status.php`,
+new `tests/Feature/Review/NoshowSettlementGuardTest.php`.
+
+**Verification**
+- New `NoshowSettlementGuardTest` (3 tests, 11 assertions), using R2 §1.3's skeleton
+  (a second escrowed booking proves the money came out of *someone else's* escrow):
+  1. report expires after the passenger already confirmed → driver balance **unchanged**,
+     SyCash **unchanged** (`b2`'s 50,000 survives), report **`void`**;
+  2. booking cancelled while the report was pending → no money moves, booking stays
+     `cancelled` (not flipped to `no_show`), report **`void`**;
+  3. **the feature still works** — a genuinely expired report on a still-confirmed booking
+     resolves to `resolved_reporter_wins`, booking becomes `no_show`, and the driver is paid.
+- **Causality needle (lint-guarded after a bad first attempt):** with the lock and guard
+  removed, the test fails with `Failed asserting that 95000.0 is identical to 47500.0` — a
+  **double payout of 47,500** — plus the SyCash drain; restore is byte-exact (`md5`
+  compared) and returns green.
+- Regressions: `Review` **OK (36/153)**, `MoneyPathBatchTest` **OK (7/21)**,
+  `UntangleBatchTest` **OK (8/213)**, `DriverNoShowPolicyTest` **OK (18/26)**,
+  `ScoreTransactionTest` **OK (21/33)**, `T3Batch` 37/430, `T4Batch` 16/50, `AppFuture`
+  20/253 — all at the recorded floor.
+
+**Method note (recorded because it nearly produced a false pass):** my first needle did
+brace surgery and left the file with a **parse error**; the suite reported "failures" that
+proved nothing. The needle script now lints the patched file and **discards its own result**
+if the file does not parse, and verifies the restore by hash. A red suite is not evidence
+unless the code under test actually compiled.
+
+**Final state: VERIFIED FIX** for the L1 defect. L2 (per-booking `escrow_held`, idempotent
+`posting_key`, the `SyCash.balance == SUM(bookings.escrow_held)` invariant) remains in wave 3
+with RV-40/RV-09 as recorded, and `failed` + attempt count land with it.
+
+**Genuinely unverified:** the two-process concurrency test R1 asks for was not written — the
+lock's correctness here is argued from `lockForUpdate()` semantics plus the existing T3-16
+pattern, and the suite is single-process. A genuine concurrent-resolution test needs a second
+connection and is really L2's territory (it belongs with the idempotency keys, where a
+duplicate posting can be asserted regardless of interleaving).
