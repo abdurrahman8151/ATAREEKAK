@@ -3,9 +3,11 @@
 Delta to `APP_FUTURE_AUDIT_REVIEW.md` (called **R1** below). Read R1 first; this file only changes or adds.
 Date: 2026-09-29. Same working rules as R1 §0 and `AGENTS.md`: one task at a time, explain → smallest fix → verify → `VERIFIED FIX` / `VERIFIED ROLLBACK`, log in `docs/audit/`, no secrets in the record. New tests go in `tests/Feature/Review/`; never edit an existing assertion just to turn it green (list it in RV-35 instead).
 
-> **Execution status lives in §12 (progress table).** §9–§11 are the per-task logs
-> (Wave-0 check results, RV-07, RV-06) with the checks, causality and regressions that
-> back each terminal state. Current task and next task are stated in §12.
+> **Start here for "where are we": §18.** It holds the commit map (which commit produced each
+> terminal state), the consolidated open-decision list with what each one blocks, the explicit
+> next sequence, and the RV-35 handoff. §12 is the per-wave progress table, and §§9–§17 are the
+> per-task logs carrying the checks, causality evidence and regressions behind each terminal
+> state. Wave-0 verify results are in §9 (R2) and R1 §9 (V1–V10).
 
 ---
 
@@ -386,12 +388,12 @@ state lives in the numbered sections above; this table is the index.
 
 | Task | Status | Verification |
 | --- | --- | --- |
-| RV-07 | **VERIFIED FIX** (agent-side) — owner rotation/history outstanding | §10 — 524 JWTs → 0, `node --check` 6/6, guard both branches, staged `phpunit.xml` scanned |
-| RV-06 | **VERIFIED FIX** | §11 — 6 tests/86 assertions incl. unauthenticated `GET /horizon` ⇒ 403/404; causality needle; regression green |
-| RV-01 | **PARTIAL — authorization + filenames VERIFIED FIX**; storage half OPEN (owner decision: private disk needs a staff streaming route first) | §13 — 5 Review tests incl. causality needle; `Review` 20/120, `Verification` 22/30, `Documents` 16/23; Profile/Complaints/Chat failures proven pre-existing by stash comparison |
-| RV-04 | **PARTIAL — staff→user replay + empty-secret boot guard VERIFIED FIX**; token unification + TTL (decision 9) OPEN | §14 — pin failed 200≠401 before the fix; causality needle; `Review` 25/128, `StaffAdminIdentityAttributionTest` 10/44; Middleware/JwtSecretCommand failures proven pre-existing |
-| RV-05 | **VERIFIED FIX** | §15 — 8 tests (trust off/on, CIDR, untrusted-source spoof denied, separate buckets, nginx directive); causality needle; Review 33/142, RateLimiting 23/151, DebugEndpointDisclosure 9/209, SessionCookieAndCors 11/20 |
-| RV-02 (L1) | **VERIFIED FIX** (headline refuted by V16; residue fixed) | §16 — needle reproduced a 47,500 double payout (95000 vs 47500); Review 36/153, MoneyPathBatch 7/21, UntangleBatch 8/213, DriverNoShowPolicy 18/26, ScoreTransaction 21/33 |
+| RV-07 | **VERIFIED FIX** (agent-side) — owner rotation/history outstanding | §10 — 524 JWTs → 0, `node --check` 6/6, guard both branches, staged `phpunit.xml` scanned — commit `0c0ea3c` |
+| RV-06 | **VERIFIED FIX** | §11 — 6 tests/86 assertions incl. unauthenticated `GET /horizon` ⇒ 403/404; causality needle; regression green — `896c331` |
+| RV-01 | **PARTIAL — authorization + filenames VERIFIED FIX**; storage half OPEN (owner decision: private disk needs a staff streaming route first) | §13 — 5 Review tests incl. causality needle; `Review` 20/120, `Verification` 22/30, `Documents` 16/23; Profile/Complaints/Chat failures proven pre-existing by stash comparison — `95ad30d` |
+| RV-04 | **PARTIAL — staff→user replay + empty-secret boot guard VERIFIED FIX**; token unification + TTL (decision 9) OPEN | §14 — pin failed 200≠401 before the fix; causality needle; `Review` 25/128, `StaffAdminIdentityAttributionTest` 10/44; Middleware/JwtSecretCommand failures proven pre-existing — `d5043b5` |
+| RV-05 | **VERIFIED FIX** | §15 — 8 tests (trust off/on, CIDR, untrusted-source spoof denied, separate buckets, nginx directive); causality needle; Review 33/142, RateLimiting 23/151, DebugEndpointDisclosure 9/209, SessionCookieAndCors 11/20 — `09e86c5` |
+| RV-02 (L1) | **VERIFIED FIX** (headline refuted by V16; residue fixed) | §16 — needle reproduced a 47,500 double payout (95000 vs 47500); Review 36/153, MoneyPathBatch 7/21, UntangleBatch 8/213, DriverNoShowPolicy 18/26, ScoreTransaction 21/33 — `ba45e4b` |
 | RV-03 | BLOCKED — owner decision 6 required | — |
 | RV-08 | PENDING — listed in R1 §7 Wave 2; R2's wave table omits it (placement to confirm) | — |
 
@@ -401,7 +403,7 @@ state lives in the numbered sections above; this table is the index.
 | --- | --- | --- |
 | 1 | RV-07, RV-06, RV-01, RV-04, RV-05, RV-02 (L1) | **DONE** — all VERIFIED FIX (§§10, 11, 13–16) |
 | 1 | RV-03 | BLOCKED on owner decision 6 |
-| 2 | **RV-34** | **DONE — VERIFIED FIX** (§17): errors 443 → 71 (**−372**), 0 regressions; Causes A/B/C all at zero; ratchet green |
+| 2 | **RV-34** | **DONE — VERIFIED FIX** (§17): errors 443 → 71 (**−372**), 0 regressions; Causes A/B/C all at zero; ratchet green — `5414344` |
 | 2 | RV-37, RV-18, RV-13, RV-14, RV-16, RV-22, RV-36, RV-38, RV-35 | PENDING — next is RV-35 (inventory of the 117 remaining non-passing tests) |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
@@ -993,3 +995,107 @@ depends on how they want to run the suite; no change was made to the user's file
 
 **State: VERIFIED FIX** (RV-34). The `phpunit.xml` hazard is **reported, not fixed** — it needs
 an owner decision, and the file is user-owned.
+
+---
+
+## 18. Master status, commit map, and open owner decisions
+
+This section is the single place to look for "where are we". It adds three things the numbered
+sections above did not carry: a **commit map** (so any terminal state can be traced to the exact
+commit that produced it), a **consolidated open-decision list** with what each one blocks, and an
+explicit **next** sequence.
+
+### 18.1 Commit map (branch `Agentic`)
+
+| Commit | Task | Terminal state |
+| --- | --- | --- |
+| `97cd3f1` | V1–V10 verify (Wave 0) | RECORDED + pinning tests |
+| `c1bb4c7` | V11–V16 verify (Wave 0) | RECORDED; refuted RV-02 (L1) headline + part of RV-36 |
+| `0c0ea3c` | RV-07 committed secrets | VERIFIED FIX (agent-side) |
+| `896c331` | RV-06 Horizon + nginx upstream leak | VERIFIED FIX |
+| `95ad30d` | RV-01 KYC IDOR + filenames | PARTIAL (storage half open) |
+| `d5043b5` | RV-04 staff→user replay + JWT boot guard | PARTIAL (unification + TTL open) |
+| `09e86c5` | RV-05 client IP behind nginx | VERIFIED FIX |
+| `ba45e4b` | RV-02 (L1) double settlement | VERIFIED FIX |
+| `726b094` | audit progress tables added | documentation |
+| `5414344` | RV-34 shared test-support layer | VERIFIED FIX (443 → 71 errors) |
+| `b9643f1`, `92f454e`, `2687872`, `fa33fca` | AF-1, AF-2′, AF-4 (pre-R2) | VERIFIED FIX, see `APP_FUTURE_AUDIT.md` |
+
+### 18.2 Status summary
+
+```
+Backlog:  RV-01..RV-33 (R1) + RV-34..RV-40 (R2)  =  40 tasks
+  VERIFIED FIX (complete) .............................  6   RV-07, RV-06, RV-05, RV-02 (L1), RV-34
+                                                      +     RV-01, RV-04 verified on their code halves
+  PARTIAL (awaiting a decision) ........................  2   RV-01, RV-04
+  BLOCKED on the owner ................................  1   RV-03
+  PENDING / not started ...............................  31
+Verify checks  V1-V16:  15 recorded, 1 never run (V7 — no replica access)
+
+Suite:  errors 443 -> 71 (-372)   non-passing 468 -> 117   regressions 0
+```
+
+### 18.3 Open owner decisions — consolidated
+
+Decisions 1–10 originate in R1 §6; 11–14 in R2 §5. Their **current** state:
+
+| # | Decision | Blocks | Status |
+| --- | --- | --- | --- |
+| 1 | KYC: approve a **staff-authenticated document streaming route** so files leave the public disk | RV-01 storage half | open |
+| 2 | Auto-confirm window for unconfirmed rides / escrow release policy | RV-10 | open |
+| 3 | Platform fee on cancellation payouts (currently none) | RV-09 | open |
+| 4 | Phone-OTP endpoints: keep or delete | RV-16 | open |
+| 5 | Show driver phone to all authenticated users, or booked passengers only | RV-29 | open |
+| **6** | **Staff-initiated cancel: full refund? score impact?** | **RV-03 — the only Wave-1 blocker** | **open** |
+| 7 | One deployment target: compose+nginx or Render | RV-08 | open |
+| 8 | Account-enumeration policy (uniform vs friendly errors) | RV-16 | open |
+| 9 | Access-token TTL (600 min → 15–60) | RV-04 completion | open |
+| 10 | Add a real `users.phone`? | RV-19 | open |
+| 11 | Reject KYC until every required document is attached? | RV-01 | open |
+| 12 | Delete the stub notification classes and their tests? | RV-35 / RV-31 | open |
+| 13 | Statuses as `string` + PHP enum instead of DB ENUM? | RV-40 | open |
+| 14 | Add a whole-booking cancel route, or keep cancel-via-all-seats? | V16 follow-up | open |
+| — | **`phpunit.xml` targets a reachable Aiven database**; `RefreshDatabase` drops tables. Point it at a local throwaway MySQL. | data-loss risk (§17.5) | **reported, not fixed — file is user-owned** |
+| — | RV-08 placement: R1 lists it in Wave 2, R2's wave table omits it | RV-08 | unconfirmed |
+
+**Only decision 6 blocks an already-started wave.** Everything else blocks work not yet begun.
+
+### 18.4 What is next (in order)
+
+1. **RV-35** — inventory the 117 remaining non-passing tests. This is RV-34's direct handoff and
+   the cheapest next task: RV-34 stopped them being *masked*, so the real defect list is finally
+   visible. Nothing may be edited here — it is an inventory (R2 §RV-35: act only after the owning
+   fix, or with owner approval).
+2. **RV-13 / RV-14 / RV-16** — the validation-shape and lying-endpoint groups RV-34 unmasked.
+3. **RV-40** — money schema; **prerequisite for RV-02 (L2), RV-09 and RV-15**, so it gates Wave 3.
+4. **RV-25** — unblocked now that V1 is recorded; R2's decision table selects the
+   "rows are transposed" branch. RV-34 deliberately preserved the transposed fixtures, so the
+   baseline RV-25 works from is unchanged.
+5. **RV-37** — test determinism (`putenv()` leakage, order dependence), which is a safety net for
+   everything above it.
+
+### 18.5 Handoff note for RV-35 (what RV-34 left behind)
+
+RV-34 did **not** fix the remaining red and did not weaken a single assertion to hide any of it.
+The 117 non-passing tests are pre-existing defects that were previously invisible because a
+`setUp` error aborted each test before its assertions ran. Verified at the end of RV-34: **0 tests
+that passed at baseline fail now**, so this is exposure, not regression.
+
+Non-passing tests by class, as of `5414344`:
+
+| Class | Non-passing | Observed symptoms (pre-existing) |
+| --- | --- | --- |
+| `Feature\Payment\WalletTransactionServiceTest` | 27 | wallet/ledger mismatches |
+| `Unit\Services\GeocodingServiceTest` | 15 | `geocode()` no longer exists (RV-14 class) |
+| `Unit\Services\Staff\StaffComplaintServiceTest` | 15 | service arity/`listAll()` drift |
+| `Feature\Wallet\WalletRequestControllerTest` | 14 | OTP returns null in testing; wrong password ⇒ **200, not 401** |
+| `Unit\Services\Admin\AdminDriverServiceTest` | 10 | service/driver state drift |
+| `Feature\Admin\AdminDashboardControllerTest` | 9 | admin login by email ⇒ 401 (app authenticates by username); two `*_currently_500s` recorders |
+| `Feature\Rides\RideControllerFullTest` | 8 | finish-before-departure ⇒ **200, not 400**; completion-status mismatch |
+| `Unit\Models\WalletRequestTest` | 8 | — |
+| `Unit\Services\Payment\CashRideFeeServiceTest` | 5 | fee expectations (ride creation charges 2000 where a test expects none) |
+| `Feature\Staff\EmployeeManagementControllerTest` | 4 | **403** where 200/201/409 are expected |
+| `Unit\Services\ImageMessageTypeTest`, `Feature\Profile\ProfileTest`, others | ~9 | — |
+
+The per-test inventory itself is **RV-35's first deliverable** and is deliberately not written
+here; the table above is the grouped starting point, not a substitute.
