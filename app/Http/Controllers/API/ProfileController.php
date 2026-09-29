@@ -364,10 +364,20 @@ class ProfileController extends Controller
         $ratingStats = $this->interactionService->getRatingStats($user->id);
 
         // ── Documents ─────────────────────────────────────────────────────────
-        $docs = $this->photoRepo->getUserDocumentsByType(
-            $user->id,
-            ['face_id', 'back_id', 'license', 'mechanic_card']
-        )->mapWithKeys(fn ($d) => ["{$d->type}_pic" => asset("storage/{$d->path}")])->toArray();
+        // RV-01: face/back ID and licence scans are personal data. $isOwner was
+        // accepted and then ignored, so GET /api/profile/{anyUserId} returned
+        // the document URLs of ANY user to ANY authenticated caller. Documents
+        // are now emitted for the owner only; other callers get the profile
+        // without them. Owner and non-owner payloads are cached under different
+        // keys (profile.user.owner.{id} vs profile.user.{id}), so this gate
+        // cannot be defeated by the cache.
+        $docs = [];
+        if ($isOwner) {
+            $docs = $this->photoRepo->getUserDocumentsByType(
+                $user->id,
+                ['face_id', 'back_id', 'license', 'mechanic_card']
+            )->mapWithKeys(fn ($d) => ["{$d->type}_pic" => asset("storage/{$d->path}")])->toArray();
+        }
 
         // ── Score ─────────────────────────────────────────────────────────────
         $userScore = $this->scoreService->getScore($user);

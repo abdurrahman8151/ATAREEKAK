@@ -139,11 +139,15 @@ class VerificationControllerTest extends TestCase
             ->assertJsonPath('status', 'pending');
     }
 
-    public function test_status_for_nonexistent_user_returns_error(): void
+    public function test_status_for_nonexistent_user_returns_404(): void
     {
+        // RV-01 (and the R2 acceptance item that named it): this used to assert
+        // 500 — the test pinned a findOrFail blowing up as the expected result.
+        // The endpoint now answers "no such user" with 404. Updated as part of
+        // the owning fix, not to make a change green.
         $this->withToken($this->token)
             ->getJson('/api/profile/verify/status/99999')
-            ->assertStatus(500);
+            ->assertStatus(404);
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

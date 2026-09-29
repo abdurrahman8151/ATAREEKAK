@@ -388,7 +388,7 @@ state lives in the numbered sections above; this table is the index.
 | --- | --- | --- |
 | RV-07 | **VERIFIED FIX** (agent-side) — owner rotation/history outstanding | §10 — 524 JWTs → 0, `node --check` 6/6, guard both branches, staged `phpunit.xml` scanned |
 | RV-06 | **VERIFIED FIX** | §11 — 6 tests/86 assertions incl. unauthenticated `GET /horizon` ⇒ 403/404; causality needle; regression green |
-| RV-01 | PENDING — **next** | — |
+| RV-01 | **PARTIAL — authorization + filenames VERIFIED FIX**; storage half OPEN (owner decision: private disk needs a staff streaming route first) | §13 — 5 Review tests incl. causality needle; `Review` 20/120, `Verification` 22/30, `Documents` 16/23; Profile/Complaints/Chat failures proven pre-existing by stash comparison |
 | RV-04 | PENDING (needs owner decision 9 for the TTL sub-item) | — |
 | RV-05 | PENDING (V4 groundwork already recorded) | — |
 | RV-02 (L1) | PENDING — **scope reduced** by V16 (headline defect refuted; only the `applyPenalty` booking-status re-check remains) | — |
@@ -405,8 +405,84 @@ state lives in the numbered sections above; this table is the index.
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
 | 6 | RV-28, RV-30, RV-31, RV-32, RV-33, RV-39 | PENDING |
 
-**Current task:** RV-01. **Next after that:** RV-04 → RV-05 → RV-02 (L1) → RV-03.
+**Current task:** none open — RV-01 reached a partial terminal state (see above).
+**Next:** RV-04 → RV-05 → RV-02 (L1) → RV-03.
+**Awaiting the owner:** (a) RV-01 storage half — approve a staff-authenticated document
+streaming route so KYC can move off the public disk; (b) RV-08 placement; (c) decision 6
+(RV-03), decision 9 (RV-04 TTL), decision 11 (KYC completeness).
 
 **Baseline for regression comparison** (recorded, do not treat as a target): full suite
 `1881 tests / 374 errors / 53 failures` (V14 random-order run: 55 failures — the suite is
 order-dependent, so a like-for-like comparison needs the same seed/order).
+
+---
+
+## 13. RV-01 — KYC documents exposed — PARTIAL: authorization + filenames VERIFIED FIX; storage half OPEN (owner decision)
+
+**Problem** — national-ID / licence scans were exposed two ways at once:
+1. **IDOR** — `ProfileController::formatProfileData()` accepted `$isOwner` and then *ignored
+   it*, so `GET /api/profile/{anyUserId}` returned every other user's `face_id_pic`,
+   `back_id_pic`, `license_pic` URLs to any authenticated caller.
+   `VerificationController::status($userId)` had no ownership check at all.
+2. **Storage** — the files sit on the `public` disk at `/storage/...`, i.e. served by nginx
+   **without any authentication**, under a guessable `{userId}_{time()}.{ext}` name. Even
+   with the IDOR closed, any URL ever returned (or brute-forced from a known user id and a
+   timestamp window) still resolves for an anonymous visitor. The stored extension was also
+   the client-supplied one, so an `.html` payload with image magic passed `image|mimes` and
+   was then served as HTML.
+
+**Root cause** — the `$isOwner` flag was plumbed but never consulted, and KYC was treated as
+ordinary user content ("public disk, `asset()` URL") instead of personal data needing
+private storage plus authorization.
+
+**Fixed and VERIFIED in this task**
+- `formatProfileData()` now emits document fields **only for the owner**; other callers get
+  the profile without them. Owner and non-owner payloads are cached under *different* keys
+  (`profile.user.owner.{id}` vs `profile.user.{id}`), so the gate cannot be bypassed by the
+  cache — checked, not assumed.
+- `VerificationController::status()`: unknown user ⇒ **404**, known user but not the caller
+  ⇒ **403**, owner unchanged. (403 rather than 404 deliberately: the document is the secret,
+  not the existence of the id.)
+- Filenames at all three KYC upload sites (`VerificationController` ×2,
+  `FileUploadService::uploadVerificationDocument`): `{userId}_{time()}.{clientExt}` ⇒
+  `Str::uuid().'.'.$file->guessExtension()` — content-derived extension, unguessable name.
+
+**Deliberately NOT done, and why (the open half of RV-01)**
+The files stay on the `public` disk for now. Staff KYC review (`/admin/verifications`,
+`/staff/verifications`) currently reads the documents **through those public URLs**; moving
+the files to a private disk without first adding a staff-authenticated streaming route
+(`/api/staff/verifications/{userId}/documents/{type}`) or S3 `temporaryUrl` would delete
+the admins' ability to review KYC submissions — a silent functional regression in a P0
+workflow. R2 §0 says a product decision is the owner's to make, so this is raised rather
+than guessed. `Storage::disk('kyc')->temporaryUrl()` is not an option on the local driver,
+which is why the streaming route is the path.
+
+**Also still open in RV-01** (recorded, not attempted): complaint/chat attachments → same
+private-disk treatment; `users.national_id` is still plaintext (encrypting it needs a data
+migration, not a code tweak); and R2's acceptance item "reject a KYC submission until the
+required document set is attached" is **owner decision #11**.
+
+**Verification**
+- New `tests/Feature/Review/KycDocumentExposureTest.php` (5 tests): a non-owner receives no
+  document fields from `GET /api/profile/{id}`; the owner still receives their own;
+  `status()` of another user ⇒ 403 with no `documents` key; owner keeps access;
+  nonexistent user ⇒ 404 (not 500).
+- **Causality needle:** re-inserting `if (true)` in place of `if ($isOwner)` makes the IDOR
+  test fail by name, then restores green — the pin has teeth.
+- Regressions: `Review` **OK (20 tests, 120 assertions)**, `Verification` **OK (22/30)**,
+  `Documents` **OK (16/23)**, and the pinned floor unchanged (`T3Batch` 37/429, `T4Batch`
+  16/50, `AppFuture` 20/253, `RateLimiting` 23/151). `Profile` 3F, `Complaints` 1F, `Chat`
+  1F were **proven pre-existing** by stashing this task's product files and re-running the
+  same three suites: identical counts either way.
+- One mid-task self-inflicted failure, found and fixed: `VerificationController` had no
+  `use Illuminate\Support\Str`, so the two upload tests 500'd (`Class
+  App\Http\Controllers\API\Str not found`) — `php -l` cannot catch that; the suite did.
+
+**RV-35 inventory (tests this task updated, per R2 §0 — never to make a change green, only
+because the assertion pinned the vulnerability):** `VerificationControllerTest::
+test_status_for_nonexistent_user_returns_error` asserted **500** for an unknown user id,
+i.e. it pinned the `findOrFail` blow-up; renamed to
+`test_status_for_nonexistent_user_returns_404` with the R2 acceptance item cited in-line.
+
+**Final state: VERIFIED FIX for the authorization and filename exposure; the storage half of
+RV-01 remains OPEN pending the owner decision above.**

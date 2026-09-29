@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class VerificationController extends Controller
 {
@@ -70,10 +71,13 @@ class VerificationController extends Controller
             $profileData = [];
             foreach ($map as $inputName => $enumType) {
                 if ($request->hasFile($inputName)) {
-                    $ext = $request->file($inputName)->getClientOriginalExtension();
-                    $filename = $user->id.'_'.time().'.'.$ext;
-                    $path = $request->file($inputName)
-                        ->storeAs("verifications/{$enumType}", $filename, 'public');
+                    // RV-01: the stored name used the CLIENT-supplied extension
+                    // and {userId}_{time()} (both guessable). guessExtension() is
+                    // derived from the file's actual content, and a UUID removes
+                    // the guessable prefix.
+                    $upload = $request->file($inputName);
+                    $filename = Str::uuid().'.'.$upload->guessExtension();
+                    $path = $upload->storeAs("verifications/{$enumType}", $filename, 'public');
 
                     $this->photoRepo->deleteDocumentsByType($user->id, $enumType);
                     $this->photoRepo->storeDocument($user->id, $enumType, $path);
@@ -164,10 +168,11 @@ class VerificationController extends Controller
             $profileData = [];
             foreach ($map as $inputName => $folder) {
                 if ($request->hasFile($inputName)) {
-                    $ext = $request->file($inputName)->getClientOriginalExtension();
-                    $filename = $userId.'_'.time().'.'.$ext;
-                    $path = $request->file($inputName)
-                        ->storeAs("verifications/{$folder}", $filename, 'public');
+                    // RV-01: content-derived extension + UUID name (see the
+                    // passenger branch above for the rationale).
+                    $upload = $request->file($inputName);
+                    $filename = Str::uuid().'.'.$upload->guessExtension();
+                    $path = $upload->storeAs("verifications/{$folder}", $filename, 'public');
 
                     if (in_array($inputName, ['face_id_pic', 'back_id_pic', 'driving_license_pic', 'mechanic_card_pic'], true)) {
                         $this->photoRepo->deleteDocumentsByType($userId, $map[$inputName]);
@@ -223,8 +228,30 @@ class VerificationController extends Controller
      * Status check
      * GET /api/profile/verify/status/{userId}
      * ------------------------------------------ */
-    public function status(int $userId)
+    public function status(int $userId, Request $request)
     {
+        // RV-01: this endpoint returns another user's KYC document URLs and
+        // vehicle data and had NO ownership check, so any authenticated caller
+        // could read any user's ID scans. Owner-only here; staff review runs
+        // through the admin/staff verification surface, which is authenticated
+        // separately.
+        // Unknown user id => 404 (R2 acceptance item: this used to be a 500
+        // from findOrFail, and a test pinned that); known user, not the caller
+        // => 403.
+        if (! User::where('id', $userId)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+            ], 404);
+        }
+
+        if ($request->user()->id !== $userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only view your own verification status',
+            ], 403);
+        }
+
         try {
             $data = Cache::remember("verification.status.{$userId}", 120, function () use ($userId) {
                 $user = User::findOrFail($userId);

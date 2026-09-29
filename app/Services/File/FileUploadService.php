@@ -45,7 +45,11 @@ final class FileUploadService
     ): string {
         $this->validateImage($file);
 
-        $filename = $userId.'_'.now()->timestamp.'.'.$file->getClientOriginalExtension();
+        // RV-01: was `{userId}_{timestamp}.{clientExtension}` — a guessable name
+        // carrying a client-controlled extension (an .html payload with GIF magic
+        // passes image|mimes and is then served as HTML). Content-derived
+        // extension + UUID name.
+        $filename = Str::uuid().'.'.$file->guessExtension();
         $folder = "verifications/{$documentType}";
 
         return $file->storeAs($folder, $filename, 'public');
