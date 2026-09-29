@@ -132,7 +132,7 @@ Reviewed code showed **no SQL injection** (bindings everywhere), good use of `ha
 **Verify**: unauthenticated `GET /horizon` → 403/404 with `APP_ENV=production`.
 
 #### RV-07 [P0] Committed secrets and stale credentials
-- `phpunit.xml` contains what looks like a real OpenRouteService key (`OPENROUTE_API_KEY`, `5b3ce3…c260`). Rotate at the provider; use a dummy value; ensure tests use `Http::fake`.
+- `phpunit.xml` contains what looks like a real OpenRouteService key (`OPENROUTE_API_KEY`, `[redacted]`). Rotate at the provider; use a dummy value; ensure tests use `Http::fake`.
 - Every `k6-load/*.js` embeds ~70 signed JWTs (`iss` = `https://api.onwayride.me` ⇒ minted with the production `APP_URL`; `sub` 1–2 look like admin-level accounts). They are expired but must go: delete, git-ignore, generate at `setup()` via login. Confirm dev/staging `JWT_SECRET` ≠ production; if not, rotate production.
 - `start-syride.ps1` prints `primary@admin.com / admin`; `start-cluster.bat` is obsolete → delete both.
 - Add gitleaks (CI + pre-commit). Repo history is public: rotation matters more than history scrubbing.

@@ -172,10 +172,11 @@ npm install && npm run build
 ```bash
 # Full cluster (app + MySQL primary/replica + Redis + Nginx)
 docker compose up -d
-
-# Windows convenience wrapper
-start-cluster.bat
 ```
+
+> The `start-cluster.bat` / `stop-cluster.bat` / `start-syride.ps1` wrappers were
+> **removed in RV-07**: they printed seeded admin credentials and passed a real
+> third-party API key on the command line. Use `docker compose` directly.
 
 ### 4 — Bootstrap the database
 

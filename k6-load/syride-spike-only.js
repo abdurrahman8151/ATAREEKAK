@@ -2,25 +2,15 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
 
-// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ REAL TOKENS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-const PASSENGER_TOKENS = [
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjUxLCJpYXQiOjE3ODY2ODE3OTMsImV4cCI6MTc4NjcxNzc5MywianRpIjoiZGU2ZjFiMzUtMTI3My00ZDE0LWJhNmMtYmFmZTc4ZjI4M2U3IiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.BqF8MoYPTU8ukrWtioln6wLtsE8V5CtpSndHieVmOHQ',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjUyLCJpYXQiOjE3ODY2ODE3OTMsImV4cCI6MTc4NjcxNzc5MywianRpIjoiOTAxMWVkNDgtOGJjMC00MDk5LWJmNDgtODgwMmQ0YjQ5OTM3IiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.RIBv2zxWQ3R7ulCBxG9S4-IZq2ETL0Vjh0t6eVh8K-o',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjUzLCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiODNkOGY1MTktNmNiZi00OWJmLTk4ZmQtMGU0MTkyZDYyMDU0IiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.fiM7nHQhF94DSAvRiN1b0vn9uCiiEfwrE6pKVtEeXQY',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjU0LCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiYjcwNDRiYjAtNmY0Mi00MzE4LWFiMTQtYjlhNDc3MjM2MDIwIiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.HA147cuAqI4Rqy6VJpteZbyBmoWanwoO9lll3GaBhZw',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjU1LCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiNGM2N2VjYTktMDQ2MC00OTJjLWFjMDMtZjk1OWYwMTljMTNlIiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.-WpLqALCLnuyODH4QvEcxnVpJsH_i1gJTvGthEHy4hE',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjU2LCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiZmZlMjZmM2EtNmQ0Ni00MTMwLWJkNWEtMDFkODRjYzllZGRmIiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.aXlqb2oflTIXGWaSZkAkA6ilrb6LhpgSP2a8ZTNiUXg',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjU3LCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiYzI4MDJhYzQtYzE5Yy00OTc2LTlmNGYtMTNmNmZmMjc3ZWM2IiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.-BdPLs7GL-IWuExnNZjYRpwval1echhLsQYwHwj6JP8',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjU4LCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiMzE4ZGRiYTUtYzYxOC00YjFhLWI3MDgtYjc0MWE1NWIzYjg2IiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.crJxhf89N0BTdpexNMYWHTmAiV41rhHtX7CkeTrkhtk',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjU5LCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiM2JjNjM4MDUtNGIwYy00NjhhLTgzOTQtYjRmY2FlNzlkZjY1IiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.BZ29QydvOI6daju4D7xeT7KI03bfpVMoR3Xgucz9pmU',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MjYwLCJpYXQiOjE3ODY2ODE3OTQsImV4cCI6MTc4NjcxNzc5NCwianRpIjoiNDFmNDczN2QtZWE2YS00YmJiLThhY2YtZDM0YWY5ZmE5ZDc0IiwidHlwZSI6ImFjY2VzcyIsInZlciI6MX0.hQtFwMLUX0rfYno0vL_P7tBFZ7sTfDIiBgusa7bqlr8'
-];
-
-const DRIVER_TOKENS = [
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MSwiaWF0IjoxNzg2NjgxNzk0LCJleHAiOjE3ODY3MTc3OTQsImp0aSI6IjBlODNjNGYwLWNmZjEtNDA5OC1hNWViLWQ0ZjRlYjcwNDI0NSIsInR5cGUiOiJhY2Nlc3MiLCJ2ZXIiOjF9._eIMwoqQRiX2G_nEb0lWo0T92ATrjR6wFUrMjBzMp-U',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MiwiaWF0IjoxNzg2NjgxNzk0LCJleHAiOjE3ODY3MTc3OTQsImp0aSI6IjhjMTY3Y2ExLWQ4YzMtNGQzNS1iYzk0LTFjNzMzMmY5YmVlYSIsInR5cGUiOiJhY2Nlc3MiLCJ2ZXIiOjF9.Y1-O_Cu_gPGiSSQ30TmPKwxAPVxPEVdFblCyOWyUAo0',
-    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczpcL1wvYXBpLm9ud2F5cmlkZS5tZSIsInN1YiI6MywiaWF0IjoxNzg2NjgxNzk0LCJleHAiOjE3ODY3MTc3OTQsImp0aSI6ImY3YzdkZTAxLTAwODItNGRlMy1iYTk2LWU3NGRjNjBjMmViZCIsInR5cGUiOiJhY2Nlc3MiLCJ2ZXIiOjF9.eMHk0zEjZ02WE3n9ZA-EzGQhK5lwyjr34MMUUT45N5c'
-];
+// RV-07 (security): bearer tokens are no longer committed. Mint them
+// out-of-band (k6 login step or your own script) and pass them in:
+//   k6 run script.js -e K6_PASSENGER_TOKENS=t1,t2 -e K6_DRIVER_TOKENS=d1,d2
+const _tokensFromEnv = (name) => (__ENV[name] || '').split(',').map((t) => t.trim()).filter(Boolean);
+const PASSENGER_TOKENS = _tokensFromEnv('K6_PASSENGER_TOKENS');
+const DRIVER_TOKENS = _tokensFromEnv('K6_DRIVER_TOKENS');
+if (PASSENGER_TOKENS.length === 0 || DRIVER_TOKENS.length === 0) {
+  throw new Error('K6_PASSENGER_TOKENS and K6_DRIVER_TOKENS are required (see k6-load/README.md). Committed tokens were removed by RV-07.');
+}
 
 const ALL_TOKENS = [...PASSENGER_TOKENS, ...DRIVER_TOKENS];
 

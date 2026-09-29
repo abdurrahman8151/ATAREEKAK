@@ -39,7 +39,7 @@
         <env name="JWT_TTL"              value="600"/>
         <env name="PUSHER_APP_ID"        value=""/>
         <env name="FIREBASE_CREDENTIALS" value=""/>
-        <env name="OPENROUTE_API_KEY"    value="5b3ce3597851110001cf6248bc7694410f7d4991988a0f4d3bf4c260"/>
+        <env name="OPENROUTE_API_KEY"    value="dummy-test-key-not-a-real-credential"/>
     </php>
     <coverage>
         <report>

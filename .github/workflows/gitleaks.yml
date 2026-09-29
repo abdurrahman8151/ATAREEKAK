@@ -1,0 +1,46 @@
+name: gitleaks
+
+# RV-07: fail the build when a secret is committed. Scans the working tree
+# (--no-git) on purpose: the repository history still contains the pre-RV-07
+# tokens/keys, and scrubbing history is an owner action (rotation + history
+# rewrite), not something CI can do silently. Once history is rewritten, drop
+# --no-git to scan commits as well.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan the working tree
+        run: gitleaks detect --no-git --source . --redact --verbose
+
+      - name: Fail on findings in changed files
+        run: |
+          if [ -n "$(git diff --name-only origin/${{ github.base_ref || 'HEAD' }}...HEAD 2>/dev/null)" ]; then
+            gitleaks detect --no-git --source . --redact --report-format json --report-path gitleaks.json || true
+            if [ -s gitleaks.json ]; then
+              echo "::error::gitleaks findings in this change"
+              cat gitleaks.json
+              exit 1
+            fi
+          fi
