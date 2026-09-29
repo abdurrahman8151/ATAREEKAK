@@ -391,3 +391,14 @@ exercises *none* of the money/geo suites. The Review folder tests will flip from
 recording to asserting fixed truth as each RV task lands; each such edit is that task's
 verification, with the RV id in the diff.
 
+### Progress table (R1 findings)
+
+| Task / check | Status | Verification |
+| --- | --- | --- |
+| V1–V10 | **RECORDED** | `tests/Feature/Review/WaveZeroVerificationTest.php` (9 tests, 24 assertions) — see the results table above |
+| RV-07 | **VERIFIED FIX** (agent-side) | `App future audit review r2.md` §10 |
+| RV-06 | **VERIFIED FIX** | `App future audit review r2.md` §11 |
+
+> R2 (`App future audit review r2.md`) supersedes this file for the backlog and carries the
+> **full** progress table in its §12, including V11–V16. Continue there, not here.
+

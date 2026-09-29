@@ -3,6 +3,10 @@
 Delta to `APP_FUTURE_AUDIT_REVIEW.md` (called **R1** below). Read R1 first; this file only changes or adds.
 Date: 2026-09-29. Same working rules as R1 §0 and `AGENTS.md`: one task at a time, explain → smallest fix → verify → `VERIFIED FIX` / `VERIFIED ROLLBACK`, log in `docs/audit/`, no secrets in the record. New tests go in `tests/Feature/Review/`; never edit an existing assertion just to turn it green (list it in RV-35 instead).
 
+> **Execution status lives in §12 (progress table).** §9–§11 are the per-task logs
+> (Wave-0 check results, RV-07, RV-06) with the checks, causality and regressions that
+> back each terminal state. Current task and next task are stated in §12.
+
 ---
 
 ## 0. Inputs and limits
@@ -358,3 +362,51 @@ use `curl -H "X-Horizon-Token: …"`.
 **Genuinely unverified:** the nginx edit is validated structurally (braces balanced, header
 gone, no consumer) — `nginx -t` needs the container image, and no k6/run of the cluster
 exists here.
+
+---
+
+## 12. Progress table (execution status — update at every terminal state)
+
+Style mirrors `SYRIDE_COMPREHENSIVE_AUDIT.md` §Progress Table. Detail for each terminal
+state lives in the numbered sections above; this table is the index.
+
+### Wave 0 — verify checks (results recorded before any fix was coded)
+
+| Check | Status | Where recorded / how pinned |
+| --- | --- | --- |
+| V1–V10 | **RECORDED** | `APP_FUTURE_SONNET.md` §9 (V1 transposed 258≠309 km; V2 no spatial index; V3 `ST_Buffer(LINESTRING)` error 3618; V4 nginx-IP collapse; V5 errors bag stripped; V6 CI pinned to sqlite; V7 not run; V8 `config/system_admin.php` missing; V9 unique(rater,rated); V10 `createRide` missing) — pinned by `tests/Feature/Review/WaveZeroVerificationTest.php` |
+| V11 | RECORDED | §9 — GET+POST search both exist; k6 GET ⇒ 422 (R2's "404" premise corrected) |
+| V12 | RECORDED — **premise refuted** | §9 — 2 `auth()->id()` sites, both functional (middleware calls `Auth::setUser`); RV-36 severity reduced |
+| V13 | RECORDED | §9 — no live-provider calls; `preventStrayRequests` absent; 7 files leak `putenv()` |
+| V14 | RECORDED | §9 — order-dependent CONFIRMED (55F vs 53F) |
+| V15 | RECORDED | §9 — 320/427 errors in the two predicted provenance groups |
+| V16 | RECORDED — **RV-02(L1) refuted** | §9 — all-seats `cancel-seats` ≡ `cancelBooking`; pinned by `tests/Feature/Review/CancelSeatsEquivalenceCheck.php` |
+
+### Wave 1
+
+| Task | Status | Verification |
+| --- | --- | --- |
+| RV-07 | **VERIFIED FIX** (agent-side) — owner rotation/history outstanding | §10 — 524 JWTs → 0, `node --check` 6/6, guard both branches, staged `phpunit.xml` scanned |
+| RV-06 | **VERIFIED FIX** | §11 — 6 tests/86 assertions incl. unauthenticated `GET /horizon` ⇒ 403/404; causality needle; regression green |
+| RV-01 | PENDING — **next** | — |
+| RV-04 | PENDING (needs owner decision 9 for the TTL sub-item) | — |
+| RV-05 | PENDING (V4 groundwork already recorded) | — |
+| RV-02 (L1) | PENDING — **scope reduced** by V16 (headline defect refuted; only the `applyPenalty` booking-status re-check remains) | — |
+| RV-03 | BLOCKED — owner decision 6 required | — |
+| RV-08 | PENDING — listed in R1 §7 Wave 2; R2's wave table omits it (placement to confirm) | — |
+
+### Waves 2–6 (not started)
+
+| Wave | Tasks | Status |
+| --- | --- | --- |
+| 2 | RV-34, RV-37, RV-18, RV-13, RV-14, RV-16, RV-22, RV-36, RV-38, RV-35 | PENDING (RV-34 first — it un-reds ~340 tests and is Wave 3's safety net) |
+| 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15) |
+| 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch |
+| 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
+| 6 | RV-28, RV-30, RV-31, RV-32, RV-33, RV-39 | PENDING |
+
+**Current task:** RV-01. **Next after that:** RV-04 → RV-05 → RV-02 (L1) → RV-03.
+
+**Baseline for regression comparison** (recorded, do not treat as a target): full suite
+`1881 tests / 374 errors / 53 failures` (V14 random-order run: 55 failures — the suite is
+order-dependent, so a like-for-like comparison needs the same seed/order).
