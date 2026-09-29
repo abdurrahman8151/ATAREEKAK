@@ -390,7 +390,7 @@ state lives in the numbered sections above; this table is the index.
 | RV-06 | **VERIFIED FIX** | §11 — 6 tests/86 assertions incl. unauthenticated `GET /horizon` ⇒ 403/404; causality needle; regression green |
 | RV-01 | **PARTIAL — authorization + filenames VERIFIED FIX**; storage half OPEN (owner decision: private disk needs a staff streaming route first) | §13 — 5 Review tests incl. causality needle; `Review` 20/120, `Verification` 22/30, `Documents` 16/23; Profile/Complaints/Chat failures proven pre-existing by stash comparison |
 | RV-04 | **PARTIAL — staff→user replay + empty-secret boot guard VERIFIED FIX**; token unification + TTL (decision 9) OPEN | §14 — pin failed 200≠401 before the fix; causality needle; `Review` 25/128, `StaffAdminIdentityAttributionTest` 10/44; Middleware/JwtSecretCommand failures proven pre-existing |
-| RV-05 | PENDING (V4 groundwork already recorded) | — |
+| RV-05 | **VERIFIED FIX** | §15 — 8 tests (trust off/on, CIDR, untrusted-source spoof denied, separate buckets, nginx directive); causality needle; Review 33/142, RateLimiting 23/151, DebugEndpointDisclosure 9/209, SessionCookieAndCors 11/20 |
 | RV-02 (L1) | PENDING — **scope reduced** by V16 (headline defect refuted; only the `applyPenalty` booking-status re-check remains) | — |
 | RV-03 | BLOCKED — owner decision 6 required | — |
 | RV-08 | PENDING — listed in R1 §7 Wave 2; R2's wave table omits it (placement to confirm) | — |
@@ -405,12 +405,13 @@ state lives in the numbered sections above; this table is the index.
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
 | 6 | RV-28, RV-30, RV-31, RV-32, RV-33, RV-39 | PENDING |
 
-**Current task:** none open — RV-01 and RV-04 each reached a partial terminal state.
-**Next:** RV-05 → RV-02 (L1) → RV-03.
+**Current task:** none open — RV-01, RV-04 and RV-05 each reached a terminal state.
+**Next:** RV-02 (L1) → RV-03.
 **Awaiting the owner:** (a) RV-01 storage half — approve a staff-authenticated document
 streaming route so KYC can move off the public disk; (b) RV-04 — token unification is a
 refactor, and decision 9 (access TTL 600 → 15–60) is yours; (c) RV-08 placement;
-(d) decision 6 (RV-03), decision 11 (KYC completeness).
+(d) decision 6 (RV-03), decision 11 (KYC completeness); (e) the deployment value for
+`TRUSTED_PROXIES` (RV-05) — the code is inert until an environment sets it.
 
 **Baseline for regression comparison** (recorded, do not treat as a target): full suite
 `1881 tests / 374 errors / 53 failures` (V14 random-order run: 55 failures — the suite is
@@ -563,3 +564,67 @@ line are covered by the existing middleware suite's shaping rather than a new pi
 `alg` is pinned by `StaffJwtService::ALGORITHM` on the encode path, and a tampered signature
 fails `hash_equals` in `JwtService::decodeToken()` (existing coverage), so I did not add
 duplicates.
+
+---
+
+## 15. RV-05 — client IP collapse behind nginx — VERIFIED FIX (two coupled halves)
+
+**Problem** — `TrustProxies::$proxies` was never assigned, so behind nginx every request
+appeared to originate from the proxy container. Confirmed in V4. Consequences:
+- every `ip:`-keyed rate-limit bucket (`RouteServiceProvider` lines 71 and 75) collapses
+  into **one bucket shared by every user** — the looser per-address flood guard stops
+  limiting anything, and `/auth/refresh` (identity-less, so per-IP only) throttles all
+  users together;
+- `GateDocumentation`'s client allow-list can never match a real client;
+- request logs record the proxy address for every call, so nothing is attributable.
+
+**Why this was not a one-line change.** `nginx-docker.conf` used
+`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`, which **appends** the
+client's own header value. Laravel reads the **left-most** entry, so enabling trust while
+nginx appends would have let any client choose its own IP — i.e. it would have *created*
+the spoofing bypass V4 explicitly refuted. The two halves had to land together:
+
+1. **Laravel** — `TrustProxies` now reads `config('trustedproxy.proxies')`
+   (`TRUSTED_PROXIES`, comma-separated addresses/CIDRs): unset/empty ⇒ trust nobody (the
+   previous behaviour, so nothing widens by accident), `'0'` ⇒ explicit trust-nobody.
+   Deliberately **not** `'*'` and not a hard-coded network — the container network differs
+   per deployment. Read via a **config file**, not `env()`, because `env()` outside config
+   returns null once `config:cache` runs, which would silently disable trust in production
+   (the same silent-failure class RV-04 fixed for the JWT secret).
+2. **nginx** — `X-Forwarded-For` is now overwritten with `$remote_addr` instead of
+   appended, so the value the app trusts cannot be client-supplied. Verified single-hop
+   (this file has no outer TLS terminator), so `$remote_addr` is the true client.
+
+**Files changed** — `app/Http/Middleware/TrustProxies.php`,
+new `config/trustedproxy.php`, `nginx-docker.conf`,
+new `tests/Feature/Review/ClientIpBehindProxyTest.php`.
+
+**Verification** — 8 tests / 14 assertions:
+- trust unset ⇒ the header is **ignored** (`ip()` = REMOTE_ADDR, unchanged default);
+- `'0'` ⇒ trust nobody;
+- a configured proxy/CIDR ⇒ the **real client** is visible;
+- an **untrusted** peer cannot spoof its address (REMOTE_ADDR not in the list);
+- two clients resolve to **different** `ip:` bucket keys (the actual defect);
+- the middleware parses single addresses, CIDR lists, empty and null;
+- nginx: every non-comment `X-Forwarded-For` directive contains `$remote_addr` and none
+  contains `proxy_add_x_forwarded_for`.
+- **Causality needle:** forcing `$trusted = null` (the pre-fix state) makes the pins fail,
+  restoring returns green.
+- Regressions: `Review` **OK (33/142)**, `RateLimiting` **OK (23/151)**,
+  `DebugEndpointDisclosure` **OK (9/209)**, `SessionCookieAndCors` **OK (11/20)**,
+  `T3Batch` 37/430, `T4Batch` 16/50, `AppFuture` 20/253 — all at or above the recorded
+  floor. `T3Batch` moved 429 → 430 assertions at the same test count.
+
+**Operator note:** `TRUSTED_PROXIES` is unset by default, so behaviour is unchanged until a
+deployment opts in. For the Compose topology (nginx + app on one bridge network) set
+`TRUSTED_PROXIES=172.16.0.0/12`; the value must be the network the proxy actually connects
+**from**, and it must not include client-facing ranges. Documented in `.env.example`
+alongside `DOCS_ALLOWED_IPS`, including why `'*'` and client-facing ranges are wrong.
+
+**Final state: VERIFIED FIX.**
+
+**Genuinely unverified:** the nginx edit is validated structurally (directive inspection,
+single-hop topology read from the file) — `nginx -t` and a live two-proxy-hop check need
+the container image, which is not available here. The `set_real_ip_from`/`real_ip_header`
+recipe from R1 applies only if an outer TLS terminator is added in front; no such hop
+exists in `nginx-docker.conf` today, so adding it now would be speculative.
