@@ -296,3 +296,65 @@ is what makes them harmless).
 
 **Final state: VERIFIED FIX** for everything the agent can reach; rotation/history is
 explicitly unverified and remains with the owner.
+
+---
+
+## 11. RV-06 — Horizon dashboard public + nginx upstream leak — VERIFIED FIX
+
+**Problem (two exposures, one task)**
+1. `HorizonServiceProvider::gate()` returned `true` for every caller, justified in-code by
+   *"Safe: port 8080 is only exposed to localhost"*. That premise is false for the real
+   deployment: `render.yaml` fronts the app with a **public web service**, and
+   `nginx-docker.conf` proxies `location /`, which includes Horizon's `horizon` prefix.
+   `config/horizon.php` had `middleware => ['web']` (no auth). An anonymous `GET /horizon`
+   served the dashboard: every queued job with payloads (user ids, phone numbers,
+   notification text) plus **retry/delete** actions on live jobs.
+2. `nginx-docker.conf` added `X-Upstream-Addr $upstream_addr` to **every** response,
+   disclosing which internal replica answered — cluster-enumeration assist, the same class
+   the audit closed under T2-6 (`GET /api/health` returning `gethostname()`).
+
+**Root cause** — the dashboard relied on a network assumption that no deployment file
+enforced, and a "helpful" response header was added for debugging and never removed.
+
+**Code path (verified, not assumed)** — `HorizonServiceProvider::boot()` registers the
+`horizon` middleware group; Horizon's `SentinelMiddleware` calls
+`Gate::check('viewHorizon', $request->user())`; the app's own `gate()` returned `true`, so
+the check always passed. The gate — not route middleware — is the control, so the fix
+belongs there.
+
+**Files changed**
+- `app/Support/HorizonAccess.php` (new) — the policy, in one place so it is testable:
+  `local`/`testing` allowed (developer ergonomics); everything else requires the
+  `HORIZON_ACCESS_TOKEN` secret, compared with **`hash_equals`**; **fails closed** when the
+  secret is unset, the header is absent, or the request has no resolvable object. An IP
+  allowlist was deliberately **not** used: V4 proved `TrustProxies::$proxies = null`, so
+  behind nginx every request presents the proxy's address and an IP rule could only be
+  all-or-nothing (that coupling is RV-05's separate fix).
+- `app/Providers/HorizonServiceProvider.php` — gate delegates to the policy.
+- `config/horizon.php` — `access_token` from `HORIZON_ACCESS_TOKEN`.
+- `nginx-docker.conf` — `add_header X-Upstream-Addr` removed (replaced by a comment
+  recording why).
+- `.env.example` — documents `HORIZON_ACCESS_TOKEN` (closed-by-default) and `HORIZON_PATH`
+  for the non-default path defence in depth.
+
+**Verification** — `tests/Feature/Review/HorizonAccessTest.php` (6 tests, 86 assertions):
+- the real denied path: `GET /horizon` with the app env forced to `production` and no token
+  ⇒ **403/404**, dashboard not served;
+- policy: no secret ⇒ deny; missing / wrong / **prefix-only** token ⇒ deny (`hash_equals`,
+  not `==`); correct token ⇒ allow; `local`/`testing` ⇒ still allowed;
+- nginx: no non-comment line sets `X-Upstream-Addr` or any `add_header`.
+- **Causality needle:** restoring the pre-fix `return true` gate makes the unauthenticated
+  production test fail with *"an unauthenticated GET /horizon must not serve the dashboard
+  in production"*; restoring the fix returns the suite to green (byte-exact restore).
+- Regression: `Review` 15/110, `AppServiceProviderTest` 18/19, `AppFuture` 20/253,
+  `T3Batch` 37/429, `T4Batch` 16/50 — all green. Pint clean.
+
+**Operator note:** with `HORIZON_ACCESS_TOKEN` unset, `/horizon` is closed everywhere
+outside `local`/`testing` (intended fail-closed). Set it to inspect queues in staging, and
+use `curl -H "X-Horizon-Token: …"`.
+
+**Final state: VERIFIED FIX.**
+
+**Genuinely unverified:** the nginx edit is validated structurally (braces balanced, header
+gone, no consumer) — `nginx -t` needs the container image, and no k6/run of the cluster
+exists here.

@@ -5,6 +5,10 @@ use Illuminate\Support\Str;
 return [
     'domain' => env('HORIZON_DOMAIN'),
     'path' => env('HORIZON_PATH', 'horizon'),
+    // RV-06: shared secret required to open the dashboard outside
+    // local/testing (sent as X-Horizon-Token). Empty = closed; see
+    // App\Support\HorizonAccess, which fails closed when unset.
+    'access_token' => env('HORIZON_ACCESS_TOKEN', ''),
     'use' => 'default',
     'prefix' => env('HORIZON_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_horizon:'),
     'middleware' => ['web'],
