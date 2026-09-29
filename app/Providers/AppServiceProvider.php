@@ -233,6 +233,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->guardJwtSecret();
+
         Schema::defaultStringLength(191);
 
         Event::listen(CacheHit::class, function () {
@@ -295,6 +297,41 @@ class AppServiceProvider extends ServiceProvider
                 .'runs push notifications inline and blocks requests on FCM failures. '
                 .'Set QUEUE_CONNECTION=redis (see .env.example) or deploy with an '
                 .'explicit queue worker.'
+            );
+        }
+    }
+
+    /**
+     * RV-04: refuse to boot outside local/testing without a usable JWT secret.
+     *
+     * `JwtService::generateSignature()` passes `config('jwt.secret')` straight to
+     * `hash_hmac()`. PHP 8.2 coerces the null that an unset/blank JWT_SECRET
+     * produces into '', so the app will happily sign HS256 tokens with an EMPTY
+     * key — and an empty key is public knowledge, which makes every access token
+     * forgeable by anyone. (`StaffJwtService::secret()` throws on this; the user
+     * path never did.) `.env.example` ships `JWT_SECRET=` blank, so this is one
+     * missing variable away from being live, and the failure is silent: the app
+     * serves traffic normally while issuing forgeable credentials.
+     *
+     * Fail fast instead, with the same shape as the T2-8 queue guard above:
+     * local/testing stay exempt (the suite runs on a dummy secret), everything
+     * else must supply >= 32 bytes.
+     */
+    private function guardJwtSecret(): void
+    {
+        if (app()->environment('local', 'testing')) {
+            return;
+        }
+
+        $secret = (string) config('jwt.secret');
+
+        if (strlen($secret) < 32) {
+            throw new \RuntimeException(
+                'JWT_SECRET must be set to at least 32 bytes outside local/testing '
+                .'environments; it currently resolves to '
+                .($secret === '' ? 'an EMPTY value' : strlen($secret).' bytes')
+                .'. Tokens signed with an empty or short key are forgeable. '
+                .'Generate one with: php artisan jwt:secret'
             );
         }
     }

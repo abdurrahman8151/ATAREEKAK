@@ -389,7 +389,7 @@ state lives in the numbered sections above; this table is the index.
 | RV-07 | **VERIFIED FIX** (agent-side) — owner rotation/history outstanding | §10 — 524 JWTs → 0, `node --check` 6/6, guard both branches, staged `phpunit.xml` scanned |
 | RV-06 | **VERIFIED FIX** | §11 — 6 tests/86 assertions incl. unauthenticated `GET /horizon` ⇒ 403/404; causality needle; regression green |
 | RV-01 | **PARTIAL — authorization + filenames VERIFIED FIX**; storage half OPEN (owner decision: private disk needs a staff streaming route first) | §13 — 5 Review tests incl. causality needle; `Review` 20/120, `Verification` 22/30, `Documents` 16/23; Profile/Complaints/Chat failures proven pre-existing by stash comparison |
-| RV-04 | PENDING (needs owner decision 9 for the TTL sub-item) | — |
+| RV-04 | **PARTIAL — staff→user replay + empty-secret boot guard VERIFIED FIX**; token unification + TTL (decision 9) OPEN | §14 — pin failed 200≠401 before the fix; causality needle; `Review` 25/128, `StaffAdminIdentityAttributionTest` 10/44; Middleware/JwtSecretCommand failures proven pre-existing |
 | RV-05 | PENDING (V4 groundwork already recorded) | — |
 | RV-02 (L1) | PENDING — **scope reduced** by V16 (headline defect refuted; only the `applyPenalty` booking-status re-check remains) | — |
 | RV-03 | BLOCKED — owner decision 6 required | — |
@@ -405,11 +405,12 @@ state lives in the numbered sections above; this table is the index.
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
 | 6 | RV-28, RV-30, RV-31, RV-32, RV-33, RV-39 | PENDING |
 
-**Current task:** none open — RV-01 reached a partial terminal state (see above).
-**Next:** RV-04 → RV-05 → RV-02 (L1) → RV-03.
+**Current task:** none open — RV-01 and RV-04 each reached a partial terminal state.
+**Next:** RV-05 → RV-02 (L1) → RV-03.
 **Awaiting the owner:** (a) RV-01 storage half — approve a staff-authenticated document
-streaming route so KYC can move off the public disk; (b) RV-08 placement; (c) decision 6
-(RV-03), decision 9 (RV-04 TTL), decision 11 (KYC completeness).
+streaming route so KYC can move off the public disk; (b) RV-04 — token unification is a
+refactor, and decision 9 (access TTL 600 → 15–60) is yours; (c) RV-08 placement;
+(d) decision 6 (RV-03), decision 11 (KYC completeness).
 
 **Baseline for regression comparison** (recorded, do not treat as a target): full suite
 `1881 tests / 374 errors / 53 failures` (V14 random-order run: 55 failures — the suite is
@@ -486,3 +487,79 @@ i.e. it pinned the `findOrFail` blow-up; renamed to
 
 **Final state: VERIFIED FIX for the authorization and filename exposure; the storage half of
 RV-01 remains OPEN pending the owner decision above.**
+
+---
+
+## 14. RV-04 — JWT integrity — VERIFIED FIX (replay + boot guard); token unification and TTL still open
+
+**Problem — two independent integrity defects, both proven, both P0**
+
+1. **Privilege confusion (staff token ⇒ user session).** User and staff tokens are signed
+   with the **same** secret and both carry `type=access`. `JwtAuthMiddleware` checked only
+   `type === 'access'`; `StaffJwtMiddleware` is protected because
+   `StaffJwtService::decodeToken()` rejects anything without `sub_type === 'employee'`
+   (line 62) — so *user → staff* was already impossible. The **reverse was never tested and
+   was wide open**: a staff access token whose `sub` (employee id) collides with a user id
+   and whose `ver` matches that user's `token_version` was accepted as that user.
+   R2 §1.3 named the default mismatch that makes a collision likely (users default **1**,
+   `UserFactory` sets 0, employees 0 or 1).
+2. **Empty-secret signing.** `JwtService::generateSignature()` hands
+   `config('jwt.secret')` straight to `hash_hmac()`. PHP 8.2 coerces the `null` from an
+   unset/blank `JWT_SECRET` to `''`, so the app signs HS256 tokens with an **empty key** —
+   public knowledge, i.e. every access token forgeable. `.env.example` ships
+   `JWT_SECRET=` blank, and the failure is silent: traffic is served normally while
+   forgeable credentials are issued. `StaffJwtService::secret()` throws on this; the user
+   path never did.
+
+**Evidence recorded before the fix (R2 asked for the test first)** — the new pin
+`test_staff_token_is_rejected_by_the_user_guard` was written first and **failed against the
+unfixed code**: `Failed asserting that 200 is identical to 401` — a real staff token
+returning HTTP **200** from `GET /api/user` as user #1.
+
+**Fix (smallest correct, no infrastructure, no new claim vocabulary)**
+- `JwtAuthMiddleware`: after the `type` check, reject any token that carries `sub_type`.
+  This reuses the discriminator the staff side already enforces, cannot affect legitimate
+  user tokens (they never carry the claim), and needs no re-issuance of existing tokens.
+  The reverse direction remains protected by the staff decoder, unchanged.
+- `AppServiceProvider`: new `guardJwtSecret()`, called first in `boot()`, throwing outside
+  `local`/`testing` when `jwt.secret` is shorter than 32 bytes — including the empty case,
+  with the reason and the `php artisan jwt:secret` remedy in the message and the length
+  reported. Shaped identically to the existing T2-8 queue guard at the end of `boot()`;
+  `local`/`testing` are exempt because the suite deliberately runs a dummy secret.
+
+**Files changed** — `app/Http/Middleware/JwtAuthMiddleware.php`,
+`app/Providers/AppServiceProvider.php`, new `tests/Feature/Review/StaffTokenAudienceTest.php`.
+
+**Verification**
+- `StaffTokenAudienceTest` (5 tests): staff token on `/api/user` ⇒ **401** (was 200);
+  legitimate user token ⇒ still **200**; production boot with an empty secret ⇒ throws;
+  with a 20-byte secret ⇒ throws "at least 32 bytes"; `testing` env ⇒ exempt.
+- **Causality needle:** deleting the `sub_type` rejection makes the pin fail, restoring it
+  returns green (byte-exact restore).
+- Regressions: `Review` **OK (25/128)**; `StaffAdminIdentityAttributionTest` **OK (10/44)**
+  (the existing user→staff direction still holds); pinned floor unchanged (`T3Batch`
+  37/429, `T4Batch` 16/50, `AppFuture` 20/253, `RateLimiting` 23/151).
+  `tests/Unit/Middleware` (2F, 3 skipped) and `JwtSecretCommandTest` (1F) were **proven
+  pre-existing** by stashing this task's product files and re-running: identical counts.
+- One mid-task self-inflicted error, found and fixed: my first version re-pointed a created
+  user's primary key, breaking the `users→profiles` FK on teardown (`QueryException 1451`);
+  the row is now created with the colliding id at INSERT time.
+
+**Still open in RV-04 (deliberately not attempted)**
+- **Owner decision 9** — lower the access TTL from 600 minutes to 15–60 (refresh exists).
+- Unify the three token implementations onto one `TokenCodec`
+  (`firebase/php-jwt`, declared in `composer.json`) with mandatory `iss`/`aud`/`exp`/`iat`/
+  `jti`/`typ`, and remove the unused `php-open-source-saver/jwt-auth`, the hand-rolled
+  encoder, `generateAdminTokenPair`/`generateAdminAccessToken` and
+  `User::getJWTIdentifier/getJWTCustomClaims`. That is a refactor across both auth systems,
+  not a defect fix, and the `sub_type` rejection already closes the exploitable path.
+- Separate secrets (`JWT_SECRET` / `STAFF_JWT_SECRET`) — redundant once `aud`/`sub_type` is
+  enforced, and it would invalidate every live token.
+
+**Final state: VERIFIED FIX for the staff→user replay and the empty-secret boot hazard.**
+
+**Genuinely unverified:** the `alg:none` and tampered-signature cases named in R1's Verify
+line are covered by the existing middleware suite's shaping rather than a new pin here;
+`alg` is pinned by `StaffJwtService::ALGORITHM` on the encode path, and a tampered signature
+fails `hash_equals` in `JwtService::decodeToken()` (existing coverage), so I did not add
+duplicates.

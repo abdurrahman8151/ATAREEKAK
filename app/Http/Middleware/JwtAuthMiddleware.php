@@ -39,6 +39,19 @@ class JwtAuthMiddleware
             return $this->fail('TOKEN_TYPE_INVALID', 'Invalid token type');
         }
 
+        // 3b. RV-04: must be a USER token.
+        //     Staff and user tokens are signed with the same secret and both carry
+        //     `type=access`; staff tokens identify themselves with `sub_type=employee`
+        //     (and `StaffJwtService::decodeToken()` already refuses tokens without it,
+        //     so user->staff was never possible). Without this check the reverse
+        //     replay worked: a staff token whose `sub` (employee id) collided with a
+        //     user id and whose `ver` matched that user's `token_version` was accepted
+        //     as that user. Rejecting the presence of `sub_type` closes it and cannot
+        //     affect legitimate user tokens, which never carry the claim.
+        if (isset($payload['sub_type'])) {
+            return $this->fail('TOKEN_TYPE_INVALID', 'Invalid token type');
+        }
+
         // 4. Load user — Redis cache, falls back to DB on miss
         //    OPTIMIZATION: Replaces User::find() which hit DB on every request.
         //    Saves ~50ms per request across every authenticated endpoint in the app.
