@@ -5,6 +5,7 @@ namespace Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Tests\Support\Concerns\ActsAsStaff;
 use Tests\TestCase;
 
 /**
@@ -27,6 +28,7 @@ use Tests\TestCase;
  */
 class StaffAdminControllerTest extends TestCase
 {
+    use ActsAsStaff;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -287,11 +289,11 @@ class StaffAdminControllerTest extends TestCase
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private function adminToken(): string
-    {
-        return $this->postJson('/api/admin/login', [
-            'email' => 'primary@admin.test',
-            'password' => 'primary_pass',
-        ])->json('tokens.access_token');
-    }
+    // RV-34: the local adminToken() helper is GONE. It posted
+    // config('admin.system_admin.email'|'password') to /api/admin/login, but admin
+    // auth authenticates an Employee by USERNAME (credentials live in the
+    // employees table), so it always returned null and tripped the `: string`
+    // return type — 19 errors in this file. The shared ActsAsStaff trait provides
+    // adminToken() with the same name, so all 19 existing `$this->adminToken()`
+    // call sites now resolve to it with no other change.
 }

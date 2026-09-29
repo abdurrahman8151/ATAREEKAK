@@ -404,7 +404,8 @@ state lives in the numbered sections above; this table is the index.
 | 1 | RV-07, RV-06, RV-01, RV-04, RV-05, RV-02 (L1) | **DONE** — all VERIFIED FIX (§§10, 11, 13–16) |
 | 1 | RV-03 | BLOCKED on owner decision 6 |
 | 2 | **RV-34** | **DONE — VERIFIED FIX** (§17): errors 443 → 71 (**−372**), 0 regressions; Causes A/B/C all at zero; ratchet green — `5414344` |
-| 2 | RV-37, RV-18, RV-13, RV-14, RV-16, RV-22, RV-36, RV-38, RV-35 | PENDING — next is RV-35 (inventory of the 117 remaining non-passing tests) |
+| 2 | **RV-35** | **DONE — VERIFIED FIX** (§19): inventory of all 117 unmasked tests by root cause + owner; found and fixed a 4th Cause-B copy (19 errors → 0); ratchet strengthened; 98 inventoried, not acted on — errors 71 → **52** |
+| 2 | RV-13, RV-14, RV-16, RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING — next is **RV-13** (the validation-shape family, largest actionable group) |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
@@ -1025,14 +1026,16 @@ explicit **next** sequence.
 
 ```
 Backlog:  RV-01..RV-33 (R1) + RV-34..RV-40 (R2)  =  40 tasks
-  VERIFIED FIX (complete) .............................  6   RV-07, RV-06, RV-05, RV-02 (L1), RV-34
-                                                      +     RV-01, RV-04 verified on their code halves
+  VERIFIED FIX (complete) .............................  7   RV-07, RV-06, RV-05, RV-02 (L1),
+                                                              RV-34, RV-35
+                                                      +     RV-01, RV-04 verified on code halves
   PARTIAL (awaiting a decision) ........................  2   RV-01, RV-04
   BLOCKED on the owner ................................  1   RV-03
-  PENDING / not started ...............................  31
+  PENDING / not started ...............................  30
 Verify checks  V1-V16:  15 recorded, 1 never run (V7 — no replica access)
 
-Suite:  errors 443 -> 71 (-372)   non-passing 468 -> 117   regressions 0
+Suite:  errors 443 -> 52 (-391)   non-passing 468 -> 117   regressions 0
+        117 remaining = 26 schema-decision (19.3) + 91 across 7 other families (19.2)
 ```
 
 ### 18.3 Open owner decisions — consolidated
@@ -1062,17 +1065,27 @@ Decisions 1–10 originate in R1 §6; 11–14 in R2 §5. Their **current** state
 
 ### 18.4 What is next (in order)
 
-1. **RV-35** — inventory the 117 remaining non-passing tests. This is RV-34's direct handoff and
-   the cheapest next task: RV-34 stopped them being *masked*, so the real defect list is finally
-   visible. Nothing may be edited here — it is an inventory (R2 §RV-35: act only after the owning
-   fix, or with owner approval).
-2. **RV-13 / RV-14 / RV-16** — the validation-shape and lying-endpoint groups RV-34 unmasked.
-3. **RV-40** — money schema; **prerequisite for RV-02 (L2), RV-09 and RV-15**, so it gates Wave 3.
-4. **RV-25** — unblocked now that V1 is recorded; R2's decision table selects the
-   "rows are transposed" branch. RV-34 deliberately preserved the transposed fixtures, so the
-   baseline RV-25 works from is unchanged.
-5. **RV-37** — test determinism (`putenv()` leakage, order dependence), which is a safety net for
-   everything above it.
+Wave 2 remaining, in the order R2 §6 lists them once RV-35 is done:
+
+1. **RV-13** — the error/validation model. Largest *actionable* group (~20 tests): 422 responses
+   carry no `errors` bag (V5), and several endpoints return 201 where a 422 shape is asserted.
+   This is the one that keeps reappearing across unrelated files.
+2. **RV-14** — route/controller mismatches: `GeocodingService::geocode()` is gone (9 tests),
+   `POST /api/rides` → nonexistent `createRide` (V10).
+3. **RV-16** — OTP and mail flows (4 tests; `putenv('EMAIL_OTP_MODE=…')` also feeds RV-37).
+4. **RV-37** — test determinism: 7 files leak `putenv()` into the shared process (V13),
+   `Http::preventStrayRequests()` absent, order-dependence confirmed (V14). A safety net for the
+   rest, so worth doing before the later waves.
+5. **RV-18, RV-22, RV-36, RV-38** — CI signal, TLS/log hygiene, notification `bulkAction`,
+   Eloquent strictness.
+
+Then, per the wave plan: **RV-40** (money schema; prerequisite for RV-02 L2 / RV-09 / RV-15),
+**RV-25** (unblocked — V1 recorded; RV-34 deliberately preserved the transposed fixtures so its
+baseline is unchanged), and the remaining waves.
+
+**Two items are waiting on the owner and were raised by RV-35** — the `wallet_requests.wallet_id`
+schema question (§19.3, blocks 26 tests, the single largest family) and the five product
+decisions in §19.4.
 
 ### 18.5 Handoff note for RV-35 (what RV-34 left behind)
 
@@ -1099,3 +1112,103 @@ Non-passing tests by class, as of `5414344`:
 
 The per-test inventory itself is **RV-35's first deliverable** and is deliberately not written
 here; the table above is the grouped starting point, not a substitute.
+
+---
+
+## 19. RV-35 — inventory of the tests RV-34 unmasked — **VERIFIED FIX (1 defect fixed, rest inventoried)**
+
+**Problem.** RV-34 stopped ~372 tests being *masked* by `setUp` errors, which exposed the real
+defects underneath. R2 §RV-35 scopes this task to **inventory only**: "act only after the owning
+fix or with owner approval." The job was to say what the remaining red actually is, and who owns
+each piece — not to make it green.
+
+**Root cause of the red itself.** Not one cause. Grouping all 117 remaining non-passing tests by
+their first message line gives six distinct families, and only one of them turned out to be more
+mechanical rot (fixed here). The rest are genuine product/test defects belonging to other tasks.
+
+**Suite state at RV-35 entry and exit:**
+
+| | After RV-34 | After RV-35 | Change |
+| --- | --- | --- | --- |
+| Errors | 71 | **52** | **−19** |
+| Failures | 73 | 74 | +1 (the 19 fixed tests now run; 1 fails for an unrelated reason) |
+| Tests | 1918 | 1919 | +1 (the ratchet's new assertion) |
+| Regressions vs the original baseline | 0 | **0** | — |
+
+### 19.1 The one defect RV-35 actually fixed
+
+**`StaffAdminControllerTest::adminToken()` was a fourth copy of Cause B** — it posted
+`config('admin.system_admin.email'|'password')` to `/api/admin/login`, but admin auth
+authenticates an Employee by **username**, so it returned `null` and tripped the `: string`
+return type, erroring **19 tests** in that file.
+
+Why RV-34 missed it: the ratchet banned three *names* (`insertRide`, `seedAdminWallets`,
+`primaryToken`). Nobody had thought to ban `adminToken`, so a broken copy slipped through under a
+name the list did not cover. This is the concrete cost of a name-based check.
+
+**Fix** — the file's local `adminToken()` declaration was deleted. The shared `ActsAsStaff` trait
+provides a method of the *same name*, so all 19 existing `$this->adminToken()` call sites
+resolved to the shared helper with no other change. **19 errors → 0** (24 tests, 36 assertions,
+1 failure, which is a pre-existing 422-vs-200 validation-shape issue in the V5/RV-13 family).
+
+**Ratchet strengthened, not loosened.** A new assertion bans posting an `'email'` to
+`/api/admin/login` or `/api/staff/login` **anywhere in `tests/`**, which is the actual defect
+rather than one spelling of it. Ratchet now **OK (4 tests, 7 assertions)**.
+
+`adminToken` / `staffToken` were deliberately **not** added to the name list: those are legitimate
+helper names — the shared trait defines them and three currently-green files have working
+versions — so banning the names would forbid correct code. Recorded here because the first
+attempt did exactly that and was reverted after the ratchet flagged the support layer itself.
+
+### 19.2 Inventory — the 117 remaining, by root cause, with the owning task
+
+Nothing below was edited. This is the deliverable.
+
+| # | Root cause | Tests | Class(es) | Owning task |
+| --- | --- | --- | --- | --- |
+| 1 | `wallet_requests.wallet_id` is `NOT NULL` + FK, but every fixture creates a top-up request **without** a wallet ⇒ *"Field 'wallet_id' doesn't have a default value"* | 26 | `WalletRequestControllerTest` (14), `WalletRequestTest` (8), `UserRatingTest`, `ComplaintControllerTest` | **new — see §19.3** |
+| 2 | `GeocodingService::geocode()` **no longer exists**; tests pin it | 9 | `GeocodingServiceTest` | RV-14 (route/controller drift) |
+| 3 | `StaffComplaintService::listAll()` / `listEscalated()` **signature changed**; tests call the old arity | 13 | `StaffComplaintServiceTest` | RV-13 / RV-14 class — needs an owner ruling on the new signature |
+| 4 | `EmployeeManagementService::list()` / `formatEmployee()` undefined | 4 | `EmployeeManagementControllerTest` | RV-13 class |
+| 5 | Validation **shape** mismatch: 422 where 201/200 expected, and vice versa | ~20 | `ProfileTest`, `RideTest`, `OtpTest`, `TextMeOtpControllerTest`, `EmailVerificationControllerTest`, `AdminDashboardControllerTest` | RV-13 (422 carries no `errors` bag — V5) |
+| 6 | `GeocodingServiceTest` distance/result mismatches (`'N.N' matches expected N.N`) | ~13 | `GeocodingServiceTest`, `CashRideFeeServiceTest` | RV-25 / RV-09 |
+| 7 | Behaviour/bug-pinning tests: wrong password ⇒ **200 not 401**; finish-before-departure ⇒ **200 not 400**; admin login by email ⇒ 401; employee management ⇒ **403** where 200/201/409 expected; `*_currently_500s` recorders | ~17 | `WalletTest`, `RideControllerFullTest`, `AdminDashboardControllerTest`, `EmployeeManagementControllerTest` | **product decisions** — §19.4 |
+| 8 | Stale stubs, dead helpers, namespace≠path, vanity assertions (R2 §RV-35's own list) | ~15 | `SendPushNotificationTest`, `ImageMessageTypeTest`, `StaffRoleTest`, `ComplaintTypeTest`, `StaffAdminControllerTest` (ns `Staff`), `JwtSecretCommandTest`, `StaffJwtMiddlewareTest`, `JwtAuthMiddlewareTest`, `ContactControllerTest`, `RideValidationServiceTest` | RV-35 (act after owning fix) / RV-31 |
+
+**Families 2–8 were left untouched**, per §RV-35's rule. No assertion was edited anywhere in this
+task.
+
+### 19.3 New finding: `wallet_requests.wallet_id` is a schema design question, not a test bug (26 tests)
+
+The 26 tests in family 1 cannot be fixed by editing a test: **a wallet top-up request is precisely
+the case where no wallet may exist yet**, yet the column is
+`$table->foreignId('wallet_id')->constrained()->cascadeOnDelete()` — `NOT NULL` with a FK. Either:
+
+- **(a)** the column should be **nullable** (a top-up creates the wallet, or is pending one) — a
+  migration; or
+- **(b)** `wallet_id` is mandatory and the fixtures are simply wrong — a fixture change, no
+  migration.
+
+(a) and (b) have materially different designs, so this is a **product decision** and is raised
+rather than chosen. It is also the largest single family in the inventory.
+
+### 19.4 Product decisions surfaced by this inventory (not acted on)
+
+1. **Wallet top-up without an existing wallet** — §19.3. Blocks 26 tests.
+2. **Wrong password returns 200, not 401** (`WalletTest`) — is that a real auth defect, or is the
+   test stale? Must not be "fixed" by weakening the test.
+3. **Ride can be finished before its departure time** (returns 200, not 400) — real defect or stale
+   expectation? Appears in both `RideTest` and `RideControllerFullTest`.
+4. **Employee management returns 403** where 200/201/409 are expected — is the role gate correct and
+   the test stale, or is the gate wrong?
+5. **Admin login by email** now returns 401 by design (username-only auth). Tests that still
+   expect 200 are stale and need rewriting, not the endpoint changing back.
+
+### 19.5 State: **VERIFIED FIX**
+
+- RV-35's own scope (inventory + map to owners) is complete: §19.2, §19.3, §19.4.
+- The one mechanical defect surfaced by the inventory (19 tests) is fixed and verified.
+- The ratchet was strengthened so this defect class cannot return, and stays green.
+- **Genuinely unverified:** the 98 tests in families 1–8 were inventoried but not diagnosed to root
+  cause, because that is the owning task's job. The counts are exact, but a test counted as
+  "family 5" could share a cause with another family once examined.
