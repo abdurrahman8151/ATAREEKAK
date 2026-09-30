@@ -39,7 +39,13 @@ return [
             'table' => 'jobs',
             'queue' => 'default',
             'retry_after' => 90,
-            'after_commit' => false,
+            // RV-09: dispatch jobs only AFTER the surrounding DB::transaction commits.
+            // With false, a job queued inside a money transaction can be picked up by a
+            // worker before the booking/wallet rows exist, so the job's model re-read
+            // throws ModelNotFoundException and the side-effect (notification/broadcast)
+            // is silently lost. after_commit=true makes the queue write part of the same
+            // transaction's success.
+            'after_commit' => true,
         ],
 
         'beanstalkd' => [
@@ -48,7 +54,8 @@ return [
             'queue' => 'default',
             'retry_after' => 90,
             'block_for' => 0,
-            'after_commit' => false,
+            // RV-09: see 'database' — push the job only after commit.
+            'after_commit' => true,
         ],
 
         'sqs' => [
@@ -68,7 +75,8 @@ return [
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => 90,
             'block_for' => null,
-            'after_commit' => false,
+            // RV-09: see 'database' above — queue only after the transaction commits.
+            'after_commit' => true,
         ],
 
     ],

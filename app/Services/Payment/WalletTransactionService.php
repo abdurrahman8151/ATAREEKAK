@@ -71,8 +71,16 @@ class WalletTransactionService
     {
         $amount = $booking->seats * $ride->price_per_seat;
 
-        $passengerWallet = $this->lockWalletByUserId($passenger->id);
+        // RV-09: acquire the GLOBAL serialization lock (SyCash) FIRST, then the
+        // passenger's own wallet. Every other money path (release/refund/no-show) already
+        // locks SyCash before any user wallet; charge was the lone exception, locking
+        // passenger → SyCash. A user who is simultaneously a booking passenger and a
+        // paid driver could therefore deadlock (MySQL 1213): this txn holding the
+        // passenger wallet waiting for SyCash, a settlement holding SyCash waiting for
+        // the same wallet. With SyCash first everywhere, all money ops serialize on it
+        // and the inverted-order deadlock class cannot occur. Balance logic is unchanged.
         $syCashWallet = $this->lockWalletByPhone(config('admin.sycash.phone'));
+        $passengerWallet = $this->lockWalletByUserId($passenger->id);
 
         $this->assertSufficientBalance(
             $passengerWallet,
@@ -89,6 +97,24 @@ class WalletTransactionService
 
         $passengerWallet->save();
         $syCashWallet->save();
+
+        // RV-40: persist the money as an immutable snapshot on the booking, the moment it
+        // is actually charged. Before this, nothing recorded what a booking paid; every
+        // later refund/settlement re-derived `seats * ride.price_per_seat`, so a mutable
+        // price or a partial-seat cancel silently changed what a paid booking "owed" and
+        // the booking could disagree with its own ledger with no source of truth.
+        //   unit_price     the per-seat price captured now
+        //   amount_paid    the total actually moved off the passenger now
+        //   payment_method snapshot so flipping the ride's method cannot change refunds
+        // These three never change after the charge, so they are always truthful here.
+        // (escrow_held — "what is still sitting in SyCash" — is written AND cleared
+        // together in RV-02 L2, where the settlement paths are made idempotent off it;
+        // writing it here without clearing it everywhere else would leave it stale.)
+        $booking->forceFill([
+            'unit_price' => $ride->price_per_seat,
+            'amount_paid' => $amount,
+            'payment_method' => $ride->payment_method,
+        ])->save();
 
         $txId = 'RB_'.time().'_'.Str::random(8);
 
@@ -614,12 +640,29 @@ class WalletTransactionService
 
     private function lockWalletByPhone(string $phone): Wallet
     {
-        $wallet = Wallet::where('phone_number', $phone)->lockForUpdate()->first();
+        // RV-21: resolve the SYSTEM wallet by phone, and refuse any non-system row.
+        // This lookup takes the "escrow sink" role in every money path, so it MUST
+        // only ever return a platform-owned wallet (user_id IS NULL). It previously
+        // matched on phone alone, so a user who registered the SyCash/Primary phone
+        // (config defaults 0987654321 / 0912345678 are in the repo) BEFORE the
+        // seeder ran would own the wallet that receives all escrow, refunds and
+        // platform fees — i.e. money routed to a hijacker. Filtering to
+        // user_id NULL and failing closed (rather than silently using a user-owned
+        // row) makes that impossible, and cannot affect a correctly-seeded system
+        // wallet. The seeder's own firstOrCreate(['phone_number'=>…]) is the second
+        // half of this (it should not adopt a claimed phone); that belongs with the
+        // wallets.kind refactor in §26.4, not this boundary fix.
+        $wallet = Wallet::where('phone_number', $phone)
+            ->whereNull('user_id')
+            ->lockForUpdate()
+            ->first();
 
         if (! $wallet) {
             throw new \RuntimeException(
-                "Wallet not found for phone: {$phone}. ".
-                'Run: php artisan db:seed --class=SystemWalletSeeder'
+                "System wallet not found for phone: {$phone}. Either it is not seeded ".
+                '(run: php artisan db:seed --class=SystemWalletSeeder) or a user-owned '.
+                'wallet has claimed that phone number, which is rejected here so escrow '.
+                'is never routed to a normal account.'
             );
         }
 

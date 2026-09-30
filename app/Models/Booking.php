@@ -27,12 +27,24 @@ class Booking extends Model
 
         'completed_at',
         'passenger_confirmed_at',
+
+        // RV-40: money snapshot — written once at charge time, then immutable.
+        'unit_price',
+        'amount_paid',
+        'escrow_held',
+        'payment_method',
+        'idempotency_key',
     ];
 
     protected $casts = [
         'completed_at' => 'datetime',
         'passenger_confirmed_at' => 'datetime',
-        'total_price' => 'decimal:2',
+        // RV-40: money is decimal(15,2) — cast so PHP compares/serialises it as a fixed
+        // scale, never a lossy float. (The previous `total_price` cast pointed at a column
+        // that did not exist; the real persisted amount is now `amount_paid`.)
+        'unit_price' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
+        'escrow_held' => 'decimal:2',
     ];
 
     /**

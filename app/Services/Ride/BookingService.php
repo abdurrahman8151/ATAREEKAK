@@ -22,7 +22,6 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -60,18 +59,29 @@ final class BookingService
         // 1. Validate passenger (verified + score gate ≥ 40)
         $this->validationService->validatePassengerCanBook($passenger);
 
-        // 2. Idempotency — return existing booking if the same key is replayed
-        $cacheKey = "booking:idem:{$dto->idempotencyKey}";
-        if ($existingId = Cache::get($cacheKey)) {
-            Log::info('Duplicate booking request detected', [
-                'idempotency_key' => $dto->idempotencyKey,
-                'existing_booking_id' => $existingId,
-            ]);
+        return DB::transaction(function () use ($dto, $passenger) {
+            // 2. Idempotency — DB-backed, scoped to THIS user, INSIDE the transaction.
+            //    RV-15 replaced a Redis read that had three defects: the key
+            //    `booking:idem:{key}` was NOT user-scoped (a different user replaying
+            //    the same key got the original booking, including its phone numbers —
+            //    a cross-tenant leak); the check ran OUTSIDE the transaction, so two
+            //    concurrent same-key requests both passed it and created two bookings;
+            //    and it lived only in Redis, so a cache flush erased the dedup and a
+            //    later replay duplicated the booking. The unique(user_id,
+            //    idempotency_key) index from RV-40 is now the durable guarantee, and
+            //    the re-check below is atomic with the insert.
+            $existing = Booking::where('user_id', $passenger->id)
+                ->where('idempotency_key', $dto->idempotencyKey)
+                ->first();
 
-            return Booking::with(['ride', 'user'])->findOrFail($existingId);
-        }
+            if ($existing) {
+                Log::info('Duplicate booking request detected', [
+                    'idempotency_key' => $dto->idempotencyKey,
+                    'existing_booking_id' => $existing->id,
+                ]);
 
-        return DB::transaction(function () use ($dto, $passenger, $cacheKey) {
+                return $existing->load(['ride', 'user']);
+            }
             // 3. Load and lock ride row to prevent race conditions on seat count
             $ride = Ride::lockForUpdate()->findOrFail($dto->rideId);
 
@@ -82,13 +92,16 @@ final class BookingService
             $bookingType = BookingType::from($ride->booking_type);
             $initialStatus = $bookingType->initialBookingStatus(); // CONFIRMED or PENDING
 
-            // 6. Create the booking record
+            // 6. Create the booking record — carrying the idempotency key so the
+            //    unique(user_id, idempotency_key) index (RV-40) is the durable dedup
+            //    guarantee, not an evictable cache entry.
             $booking = Booking::create([
                 'user_id' => $dto->passengerId,
                 'ride_id' => $dto->rideId,
                 'seats' => $dto->seats,
                 'status' => $initialStatus->value,
                 'communication_number' => $dto->communicationNumber->number(),
+                'idempotency_key' => $dto->idempotencyKey,
             ]);
 
             // 7. Charge passenger for DIRECT + E-PAY only.
@@ -104,13 +117,10 @@ final class BookingService
                 $this->deductSeats($ride, $dto->seats);
             }
 
-            // 9. Cache idempotency key for 24 hours
-            Cache::put($cacheKey, $booking->id, 86400);
-
-            // 10. Notify driver and passenger
+            // 9. Notify driver and passenger
             $this->notifyOnBookingCreated($booking, $ride, $passenger, $bookingType);
 
-            // 11. Broadcast real-time event to all listeners
+            // 10. Broadcast real-time event to all listeners
             broadcast(new RideBooked($ride, $booking, $passenger));
 
             Log::info('Ride booked successfully', [

@@ -66,7 +66,12 @@ class EPayPaymentStrategyTest extends TestCase
             );
             if (! $user->wallet_id) {
                 $w = Wallet::create([
-                    'user_id' => $user->id,
+                    // RV-21: system wallets MUST have user_id NULL (as SystemWalletSeeder
+                    // and every other money test do). This fixture attached them to an
+                    // admin User — precisely the user-owned-on-system-phone configuration
+                    // the money boundary now rejects, so the test was encoding the bug
+                    // rather than production reality.
+                    'user_id' => null,
                     'phone_number' => $cfg['phone'],
                     'balance' => 10_000_000,
                 ]);

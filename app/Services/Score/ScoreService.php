@@ -3,7 +3,6 @@
 namespace App\Services\Score;
 
 use App\Domain\Score\ScorePolicyFactory;
-use App\Domain\Score\ScoreResult;
 use App\Enums\PaymentMethod;
 use App\Enums\ScoreAction;
 use App\Models\Booking;
@@ -343,102 +342,5 @@ final class ScoreService
             $score >= 100 => 'silver',
             default => 'bronze',
         };
-    }
-
-    /**
-     * ─────────────────────────────────────────────────────────────────────────────
-     * If ScoreService.php doesn't already have an applyScore() method,
-     * drop this into app/Services/Score/ScoreService.php alongside getScore()
-     * and getHistory().
-     *
-     * Required use-statements in ScoreService.php:
-     *
-     *   use App\Domain\Score\ScorePolicyFactory;
-     *   use App\Domain\Score\ScoreResult;
-     *   use App\Enums\ScoreAction;
-     *   use App\Models\ScoreTransaction;
-     *   use App\Models\User;
-     *   use App\Models\UserScore;
-     *   use Illuminate\Support\Facades\DB;
-     * ─────────────────────────────────────────────────────────────────────────────
-     */
-
-    /**
-     * Apply a score action for a user and persist the result.
-     *
-     * Creates or updates the UserScore row, then inserts a ScoreTransaction
-     * for the history feed (GET /api/score/history and GET /api/score/transactions).
-     *
-     * @param  User  $user  The user receiving the score change
-     * @param  ScoreAction  $action  The action that triggered the change
-     * @param  mixed|null  $reference  The Booking or Ride that caused it (for history)
-     * @param  array  $context  Extra data the policy may need (e.g. elapsed_pct)
-     */
-    public function applyScore(
-        User $user,
-        ScoreAction $action,
-        mixed $reference = null,
-        array $context = [],
-    ): ScoreResult {
-        return DB::transaction(function () use ($user, $action, $reference, $context) {
-
-            // ── Get or create the user's score record ─────────────────────────
-            $userScore = UserScore::firstOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'score' => 100,   // starting score
-                    'tier' => 'bronze',
-                    'total_rides' => 0,
-                    'total_cancellations' => 0,
-                    'cancel_rate' => 0.0,
-                ]
-            );
-
-            // ── Resolve the correct policy and calculate the result ───────────
-            $policy = app(ScorePolicyFactory::class)->make($action);
-            $result = $policy->calculate($action, $userScore, $context);
-
-            // ── Update aggregate stats on UserScore ───────────────────────────
-            $previousScore = $userScore->score;
-            $newScore = max(0, $previousScore + $result->points);
-
-            $updates = ['score' => $newScore];
-
-            // Track ride and cancellation counters so cancel_rate stays accurate
-            if ($action === ScoreAction::RIDE_COMPLETED) {
-                $updates['total_rides'] = $userScore->total_rides + 1;
-            } elseif (str_contains($action->value, 'cancel') || str_contains($action->value, 'no_show')) {
-                $updates['total_cancellations'] = $userScore->total_cancellations + 1;
-                $totalEvents = $userScore->total_rides + $userScore->total_cancellations + 1;
-                $updates['cancel_rate'] = $totalEvents > 0
-                    ? round(($updates['total_cancellations'] / $totalEvents) * 100, 2)
-                    : 0.0;
-            }
-
-            // ── Tier recalculation ────────────────────────────────────────────
-            $updates['tier'] = match (true) {
-                $newScore >= 200 => 'platinum',
-                $newScore >= 150 => 'gold',
-                $newScore >= 100 => 'silver',
-                default => 'bronze',
-            };
-
-            $userScore->update($updates);
-
-            // ── Persist score history ─────────────────────────────────────────
-            ScoreTransaction::create([
-                'user_id' => $user->id,
-                'action' => $action->value,
-                'points' => $result->points,
-                'previous_score' => $previousScore,
-                'new_score' => $newScore,
-                'reason' => $result->reason,
-                'high_cancel_rate_applied' => $result->highCancelRateApplied,
-                'reference_type' => $reference ? get_class($reference) : null,
-                'reference_id' => $reference?->id,
-            ]);
-
-            return $result;
-        });
     }
 }

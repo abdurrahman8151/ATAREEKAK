@@ -42,6 +42,13 @@ final class RideSearchService
     {
         $query = Ride::query()
             ->whereDate('departure_time', '=', Carbon::parse($params['departure_date']))
+            // RV-10: never surface a ride that has already departed. `whereDate` alone
+            // matched ANY ride on the searched calendar day, so searching today returned
+            // rides whose departure_time was hours ago — nothing advances active→finished
+            // outside the scheduler (that auto-confirm half needs a product decision), so
+            // without this filter a departed ride stays bookable-looking in search forever.
+            // A >= now() guard is decision-free correctness and strictly narrows the set.
+            ->where('departure_time', '>=', Carbon::now())
             ->where('available_seats', '>=', $params['seats_required'])
             ->where('status', RideStatus::ACTIVE->value);
 
