@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Config;
 
-use App\Providers\AppServiceProvider;
 use Illuminate\Support\Env;
+use Tests\Support\Concerns\SimulatesProductionBoot;
 use Tests\TestCase;
 
 /**
@@ -25,6 +25,8 @@ use Tests\TestCase;
  */
 class PusherCredentialFallbackTest extends TestCase
 {
+    use SimulatesProductionBoot;
+
     /** Evaluate the config file fresh, bypassing Laravel's cached config(). */
     private function freshConfig(): array
     {
@@ -104,7 +106,13 @@ class PusherCredentialFallbackTest extends TestCase
             'queue.default' => 'redis',
         ]);
 
-        (new AppServiceProvider($this->app))->boot();
+        // RV-16 adds a THIRD boot guard (OTP testing modes forbidden outside
+        // local/testing). Same reasoning as T3-14 above: these tests boot a
+        // production-like env to probe the pusher guard in isolation, so they must
+        // present an otherwise valid deploy. phpunit.xml sets WALLET_OTP_MODE and
+        // OTP_BYPASS_ENABLED for the suite, so the OTP variables are cleared for the
+        // duration of the boot and restored afterwards.
+        $this->bootProviderWithoutOtpTestingModes($env);
     }
 
     public function test_production_boot_refuses_pusher_without_credentials(): void

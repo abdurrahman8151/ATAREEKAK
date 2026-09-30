@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Domain\ValueObjects\PhoneNumber;
 use App\Interfaces\OtpRepositoryInterface;
 use App\Models\Otp;
+use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
@@ -26,6 +27,14 @@ class TextMeBotOtpService
      * Send OTP via WhatsApp using TextMeBot
      */
     public function sendOtp(string $phoneNumber, string $type = 'E-PAYMENT'): array
+    {
+        // RV-16: this service leaked the code in TWO ways unrelated to any "mode" —
+        // when the provider API key is unset, and when sending FAILS. Both now pass
+        // through OtpDisclosure, so only local/testing can ever read it back.
+        return OtpDisclosure::sanitize($this->dispatchOtp($phoneNumber, $type));
+    }
+
+    private function dispatchOtp(string $phoneNumber, string $type = 'E-PAYMENT'): array
     {
         try {
             // Validate Syrian phone number

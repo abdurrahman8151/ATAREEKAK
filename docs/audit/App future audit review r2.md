@@ -407,7 +407,8 @@ state lives in the numbered sections above; this table is the index.
 | 2 | **RV-35** | **DONE — VERIFIED FIX** (§19): inventory of all 117 unmasked tests by root cause + owner; found and fixed a 4th Cause-B copy (19 errors → 0); ratchet strengthened; 98 inventoried, not acted on — errors 71 → **52** |
 | 2 | **RV-13** | **PARTIAL** (§20): the verified V5 defect is **VERIFIED FIX** (422 now carries the `errors` bag; failures 74 → 68). The domain-exception refactor, the 96 controller `catch`/`getMessage()` sweep and the envelope change remain **open** — the envelope is a product decision, and the `assertNotEquals` ratchet is deferred until the domain exceptions land (§20.2) |
 | 2 | **RV-14** | **PARTIAL** (§21): `POST /api/rides` no longer 500s (route → `create`, so the validated `CreateRideRequest` is finally reachable); the 2 dead unrouted duplicates (`cancel`, `finish`) deleted; **new `RoutesIntegrityTest` ratchet** (route→method + unrouted-allowlist, causality-tested). Open: `finish`/`driver-confirm` deprecation (product), `price_per_seat` width, `distance`/`duration` units |
-| 2 | RV-16, RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING — next is **RV-16** (OTP: `otp_code` returned whenever a provider key is unset *or* sending fails, in any environment; codes stored in plaintext; no production boot guard) |
+| 2 | **RV-16** | **PARTIAL** (§22): **two verified security halves fixed** — OtpDisclosure choke point stops otp_code leaving local/testing on all 3 services (including the TextMeBot *send-failure* path), plus a boot guard (8 tests/15 assertions). Open: phone-OTP endpoint deletion (owner), plaintext OTP storage, mail-in-transaction, enumeration, sleep(5) worker |
+| 2 | RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING -- next is **RV-37** (test determinism: 7 files leak putenv(), preventStrayRequests() absent, order-dependence confirmed — and 22.3 is a live instance of it) |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
@@ -1025,7 +1026,8 @@ explicit **next** sequence.
 | `83ecd1d` | audit §18 (commit map, open decisions, next) | documentation |
 | `d381a7a` | RV-35 inventory + 4th Cause-B copy fixed | VERIFIED FIX (71 → 52 errors) |
 | `980741c` | RV-13 validation `errors` bag (V5) | **PARTIAL** — verified half fixed (§20) |
-| *this commit* | RV-14 broken route + routes-integrity ratchet | **PARTIAL** — verified 500 fixed (§21) |
+| 1c18c07 | RV-14 broken route + routes-integrity ratchet | **PARTIAL** -- verified 500 fixed (§21) |
+| *this commit* | RV-16 OTP disclosure choke point + boot guard | **PARTIAL** — both verified halves fixed (§22) |
 | `b9643f1`, `92f454e`, `2687872`, `fa33fca` | AF-1, AF-2′, AF-4 (pre-R2) | VERIFIED FIX, see `APP_FUTURE_AUDIT.md` |
 
 ### 18.2 Status summary
@@ -1392,3 +1394,121 @@ which is exactly why the structural ratchet was needed rather than a one-line ro
 | `create-with-route` should reuse `CreateRideRequest`, then deprecate | **open** | Depends on the price bound landing first. |
 
 ### 21.2 State: **PARTIAL — the verified 500 is fixed and ratcheted; three items await a decision**
+
+---
+
+## 22. RV-16 — OTP disclosure — **PARTIAL: both verified security halves fixed; five items are owner decisions or larger refactors**
+
+**Problem.** Three different services could hand a live one-time password back to the caller,
+under three unrelated conditions. An OTP is a single-factor credential: disclosing it lets the
+holder complete a signup, a password reset, or a wallet top-up.
+
+| Service | Leaked the code when | Environment check? |
+| --- | --- | --- |
+| `EmailOtpService` | `EMAIL_OTP_MODE=testing` was set | **none at all** |
+| `WhatsAppOtpService` | `WALLET_OTP_MODE=testing` was set | none |
+| `TextMeBotOtpService` | provider API key unset — **and** when sending **fails** | none |
+
+The TextMeBot failure path is the worst of the three: any transient SMS/WhatsApp outage would
+publish every code.
+
+**Fix — one choke point, not seven scattered guards.** `App\Support\OtpDisclosure::sanitize()`
+strips `otp_code` unless `app()->environment('local','testing')`. Each service routes its **whole**
+send path through it:
+
+```php
+public function sendOtp(...): array
+{
+    return OtpDisclosure::sanitize($this->dispatchOtp(...));
+}
+```
+
+Wrapping the entire path rather than checking at each `return` means a future return statement
+cannot bypass the guard. `sanitize()` deliberately leaves `success`/`message`/`expires_at` intact,
+so callers can apply it without changing control flow.
+
+**Second half — boot guard.** `AppServiceProvider::guardOtpTestingModes()` refuses to boot outside
+local/testing when `EMAIL_OTP_MODE=testing`, `WALLET_OTP_MODE=testing` or
+`OTP_BYPASS_ENABLED=true`, following the proven `guardJwtSecret()` pattern from RV-04. This is
+defence in depth: `OtpDisclosure` stops the *disclosure*; the guard turns a dangerous deployment
+into a loud boot failure instead of a silent misconfiguration.
+
+**Verification** — `tests/Feature/Review/OtpDisclosureTest.php` (**OK, 8 tests, 15 assertions**),
+asserting both directions: denied in production **even when the mode variable is set**, and still
+delivered in `testing` so the suite keeps working. Both real services are exercised through their
+actual code path, not a stand-in.
+
+**Suite: 52 errors / 68 failures, 0 regressions vs the original baseline** (unchanged — these
+leaks were invisible to the suite).
+
+### 22.1 The guard caught a live dangerous configuration — OWNER ACTION REQUIRED
+
+The guard immediately fired on this machine, because the working copy's `.env` contains:
+
+```
+APP_ENV=production
+WALLET_OTP_MODE=testing
+OTP_BYPASS_ENABLED=true
+```
+
+That is **exactly** the account-takeover configuration R1 RV-16 describes: an environment that is
+`production`, carrying both the OTP testing mode and the OTP bypass. **Every `php artisan` command
+fails until it is corrected.**
+
+**The owner has chosen to fix `.env` and keep the guard strict.** The alternatives offered were:
+let me edit `.env`, add a CLI escape hatch, or revert the guard. Their choice is the right one — each
+alternative weakens a security guard.
+
+**To unblock `php artisan`, either:**
+- set `APP_ENV=local` (normal for a workstation), **or**
+- set `WALLET_OTP_MODE=production` and `OTP_BYPASS_ENABLED=false`.
+
+The **test suite is unaffected** — `phpunit.xml` sets `APP_ENV=testing`, which is exempt.
+
+### 22.2 Two existing boot suites had to be corrected — and why that is legitimate
+
+`PusherCredentialFallbackTest` and `EnvironmentGuardsBatchTest` simulate a production boot to probe
+*other* guards (Pusher credentials, the queue driver). They broke, because `phpunit.xml` itself
+sets `WALLET_OTP_MODE=testing` and `OTP_BYPASS_ENABLED=true` for the suite, so **no** simulated
+production boot could ever succeed.
+
+The existing code already documented this exact reasoning for the earlier T3-14 queue guard:
+
+> "they must present an otherwise valid deploy — without it the T3-14 guard (correctly) throws
+> first and the pusher behaviour under test is never reached."
+
+My guard is simply the next one, so the same fix applies. New shared trait
+`tests/Support/Concerns/SimulatesProductionBoot.php` clears the OTP modes for the duration of a
+simulated boot and restores them afterwards. **No assertion was changed** — this alters the
+environment being simulated, not what is asserted. Both suites are green again (**OK 8/11** and
+**OK 10/14**).
+
+Cost of getting there, recorded because partial environment knowledge produced a wrong fix three
+times: (1) clearing only the Dotenv repository did not work — the guard still read `getenv()`;
+(2) adding `putenv()` still did not work — PHPUnit also fills `$_ENV` and `$_SERVER`;
+(3) all **three** sources must be cleared together. Each partial attempt was caught by re-running
+the boot tests, not by inspection.
+
+### 22.3 A test of mine made a live network call — hermeticity failure, self-reported
+
+While testing the TextMeBot "not configured" branch, the test **called the real TextMeBot API**
+(provider response: "Trial is over"), because `putenv('TEXTMEBOT_API_KEY')` does not remove a value
+from the Dotenv repository that `env()` reads, so the real key was still present and the service
+opened a connection. `Http::fake()` cannot intercept it, because that service uses Guzzle directly
+rather than Laravel's HTTP client.
+
+This is a genuine instance of what RV-37 is about, found by writing a test rather than by reading
+the code. The test now clears the key via `Env::getRepository()->clear()` and asserts that as a
+**precondition** before exercising the branch, so it cannot silently reach the network again.
+
+### 22.4 What RV-16 still owes
+
+| Half | Status | Why not done |
+| --- | --- | --- |
+| Delete the phone-OTP controllers/services/routes | **open** | **Owner decision.** R1 is explicit: "unless the client uses them (owner to confirm)". Removing a public endpoint breaks the app if the client calls it. |
+| OTP codes stored in plaintext | **open** | Needs `hash_hmac` storage plus a read-path change; `OtpRepository` currently queries `where('otp_code', $code)`. |
+| Mail sent synchronously inside `SignupController`'s DB transaction | **open** | Needs `Mail::queue` after commit, plus a failure-path decision. |
+| Account enumeration (signup 409, forgot 404, `exists:users,email`) | **open** | **Product decision** — uniform 202 responses change client behaviour. |
+| `sleep(5)` inside the TextMeBot worker (16 per node) | **open** | Belongs with the endpoint decision above. |
+
+### 22.5 State: **PARTIAL — both verified security halves fixed; five items are owner decisions or larger refactors**

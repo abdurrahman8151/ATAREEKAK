@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Domain\ValueObjects\PhoneNumber;
 use App\Interfaces\OtpRepositoryInterface;
 use App\Models\Otp;
+use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
@@ -29,6 +30,13 @@ class WhatsAppOtpService
      * Send OTP via WhatsApp
      */
     public function sendOtp(string $phoneNumber, string $type = 'E-PAYMENT'): array
+    {
+        // RV-16: WALLET_OTP_MODE=testing alone must not disclose a live code;
+        // see OtpDisclosure. Whole path sanitized so no return can bypass it.
+        return OtpDisclosure::sanitize($this->dispatchOtp($phoneNumber, $type));
+    }
+
+    private function dispatchOtp(string $phoneNumber, string $type = 'E-PAYMENT'): array
     {
         try {
             $validatedPhone = $this->validateSyrianPhone($phoneNumber);

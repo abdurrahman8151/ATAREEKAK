@@ -3,10 +3,10 @@
 namespace Tests\Feature\T3Batch;
 
 use App\Http\Middleware\GateDocumentation;
-use App\Providers\AppServiceProvider;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Tests\Support\Concerns\SimulatesProductionBoot;
 use Tests\TestCase;
 
 /**
@@ -16,6 +16,8 @@ use Tests\TestCase;
  */
 class EnvironmentGuardsBatchTest extends TestCase
 {
+    use SimulatesProductionBoot;
+
     /** @var string|null the container 'env' value we override per test */
     private ?string $originalEnv = null;
 
@@ -99,7 +101,11 @@ class EnvironmentGuardsBatchTest extends TestCase
     {
         $this->app['env'] = $env;
         config(['queue.default' => $queueDriver]);
-        (new AppServiceProvider($this->app))->boot();
+        // RV-16: same reasoning as the queue guard these tests exist to probe.
+        // A production boot simulation is only realistic without the OTP testing
+        // modes that phpunit.xml sets for the suite, so they are cleared for the
+        // boot and restored after. See SimulatesProductionBoot.
+        $this->bootProviderWithoutOtpTestingModes($env);
     }
 
     public function test_booting_with_sync_queue_outside_local_fails_fast(): void

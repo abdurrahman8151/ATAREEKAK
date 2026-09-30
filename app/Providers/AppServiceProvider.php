@@ -234,6 +234,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->guardJwtSecret();
+        $this->guardOtpTestingModes();
 
         Schema::defaultStringLength(191);
 
@@ -332,6 +333,50 @@ class AppServiceProvider extends ServiceProvider
                 .($secret === '' ? 'an EMPTY value' : strlen($secret).' bytes')
                 .'. Tokens signed with an empty or short key are forgeable. '
                 .'Generate one with: php artisan jwt:secret'
+            );
+        }
+    }
+
+    /**
+     * RV-16 — refuse to boot with a testing OTP mode enabled outside development.
+     *
+     * These switches exist so the test suite and local work can read a code back out
+     * of the API instead of waiting for a real message. Left enabled on a deployed
+     * environment they publish every single-factor credential the app issues:
+     * signup, password reset and wallet top-up all become completable by anyone who
+     * asks for a code.
+     *
+     * `App\Support\OtpDisclosure` already refuses to RETURN a code outside
+     * local/testing, so this guard is defence in depth for the other direction: it
+     * turns a dangerous deployment into a loud boot failure instead of a silent
+     * misconfiguration. It uses the live process environment (getenv) because
+     * config('…') is frozen once the config cache is built.
+     */
+    private function guardOtpTestingModes(): void
+    {
+        if (app()->environment('local', 'testing')) {
+            return;
+        }
+
+        $dangerous = [];
+
+        foreach (['EMAIL_OTP_MODE' => 'testing', 'WALLET_OTP_MODE' => 'testing', 'OTP_BYPASS_ENABLED' => 'true'] as $name => $badValue) {
+            $value = getenv($name);
+            if ($value === false || $value === null) {
+                $value = $_ENV[$name] ?? $_SERVER[$name] ?? null;
+            }
+
+            if (is_string($value) && strtolower(trim($value)) === $badValue) {
+                $dangerous[] = $name.'='.$value;
+            }
+        }
+
+        if ($dangerous !== []) {
+            throw new \RuntimeException(
+                'Refusing to start with a testing OTP mode enabled outside local/testing: '
+                .implode(', ', $dangerous).'. In this state every OTP the app issues is '
+                .'readable by whoever requests it (signup, password reset, wallet top-up). '
+                .'Remove the variable(s) from the deployment environment.'
             );
         }
     }

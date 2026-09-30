@@ -8,6 +8,7 @@ use App\Interfaces\EmailOtpServiceInterface;
 use App\Interfaces\OtpRepositoryInterface;
 use App\Mail\OtpVerificationMail;
 use App\Models\Otp;
+use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -25,6 +26,14 @@ final class EmailOtpService implements EmailOtpServiceInterface
     ) {}
 
     public function sendOtp(SendEmailOtpDTO $dto): array
+    {
+        // RV-16: the whole send path is sanitized, so `otp_code` cannot escape
+        // outside local/testing. See OtpDisclosure for why this is a choke point
+        // rather than a check at each return.
+        return OtpDisclosure::sanitize($this->dispatchOtp($dto));
+    }
+
+    private function dispatchOtp(SendEmailOtpDTO $dto): array
     {
         try {
             $identifier = $dto->email->address();
