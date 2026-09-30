@@ -70,6 +70,20 @@ jobs:
       - name: Run tests with coverage
         env:
           XDEBUG_MODE: coverage
+          # RV-18: DB_CONNECTION=mysql must be set at the PROCESS level, not only in
+          # .env. phpunit.xml pins DB_CONNECTION=sqlite via <env> WITHOUT force, so
+          # PHPUnit honours an already-set variable and does not overwrite it -- and
+          # Laravel's Dotenv repository is immutable, so .env cannot win either. Without
+          # these, CI provisions MySQL but every test runs on sqlite and every money/geo
+          # suite silently skips while the job reports green (V6). Proven by construction:
+          # a pre-set process DB_CONNECTION is what all local MySQL runs rely on.
+          CI_REQUIRE_MYSQL: '1'
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: 4th_year_project_test
+          DB_USERNAME: root
+          DB_PASSWORD: ''
         # T3-11: the trailing `|| true` made this step succeed even when tests
         # failed, so the whole CI signal (including Sonar coverage) came from a
         # run whose failures were discarded. No gate existed.

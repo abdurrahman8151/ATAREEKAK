@@ -133,6 +133,14 @@ class MigrationEffectsBatchTest extends TestCase
                 'CREATE TABLE bookings (id INTEGER PRIMARY KEY, status VARCHAR(30))',
                 'CREATE TABLE users (id INTEGER PRIMARY KEY, address VARCHAR(255))',
                 'CREATE TABLE rides (id INTEGER PRIMARY KEY, payment_method VARCHAR(20))',
+                // RV-18: tables for the three ENUM-ALTER migrations whose driver
+                // guard was missing (one of them, add_void_to_noshow_reports_status,
+                // was introduced by this audit's own RV-02 L1 work). Created here so
+                // the only possible failure is SQLite failing to PARSE the MySQL-only
+                // `ALTER TABLE ... MODIFY COLUMN ... ENUM` — not "no such table",
+                // which would let the assertion pass for the wrong reason.
+                'CREATE TABLE employees (id INTEGER PRIMARY KEY, role VARCHAR(30) NOT NULL)',
+                'CREATE TABLE noshow_reports (id INTEGER PRIMARY KEY, status VARCHAR(30))',
             ] as $ddl) {
                 DB::statement($ddl);
             }
@@ -145,6 +153,10 @@ class MigrationEffectsBatchTest extends TestCase
                 '2025_07_21_181158_update_bookings_enum_columns.php',
                 '2026_05_18_000000_change_users_address_column_to_string.php',
                 '2025_05_22_224859_add_pickup_lat_lng_to_rides_table.php',
+                // RV-18: the three raw-ALTER migrations that carried no driver guard.
+                '2026_08_18_120000_add_launched_status_to_rides.php',
+                '2025_01_01_000001_add_sycash_to_employees_role_enum.php',
+                '2026_09_30_000000_add_void_to_noshow_reports_status.php',
             ];
 
             foreach ($files as $f) {

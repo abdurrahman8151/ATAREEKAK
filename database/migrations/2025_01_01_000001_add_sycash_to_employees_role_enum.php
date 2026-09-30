@@ -15,6 +15,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // RV-18 / T3-6: make the driver gate explicit instead of relying on the
+        // try/catch below to swallow a non-MySQL failure. The behaviour on MySQL is
+        // unchanged (the guard is a no-op there); on other drivers it now skips
+        // deliberately rather than passing because an exception happened to be caught.
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Wrap in a try/catch so it silently passes if the column is
         // already a VARCHAR and the DB doesn't understand ENUM syntax.
         try {
@@ -31,6 +39,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Only safe to reverse if no sycash rows exist
         $hasSycash = DB::table('employees')
             ->where('role', 'sycash')

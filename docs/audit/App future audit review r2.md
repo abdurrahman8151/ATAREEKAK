@@ -408,7 +408,9 @@ state lives in the numbered sections above; this table is the index.
 | 2 | **RV-13** | **PARTIAL** (§20): the verified V5 defect is **VERIFIED FIX** (422 now carries the `errors` bag; failures 74 → 68). The domain-exception refactor, the 96 controller `catch`/`getMessage()` sweep and the envelope change remain **open** — the envelope is a product decision, and the `assertNotEquals` ratchet is deferred until the domain exceptions land (§20.2) |
 | 2 | **RV-14** | **PARTIAL** (§21): `POST /api/rides` no longer 500s (route → `create`, so the validated `CreateRideRequest` is finally reachable); the 2 dead unrouted duplicates (`cancel`, `finish`) deleted; **new `RoutesIntegrityTest` ratchet** (route→method + unrouted-allowlist, causality-tested). Open: `finish`/`driver-confirm` deprecation (product), `price_per_seat` width, `distance`/`duration` units |
 | 2 | **RV-16** | **PARTIAL** (§22): **two verified security halves fixed** — OtpDisclosure choke point stops otp_code leaving local/testing on all 3 services (including the TextMeBot *send-failure* path), plus a boot guard (8 tests/15 assertions). Open: phone-OTP endpoint deletion (owner), plaintext OTP storage, mail-in-transaction, enumeration, sleep(5) worker |
-| 2 | RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING -- next is **RV-37** (test determinism: 7 files leak putenv(), preventStrayRequests() absent, order-dependence confirmed — and 22.3 is a live instance of it) |
+| 2 | **RV-37** | **PARTIAL** (§23): `putenv()` leakage removed at the source — new `config/otp.php`, and every OTP consumer plus the boot guard now read config, which Laravel rebuilds per test. Root-caused V14 order-dependence to read/write splitting: `->count()` ran on the separate read PDO and could not see the `RefreshDatabase` transaction — disabled outside production, and `AdminDriverServiceTest` went from 20 default / 35 random to an identical 10 / 10. Honest scope: the FULL suite is still order-dependent (68 default vs 85 under the V14 seed); §23.6 records four ruled-out causes and the next measurement. Determinism ratchet (§23.3) added and causality-needled. Suite unchanged: 52 errors / 68 failures, 0 regressions. |
+| 2 | **RV-18** | **VERIFIED FIX** (§24): the V6 silent-skip is closed. Both workflows now set `DB_CONNECTION=mysql` at process `env:` level — proven (not remembered) to beat the non-forced sqlite pin — and the new `CiMySqlDriverTest` alarm turns any fallback RED instead of a skipped green. The money/geo floor is shown to genuinely RUN and PASS on MySQL (`OK (219 tests, 1412 assertions)`), so flipping CI does not make the gate red. Three raw-ENUM migrations gained the T3-6 driver guard — including this audit's own RV-02 L1 noshow migration, which had reintroduced the very defect RV-18 exists to remove; the harness is needle-proved. `phpunit.mysql.xml` is a convenience config, deliberately NOT wired into CI. |
+| 2 | RV-22, RV-36, RV-38 | PENDING |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
@@ -1034,20 +1036,21 @@ explicit **next** sequence.
 
 ```
 Backlog:  RV-01..RV-33 (R1) + RV-34..RV-40 (R2)  =  40 tasks
-  RESOLVED - VERIFIED FIX ..............................  6   RV-02 (L1), RV-05, RV-06,
-                                                              RV-07, RV-34, RV-35
+  RESOLVED - VERIFIED FIX ..............................  7   RV-02 (L1), RV-05, RV-06,
+                                                              RV-07, RV-18, RV-34, RV-35
                                                               (RV-07 agent-side only; key
                                                               rotation + history purge still
                                                               owed by the owner)
-  PARTIAL - a verified half is fixed, remainder open .....  5   RV-01, RV-04, RV-13, RV-14, RV-16
+  PARTIAL - a verified half is fixed, remainder open .....  6   RV-01, RV-04, RV-13, RV-14,
+                                                              RV-16, RV-37
   BLOCKED on the owner ................................  1   RV-03 (decision 6)
-  NOT STARTED .........................................  28   RV-08..RV-12, RV-15, RV-17..RV-33,
-                                                              RV-36..RV-40
+  NOT STARTED .........................................  26   RV-08..RV-12, RV-15, RV-17,
+                                                              RV-19..RV-33, RV-36, RV-38..RV-40
                                                  -----
                                                   40   total
 Verify checks  V1-V16:  15 recorded, 1 never run (V7 - no replica access)
 
-Suite:  errors 443 -> 52 (-391)   failures 52 -> 68   regressions 0
+Suite:  errors 443 -> 52 (-391)   failures 52 -> 68   regressions 0   (stable since RV-35)
         117 remaining = 26 schema-decision (19.3) + 91 across 7 other families (19.2)
 ```
 
@@ -1078,7 +1081,7 @@ Decisions 1–10 originate in R1 §6; 11–14 in R2 §5. Their **current** state
 
 ### 18.4 What is next (in order)
 
-Wave 2 remaining, in the order R2 §6 lists them:
+**Wave 2 status:** RV-34, RV-35, RV-18 = VERIFIED FIX; RV-13, RV-14, RV-16, RV-37 = PARTIAL (verified halves done, remainder is owner decisions or larger refactors — see each §). Remaining untouched Wave-2 items: RV-22, RV-36, RV-38. The order below is now the remaining backlog in priority order.
 
 1. **RV-16** — OTP and mail flows (4 tests): `otp_code` is returned whenever a provider key is
    unset *or* sending fails, in any environment; codes stored in plaintext; the boot guard that
@@ -1643,3 +1646,92 @@ teardown assertion that `users` is empty at the start of each `AdminDriverServic
 
 This is left open deliberately rather than guessed at: three plausible causes were checked and
 eliminated, and the next step is a measurement, not another hypothesis.
+---
+
+## 24. RV-18 — CI signal (the V6 driver leak) — **VERIFIED FIX: money/geo can no longer silently skip on green; migration guards closed; whole-suite red is separate tracked debt**
+
+**Problem.** V6: the committed `phpunit.xml` pins `DB_CONNECTION=sqlite` / `:memory:` **without**
+`force`; the workflows provision a real MySQL service but write `DB_CONNECTION=mysql` only into
+`.env`; PHPUnit applies its `<env>` values before Laravel loads `.env`, and Laravel's Dotenv
+repository is **immutable** — so nothing written later can win. Net effect: **CI ran on sqlite while
+reporting green**, and every money/geo/lock suite guarded by
+`if (env('DB_CONNECTION','sqlite') !== 'mysql') markTestSkipped(...)` **skipped**. A green pipeline
+that had never executed one money path is worse than red: it hides regressions exactly where the
+money lives.
+
+**Fix — at the layer that can actually win.** The workflows now set `DB_CONNECTION=mysql` at the
+**process (job/step `env:`)** level. A pre-set process variable is precisely what PHPUnit's
+non-forced `<env>` refuses to overwrite, so it is the only layer that beats the pin.
+
+> **Precedence proven, not remembered.** A throwaway config pinning `DB_CONNECTION=sqlite` (no
+> force) was run with `DB_CONNECTION=mysql` set in the process, and the driver-alarm test reported
+> a real MySQL connection — **OK (2 tests, 10 assertions)**. The temp config was deleted. Every one
+> of this session's ~50 MySQL runs has relied on exactly this mechanism, and RV-37 hit the same
+> precedence three times.
+
+`phpunit.xml` is user-owned (its worktree copy holds the real local DB), so it was **not** rewritten.
+A committed `phpunit.mysql.xml` that omits the driver pin is added for convenience
+(`vendor/bin/phpunit -c phpunit.mysql.xml`); it is deliberately **not** referenced by the workflows,
+because the fix is the process env, and its own header now says so (an earlier draft wrongly claimed
+CI used it — corrected).
+
+**The alarm — `tests/Feature/Review/CiMySqlDriverTest.php` (new).** Inert locally, and under
+`CI_REQUIRE_MYSQL=1` (which the workflows now set) it **fails red** if the real driver is not mysql,
+naming the leak and its cause. Falsifiable by construction:
+
+| State | Result |
+| --- | --- |
+| locally, `CI_REQUIRE_MYSQL` unset | **Skipped: 2** (inert, announced — not a silent pass) |
+| `CI_REQUIRE_MYSQL=1` + MySQL | **OK (2 tests, 10 assertions)** |
+| `CI_REQUIRE_MYSQL=1` + sqlite (leak re-injected) | **RED** — "running on 'sqlite' … silent-skip leak" |
+| process mysql + a config pinning sqlite (precedence proof) | **OK** — driver really mysql |
+
+**Proof the fix is real and safe, not just plausible.** The money/geo floor *without* the process
+variable (faithful to old CI) versus *with* it (the fix):
+- **Without:** `RideChannelAuthorizationTest` Skipped 6, `AdminFinancialReportEscrowTest` Skipped 4,
+  `MoneyPathBatchTest` Skipped 7, `PassengerConfirmCompletionTest` Skipped 10 — the silent lie.
+- **With:** those same suites **OK** (6/11, 4/14, 7/21, 10/47) — they genuinely execute.
+
+The **entire** architecture floor under real MySQL is **green: OK (219 tests, 1412 assertions)**, so
+flipping CI to MySQL does **not** turn the gate red — the floor never depended on the leak. (The
+stderr noise in that run is intentional negative-path logging: caught `InvalidArgumentException` /
+`PDOException` in healthcheck and double-confirm tests.)
+
+**Migration guards (V6's second half).** Three raw `ALTER TABLE ... MODIFY ... ENUM` migrations ran
+with **no driver guard**, so a `migrate:fresh` on a foreign driver fataled instead of skipping. The
+established T3-6 sibling guard `if (DB::connection()->getDriverName() !== 'mysql') return;` was
+added to all three (up **and** down):
+- `2026_08_18_120000_add_launched_status_to_rides.php`
+- `2025_01_01_000001_add_sycash_to_employees_role_enum.php` (was leaning on a `try/catch` to swallow
+  the non-MySQL failure — made explicit; MySQL behaviour unchanged)
+- `2026_09_30_000000_add_void_to_noshow_reports_status.php` — **this audit's own RV-02 L1
+  migration**, which had reintroduced the very defect RV-18 exists to remove. Recorded as a
+  self-inflicted finding and now guarded like its siblings.
+
+These three joined the existing `MigrationEffectsBatchTest` harness (in-memory sqlite with stub
+`employees`/`noshow_reports` tables pre-created, so the *only* possible failure is SQLite failing to
+**parse** MySQL ENUM syntax, never a misleading "no such table"). **Causality needle:** deleting the
+rides guard made the harness fail with `SQLSTATE[HY000]: near "MODIFY": syntax error`, and the file
+restored MD5-identical. Harness **OK (5 tests, 33 assertions)**.
+
+**A bug in my own alarm, caught before shipping:** the suite-existence check used
+`glob('tests/**/...')`, but **PHP's `glob` does not treat `**` as recursive** — it only passed via a
+depth-3 `?:` fallback, and would false-red the green floor if a suite moved one folder deeper
+(ironic for a task about flaky-ignored gates). Replaced with a real `RecursiveDirectoryIterator`.
+
+### 24.1 Scope honestly held
+
+- **Fixed and verified:** the V6 silent-skip mechanism (process env + alarm) and the three missing
+  migration guards. CI's architecture floor is now provably meaningful on MySQL.
+- **Not RV-18's remit:** the *broad* suite is still red (52 errors / 68 failures) — the tracked
+  fixture/product debt burned down by RV-34/RV-37 and inventoried in §19/§23. The architecture
+  workflow's header deliberately keeps its floor smaller than the whole suite, because an always-red
+  gate is "the same disease as the `|| true`" removed under T3-11. Whole-suite green is RV-35+/
+  product decisions, not a CI-signal fix.
+- **Genuinely unverified:** the exact GitHub Actions runtime of `php artisan test` under the job env
+  could not be executed locally (the owner's `.env` is still `APP_ENV=production`, and the RV-16
+  boot guard blocks `php artisan` until §22.1 is corrected). The mechanism was instead proven at the
+  PHPUnit layer that `php artisan test` shells out to, plus a direct precedence test against a config
+  pinning sqlite. Both workflow files were YAML-validated (python yaml: OK).
+
+### 24.2 State: **VERIFIED FIX**

@@ -26,6 +26,20 @@ jobs:
   architecture:
     runs-on: ubuntu-latest
 
+    # RV-18: process-level DB settings. These must be here, not only in .env:
+    # phpunit.xml pins DB_CONNECTION=sqlite via <env> without force, PHPUnit
+    # putenv()'s it before Laravel boots, and Dotenv's repository is immutable, so a
+    # .env value cannot overwrite it. Result was V6 -- MySQL provisioned, sqlite used,
+    # every money/geo suite silently skipped, job green.
+    env:
+      CI_REQUIRE_MYSQL: '1'
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_DATABASE: 4th_year_project_test
+      DB_USERNAME: root
+      DB_PASSWORD: ''
+
     services:
       mysql:
         image: mysql:8.0
@@ -93,6 +107,7 @@ jobs:
             tests/Feature/Admin/AdminFinancialSurfaceAuthorizationTest.php \
             tests/Feature/Admin/AdminFinancialReportEscrowTest.php \
             tests/Feature/Notifications/NotificationTest.php \
+            tests/Feature/Review/CiMySqlDriverTest.php \
             tests/Unit/Providers/RouteServiceProviderTest.php \
           ; do
             php artisan test --no-coverage "$p"

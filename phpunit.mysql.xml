@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    RV-18 — the CI MySQL configuration.
+
+    WHY THIS FILE EXISTS (and why it is not phpunit.xml)
+
+    The committed phpunit.xml pins
+
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE"   value=":memory:"/>
+
+    WITHOUT force. PHPUnit applies <env> entries via putenv() with force=false, so an
+    already-set variable wins. The CI workflows write DB_CONNECTION=mysql only into
+    .env, and Laravel's Dotenv uses an IMMUTABLE repository — it does not overwrite a
+    value that phpunit.xml has already putenv()'d. Net effect (this is audit finding
+    V6): CI provisions a real MySQL service, then every test silently runs on sqlite,
+    and every money/geo/lock suite skips because its guard is
+    `if (env('DB_CONNECTION') !== 'mysql') markTestSkipped(...)`. A green CI that never
+    exercised a single money path.
+
+    phpunit.xml is owner-owned (its worktree copy holds the real local DB), so this task
+    must not rewrite it. The primary fix is that the CI workflows set DB_CONNECTION=mysql
+    at the JOB env: level, because a pre-set process variable beats the non-forced sqlite
+    pin. This file is the alternative for anyone who wants to run the MySQL suites without
+    exporting env by hand:
+
+        vendor/bin/phpunit -c phpunit.mysql.xml
+
+    It is not referenced by the workflows, and it is a convenience config, not the fix.
+    The accompanying guard test (tests/Feature/Review/CiMySqlDriverTest.php) turns any
+    future silent fallback into a RED job instead of a skipped green one.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true">
+
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+
+    <php>
+        <env name="APP_ENV"              value="testing"/>
+        <!-- RV-18: DB_CONNECTION / DB_DATABASE are intentionally NOT pinned here.
+             Pinning them to sqlite:memory is precisely the V6 defect. CI supplies
+             MySQL through .env / job env, and it must reach the tests. -->
+        <env name="CACHE_DRIVER"         value="array"/>
+        <env name="SESSION_DRIVER"       value="array"/>
+        <env name="QUEUE_CONNECTION"     value="sync"/>
+        <env name="BROADCAST_DRIVER"     value="null"/>
+        <env name="MAIL_MAILER"          value="array"/>
+        <!-- Kept identical to phpunit.xml so behaviour does not silently diverge
+             between the two configs; only the DB pin was the defect. -->
+        <env name="OTP_BYPASS_ENABLED"   value="true"/>
+        <env name="WALLET_OTP_MODE"      value="testing"/>
+        <env name="JWT_SECRET"           value="test_secret_key_for_testing_only_32chars"/>
+        <env name="JWT_TTL"              value="600"/>
+        <env name="PUSHER_APP_ID"        value=""/>
+        <env name="FIREBASE_CREDENTIALS" value=""/>
+        <env name="OPENROUTE_API_KEY"    value="dummy-test-key-not-a-real-credential"/>
+    </php>
+</phpunit>

@@ -23,6 +23,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // RV-18 / T3-6: driver guard added after the fact. This migration was written
+        // in RV-02 (L1) with a raw MySQL ALTER and no guard — the exact defect RV-18
+        // exists to catch, reintroduced by this audit's own work. Behaviour on MySQL is
+        // unchanged (the guard is a no-op there); on sqlite it now skips cleanly instead
+        // of fataling a fresh migrate.
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement(
             'ALTER TABLE noshow_reports MODIFY COLUMN status '
             ."ENUM('pending','resolved_reporter_wins','disputed','void') "
@@ -32,6 +41,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Rows in the new state would be truncated by the smaller enum, so move
         // them back to the closest pre-existing value before shrinking the list.
         DB::table('noshow_reports')->where('status', 'void')->update(['status' => 'disputed']);
