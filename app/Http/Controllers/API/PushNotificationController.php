@@ -96,7 +96,11 @@ class PushNotificationController extends Controller
             'device_type' => 'required|in:android,ios,web',
         ]);
 
-        $pushService->registerToken(auth()->id(), $request->token, $request->device_type);
+        // RV-36: $request->user()->id, matching the rest of the codebase (auth()->id()
+        // resolves under this app's JWT middleware — V12 — so this is consistency, not a
+        // behaviour fix). NOTE: store() is NOT routed (0 routes reference it), so this is
+        // effectively dead code; deleting it is RV-31's call, not RV-36's.
+        $pushService->registerToken($request->user()->id, $request->token, $request->device_type);
 
         return response()->json(['message' => 'Token registered']);
     }

@@ -410,7 +410,8 @@ state lives in the numbered sections above; this table is the index.
 | 2 | **RV-16** | **PARTIAL** (§22): **two verified security halves fixed** — OtpDisclosure choke point stops otp_code leaving local/testing on all 3 services (including the TextMeBot *send-failure* path), plus a boot guard (8 tests/15 assertions). Open: phone-OTP endpoint deletion (owner), plaintext OTP storage, mail-in-transaction, enumeration, sleep(5) worker |
 | 2 | **RV-37** | **PARTIAL** (§23): `putenv()` leakage removed at the source — new `config/otp.php`, and every OTP consumer plus the boot guard now read config, which Laravel rebuilds per test. Root-caused V14 order-dependence to read/write splitting: `->count()` ran on the separate read PDO and could not see the `RefreshDatabase` transaction — disabled outside production, and `AdminDriverServiceTest` went from 20 default / 35 random to an identical 10 / 10. Honest scope: the FULL suite is still order-dependent (68 default vs 85 under the V14 seed); §23.6 records four ruled-out causes and the next measurement. Determinism ratchet (§23.3) added and causality-needled. Suite unchanged: 52 errors / 68 failures, 0 regressions. |
 | 2 | **RV-18** | **VERIFIED FIX** (§24): the V6 silent-skip is closed. Both workflows now set `DB_CONNECTION=mysql` at process `env:` level — proven (not remembered) to beat the non-forced sqlite pin — and the new `CiMySqlDriverTest` alarm turns any fallback RED instead of a skipped green. The money/geo floor is shown to genuinely RUN and PASS on MySQL (`OK (219 tests, 1412 assertions)`), so flipping CI does not make the gate red. Three raw-ENUM migrations gained the T3-6 driver guard — including this audit's own RV-02 L1 noshow migration, which had reintroduced the very defect RV-18 exists to remove; the harness is needle-proved. `phpunit.mysql.xml` is a convenience config, deliberately NOT wired into CI. |
-| 2 | RV-22, RV-36, RV-38 | PENDING |
+| 2 | **RV-36** | **VERIFIED FIX** (§25): V12 had already refuted RV-36's headline (`auth()->id()` null), so measuring the real code found two defects the audit never named — `bulkAction`'s global `exists` rule was an **existence oracle** (422 vs 404 reveals which ids exist across the table) and **silently no-oped** foreign ids while returning success. Both closed by scoping `exists()` to the caller. Three blessed tests strengthened + 2 new IDOR/oracle tests added (needled: reverting the scope fails exactly those 2). `AuthFacadeRatchetTest` bans `auth()->`/`Auth::id()`/`Auth::user()` in app/Http+Services — zero sites remain, needle-proved. Dead `PushNotificationController::store()` conversion only; its deletion is RV-31. |
+| 2 | RV-22, RV-38 | PENDING |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
@@ -1036,21 +1037,23 @@ explicit **next** sequence.
 
 ```
 Backlog:  RV-01..RV-33 (R1) + RV-34..RV-40 (R2)  =  40 tasks
-  RESOLVED - VERIFIED FIX ..............................  7   RV-02 (L1), RV-05, RV-06,
-                                                              RV-07, RV-18, RV-34, RV-35
+  RESOLVED - VERIFIED FIX ..............................  8   RV-02 (L1), RV-05, RV-06,
+                                                              RV-07, RV-18, RV-34, RV-35,
+                                                              RV-36
                                                               (RV-07 agent-side only; key
                                                               rotation + history purge still
                                                               owed by the owner)
   PARTIAL - a verified half is fixed, remainder open .....  6   RV-01, RV-04, RV-13, RV-14,
                                                               RV-16, RV-37
   BLOCKED on the owner ................................  1   RV-03 (decision 6)
-  NOT STARTED .........................................  26   RV-08..RV-12, RV-15, RV-17,
-                                                              RV-19..RV-33, RV-36, RV-38..RV-40
+  NOT STARTED .........................................  25   RV-08..RV-12, RV-15, RV-17,
+                                                              RV-19..RV-33, RV-38..RV-40
                                                  -----
                                                   40   total
 Verify checks  V1-V16:  15 recorded, 1 never run (V7 - no replica access)
 
 Suite:  errors 443 -> 52 (-391)   failures 52 -> 68   regressions 0   (stable since RV-35)
+          tests 1908 -> 1944 after RV-34/35/18/36; RV-36 = security hardening, not red burn
         117 remaining = 26 schema-decision (19.3) + 91 across 7 other families (19.2)
 ```
 
@@ -1081,7 +1084,7 @@ Decisions 1–10 originate in R1 §6; 11–14 in R2 §5. Their **current** state
 
 ### 18.4 What is next (in order)
 
-**Wave 2 status:** RV-34, RV-35, RV-18 = VERIFIED FIX; RV-13, RV-14, RV-16, RV-37 = PARTIAL (verified halves done, remainder is owner decisions or larger refactors — see each §). Remaining untouched Wave-2 items: RV-22, RV-36, RV-38. The order below is now the remaining backlog in priority order.
+**Wave 2 status:** RV-34, RV-35, RV-18, RV-36 = VERIFIED FIX; RV-13, RV-14, RV-16, RV-37 = PARTIAL (verified halves done, remainder is owner decisions or larger refactors — see each §). Remaining untouched Wave-2 items: RV-22, RV-38. The order below is now the remaining backlog in priority order.
 
 1. **RV-16** — OTP and mail flows (4 tests): `otp_code` is returned whenever a provider key is
    unset *or* sending fails, in any environment; codes stored in plaintext; the boot guard that
@@ -1735,3 +1738,82 @@ depth-3 `?:` fallback, and would false-red the green floor if a suite moved one 
   pinning sqlite. Both workflow files were YAML-validated (python yaml: OK).
 
 ### 24.2 State: **VERIFIED FIX**
+
+---
+
+## 25. RV-36 — notification `bulkAction` — **VERIFIED FIX (real defect found: existence-oracle + silent no-op; auth premise was already refuted by V12)**
+
+**Problem.** R1/R2 RV-36 claimed `bulkAction()` (and `markAsRead`/`destroy`) were no-ops because
+"`auth()->id()` is never populated by this app's JWT middleware."
+
+**The premise was wrong, and it is recorded as corrected — not inherited.** V12 had already
+**refuted** it: `JwtAuthMiddleware` calls BOTH `setUserResolver()` AND `Auth::setUser()`, so
+`auth()->id()` resolves and `bulkAction` was functioning. RV-36's headline was a false alarm, and
+this task does not repeat it.
+
+**But measuring the actual code found two real defects in `bulkAction` that the audit did not
+describe**, both in the validation rule (`'notification_ids.*' => 'exists:user_notifications,id'`):
+
+1. **Existence oracle.** `exists` checked the id against the WHOLE table. So a
+   non-existent id → 422, while another user's REAL id passed validation, was dropped by the
+   `where('user_id', …)` filter → the empty-branch → 404. The status code therefore distinguished
+   "does not exist" from "exists but belongs to someone else" — leaking which notification ids
+   exist across the entire table to any authenticated caller.
+2. **Silent no-op framed as success.** A request mixing own + foreign ids passed validation, acted
+   only on the owned rows, and returned `"Notifications marked as read"` — reporting success for
+   ids it never touched. A client cannot tell that its foreign ids were ignored.
+
+Both are closed by scoping `exists()` to the caller's own rows
+(`Rule::exists('user_notifications','id')->where('user_id', $userId)`): now a foreign id and a
+non-existent id both produce the **same** 422 (no oracle), and no foreign id can slip into the
+silent-success path.
+
+**Fix** — `app/Http/Controllers/API/NotificationController::bulkAction()`:
+- `auth()->id()` → `$request->user()->id` (consistency: the method was the lone exception in a
+  controller that uses `$request->user()` everywhere; V12 confirms both resolve identically, so
+  this is house-rule alignment, not a behaviour change).
+- validation rule scoped to the caller (closes 1 and 2 above).
+
+**R2 §1.3's acceptance** ("replace the `assertNotEquals(500,…)` blessings with exact statuses and
+add a ratchet") — this was **sanctioned by the plan**, so strengthening is correct, not me
+weakening a test to pass:
+- `test_can_mark_notification_as_read` — `assertNotEquals(500)` → `assertStatus(200)` **and** the
+  row is actually `read_at != null`.
+- `test_can_delete_notification` — same → `assertStatus(200)` **and** the row is gone.
+- `test_bulk_action_mark_read` — same → `assertStatus(200)`, `success:true`, **and both rows
+  flipped**. Its docblock claiming `auth()->id()` "never populates" was deleted — that was the
+  refuted premise.
+- **New** `test_bulk_action_cannot_touch_another_users_notification` — foreign id → 422, victim's
+  row untouched (IDOR).
+- **New** `test_bulk_action_does_not_leak_id_existence` — asserts a real-foreign id and a
+  non-existent id return the **same** status, so existence is not distinguishable.
+
+`NotificationTest`: **OK (12 tests, 23 assertions)** (was 10).
+
+**Causality needle (the falsifiability proof).** Reverting ONLY the scoped rule back to the old
+global `exists:user_notifications,id` made exactly the two new security tests **fail**
+(`Failures: 2`, assertions 23→22); restoring returned **12 OK**. So the new tests genuinely guard
+the fix rather than passing vacuously. File restored MD5-identical.
+
+**Ratchet — `AuthFacadeRatchetTest` (new, OK 1 test).** Bans `auth()->` / `Auth::id()` /
+`Auth::user()` in `app/Http` and `app/Services`. The two legacy sites were both converted —
+`NotificationController::bulkAction` (above) and `PushNotificationController::store`'s
+`auth()->id()`. `Auth::setUser()` is a WRITE in the middleware and is deliberately not matched
+(it must stay). Zero banned sites remain, so the ratchet passes on committed code.
+Causality-needled: injecting one `auth()->id()` line into a controller made it fail naming that
+line; restored MD5-identical.
+
+**`PushNotificationController::store()` — note, not fixed.** It is **unrouted** (V12: 0 routes
+reference it) and so is effectively dead code. RV-36 converted its `auth()->id()` only to satisfy
+the ratchet; **deleting the dead class/methods is RV-31's call, not RV-36's.**
+
+**Scope honestly held.** The remaining notification work — deleting the three stub notification
+classes and `NotificationChannel` (the empty `join` stub) — is **decision 12** (open) plus RV-31;
+not done here. The two genuine RV-36 security defects are fixed and the ratchet is green.
+
+**Suite:** 1944 tests, 4348 assertions, 52 errors / 68 failures (unchanged), 0 regressions vs the
+original baseline. RV-36 adds no red and burns none — it hardens an endpoint and locks the pattern
+down; the +1 test is the ratchet, +2 the new security tests, and three existing blessed tests were
+strengthened in place.
+
+### 25.1 State: **VERIFIED FIX**

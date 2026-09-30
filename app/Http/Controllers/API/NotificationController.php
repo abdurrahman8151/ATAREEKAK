@@ -7,6 +7,7 @@ use App\Models\UserNotification;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class NotificationController extends Controller
 {
@@ -138,14 +139,31 @@ class NotificationController extends Controller
 
     public function bulkAction(Request $request): JsonResponse
     {
+        // RV-36: the ids must belong to the CALLER. The rule was
+        // `exists:user_notifications,id`, which checks the id exists GLOBALLY, so a
+        // row owned by someone else passed validation, was then silently dropped by
+        // the user_id filter below, and the caller still got "Notifications marked as
+        // read". Worse, that split made the endpoint an existence oracle: a non-existent
+        // id produced 422 while another user's real id produced 404, so a caller could
+        // probe which notification ids exist. Scoping the exists() to the caller's own
+        // rows makes both cases return the same 422 — no oracle, and no silent
+        // partial success.
+        $userId = $request->user()->id;
+
         $request->validate([
             'action' => 'required|in:mark_read,mark_unread,delete',
             'notification_ids' => 'required|array',
-            'notification_ids.*' => 'exists:user_notifications,id',
+            'notification_ids.*' => [
+                Rule::exists('user_notifications', 'id')->where('user_id', $userId),
+            ],
         ]);
 
+        // `$request->user()->id`, not auth()->id(). V12 showed auth()->id() DOES resolve
+        // here (the middleware sets the default guard), so this is a consistency fix: the
+        // method was the lone exception in a controller that uses $request->user()
+        // everywhere, and it is what the RV-36 ratchet brings to zero.
         $notifications = UserNotification::whereIn('id', $request->notification_ids)
-            ->where('user_id', auth()->id())
+            ->where('user_id', $userId)
             ->get();
 
         if ($notifications->isEmpty()) {
