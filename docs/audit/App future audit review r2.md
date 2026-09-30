@@ -1034,12 +1034,18 @@ explicit **next** sequence.
 
 ```
 Backlog:  RV-01..RV-33 (R1) + RV-34..RV-40 (R2)  =  40 tasks
-  VERIFIED FIX (complete) .............................  7   RV-07, RV-06, RV-05, RV-02 (L1),
-                                                              RV-34, RV-35
-  PARTIAL (refactor/product decision remaining) .......  3   RV-01, RV-04, RV-13
-  BLOCKED on the owner ................................  1   RV-03
-  PENDING / not started ...............................  29
-Verify checks  V1-V16:  15 recorded, 1 never run (V7 — no replica access)
+  RESOLVED - VERIFIED FIX ..............................  6   RV-02 (L1), RV-05, RV-06,
+                                                              RV-07, RV-34, RV-35
+                                                              (RV-07 agent-side only; key
+                                                              rotation + history purge still
+                                                              owed by the owner)
+  PARTIAL - a verified half is fixed, remainder open .....  5   RV-01, RV-04, RV-13, RV-14, RV-16
+  BLOCKED on the owner ................................  1   RV-03 (decision 6)
+  NOT STARTED .........................................  28   RV-08..RV-12, RV-15, RV-17..RV-33,
+                                                              RV-36..RV-40
+                                                 -----
+                                                  40   total
+Verify checks  V1-V16:  15 recorded, 1 never run (V7 - no replica access)
 
 Suite:  errors 443 -> 52 (-391)   failures 52 -> 68   regressions 0
         117 remaining = 26 schema-decision (19.3) + 91 across 7 other families (19.2)
@@ -1512,3 +1518,128 @@ the code. The test now clears the key via `Env::getRepository()->clear()` and as
 | `sleep(5)` inside the TextMeBot worker (16 per node) | **open** | Belongs with the endpoint decision above. |
 
 ### 22.5 State: **PARTIAL — both verified security halves fixed; five items are owner decisions or larger refactors**
+---
+
+## 23. RV-37 — test determinism and hermeticity — **PARTIAL: order-dependence root-caused and fixed; `preventStrayRequests` still open**
+
+**Problem.** V13 found seven test files calling `putenv()`. V14 measured the consequence: the
+suite reported **53 failures in default order versus 55 under `--order-by=random`**. Tests changed
+behaviour based on run order.
+
+### 23.1 Fix 1 — `putenv()` leakage removed at the source (not per-file)
+
+Three test files set `EMAIL_OTP_MODE=testing` in `setUp` and **none had a `tearDown`**, so the
+value persisted for the rest of the PHP process. Adding a `tearDown` would have patched three
+symptoms; the root cause is that the OTP modes were read straight from the environment.
+
+**Root fix:** new `config/otp.php`, and every consumer now reads config:
+`EmailOtpService::isTestingMode()`, `WhatsAppOtpService::isTestingMode()`, the boot guard, and
+`TextMeBotOtpService`'s provider key (new `services.textmebot.api_key`). Config is rebuilt per
+test, so an override cannot escape the test that made it. Deployments are unaffected — `env()`
+inside the config files reads the same variables as before.
+
+This also fixed the live-network incident from §22.3 at the root: the provider key is now
+configurable, so "simulate an unconfigured provider" is `Config::set(..., null)` instead of
+fighting three different env stores.
+
+### 23.2 Fix 2 — read/write splitting was the real order-dependence
+
+After fix 1 the suite was still order-dependent, so the remaining cause was measured rather than
+guessed. Running the V14 seed again:
+
+```
+default order : 52 errors / 68 failures
+random order  : 52 errors / 85 failures     <- still worse
+```
+
+Diffing the failing test names isolated it precisely: **15 extra failures, all in
+`AdminDriverServiceTest`, all count-style assertions** (e.g. `total_drivers` = 2 where 0 was
+expected). The class uses `RefreshDatabase`, and no static state exists, so the suspicion fell on
+where the reads were served from.
+
+**Root cause:** `config/database.php` configures read/write splitting (`read.host` =
+`DB_REPLICA_HOST`, `sticky => true`). A plain `User::where(...)->count()` is served on the **read
+connection — a separate PDO** — which cannot see the transaction `RefreshDatabase` opened. It sees
+whatever earlier tests had already committed, so any aggregate assertion becomes order-dependent.
+
+**Fix:** no splitting outside production. Local and testing read from the host they write to.
+
+```php
+'host' => [($_SERVER['APP_ENV'] ?? null) === 'production'
+    ? env('DB_REPLICA_HOST', env('DB_HOST', '127.0.0.1'))
+    : env('DB_HOST', '127.0.0.1')],
+```
+
+The check is `$_SERVER`, not `app()->environment()`, because config files are evaluated while the
+container is still being built — the first attempt used `app()` and failed with
+`Target class [env] does not exist` (135 errors), caught immediately by re-running.
+
+**Result for that class:** identical **10 failures in both orders** (was 20 default / 35 random).
+
+This is worth stating plainly: **the `putenv()` leak was the smaller half of V14.** Removing it
+changed nothing about order-dependence on its own. The replica read path was the larger half, and
+it was invisible until the failure sets were diffed by name.
+
+### 23.3 Ratchets added — `TestDeterminismRatchetTest` (OK, 2 tests)
+
+1. **No test file may call `putenv()`**, comments excluded. Three files are allow-listed, each
+   with a stated reason, and all three qualify on the same bar — *the behaviour under test must be
+   the resolution of an environment variable*:
+   - `PusherCredentialFallbackTest` — `require`s `config/broadcasting.php` raw, whose `env()`
+     calls read the process; `Config::set` cannot influence a re-required file.
+   - `SessionCookieAndCorsTest` — same shape, proving a config file reacts to a changed variable.
+   - `SeedCredentialsBatchTest` — the trait under test resolves a value from the environment.
+2. **The suite must never use a real mailer.**
+
+**Causality needle:** injecting `putenv('RV37_NEEDLE=1')` into a clean test file made the ratchet
+fail naming it, and the file was restored MD5-identical. The ratchet is falsifiable.
+
+Two bugs of my own were caught by that needle's first run: the allowlist is an **associative**
+array keyed by path, so `in_array()` (which searches values) silently never matched — fixed to
+`array_key_exists()`; and the path separator is `\` on Windows, so the keys never matched until
+normalised.
+
+### 23.4 What RV-37 still owes
+
+| Half | Status | Why not done |
+| --- | --- | --- |
+| `Http::preventStrayRequests()` in `TestCase::setUp` | **open** | Must be measured first: enabling it will fail every test that legitimately calls a real provider, and each such test needs `Http::fake()`. That is a wider change than it looks. |
+| Fake routing/geocoding/FCM at container level (`ROUTING_DRIVER=fake`) | **open** | Needs the same survey of which tests genuinely call providers. |
+| CI runs the suite twice with `--order-by=random` and prints the seed | **open** | Belongs to RV-18 (CI signal). The measurement is now meaningful because RV-37 made order-independence real. |
+| Remaining order dependence across other seeds | **open** | The V14 seed is fixed; two seeds do not prove general order-independence. |
+
+### 23.5 State: **PARTIAL — the order-dependence root cause is found and fixed, verified in both orders; hermeticity ratchet open**
+### 23.6 CORRECTION to 23.2 — the replica fix helped but did NOT make the suite order-independent
+
+The 23.2 result is correct but incomplete, and stating it alone would overclaim. Measured on the
+**full suite** after both fixes:
+
+```
+default order : 52 errors / 68 failures
+random order  : 52 errors / 85 failures    <- still 17 worse
+```
+
+The 15 extra failures are still exactly the same set: the count-style assertions in
+`AdminDriverServiceTest`. The fix is real but partial — run **in isolation** that class now gives
+an identical **10 failures in both orders** (it was 20 default / 35 random), which proves the
+replica read path was one real mechanism. What remains is that in a full run, some *other* test
+leaves rows **committed** in MySQL, and `AdminDriverServiceTest`'s aggregates then count them.
+
+**Causes ruled out by inspection, not assumption:**
+- `putenv()` leakage — removed (23.1).
+- any class using `DatabaseMigrations` — **none exist**;
+- `artisan migrate` / `migrate:fresh` / `DB::commit` inside tests — **none found**;
+- every `Tests\TestCase` subclass has a database trait (`RefreshDatabase`, `DatabaseTransactions`
+  or `DatabaseMigrations`) — **0 classes without one**;
+- `MigrationEffectsBatchTest` switches the default connection to an **in-memory SQLite**
+  connection and restores it in a `finally` — it commits nothing to MySQL, so it is **not** the
+  culprit, despite being the only class that touches the default connection.
+
+**Next lead (not yet taken):** identify which class writes rows outside the per-test transaction
+— most likely a service that opens its own connection, or a test that runs inside
+`DatabaseTransactions` but performs a write on a second connection. The cheap way to find it is to
+binary-search by running `AdminDriverServiceTest` after each other class in isolation, or to add a
+teardown assertion that `users` is empty at the start of each `AdminDriverServiceTest` method.
+
+This is left open deliberately rather than guessed at: three plausible causes were checked and
+eliminated, and the next step is a measurement, not another hypothesis.

@@ -9,6 +9,7 @@ use App\Services\EmailOtpService;
 use App\Services\TextMeBotOtpService;
 use App\Support\OtpDisclosure;
 use Illuminate\Support\Env;
+use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -35,17 +36,21 @@ class OtpDisclosureTest extends TestCase
     {
         parent::setUp();
 
-        // The application environment is the container `env` binding, which is what
-        // app()->environment() reads. Simulating production therefore means setting
-        // the binding, not an env var.
-        putenv('EMAIL_OTP_MODE=testing');
-        putenv('WALLET_OTP_MODE=testing');
+        // RV-37: config, not putenv(). The OTP modes are read from config('otp.*')
+        // now, so a test overrides them with Config::set — which the framework rebuilds
+        // per test, so the override cannot leak into a neighbouring test. The previous
+        // putenv() version leaked for the rest of the PHP process, which is exactly the
+        // order-dependence V14 measured.
+        Config::set('otp.email_mode', 'testing');
+        Config::set('otp.wallet_mode', 'testing');
+        Config::set('otp.bypass', true);
     }
 
     protected function tearDown(): void
     {
-        putenv('EMAIL_OTP_MODE');
-        putenv('WALLET_OTP_MODE');
+        Config::set('otp.email_mode', 'production');
+        Config::set('otp.wallet_mode', 'production');
+        Config::set('otp.bypass', false);
 
         parent::tearDown();
     }
@@ -109,7 +114,7 @@ class OtpDisclosureTest extends TestCase
 
         // The mode variable is set (setUp), which is precisely the misconfiguration
         // this guards against.
-        $this->assertSame('testing', getenv('EMAIL_OTP_MODE'));
+        $this->assertSame('testing', config('otp.email_mode'));
 
         $result = app(EmailOtpService::class)->sendOtp(
             new SendEmailOtpDTO(
@@ -147,13 +152,17 @@ class OtpDisclosureTest extends TestCase
     {
         $this->pretendProduction();
 
-        $repository = Env::getRepository();
-        $original = $repository->get('TEXTMEBOT_API_KEY');
-        $repository->clear('TEXTMEBOT_API_KEY');
+        // RV-37: the provider key is now read from config, so Config::set is enough
+        // to simulate "not configured". This is the fix for the live-call incident
+        // recorded in section 22.3: the previous version cleared the value with
+        // putenv()/Env::getRepository(), but putenv never reaches the repository env()
+        // reads, so the real key survived and this test called the LIVE provider.
+        $original = config('services.textmebot.api_key');
+        Config::set('services.textmebot.api_key', null);
 
         try {
             $this->assertNull(
-                env('TEXTMEBOT_API_KEY'),
+                config('services.textmebot.api_key'),
                 'precondition: the provider key must be absent for the unconfigured branch'
             );
 
@@ -166,7 +175,7 @@ class OtpDisclosureTest extends TestCase
             );
         } finally {
             if ($original !== null) {
-                $repository->set('TEXTMEBOT_API_KEY', $original);
+                Config::set('services.textmebot.api_key', $original);
             }
         }
     }

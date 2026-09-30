@@ -3,7 +3,7 @@
 namespace Tests\Support\Concerns;
 
 use App\Providers\AppServiceProvider;
-use Illuminate\Support\Env;
+use Illuminate\Support\Facades\Config;
 
 /**
  * RV-16 — helper for tests that boot the real AppServiceProvider under a chosen
@@ -50,27 +50,14 @@ trait SimulatesProductionBoot
      */
     private function bootProviderWithoutOtpTestingModes(string $env): void
     {
-        $repository = Env::getRepository();
-        $this->rv16SavedOtpEnv = [];
-
-        foreach ($this->rv16OtpEnvNames() as $name) {
-            // THREE places hold these values under PHPUnit, and ALL must be cleared —
-            // PHPUnit's <env> entries populate every one of them:
-            //  1. the live process environment (getenv), via putenv at startup;
-            //  2. $_ENV and $_SERVER, which PHPUnit also fills in;
-            //  3. the Dotenv repository, which is what env() reads.
-            // guardOtpTestingModes() consults all three, so clearing only some of
-            // them left the guard still firing (each partial fix was caught by
-            // re-running the boot tests).
-            $this->rv16SavedOtpEnv[$name] = [
-                'getenv' => getenv($name),
-                'env' => $_ENV[$name] ?? null,
-                'server' => $_SERVER[$name] ?? null,
-                'repo' => $repository->get($name),
-            ];
-            putenv($name);
-            unset($_ENV[$name], $_SERVER[$name]);
-            $repository->clear($name);
+        // RV-37: the guard now reads config('otp.*'), not getenv(), so this is a plain
+        // Config::set. The previous version had to clear the value in THREE places at
+        // once (the Dotenv repository, $_ENV/$_SERVER, and the live process
+        // environment) because a partial clear silently did nothing — each partial
+        // attempt was caught by re-running the boot tests.
+        foreach ($this->safeOtpConfig() as $key => $value) {
+            $this->rv37SavedOtpConfig[$key] = Config::get($key);
+            Config::set($key, $value);
         }
 
         try {
@@ -82,27 +69,26 @@ trait SimulatesProductionBoot
     }
 
     /**
+     * The values a real production deploy would have.
+     */
+    private function safeOtpConfig(): array
+    {
+        return [
+            'otp.email_mode' => 'production',
+            'otp.wallet_mode' => 'production',
+            'otp.bypass' => false,
+        ];
+    }
+
+    /**
      * Restore whatever was there before, so one test cannot poison the next.
      */
     private function restoreOtpTestingModes(): void
     {
-        $repository = Env::getRepository();
-
-        foreach ($this->rv16SavedOtpEnv as $name => $saved) {
-            if ($saved['getenv'] !== false && $saved['getenv'] !== null) {
-                putenv($name.'='.$saved['getenv']);
-            }
-            if ($saved['env'] !== null) {
-                $_ENV[$name] = $saved['env'];
-            }
-            if ($saved['server'] !== null) {
-                $_SERVER[$name] = $saved['server'];
-            }
-            if ($saved['repo'] !== null && $saved['repo'] !== false) {
-                $repository->set($name, $saved['repo']);
-            }
+        foreach ($this->rv37SavedOtpConfig as $key => $value) {
+            Config::set($key, $value);
         }
 
-        $this->rv16SavedOtpEnv = [];
+        $this->rv37SavedOtpConfig = [];
     }
 }

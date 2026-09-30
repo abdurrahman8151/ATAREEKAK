@@ -349,8 +349,13 @@ class AppServiceProvider extends ServiceProvider
      * `App\Support\OtpDisclosure` already refuses to RETURN a code outside
      * local/testing, so this guard is defence in depth for the other direction: it
      * turns a dangerous deployment into a loud boot failure instead of a silent
-     * misconfiguration. It uses the live process environment (getenv) because
-     * config('…') is frozen once the config cache is built.
+     * misconfiguration.
+     *
+     * RV-37: it reads config('otp.*') rather than getenv(). Config is the correct
+     * source for a guard: when the config is cached, the cached value IS what the
+     * deployment will actually use, whereas getenv() only sees the live process. It
+     * also removes the last raw-environment reader from the boot path, which is what
+     * let a test's putenv() decide whether the app boots.
      */
     private function guardOtpTestingModes(): void
     {
@@ -360,13 +365,12 @@ class AppServiceProvider extends ServiceProvider
 
         $dangerous = [];
 
-        foreach (['EMAIL_OTP_MODE' => 'testing', 'WALLET_OTP_MODE' => 'testing', 'OTP_BYPASS_ENABLED' => 'true'] as $name => $badValue) {
-            $value = getenv($name);
-            if ($value === false || $value === null) {
-                $value = $_ENV[$name] ?? $_SERVER[$name] ?? null;
-            }
-
-            if (is_string($value) && strtolower(trim($value)) === $badValue) {
+        foreach ([
+            'EMAIL_OTP_MODE' => config('otp.email_mode'),
+            'WALLET_OTP_MODE' => config('otp.wallet_mode'),
+            'OTP_BYPASS_ENABLED' => config('otp.bypass') ? 'true' : null,
+        ] as $name => $value) {
+            if (is_string($value) && strtolower(trim($value)) === ($name === 'OTP_BYPASS_ENABLED' ? 'true' : 'testing')) {
                 $dangerous[] = $name.'='.$value;
             }
         }

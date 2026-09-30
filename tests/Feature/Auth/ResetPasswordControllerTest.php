@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 class ResetPasswordControllerTest extends TestCase
@@ -17,7 +18,7 @@ class ResetPasswordControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        putenv('EMAIL_OTP_MODE=testing');
+        Config::set('otp.email_mode', 'testing');
         $this->user = User::factory()->create([
             'email' => 'reset@test.com',
             'password' => bcrypt('old_password'),

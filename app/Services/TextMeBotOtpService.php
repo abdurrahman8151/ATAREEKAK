@@ -20,7 +20,15 @@ class TextMeBotOtpService
     public function __construct(OtpRepositoryInterface $otpRepository)
     {
         $this->otpRepository = $otpRepository;
-        $this->apiKey = env('TEXTMEBOT_API_KEY');
+
+        // RV-37: read at SEND time from config, not once in the constructor from
+        // env(). Two reasons: config can then be overridden per test without fighting
+        // a value frozen at construction, and the "is a provider configured?" question
+        // stops depending on ambient process state. This matters concretely — while
+        // testing the unconfigured branch, a test that only called putenv() to clear
+        // the key did NOT clear it (putenv never reaches the Dotenv repository env()
+        // reads), so the service opened a real connection to the live provider.
+        $this->apiKey = config('services.textmebot.api_key');
     }
 
     /**

@@ -48,7 +48,28 @@ return [
             'url' => env('DATABASE_URL'),
 
             'read' => [
-                'host' => [env('DB_REPLICA_HOST', env('DB_HOST', '127.0.0.1'))],
+                /*
+                 * RV-37: no read/write splitting outside production.
+                 *
+                 * With splitting on, a plain read such as User::where(...)->count()
+                 * goes out on a SEPARATE PDO connection, so it cannot see the
+                 * transaction RefreshDatabase opened. It sees whatever other tests had
+                 * already committed instead — which is why aggregates were
+                 * order-dependent: AdminDriverServiceTest reported 15 extra failures
+                 * under --order-by=random, all of them count-style assertions
+                 * (e.g. total_drivers = 2 where 0 was expected).
+                 *
+                 * Replica routing is a production scaling feature. A test needs one
+                 * transactional connection, so local and testing read from the same
+                 * host they write to.
+                 *
+                 * The check is $_SERVER rather than app()->environment(): config files
+                 * are evaluated while the container is still being built, and calling
+                 * app() there fails with "Target class [env] does not exist".
+                 */
+                'host' => [($_SERVER['APP_ENV'] ?? null) === 'production'
+                    ? env('DB_REPLICA_HOST', env('DB_HOST', '127.0.0.1'))
+                    : env('DB_HOST', '127.0.0.1')],
             ],
             'write' => [
                 'host' => [env('DB_HOST', '127.0.0.1')],

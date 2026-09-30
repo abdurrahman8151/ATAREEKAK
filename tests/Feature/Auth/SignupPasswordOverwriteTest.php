@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 /**
@@ -32,7 +33,7 @@ class SignupPasswordOverwriteTest extends TestCase
         parent::setUp();
         // Keep the OTP service off the real SMTP transport. This is the same
         // affordance the existing Auth suites use.
-        putenv('EMAIL_OTP_MODE=testing');
+        Config::set('otp.email_mode', 'testing');
     }
 
     private const PASSWORD_VICTIM = 'original-password-123';
@@ -134,7 +135,7 @@ class SignupPasswordOverwriteTest extends TestCase
 
     public function test_signup_never_echoes_the_otp_code_for_an_existing_unverified_email(): void
     {
-        putenv('EMAIL_OTP_MODE=testing'); // force the "dev affordance" branch on
+        Config::set('otp.email_mode', 'testing'); // force the "dev affordance" branch on
 
         $this->unverifiedVictim();
 
@@ -147,7 +148,7 @@ class SignupPasswordOverwriteTest extends TestCase
 
     public function test_signup_never_echoes_the_otp_code_for_a_new_user(): void
     {
-        putenv('EMAIL_OTP_MODE=testing');
+        Config::set('otp.email_mode', 'testing');
 
         $response = $this->postJson('/api/auth/signup', $this->signupPayload([
             'email' => 'brand-new@test.com',

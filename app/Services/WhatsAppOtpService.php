@@ -161,7 +161,13 @@ class WhatsAppOtpService
      */
     private function isTestingMode(): bool
     {
-        return env('WALLET_OTP_MODE', 'production') === 'testing'
+        // RV-37: read from config rather than the raw environment. A putenv() in one
+        // test used to leak into every test that ran after it — the order-dependence
+        // V14 measured (53 failures in default order, 55 under --order-by=random).
+        // Config is rebuilt per test, so an override cannot escape the test that made
+        // it. The environment gate below is unchanged: OtpDisclosure (RV-16) is what
+        // stops a code leaving outside local/testing. See config/otp.php.
+        return config('otp.wallet_mode') === 'testing'
             || app()->environment('testing');
     }
 

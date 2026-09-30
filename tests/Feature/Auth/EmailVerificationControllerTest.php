@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 class EmailVerificationControllerTest extends TestCase
@@ -13,7 +14,7 @@ class EmailVerificationControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        putenv('EMAIL_OTP_MODE=testing');
+        Config::set('otp.email_mode', 'testing');
     }
 
     // ─── send ──────────────────────────────────────────────────────────────

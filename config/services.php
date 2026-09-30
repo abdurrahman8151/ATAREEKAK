@@ -52,4 +52,12 @@ return [
         'base_url' => env('CHATDADDY_BASE_URL', 'https://api.chatdaddy.tech'),
     ],
 
+    // RV-37: TextMeBot was read straight from env() inside the service constructor.
+    // Reading it from config lets a test simulate "provider not configured" with
+    // Config::set instead of fighting ambient process state — which is what caused a
+    // test to call the LIVE provider during RV-16.
+    'textmebot' => [
+        'api_key' => env('TEXTMEBOT_API_KEY'),
+    ],
+
 ];

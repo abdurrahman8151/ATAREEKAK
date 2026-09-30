@@ -146,11 +146,18 @@ final class EmailOtpService implements EmailOtpServiceInterface
 
     private function isTestingMode(): bool
     {
-        // env() resolves via $_ENV/$_SERVER first, which are populated once at
-        // boot from .env and are NOT updated by a later putenv() call (e.g. in
-        // a test's setUp()). getenv() reads the live process env table directly,
-        // which putenv() does update immediately — check it first.
-        return getenv('EMAIL_OTP_MODE') === 'testing'
-            || env('EMAIL_OTP_MODE', 'production') === 'testing';
+        // RV-37: read from config, not the raw environment.
+        //
+        // This used to consult getenv() and then env() directly. Because putenv()
+        // writes to the whole PHP process, one test setting EMAIL_OTP_MODE=testing
+        // silently changed the behaviour of every test that ran after it — the
+        // order-dependence V14 measured (53 failures in default order, 55 under
+        // --order-by=random). Config is rebuilt per test, so an override is scoped to
+        // the test that made it.
+        //
+        // Note the order of the two checks is unchanged and still deliberate:
+        // getenv() was checked first for the same ordering reason, but it is now
+        // redundant rather than load-bearing, so the environment gate below decides.
+        return config('otp.email_mode') === 'testing';
     }
 }
