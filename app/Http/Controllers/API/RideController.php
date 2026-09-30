@@ -484,25 +484,6 @@ class RideController extends Controller
     // CANCEL
     // =========================================================================
 
-    public function cancel(int $rideId, Request $request): JsonResponse
-    {
-        try {
-            $ride = $this->rideService->cancelRide($rideId, $request->user());
-
-            return response()->json([
-                'success' => true,
-                'data' => new RideResource($ride),
-                'message' => 'Ride cancelled successfully',
-            ]);
-
-        } catch (\Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
-        }
-    }
-
     public function cancelRide(Request $request, int $rideId): JsonResponse
     {
         try {
@@ -720,11 +701,10 @@ class RideController extends Controller
     // FINISH / CONFIRM
     // =========================================================================
 
-    public function finish(int $rideId, Request $request): JsonResponse
-    {
-        return $this->finishRide($request, $rideId);
-    }
-
+    /**
+     * RV-14: the `finish()` alias was removed. It was never routed (the route points
+     * at `finishRide`) and existed only as a dead second name for the same response.
+     */
     public function finishRide(Request $request, int $rideId): JsonResponse
     {
         return response()->json([

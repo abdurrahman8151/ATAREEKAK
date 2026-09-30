@@ -181,7 +181,12 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
         Route::post('/create-with-route', [RideController::class, 'createRideWithRoute']);
 
         Route::get('/', [RideController::class, 'getRides']);
-        Route::post('/', [RideController::class, 'createRide']);
+        // RV-14/V10: this pointed at `createRide`, which does not exist, so the
+        // documented create endpoint returned 500 for every caller. The real method
+        // is `create`, and it is the validated path (CreateRideRequest); the route
+        // previously left that validation unreachable while clients used the weaker
+        // inline rules of /create-with-route.
+        Route::post('/', [RideController::class, 'create']);
 
         Route::get('/{rideId}', [RideController::class, 'show']);
         Route::get('/{rideId}/passengers', [RideController::class, 'driverView']);

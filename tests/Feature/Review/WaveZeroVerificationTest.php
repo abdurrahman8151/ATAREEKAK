@@ -250,7 +250,7 @@ class WaveZeroVerificationTest extends TestCase
         );
     }
 
-    public function test_v10_post_rides_routes_to_a_nonexistent_method(): void
+    public function test_v10_post_rides_resolves_to_the_validated_create_method(): void
     {
         $route = collect(app('router')->getRoutes()->getRoutes())
             ->first(fn ($r) => $r->uri() === 'api/rides' && in_array('POST', $r->methods(), true));
@@ -263,14 +263,19 @@ class WaveZeroVerificationTest extends TestCase
         [$class, $method] = explode('@', $action);
         $this->assertSame(RideController::class, $class);
 
-        // Recorded: the route targets createRide(), which does not exist (the
-        // method is create()). Every call is a 500 BadMethodCallException and
-        // the validated CreateRideRequest path is unreachable (RV-14 CONFIRMED).
-        $this->assertFalse(
-            method_exists($class, $method),
-            "V10 expected {$class}::{$method}() to be missing — if it exists now, "
-            .'RV-14 has landed: update this record to assert it resolves.'
+        // V10 originally recorded the OPPOSITE: the route targeted createRide(),
+        // which does not exist, so every call was a 500 BadMethodCallException and
+        // the validated CreateRideRequest path was unreachable.
+        //
+        // That is now FIXED (RV-14): the route points at create(), and
+        // RoutesIntegrityTest asserts the general invariant for every route in the app.
+        // This recorder was flipped as part of that fix's verification and must NOT be
+        // flipped back.
+        $this->assertSame(
+            'create',
+            $method,
+            'RV-14: POST /api/rides must resolve to an existing public method'
         );
-        $this->assertTrue(method_exists(RideController::class, 'create'));
+        $this->assertTrue(method_exists($class, $method));
     }
 }

@@ -406,7 +406,8 @@ state lives in the numbered sections above; this table is the index.
 | 2 | **RV-34** | **DONE — VERIFIED FIX** (§17): errors 443 → 71 (**−372**), 0 regressions; Causes A/B/C all at zero; ratchet green — `5414344` |
 | 2 | **RV-35** | **DONE — VERIFIED FIX** (§19): inventory of all 117 unmasked tests by root cause + owner; found and fixed a 4th Cause-B copy (19 errors → 0); ratchet strengthened; 98 inventoried, not acted on — errors 71 → **52** |
 | 2 | **RV-13** | **PARTIAL** (§20): the verified V5 defect is **VERIFIED FIX** (422 now carries the `errors` bag; failures 74 → 68). The domain-exception refactor, the 96 controller `catch`/`getMessage()` sweep and the envelope change remain **open** — the envelope is a product decision, and the `assertNotEquals` ratchet is deferred until the domain exceptions land (§20.2) |
-| 2 | RV-14, RV-16, RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING — next is **RV-14** (route/controller drift: `geocode()` gone = 9 tests, `POST /api/rides` → nonexistent `createRide`) |
+| 2 | **RV-14** | **PARTIAL** (§21): `POST /api/rides` no longer 500s (route → `create`, so the validated `CreateRideRequest` is finally reachable); the 2 dead unrouted duplicates (`cancel`, `finish`) deleted; **new `RoutesIntegrityTest` ratchet** (route→method + unrouted-allowlist, causality-tested). Open: `finish`/`driver-confirm` deprecation (product), `price_per_seat` width, `distance`/`duration` units |
+| 2 | RV-16, RV-37, RV-18, RV-22, RV-36, RV-38 | PENDING — next is **RV-16** (OTP: `otp_code` returned whenever a provider key is unset *or* sending fails, in any environment; codes stored in plaintext; no production boot guard) |
 | 3 | RV-40, RV-09, RV-02 (L2), RV-10, RV-11, RV-15, RV-21, RV-20 | PENDING (RV-40 is the prerequisite for RV-02 L2 / RV-09 / RV-15; RV-02 L1 already consumed the `void` enum value it needed) |
 | 4 | RV-25, RV-24, RV-17 | PENDING — **unblocked**: V1 is recorded, so R2's decision table selects the "rows are transposed" branch. Note: RV-34 preserved the transposed fixtures verbatim, so the baseline for RV-25 is unchanged |
 | 5 | RV-12, RV-26, RV-27, RV-29, RV-19, RV-23 | PENDING |
@@ -1023,7 +1024,8 @@ explicit **next** sequence.
 | `5414344` | RV-34 shared test-support layer | VERIFIED FIX (443 → 71 errors) |
 | `83ecd1d` | audit §18 (commit map, open decisions, next) | documentation |
 | `d381a7a` | RV-35 inventory + 4th Cause-B copy fixed | VERIFIED FIX (71 → 52 errors) |
-| *this commit* | RV-13 validation `errors` bag (V5) | **PARTIAL** — verified half fixed (§20) |
+| `980741c` | RV-13 validation `errors` bag (V5) | **PARTIAL** — verified half fixed (§20) |
+| *this commit* | RV-14 broken route + routes-integrity ratchet | **PARTIAL** — verified 500 fixed (§21) |
 | `b9643f1`, `92f454e`, `2687872`, `fa33fca` | AF-1, AF-2′, AF-4 (pre-R2) | VERIFIED FIX, see `APP_FUTURE_AUDIT.md` |
 
 ### 18.2 Status summary
@@ -1070,30 +1072,28 @@ Decisions 1–10 originate in R1 §6; 11–14 in R2 §5. Their **current** state
 
 Wave 2 remaining, in the order R2 §6 lists them:
 
-1. **RV-14** — route/controller drift. `GeocodingService::geocode()` no longer exists (9 tests
-   pin it), `POST /api/rides` → nonexistent `createRide` (V10, a 500 on a documented endpoint),
-   `POST /rides/{id}/finish` and `/driver-confirm` return fabricated state. Also wants a
-   **routes-integrity test** (every route action resolves to a real public method) that would have
-   caught the `createRide` case structurally rather than as a symptom.
-2. **RV-16** — OTP and mail flows (4 tests): `otp_code` is returned whenever a provider key is
+1. **RV-16** — OTP and mail flows (4 tests): `otp_code` is returned whenever a provider key is
    unset *or* sending fails, in any environment; codes stored in plaintext; the boot guard that
-   refuses to start with a testing OTP mode is missing.
-3. **RV-37** — test determinism: 7 files leak `putenv()` into the shared process (V13),
+   refuses to start with a testing OTP mode is missing. This is an **account-takeover-shaped** issue
+   and is the highest-severity item left in Wave 2.
+2. **RV-37** — test determinism: 7 files leak `putenv()` into the shared process (V13),
    `Http::preventStrayRequests()` absent, order-dependence confirmed (V14). A safety net for
    everything after it.
-4. **RV-18, RV-22, RV-36, RV-38** — CI signal, TLS/log hygiene, notification `bulkAction`,
+3. **RV-18, RV-22, RV-36, RV-38** — CI signal, TLS/log hygiene, notification `bulkAction`,
    Eloquent strictness.
-5. **RV-13 remainder** (§20.1) — domain exceptions first, then the controller
+4. **RV-13 remainder** (§20.1) — domain exceptions first, then the controller
    `catch`/`getMessage()` sweep, then the `assertNotEquals` ratchet. Only the envelope change
    needs the owner.
+5. **RV-14 remainder** (§21.1) — `finish`/`driver-confirm` (product decision), the
+   `price_per_seat` width, and the `distance`/`duration` units decision.
 
 Then, per the wave plan: **RV-40** (money schema; prerequisite for RV-02 L2 / RV-09 / RV-15),
 **RV-25** (unblocked — V1 recorded; RV-34 deliberately preserved the transposed fixtures so its
 baseline is unchanged), and the remaining waves.
 
-**Two items are waiting on the owner and were raised by RV-35** — the `wallet_requests.wallet_id`
-schema question (§19.3, blocks 26 tests, the single largest family) and the five product
-decisions in §19.4.
+**Waiting on the owner:** the `wallet_requests.wallet_id` schema question (§19.3 — blocks 26
+tests, the single largest family), the five product decisions in §19.4, the RV-13 envelope shape
+(§20.1), and RV-14's `finish`/`driver-confirm` deprecation (§21.1).
 
 ### 18.5 Handoff note for RV-35 (what RV-34 left behind)
 
@@ -1310,3 +1310,85 @@ The 13 occurrences (surveyed, untouched): `ProfileTest` (4), `NotificationTest` 
 - Recorded with measurements: the four remaining halves, so the next agent does not re-audit them.
 - Deferred on purpose: the `assertNotEquals` ratchet (§20.2) and the envelope change (§20.1, product
   decision).
+
+---
+
+## 21. RV-14 — route/controller mismatches — **PARTIAL: the 500 on a documented endpoint is VERIFIED FIX; deprecations and schema remain open**
+
+**Problem.** R1 RV-14 reported `POST /api/rides` → `RideController@createRide`, a method that does
+not exist, so a documented endpoint returned 500 for every caller.
+
+**Measured first, then fixed.** A throwaway reflection probe over `Route::getRoutes()` found
+**exactly one** route in the whole app whose action cannot be invoked — V10 was correct and
+complete:
+
+```
+POST api/rides  App\Http\Controllers\API\RideController@createRide   METHOD MISSING
+```
+
+**Fixes applied (test-only-visible, no client contract change):**
+
+1. **`routes/api.php`** — `POST /api/rides` now points at `create`. This is more than a rename: it
+   makes `CreateRideRequest` — the *validated* path — reachable. It was dead code while callers used
+   `/create-with-route`, whose inline rules are weaker.
+2. **`RideController::cancel()`** deleted. An unrouted duplicate of `cancelRide()`; the route calls
+   `cancelRide`.
+3. **`RideController::finish()`** deleted. An unrouted alias of `finishRide()` that existed only as
+   a second name for the same response.
+
+(2) and (3) are the "unrouted duplicate" half of R1's ask, and both were provably unrouted and
+unreferenced before deletion.
+
+**Ratchets added** — `tests/Feature/Review/RoutesIntegrityTest.php` (**OK, 3 tests**):
+
+- `every_route_action_resolves_to_an_existing_public_method` — the general invariant. A route
+  pointing at a missing/non-public method is a 500 at runtime that nothing in the suite notices,
+  because the suite only calls endpoints that work. This is the structural form of the fix.
+- `every_public_controller_method_is_routed_or_explained` — the reverse direction, which is what
+  *found* the two dead duplicates above. Anything legitimately unrouted must appear in
+  `UNROUTED_BY_DESIGN` **with a reason** (3 entries: `ScoreController@formatScore`, and
+  `RideController@autocomplete` / `index`, both recorded as unwired-by-decision with the reason and
+  a note to delete under RV-31 if they stay unwired).
+- `every_unrouted_allowlist_entry_still_exists` — the allowlist cannot rot: deleting or routing a
+  listed method forces the entry to be removed.
+
+**Causality needle.** The ratchet was re-broken deliberately (route pointed back at `createRide`)
+and failed naming the exact route — `POST api/rides => …@createRide (method does not exist)` — then
+`routes/api.php` was restored **byte-identical (MD5 verified)**. The ratchet is falsifiable, not
+vacuous.
+
+**Behaviour pinned, not just resolution.** `tests/Feature/Review/CreateRideRouteTest.php`
+(**OK, 3 tests**) asserts the route resolves to `create`, that an invalid payload yields **422 with
+an `errors` bag** (not a 500 — proving the validated method was reached), and that an
+over-maximum price is rejected before reaching the column. Resolution alone would not have caught a
+route repointed at something weaker.
+
+**Recorder updated per house rule.** `WaveZeroVerificationTest::test_v10_post_rides_routes_to_a_nonexistent_method`
+asserted the defect and failed the moment the fix landed. Flipped to
+`…_resolves_to_the_validated_create_method` and renamed, with a comment that it must not be flipped
+back. This is the second recorder flip in a row (V5, V10) — the pattern is that a fix and its
+recorder move together.
+
+**Verification.**
+
+| | Before | After |
+| --- | --- | --- |
+| `POST /api/rides` | 500 `BadMethodCallException` | resolves to `create`, validated |
+| `Route::getRoutes()` broken actions | 1 | **0** |
+| Unrouted public controller methods | 6 | 3 (all explained) |
+| Suite errors / failures | 52 / 68 | **52 / 68** (unchanged — this was invisible to the suite) |
+| Regressions vs the original baseline | 0 | **0** |
+
+The suite being *unchanged* is itself the finding: the endpoint was broken and no test could see it,
+which is exactly why the structural ratchet was needed rather than a one-line route edit.
+
+### 21.1 What RV-14 still owes
+
+| Half | Status | Why not done |
+| --- | --- | --- |
+| `/rides/{id}/finish` and `/driver-confirm` return a no-op body | **open** | They are routed and returning honestly ("No driver action required… `driver_confirmed:false`"), but R1 calls them "lying endpoints". R2 offers *delete, or return 410* — both change the client contract. **Product decision.** |
+| `rides.price_per_seat` is `decimal(8,2)`; T3-2 never widened it | **open** | Needs a migration (mysql-guarded, never shrinks) with the bound sourced from one config value, so the bound and the column width stay in step. Pin test added above so the pair cannot silently drift. |
+| `rides.distance` / `duration` unit disagreement | **open** | Fixtures insert `320.5` and `320500` into columns commented "Meters"/seconds. **Needs a units decision** before normalising fixtures. |
+| `create-with-route` should reuse `CreateRideRequest`, then deprecate | **open** | Depends on the price bound landing first. |
+
+### 21.2 State: **PARTIAL — the verified 500 is fixed and ratcheted; three items await a decision**
