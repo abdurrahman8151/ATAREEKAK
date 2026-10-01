@@ -64,6 +64,7 @@ use App\Services\Verification\DocumentVerificationService;
 use App\Services\Wallet\WalletRequestService;
 use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Cache\Events\CacheMissed;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -237,6 +238,32 @@ class AppServiceProvider extends ServiceProvider
         $this->guardOtpTestingModes();
 
         Schema::defaultStringLength(191);
+
+        // RV-38 — Eloquent data-integrity strictness, OUTSIDE PRODUCTION.
+        //
+        // WHY: silent data loss is invisible by construction — `Model::create([...
+        // 'not_fillable' => x])` drops the value with no error, and reading a column that
+        // wasn't selected returns null as if it were legitimately absent. This session alone
+        // found several such bugs (RV-23: complaint ride_id/complained_id silently dropped;
+        // RV-38's own measurement surfaced a PushTokenManager one that silently stopped
+        // reassigning token ownership). Turning them into loud exceptions in tests/dev is how
+        // the class gets caught at the source instead of in production data.
+        //
+        // WHY NOT production: an exception in prod is a 500; production keeps today's
+        // lenient behavior. This is R1's prescription verbatim (`shouldBeStrict(!
+        // isProduction())`), and the "roll out tests first, fix what surfaces" step is done —
+        // measured: enabling these two flags across the full suite surfaced EXACTLY 2
+        // offenders (both now fixed: PushTokenManager's redundant updated_at mass-assign, and
+        // a stale UntangleBatch fixture with 4 phantom keys).
+        //
+        // WHY these two and NOT preventLazyLoading(): R1's own note expects the lazy-loading
+        // half to be large ("N+1 from RV-24"); that is a separate task (RV-24) and would
+        // flood with PERFORMANCE fallout, not data-integrity. We adopt only the flags that
+        // are demonstrably clean today and grow the surface deliberately.
+        if (! $this->app->isProduction()) {
+            Model::preventSilentlyDiscardingAttributes();
+            Model::preventAccessingMissingAttributes();
+        }
 
         Event::listen(CacheHit::class, function () {
             try {

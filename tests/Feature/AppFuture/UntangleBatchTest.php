@@ -142,10 +142,14 @@ class UntangleBatchTest extends TestCase
         $ride = $this->insertRideAt($driver, 36.2765, 33.5138, 37.1343, 36.2021, -30);
         $booking = Booking::create([
             'ride_id' => $ride->id, 'user_id' => $passenger->id,
-            'seats' => 1, 'pickup_stop_id' => null, 'status' => 'confirmed',
-            'total_price' => 50000, 'amount_paid' => 50000,
-            'payment_method' => 'e-pay', 'booking_code' => 'BK-'.uniqid(),
-            'passenger_phone' => '0912345678',
+            'seats' => 1, 'status' => 'confirmed',
+            // RV-38: dropped pickup_stop_id / total_price / booking_code / passenger_phone.
+            // None are bookings columns or fillable keys — Eloquent silently discarded them
+            // (exactly the class preventSilentlyDiscardingAttributes exists to surface). This
+            // no-show-gate test needs only a valid confirmed e-pay booking; amount_paid and
+            // payment_method ARE real (RV-40) columns and stay.
+            'amount_paid' => 50000,
+            'payment_method' => 'e-pay',
         ]);
 
         $this->expectException(\InvalidArgumentException::class);

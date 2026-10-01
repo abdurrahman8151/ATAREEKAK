@@ -2746,3 +2746,62 @@ deletion (owner: "unless the client uses them"), synchronous mail inside SignupC
 transaction (needs a failure-path decision), account enumeration (product: uniform 202s change
 client behaviour), `sleep(5)` in the TextMeBot worker (belongs to the endpoint decision). Full
 -suite gate in the commit.
+### 29.2 RV-38 — Eloquent data-integrity strictness enabled outside production — **VERIFIED FIX (bounded core)**; lazy-loading deliberately deferred to RV-24
+
+**Measured, not theorized, before choosing scope.** R1's RV-38 text assumed enabling strictness
+would "expect N+1 from RV-24, Complaint dropping ride_id, the fixture above" and told us to
+"roll out tests first, fix what surfaces." Rather than enable blindly and flood, I enabled the
+SILENT-DATA-LOSS flags behind a throwaway env gate and ran the FULL suite to quantify fallout:
+**2 of 2009 tests surfaced** — errors 52→53, failures 68→69, i.e. exactly two offenders. The
+lazy-loading half (`preventLazyLoading`) was NOT enabled: that is the N+1/RV-24 performance
+class R1 itself flags as separate, and enabling it would trade a data-integrity win for a
+large performance-refactor obligation. **RV-38's decision-free core = the two data-integrity
+flags, and the measurement proves they are the ones that are clean today.**
+
+**The two offenders (both decision-free to fix):**
+1. **`PushTokenManager::registerToken` — a REAL latent bug RV-38 caught.** It mass-assigned
+   `'updated_at' => now()` in the re-registration `update([...])`. `updated_at` is not in
+   `$fillable`, so under `preventSilentlyDiscardingAttributes` it raised `MassAssignmentException`,
+   which the method's existing `catch (\Exception)` swallowed and returned null — so **a device
+   re-registering an existing token silently STOPPED having its ownership reassigned**. It was
+   already redundant: Eloquent auto-touches `updated_at` on save, so the explicit assignment bought
+   nothing. Removing that one key is behavior-preserving AND strict-clean. (My RV-27 test
+   `registering_the_same_token_again_reassigns_ownership_without_duplicates` caught the fallout —
+   the "940 vs 941" — before RV-38 was enabled, because strict mode surfaced it.)
+2. **`UntangleBatchTest` fixture — 4 phantom keys silently discarded all along.** It created a
+   `Booking` with `pickup_stop_id`, `total_price`, `booking_code`, `passenger_phone` — **none are
+   bookings columns and none are `$fillable`** (verified against `information_schema`); they had
+   *always* been dropped without a word. `amount_paid`/`payment_method` ARE real RV-40 columns and
+   stay. Trimming the phantom keys preserves the test's intent (a valid confirmed e-pay booking for
+   the no-show-gate check) and removes exactly the silent-discard RV-38 is meant to kill.
+
+**Enable (permanent, non-production only, in `AppServiceProvider::boot`):**
+```php
+if (! $this->app->isProduction()) {
+    Model::preventSilentlyDiscardingAttributes();
+    Model::preventAccessingMissingAttributes();
+}
+```
+Production keeps today's lenient behavior (an exception in prod = a 500, never introduced to
+silently-discard paths). This is R1's prescription (`shouldBeStrict(! isProduction())`) narrowed to
+the two flags that are demonstrably clean — the "roll out tests first, fix what surfaces" step is
+DONE here: surfaces measured (2), fixed (2), re-measured (0 new).
+
+**Verification.** Probe under `testing` confirmed the guard is LIVE (`isProduction=false`,
+`Model::preventsSilentlyDiscardingAttributes()=true`) — not merely written. Both formerly-failing
+suites pass: UntangleBatch 8/216, RV27PushToken 9/33. **`RV38StrictModeRatchetTest` OK (3 tests,
+6 assertions)** pins BOTH failure modes: (a) the config readout (`assertTrue` both flags) so a
+deleted/commented enable fails, and (b) LIVE proof — `fill()` a non-fillable key and expect
+`MassAssignmentException` whose message names the offending key, so a present-but-inert guard also
+fails. **Causality needle:** changing the guard to `if (false && …)` neutered the enable and made
+**all 3** ratchet tests fail (config-assert AND both throw-asserts) — falsifiable both ways, not
+vacuous; file restored MD5-identical, final run green. **Authoritative full-suite gate** (this
+section's commit): with the enable + both fixes + ratchet, 2012 tests, 52 errors / 68 failures,
+**0 regressions** vs baseline — the enable alone (without ratchet) already measured 2009/52/68/0,
+so ratchet adds 3 tests / 0 failures, proving no NEW silent-discard exists anywhere in the suite.
+
+**Deferred deliberately (recorded, not forgotten):** `preventLazyLoading()` / full
+`Model::shouldBeStrict()` → RV-24 (N+1): enabling it would surface performance, not data-integrity,
+and is a separate bounded task. When RV-24 lands and the lazy set is proven small, this ratchet is
+the place the third flag joins. `Complaint` drop (§RV-38 text) was already handled in RV-23 §28.8
+(`ride_id`/`complained_id` added to schema+fillable).

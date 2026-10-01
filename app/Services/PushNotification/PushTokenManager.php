@@ -39,7 +39,14 @@ final class PushTokenManager
                     'user_id' => $userId,
                     'device_type' => $deviceType,
                     'is_active' => true,
-                    'updated_at' => now(),
+                    // RV-38: do NOT mass-assign 'updated_at' here. It is not in
+                    // $fillable, so under Model::preventSilentlyDiscardingAttributes()
+                    // (test/local) it raised MassAssignmentException, which this method's
+                    // catch(\Exception) swallowed and returned null — meaning a
+                    // re-registration silently stopped reassigning ownership. It was
+                    // already redundant: Eloquent's update() auto-touches updated_at, so
+                    // the timestamp is maintained by the save itself. (My RV-27 test caught
+                    // this: 'registering the same token again reassigns ownership'.)
                 ]);
 
                 return $existingToken;
