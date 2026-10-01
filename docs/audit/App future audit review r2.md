@@ -3173,3 +3173,49 @@ with a wrong password is still rejected. `EmployeeAuthServiceTest` OK (14/32) an
 **Causality needle:** removing the dummy `Hash::check` from both services — i.e. restoring the
 oracle — fails 2 of the 3 tests; files restored MD5-identical, final run green.
 **Full-suite gate: 2030 tests, 52 errors / 68 failures, 0 regressions vs baseline.**
+## 30. Post-Wave-5 session — decision-free backlog COMPLETE; consolidated owner-decision list
+
+Everything the owner assigned by §18.4 priority (RV-16 remainder → plaintext OTP storage; RV-38 →
+Eloquent strictness; then RV-22 slice-3, RV-25/RV-24/RV-17 and the RV-12/19/23/26/27/29 remainders)
+has reached a verified terminal state. Ten commits, each with a causality needle and a full-suite
+0-regression gate against the baseline (the 52-error / 68-failure floor never moved; the suite grew
+2004 → 2030 tests). Summary:
+
+**Landed (VERIFIED FIX):**
+- RV-16 plaintext OTP storage → keyed HMAC at the model write choke point + column widening (d776c1f).
+- RV-38 Eloquent data-integrity strictness outside production, two flags (61896df); the lazy-loading
+  third flag was investigated and **rolled back** (7ec0047) after proving it inert for single-row loads
+  and that its boot-listener arming does not survive Laravel's test dispatcher reset.
+- RV-17 k6 load-test contract + 422-as-success accounting (56c989a).
+- RV-24 Ride coordinate read N+1 — scalar lat/lng columns + backfill, order-neutral (b84cea0).
+- RV-25 transposed geometry → lat-first write+read flip + ST_SwapXY backfill (52108b7), plus the
+  GeoPoint single-source-of-truth writer (69c032f) and dev-flow command consistency (1af0440).
+- RV-29 item 3 — staff/admin login timing oracle closed via dummy-hash equalization (4185af3).
+
+**Owner decisions REQUIRED — every remaining item is genuinely gated; none was invented or guessed:**
+1. **RV-16 §22.4 remainders** — (a) delete the phone-OTP endpoints? (owner: "unless the client uses
+   them"); (b) move mail out of SignupController's transaction (needs a failure-path decision);
+   (c) account enumeration — uniform 202 response changes client behaviour (product call);
+   (d) `sleep(5)` in the TextMeBot worker (follows (a)).
+2. **RV-22 slice 3** — LOG_LEVEL / stderr / rotation are **deploy-surface**. Verified: the owner's
+   `.env` ALREADY sets `LOG_CHANNEL=stderr` and `LOG_LEVEL=error`, so the `config/logging.php`
+   `debug` default only applies where LOG_LEVEL is unset; there is no decision-free app-code change
+   here, and Docker log rotation is deployment configuration.
+3. **RV-29 cache-DTO** — `auth.user.{id}` caches the full User incl. the password hash (PROVEN);
+   the safe fix is a cache DTO touching auth core, blocked by the `JwtAuthMiddleware` auto-lift
+   `update()` data-loss hazard (recorded) → owner call on the auth-core refactor.
+4. **RV-29 communication_number exposure** in RideResource/BookingResource — gating it subtracts a
+   live client-contract key (Flutter) + a product question (show driver contact before booking?).
+5. **User::$fillable privileged keys** — exactly T4-5, previously ROLLED BACK; not to be retried
+   without an explicit owner decision.
+6. **RV-12/RV-19/RV-23/RV-26/RV-27 gated remainders** — tier bands, 95/5 split + derived SyCash,
+   role×endpoint matrix, admin-number definitions, all recorded in §27–§28 as owner/product calls.
+7. **RV-17 setup()-seeding + perf-reporting spec** — k6 harness needs `setup()`-login + seeded
+   rides/bookings (hard-coded expired tokens today; the new 4xx threshold will correctly FAIL until
+   that exists), plus R1's `constant-arrival-rate` / 3×-run / threshold / result-JSON reporting spec —
+   owner/perf-reporting scope.
+8. **RV-38 lazy-loading flag** — enable once (a) the 9 `User::profile` N+1s (booking / admin-escrow /
+   ride-validation money paths) are eager-loaded and (b) a reliable arming mechanism exists.
+
+**Wave 3 remains PAUSED** per §26.14, awaiting the owner's answers to the three questions recorded
+there. No further decision-free work remains within the assigned §18.4 scope.
