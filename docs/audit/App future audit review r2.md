@@ -2649,3 +2649,47 @@ tests — behavior change, record first, decide with the owner); (b) the double-
 conflict (L473-490: both parties get the same text — R1 "one notification"; wording/product
 choice); (c) no_show type 422 at the public store endpoint (validation surface; likely
 intentional gate — "public users shouldn't file internal auto-types"; needs owner, recorded).
+### 28.9 RV-29 slice 2 — cached-User secret **PROVEN** (fix gated, data-loss hazard found); all remaining RV-29 items classified
+
+**§28.6's UNVERIFIED flag is settled.** R1: "`Cache::remember('auth.user.{id}', User)`
+serialises the full model — password hash rides in the cache store." Exploratory test against
+the REAL path (`findUserCached`): a factory user's bcrypt `$2y$…` hash IS present in the
+model's serialized form, while `toJson()` does NOT expose it (`$hidden` governs JSON only).
+Framework-level mechanism confirmed: Eloquent `Model` implements `__sleep()` returning all
+`get_object_vars($this)` (attributes included, unfiltered by `$hidden`) and defines NO
+`__serialize()` (grep across the framework: only Queue/Mail traits add those) — so PHP
+serialization, which file/database/redis cache stores write, persists the hash. **Finding
+REAL.** The test was exploratory and left no permanent green pin of a live vuln (a passing
+"expected vulnerability" test misleads); the proof is re-runnable per this record, and the
+assertion test lands WITH the fix.
+
+**Why the fix is GATED (not skipped, not blind-applied).** While designing it I found a
+data-loss hazard: `JwtAuthMiddleware`'s RV-12-neighbor auto-lift path calls
+`$user->update([...])` on THIS cached copy (L73). Removing `password` from the shared cached
+model means every `$request->user()` (the middleware does `Auth::setUser($user)`) lacks its
+credential for the whole request lifecycle — any `Hash::check($x, $user->password)` consumer
+(re-auth / confirm-password) compares against null, and one `update()` on a cache-stripped
+model with attribute-setting semantics could null the column in the DB. LoginController was
+verified to use a FRESH `findByEmail` model, but the full `$request->user()->password`
+consumer set cannot be bounded from here without auditing every call site. The safe fix is a
+cache **DTO** (store a narrow shape; middleware rehydrates what it needs) — an architecture
+change touching auth core. Owner decision. R1 rates RV-29 P2/P3 hardening.
+
+**Remaining RV-29 items classified (each grounded this round):**
+1. `communication_number` in `RideResource`(L83)/`BookingResource`(L28,57): live responses to
+   the out-of-repo Flutter client already assert this key (RV-15 test reads
+   `data.communication_number`); it is also a REQUIRED booking input that round-trips.
+   Gating/removing = subtracting a live contract key (the audit's own rule for the wired
+   search surface is "strictly additive") + a product question (should the driver's contact
+   be visible before booking?). **Owner decision.**
+2. `User::$fillable` privileged keys (`status`, `token_version`, `is_verified_*`, …): this
+   exact narrowing is **T4-5, previously ROLLED BACK** (audit L171). Re-attempting without
+   owner ignores recorded history. **Owner decision.**
+3. Staff-login timing oracle (`EmployeeAuthService::authenticate`): unknown-id returns BEFORE
+   any hash work, bad-password after — ~100ms measurable difference, and distinct
+   `Log::warning` lines. HTTP response is already uniform 401/null; no response leak. Fix =
+   dummy-hash constant-time path in auth internals — low-priority hardening, recorded.
+4. Chat anyone-to-anyone + Google-link-to-unverified-account + refresh per-IP bucket: product
+   / RV-05-adjacent, recorded.
+
+**Status: RV-29 decision-free scope EXHAUSTED at slice 1 (bc6acaa).**
