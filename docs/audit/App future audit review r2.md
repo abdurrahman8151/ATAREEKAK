@@ -2601,3 +2601,51 @@ fails EXACTLY the revenue-behavior test + the flipped V8 recorder.
 **Floors:** WaveZero 9/25 (recorder rewritten, count grew 24→25), AdminFinancialReportEscrow
 4/14, Admin dir 114/9 = the established AdminDashboardControllerTest pre-existing 9F, nothing
 new. Full suite + gate recorded in the commit.
+### 28.8 RV-23 (slice 2) — complaints go to the least-loaded agent, not to one — **VERIFIED FIX**
+
+**Defect (verified in code).** `ComplaintService::submit` chose an agent with
+`Employee::where('role','support_agent')->where('is_active',true)->first()` — no ordering at
+all. `first()` returns the same first-matched row every request, so with one busy agent and
+ten idle ones EVERY complaint landed on the busy one: its backlog grows unbounded (an
+SLA/availability failure, not merely unfairness) while the other agents never see work.
+
+**Fix is convention-mirroring, not invented:** R1 prescribed "least-loaded assignment (as
+`ContactController`)", and that pattern exists and is proven in-repo — `ContactController`
+picks agents with a load-count `orderByRaw` subquery, ASC, first(). Complaints relate to
+employees DIRECTLY (`complaints.assigned_to → employees.id`), so the subquery needs none of
+ContactController's email-join workaround. "Load" = complaints still needing handling:
+`status NOT IN ('resolved','closed')` — terminal states don't count; pending/in_review/
+escalated do. Eligibility is UNCHANGED (same role, same active filter, same null-tolerant
+result) — the change strictly redistributes, grants no access, weakens no validation. A
+deterministic `orderBy('employees.id')` tie-break was added: the original had no ordering at
+all, so a fairness assertion would otherwise be inherently flaky. Driver-portable standard
+SQL (works on MySQL and SQLite alike).
+
+**Verification — `RV23ComplaintAssignmentTest` OK (5 tests, 9 assertions):** a busy agent
+(5 open cases, lower id — the row the old query always returned) is skipped for an idle one;
+4 successive submissions reach BOTH idle agents (uniq assigned count = 2 — proof it isn't
+pinned to one row); resolved/closed do not inflate load and a true tie breaks to lower id
+deterministically; a DEACTIVATED agent is never chosen even when idlest of all (eligibility
+preserved); with zero agents the complaint still creates unassigned (the null branch kept).
+**Causality needle:** reverting the builder to the literal original `first()` query (exact
+text, lints clean) fails EXACTLY the 2 redistribution tests — busy-skipped + balancing — while
+tie-break/inactive/null stay green (correctly: those properties exist in the old query too).
+File restored MD5-identical. (First needle attempt was itself buggy — it reconstructed
+`Employee::where` with no arguments and would have produced a bogus result; caught by
+lint-before-run before trusting anything.)
+
+**Self-caught during authoring:** one assertion compared the cast enum object to its string
+(`$complaint->status` vs `->value`) — caught by running, fixed to compare the enum.
+
+**Floors attributed, not assumed:** Feature\Complaints 34/1 = baseline item #38
+(`test_store_accepts_all_valid_complaint_types`, the no_show 422 — an RV-23-slice-3/recorder
+matter); StaffComplaintServiceTest 14E/1F = baseline #30–43 verbatim (list_all/list_escalated
+arity drift, RV-35 inventory); StaffComplaintControllerTest 38/125 green; RV23 slice-1 still
+2/8. Full-suite gate in the commit message.
+
+**RV-23 remaining after this slice:** (a) `GET /staff/complaints/{id}` mutates state (the
+auto-transition, and it's the same file family as the baseline-red StaffComplaintController
+tests — behavior change, record first, decide with the owner); (b) the double-notification on
+conflict (L473-490: both parties get the same text — R1 "one notification"; wording/product
+choice); (c) no_show type 422 at the public store endpoint (validation surface; likely
+intentional gate — "public users shouldn't file internal auto-types"; needs owner, recorded).

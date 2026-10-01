@@ -19,8 +19,34 @@ final class ComplaintService
 
     public function submit(array $data, User $user, array $files = []): Complaint
     {
+        // RV-23 (slice 2): least-loaded assignment instead of head-of-queue.
+        //
+        // BEFORE: `Employee::where('role','support_agent')->where('is_active',true)->first()`
+        // — no ordering, so EVERY complaint landed on the same first-matched agent.
+        // With one busy agent and ten idle ones, the queue starved one person while the
+        // rest never saw work: an availability-shaped bug, not just unfairness (the busy
+        // agent's backlog grows and SLA degrades while capacity sits idle).
+        //
+        // Mirrors the convention already proven in ContactController (a load-count
+        // subquery, ASC, first()). Complaints relate to employees DIRECTLY via
+        // assigned_to, so unlike ContactController this needs no email join. "Loaded" =
+        // complaints still needing handling (everything except the terminal resolved /
+        // closed states); a brand-new complaint (this insert, pending) is not counted
+        // against the chosen agent at query time, matching the pre-insert ordering.
+        //
+        // Eligibility is UNCHANGED — same role, same active filter, same null-tolerant
+        // result — so this strictly redistributes, grants no new access, and never
+        // weakens validation. A deterministic id tie-break is added (the original had
+        // none, leaving the choice arbitrary and a fairness assertion inherently flaky).
         $agent = Employee::where('role', 'support_agent')
             ->where('is_active', true)
+            ->orderByRaw("(
+                SELECT COUNT(*)
+                FROM complaints
+                WHERE complaints.assigned_to = employees.id
+                  AND complaints.status NOT IN ('resolved', 'closed')
+            ) ASC")
+            ->orderBy('employees.id')
             ->first();
 
         $complaint = $this->repository->create([
