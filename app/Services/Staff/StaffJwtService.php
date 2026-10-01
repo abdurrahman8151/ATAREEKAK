@@ -4,6 +4,7 @@ namespace App\Services\Staff;
 
 use App\Models\Employee;
 use App\Models\StaffRefreshToken;
+use Carbon\Carbon;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -101,7 +102,35 @@ final class StaffJwtService
             ->with('employee')
             ->first();
 
-        if (! $tokenRecord || ! $tokenRecord->isValid()) {
+        if (! $tokenRecord) {
+            return null;
+        }
+
+        // RV-29: REUSE DETECTION (mirror of JwtService::refreshAccessToken). A
+        // revoked-but-still-unexpired token presented again means two live copies of
+        // one secret — the legitimate holder rotated past it, so whoever else holds it
+        // is not the holder. Revoke the ENTIRE lineage (refresh rows + access tokens,
+        // via revokeAllTokens bumping token_version) whichever party is the thief.
+        // Already-expired rows keep the old silent-invalid answer: nothing to protect.
+        if ($tokenRecord->revoked && ! $tokenRecord->isExpired()) {
+            $othersActive = StaffRefreshToken::where('employee_id', $tokenRecord->employee_id)
+                ->where('revoked', false)
+                ->where('expires_at', '>', Carbon::now())
+                ->exists();
+
+            if ($othersActive) {
+                Log::warning('Staff refresh token REUSE detected — revoking all tokens for employee', [
+                    'employee_id' => $tokenRecord->employee_id,
+                    'token_id' => $tokenRecord->id,
+                ]);
+
+                $this->revokeAllTokens($tokenRecord->employee_id);
+            }
+
+            return null;
+        }
+
+        if (! $tokenRecord->isValid()) {
             return null;
         }
 

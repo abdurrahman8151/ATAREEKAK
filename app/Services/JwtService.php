@@ -6,6 +6,7 @@ use App\Models\RefreshToken;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class JwtService
@@ -122,12 +123,41 @@ class JwtService
     {
         $hashedToken = hash('sha256', $refreshToken);
 
+        // RV-29: the lookup no longer filters on revoked — a REVOKED, still-unexpired
+        // token presented again is not just "invalid", it is the signature of theft
+        // (the legitimate holder already rotated past it). Returning null quietly —
+        // the old behaviour — meant a stolen token being replayed by the thief went
+        // completely unnoticed while the thief's copies stayed usable elsewhere.
         $storedToken = RefreshToken::where('token', $hashedToken)
             ->where('expires_at', '>', Carbon::now())
-            ->where('revoked', false)
             ->first();
 
         if (! $storedToken) {
+            return null;
+        }
+
+        if ($storedToken->revoked) {
+            // Reuse detected iff the same account still holds an ACTIVE token: that
+            // means somebody rotated normally and a stale copy surfaced afterwards —
+            // two live copies of one secret. (If the whole lineage is already dead,
+            // e.g. logout-all, this is just an invalid token, same as before.)
+            $othersActive = RefreshToken::where('user_id', $storedToken->user_id)
+                ->where('revoked', false)
+                ->where('expires_at', '>', Carbon::now())
+                ->exists();
+
+            if ($othersActive) {
+                Log::warning('Refresh token REUSE detected — revoking all tokens for user', [
+                    'user_id' => $storedToken->user_id,
+                    'token_id' => $storedToken->id,
+                ]);
+
+                // OWASP-canonical response: invalidate the ENTIRE lineage — refresh
+                // rows AND outstanding access tokens (revokeAllTokens bumps
+                // token_version) — so whichever party holds a stale copy loses access.
+                $this->revokeAllTokens($storedToken->user_id);
+            }
+
             return null;
         }
 

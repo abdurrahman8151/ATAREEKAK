@@ -2509,3 +2509,46 @@ logs only a warning — a config/deploy concern); the compose `fcm_credentials.j
 notification history pruning (`notifications`/`user_notifications` never pruned — `tokens:cleanup`
 *is* scheduled, but that covers refresh tokens, not push/notification rows). Retention windows are
 product choices.
+### 28.6 RV-29 (slice 1) — refresh-token REUSE DETECTION (user + staff) — **VERIFIED FIX**; remainder recorded
+
+**Defect (grounded in both services before editing).** Both `JwtService::refreshAccessToken`
+and `StaffJwtService::refreshAccessToken` rotated correctly (revoke-old-then-mint-new) but the
+user lookup filtered `revoked=false`, and neither side distinguished *why* a token was rejected.
+Consequence: a STOLEN refresh token replayed by the thief succeeds first and marks the legit
+holder's copy revoked; the holder's next refresh then fails with the same silent null — theft is
+never signalled, and the thief's already-minted ACCESS tokens live out their TTL. R1 RV-29
+names exactly this ("Refresh rotation has no reuse detection → token family; revoke all on
+reuse").
+
+**Fix.** Lookup no longer pre-filters revoked; a **revoked-but-unexpired** row presented again
+means two live copies of one secret = theft. Then: `Log::warning` naming the account + the
+family revoke via the EXISTING `revokeAllTokens()` (refresh rows + `token_version` bump so live
+access tokens die too). Deliberate boundaries: replay of an EXPIRED row is not treated as theft
+(nothing to protect — a healthy sibling session must survive; pinned); the all-already-revoked
+case (post logout-all) keeps its old silent-invalid answer; normal single rotation is unchanged.
+Action-first design: the check adds ONLY revocation — it removes no capability, weakens nothing.
+
+**Verification — `RV29RefreshReuseDetectionTest` OK (6 tests, 14 assertions):** controls (normal
+rotation twice via the rotated token still works; expired ghost replay does NOT nuke a healthy
+sibling), and the security core on BOTH audiences (replay -> zero active rows remain -> the
+sibling token itself now fails -> `token_version` bumped on both `users` and `employees`).
+**Causality needle** disabled only the revoke ACTION (`if (false && $othersActive)`) in both
+services: EXACTLY the 4 reuse-value tests fail, both controls stay green — the tests measure
+revocation, not response shape. Files restored MD5-identical. Existing refresh behaviour is
+preserved: `StaffRefreshTokenHashingTest` 12/25 still green (its "consumed token cannot be
+replayed" assertion only requires null, which reuse also returns), AuthTest 14/37,
+StaffAuthControllerTest 17/30, Feature\Auth whole dir 74/191. Full suite **1995 tests,
+52 errors / 68 failures unchanged, 0 regressions**.
+
+**RV-29 remainder (recorded, next slices, all individually grounded first):**
+- `Cache::remember('auth.user.{id}', User)` serialises the FULL model. R1 claims the password
+  hash rides in the cache store — MECHANISM UNVERIFIED so far (`$hidden` applies to JSON
+  serialization; whether the cache path bypasses it depends on `Model::__serialize`); ground it
+  in vendor before fixing.
+- `User::$fillable` carries privileged keys (`status`, `token_version`, `is_verified_*`,
+  `wallet_id`, `national_id`) — T4-5 was rolled back before; mass-assignment surface.
+- Google linking to an UNVERIFIED local account without invalidating its password.
+- `RefreshTokenController` per-IP-only rate limit (RV-05 buckets exist for this).
+- Chat `startConversation` anyone-messages-anyone (product feature decision — gated).
+- `RideResource`/`BookingResource` leak `communication_number` to every authenticated user.
+- Staff login early-return timing (unknown identifier vs wrong password).
