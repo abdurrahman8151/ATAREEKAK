@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-
 /**
  * UserScore Model
  *
@@ -19,8 +18,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $total_cancellations Cancelled bookings / rides
  * @property float $cancel_rate Computed: total_cancellations / max(1, total_rides+total_cancellations) * 100
  */
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 class UserScore extends Model
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
     use HasFactory;
 
     protected $fillable = [

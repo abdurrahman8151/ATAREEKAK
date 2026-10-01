@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\GuardsLazyLoading;
 use App\Notifications\CustomResetPassword;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,6 +13,9 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
+
     // AF-4 (app-future audit): HasApiTokens (Sanctum) removed. The owner
     // decision was "JWT for everything": no route uses auth:sanctum, nothing
     // calls createToken(), and T2-9 deliberately deleted the one call site

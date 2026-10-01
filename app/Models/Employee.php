@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\StaffRole;
+use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class Employee extends Authenticatable
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
     use HasFactory;
 
     protected $fillable = [

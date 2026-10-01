@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -10,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class NoshowReport extends Model
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
+
     protected $fillable = [
         'ride_id',
         'booking_id',

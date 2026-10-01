@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ComplaintAttachment extends Model
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
+
     protected $fillable = [
         'complaint_id',
         'path',

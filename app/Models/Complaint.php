@@ -4,12 +4,16 @@ namespace App\Models;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
+use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Complaint extends Model
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
+
     protected $fillable = [
         'user_id',
         // RV-23: ride_id + complained_id were written by Noshowservice::handleConflict

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GuardsLazyLoading;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Otp extends Model
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
     use HasFactory;
 
     /** Verification attempts allowed per issued code before it is burned. */

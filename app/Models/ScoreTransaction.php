@@ -2,18 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
 /**
  * ScoreTransaction Model
  *
  * Immutable audit trail for every score change.
  * Never delete rows — only insert.
  */
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 class ScoreTransaction extends Model
 {
+    // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
+    use GuardsLazyLoading;
     use HasFactory;
 
     public const UPDATED_AT = null; // insert-only, no updates

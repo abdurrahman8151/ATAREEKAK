@@ -3423,3 +3423,38 @@ log-only in production, and this is a decision-free blocker to resolve, not an o
 
 **Net:** RV-38 remains the two verified data-integrity flags (§29.2). The lazy half is blocked on
 arming robustness, not on the (now-refuted) N+1 premise.
+## 36. RV-38 — reliable lazy-loading arming mechanism (`GuardsLazyLoading`) — **VERIFIED FIX**; flag still off (armable in one line now)
+
+Builds the mechanism §29.5/§35 said was missing, so RV-38's third strictness flag is no longer
+blocked on arming fragility. **The flag itself stays OFF** (zero behaviour change while off); what
+lands is a correct, testable way to arm it.
+
+**The mechanism.** `GuardsLazyLoading` overrides `newInstance()`. Because `newFromBuilder()` calls
+`$this->newInstance([], true)`, EVERY hydration path — `find()`, `first()`, `get()`, relation
+loading, factories — funnels through it, so each freshly-constructed instance inherits
+`$model->preventsLazyLoading = Model::preventsLazyLoading()`. This is deterministic and has **no
+event/dispatcher dependency**, so it survives Laravel's per-test `tearDownTheTestEnvironment()`
+dispatcher reset — the exact reason the earlier `retrieved`-listener approach was rejected
+(a ratchet that passed alone but failed in-suite is a false green). `booted()` was also rejected:
+it fires once per class, so only the first instance would ever be armed.
+
+Applied to **all 25 Eloquent models** (23 extending `Model`, `User`/`Employee` extending
+`Authenticatable`); none overrode `newInstance`/`newFromBuilder`. A cohort test fails if a future
+model omits the trait (its guard would silently stay inert).
+
+**Verification — `RV38LazyArmingMechanismTest` OK (4 tests, 11 assertions):** with the static flag
+turned ON inside the test: (1) a **single-row `User::find()`** — the path the framework left
+unguarded — is armed AND a genuine `->profile` lazy load **throws** `LazyLoadingViolationException`
+(this is the throw that the old approach could never produce); (2) every multi-row hydrated row is
+armed; (3) with the flag off, the mechanism is a no-op and lazy loads still resolve normally.
+**Causality needle:** removing the trait from `User` made 2 tests fail (the single-row throw + the
+cohort check) — the mechanism is load-bearing and its absence is caught, not silently tolerated.
+File restored MD5-identical, final run green. (One flaky assertion — a global `User::all()` count —
+was corrected to scope to the test's own rows; the arming check was never affected.)
+**Full-suite gate: 2051 tests, 52 errors / 68 failures, 0 regressions** — the trait touches every
+model, and nothing changed behaviourally because the flag stays off.
+
+**To enable RV-38's third flag now:** uncomment `Model::preventLazyLoading()` in
+`AppServiceProvider::boot()` (next to the other two flags). §35 established there are no current
+lazy-load regressions; the arming is now correct and durable. **Recorded, not flipped**, so the
+default runtime behaviour is unchanged until that explicit decision.
