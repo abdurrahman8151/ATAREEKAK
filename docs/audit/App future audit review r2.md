@@ -2982,3 +2982,56 @@ in Finding 3; (2) introduce a reliable arming mechanism (a shared base model ove
 static flag reaches single-row loads) — THEN enable the flag non-production. Until all of that, RV-38
 remains the two verified data-integrity flags, and lazy-loading detection stays off in dev/test and
 log-only in prod.
+### 29.6 RV-25 — transposed geometry: **ground-truth verified; full fix scoped (not yet landed)**
+
+RV-25 was previously recorded as "owner-gated". **That was wrong.** R2's own decision table
+(§9, and the Wave-6 priority row) already resolved it: V1 is recorded, so R2 selects the
+"rows are transposed" branch with a pre-determined fix — write `POINT(lat lng)` through one
+`GeoPoint::wkt()` helper and backfill with `ST_SwapXY`. This round **re-verified V1 empirically**
+(its prose claimed 258 km vs 309 km but the working was not shown) and produced the exact
+write/read map. The fix itself is NOT landed this round — it is a coordinated geo-semantics
+migration that deserves its own careful cycle, not a rushed partial. What lands now is the
+**verified ground truth + validated target**, so the fix can be executed without re-litigation.
+
+**THE BUG, MEASURED (not asserted).** MySQL applies EPSG:4326 **axis-order (latitude first)**
+to `ST_Distance_Sphere` / `ST_GeomFromText`. The app writes every geometry as `POINT(lng lat)`
+(lng first). Measured on the real server:
+- same-city ride vs same-city query (app convention) → **0 km** (self-consistent, which is why
+  the bug hides);
+- Damascus→Aleppo (app convention `POINT(lng lat)`) → **257.93 km** — WRONG (true ≈ 309 km);
+- the V1 "lat-first reading" variant → 402.6 km.
+**Target validated:** writing `POINT(lat lng)` yields Damascus→Aleppo **308.998 km** (matches
+true), same-city 0, Damascus→Homs ≈ 141 km. So R2's prescribed convention is empirically correct.
+
+**SCOPE — de-risked by a money-integrity check.** `ST_Distance_Sphere` appears ONLY in search /
+radius filtering (`RideSearchService` ×3, `Ride::scopeNearLocation`). The stored `distance`
+column — the one that could feed a fare — is written by `RouteCalculationService` (OSRM summary
+or PHP-side Haversine on **named lat/lng arrays**), NOT by MySQL geometry. **So RV-25 is a
+search-CORRECTNESS defect, not a money-integrity one**; fares are not computed from the
+transposed geometry. This is why it is safe to land, and why it must still be landed (rides in
+and out of a radius are currently computed on the wrong coordinates).
+
+**Exact map to change together (the flip must be atomic across all of them):**
+- WRITES: `app/Models/Ride.php` mutators `setPickupLocationAttribute`/`setDestinationLocationAttribute`
+  (L172/186 `POINT(%F %F)` with `$lng,$lat`); `app/Repositories/RideRepository::updateRide`
+  (L208/214 raw geometry with `$data['…_lng'], $data['…_lat']`).
+- SEARCH READS (must flip to match the new stored order, or matching breaks):
+  `app/Services/Ride/RideSearchService.php` `applySpatialFilters` `$srcWkt`/`$dstWkt` (L90/91,
+  also route-matching ST_Contains/Buffer ST_GeomFromText L141/152); `app/Models/Ride.php`
+  `scopeNearLocation` point WKT (L~205).
+- BACKFILL: `UPDATE rides SET pickup_location = ST_SwapXY(pickup_location), … ` for both columns
+  (MySQL 8.2; `ST_SwapXY` flips X/Y so stored lng-first becomes lat-first).
+- HELPER: promote `tests/Support/GeoPoint.php` to a shared, single-source-of-truth `wkt()` writer
+  (R2's prescription) and route all writes through it, so the convention cannot drift again.
+- FIXTURES: `RideBuilder`, the raw `DB::raw` fixture writers, and the artisan test-flow commands
+  currently write `POINT(lng lat)` (model path) and `POINT(lat lng)` (raw fixtures) — RV-34
+  deliberately froze these; they must be reconciled to the one convention.
+- DEV-ONLY `app/Console/Commands/Test*ride*.php` hardcode lng-first coords; update or leave as
+  known-soft (they are developer helpers, not the live path).
+
+**Terminal state this round: GROUND-TRUTH + PLAN (verified numbers, exact map, validated
+target).** The code change is deliberately NOT started: it is a data-semantics migration whose
+partial application would be worse than none (a half-flipped write/read pair breaks search
+silently). Next cycle implements it atomically with a migration-needle (a DB-level needle is
+valid here only via the migration's own `up()`, not a live-table poke, because `RefreshDatabase`
+re-runs migrations).
