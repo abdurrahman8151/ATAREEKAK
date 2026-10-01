@@ -39,6 +39,10 @@ class RoutesIntegrityTest extends TestCase
             .'collide with /api/rides/{rideId} ordering).',
         'App\Http\Controllers\API\RideController@index' => 'Unwired by decision: /api/rides is served by getRides(). index() is a per-user listing '
             .'with no public route; delete it under RV-31 if it stays unwired.',
+        'App\Http\Controllers\API\PushNotificationController@testNotification' => 'RV-27: a local-only debug sender (it self-gates to '
+            .'app()->environment("local") and 403s elsewhere). The push routes added in RV-27 make this '
+            .'class scanned; kept unrouted so a debug endpoint does not become permanent API surface. '
+            .'Delete under RV-31 if it stays unwired.',
     ];
 
     /** @test */

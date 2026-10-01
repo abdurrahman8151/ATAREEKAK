@@ -2465,3 +2465,47 @@ state (`show` auto-transition, baseline-red StaffComplaintControllerTest family)
 (decision-free to compute properly); "revenue from config('system_admin.phone')" depends on the
 RV-21 kind-refactor design (gated). N+1 claims belong partly to RV-24. Recorded to continue with
 the complaint count first.
+### 28.5 RV-27 push pipeline — **VERIFIED FIX (decision-free core)**; deploy-surface halves recorded
+
+**Three live defects, all decision-free (grounded first, R1's claims re-verified — two were
+stale):**
+1. **The feature was unreachable.** `PushNotificationController` had **zero** routes. No device
+   could ever register a token, so end-to-end FCM delivery was impossible. (R1: "No route
+   registers/removes FCM tokens" — TRUE.)
+2. **Type-error at the core.** The routed `registerToken()` passed `$request->user()` (a `User`
+   model) into `PushNotificationService::registerToken(int $userId, …)`, plus a 4th array arg the
+   service never had. Once routed this 500s (TypeError). Fixed: pass `->id`; dropped the
+   never-consumed device_id/device_name args. (R1's "passes a `User` where `Push…`" — TRUE.)
+3. **IDOR — any user could unregister any device.** The delete path called the *global*
+   `removeToken($token)`: anyone who knew/guessed another device's token string deactivated it,
+   silently killing that user's notifications. Now routed through a new `removeTokenForUser(userId,
+   token)` scoped by `user_id` — a foreign token answers identically to a missing one, so the
+   endpoint also stopped being an existence probe for valid token strings.
+
+**Fixes.** Added `removeTokenForUser` to the manager + service (the unscoped `removeToken` stays
+for internal cleanup, now correctly returning `> 0`). Added a `push-tokens` route group under the
+authenticated `['jwt','throttle:api']` group: POST register, GET list (already scoped via
+`$request->user()->pushTokens()->active()`), DELETE remove — **token strings only ever travel in
+the body, never a URL path** (a path token lands in web-server/proxy access logs). Deleted the
+drifted unrouted `store()` duplicate (R1's own "delete the duplicates"); `testNotification` stays
+unrouted but is now listed in `RoutesIntegrityTest::UNROUTED_BY_DESIGN` **with a reason** (routing
+any method makes the ratchet scan the whole class; the entry documents the deliberate choice rather
+than expanding permanent surface).
+
+**Verification — `RV27PushTokenFlowTest` OK (9 tests, 33 assertions):** register persists
+caller-owned row (android), re-register upserts without duplicating and reassigns owner, list is
+caller-scoped (sees own, not other's), self-delete soft-deactivates, **the IDOR case** (Bob knows
+Alice's token → `success:false`, Alice's token stays active), unknown token is not an error, all
+three endpoints require auth (401 unauthenticated), platform validation (bad platform + missing
+token → 422, nothing persisted), and the dead `store()` stays deleted. **Three causality needles**
+(each restored MD5-identical): undoing `->id` → 5 failures; undoing ownership scope → exactly the
+IDOR test fails; deleting the route group → 8 failures. Each needle isolates one defect; none
+over-broad. Floors unchanged: RoutesIntegrity 3/3, RateLimiting 23/151, Auth 74/191, full-suite gate
+in the commit message.
+
+**Recorded, NOT done (deploy surface — cannot be edited blind):** FcmSenderService only
+warn-and-skips when credentials are missing (silent disable: a misconfigured prod sends nothing and
+logs only a warning — a config/deploy concern); the compose `fcm_credentials.json` secret mount;
+notification history pruning (`notifications`/`user_notifications` never pruned — `tokens:cleanup`
+*is* scheduled, but that covers refresh tokens, not push/notification rows). Retention windows are
+product choices.

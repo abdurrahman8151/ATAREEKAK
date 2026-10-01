@@ -65,7 +65,23 @@ final class PushTokenManager
     public function removeToken(string $token): bool
     {
         return PushNotificationToken::where('token', $token)
-            ->update(['is_active' => false]);
+            ->update(['is_active' => false]) > 0;
+    }
+
+    /**
+     * RV-27: deactivate a token ONLY when it belongs to this user.
+     *
+     * The global removeToken() above lets any caller who knows a token STRING
+     * unregister another user's device (an IDOR) — this is the ownership-scoped
+     * version the HTTP layer must use. Returns false when the token is absent OR
+     * owned by someone else: the caller's answer is identical either way, so the
+     * endpoint cannot be used to probe which token strings exist.
+     */
+    public function removeTokenForUser(int $userId, string $token): bool
+    {
+        return PushNotificationToken::where('user_id', $userId)
+            ->where('token', $token)
+            ->update(['is_active' => false]) > 0;
     }
 
     /**

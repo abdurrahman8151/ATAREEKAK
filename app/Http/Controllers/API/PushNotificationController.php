@@ -24,10 +24,14 @@ class PushNotificationController extends Controller
         ]);
 
         $token = $this->pushService->registerToken(
-            $request->user(),
+            // RV-27: the service signature is registerToken(int $userId, ...). This
+            // passed $request->user() (a User model) — a TypeError that 500s the
+            // moment the route is reached. Passing the id fixes the mismatch; the
+            // device_id/device_name extras were never a parameter of the service,
+            // so they are no longer silently dropped into a non-existent 4th arg.
+            $request->user()->id,
             $request->token,
-            $request->platform,
-            $request->only(['device_id', 'device_name'])
+            $request->platform
         );
 
         return response()->json([
@@ -43,7 +47,15 @@ class PushNotificationController extends Controller
             'token' => 'required|string',
         ]);
 
-        $removed = $this->pushService->removeToken($request->token);
+        // RV-27: ownership-scoped. The unscoped removeToken($token) deactivated ANY
+        // user's device for anyone who knew the token string (IDOR). Now a caller can
+        // only ever unregister a token belonging to their own account; a token owned
+        // by someone else answers identically to a missing one, so the endpoint also
+        // stops working as a probe for which token strings exist.
+        $removed = $this->pushService->removeTokenForUser(
+            $request->user()->id,
+            $request->input('token')
+        );
 
         return response()->json([
             'success' => $removed,
@@ -86,22 +98,5 @@ class PushNotificationController extends Controller
             'message' => 'Test notification sent',
             'data' => $notification,
         ]);
-    }
-
-    // app/Http/Controllers/API/PushTokenController.php
-    public function store(Request $request, PushNotificationService $pushService)
-    {
-        $request->validate([
-            'token' => 'required|string',
-            'device_type' => 'required|in:android,ios,web',
-        ]);
-
-        // RV-36: $request->user()->id, matching the rest of the codebase (auth()->id()
-        // resolves under this app's JWT middleware — V12 — so this is consistency, not a
-        // behaviour fix). NOTE: store() is NOT routed (0 routes reference it), so this is
-        // effectively dead code; deleting it is RV-31's call, not RV-36's.
-        $pushService->registerToken($request->user()->id, $request->token, $request->device_type);
-
-        return response()->json(['message' => 'Token registered']);
     }
 }

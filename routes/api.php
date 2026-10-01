@@ -18,6 +18,7 @@ use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\OtpController;
 use App\Http\Controllers\API\PassengerProfileController;
 use App\Http\Controllers\API\ProfileController;
+use App\Http\Controllers\API\PushNotificationController;
 use App\Http\Controllers\API\RefreshTokenController;
 use App\Http\Controllers\API\ResetPasswordController;
 use App\Http\Controllers\API\RideController;
@@ -133,6 +134,18 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
         'user' => $r->user(),
     ]));
     Route::post('/logout', LogoutController::class);
+
+    // RV-27: push-device token management. The controller existed with ZERO routes —
+    // no device could register, so FCM delivery was unreachable end-to-end (an app
+    // feature that could never work). Token strings are taken from the BODY, never a
+    // URL path: a path-embedded FCM token ends up in web-server/proxy access logs.
+    // (testNotification stays unrouted — it is a local-only debug helper, listed in
+    // RoutesIntegrityTest::UNROUTED_BY_DESIGN rather than exposed permanently.)
+    Route::prefix('push-tokens')->group(function () {
+        Route::post('/', [PushNotificationController::class, 'registerToken']);
+        Route::get('/', [PushNotificationController::class, 'getUserTokens']);
+        Route::delete('/', [PushNotificationController::class, 'removeToken']);
+    });
 
     // Score
     Route::prefix('score')->group(function () {

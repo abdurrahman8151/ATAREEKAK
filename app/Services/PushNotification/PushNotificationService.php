@@ -44,6 +44,17 @@ final class PushNotificationService
     }
 
     /**
+     * RV-27: ownership-scoped removal for the HTTP layer — a user may only ever
+     * unregister a token belonging to their own account. (The unscoped version
+     * above stays for internal admin/cleanup use; the public endpoint must not
+     * call it with a caller-supplied token string.)
+     */
+    public function removeTokenForUser(int $userId, string $token): bool
+    {
+        return $this->tokenManager->removeTokenForUser($userId, $token);
+    }
+
+    /**
      * Remove all tokens for a user
      */
     public function removeUserTokens(int $userId): bool
