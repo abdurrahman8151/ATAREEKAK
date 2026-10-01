@@ -111,7 +111,7 @@ final class AdminAuthService
     /**
      * Build the "adminConfig" array that AdminWalletService expects.
      *
-     * AdminJwtMiddleware sets 'adminEmployee' on every authenticated request,
+     * StaffJwtMiddleware sets the authenticated employee on every request,
      * so this is just a projection — no DB hit.
      */
     public function getAdminConfigFromRequest(Request $request): array

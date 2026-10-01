@@ -2,7 +2,6 @@
 
 namespace App\Http;
 
-use App\Http\Middleware\AdminJwtMiddleware;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\CacheStatusHeader;
 use App\Http\Middleware\EncryptCookies;
@@ -75,7 +74,6 @@ class Kernel extends HttpKernel
         'signed' => ValidateSignature::class,
         'throttle' => ThrottleRequests::class,
         'verified' => EnsureEmailIsVerified::class,
-        'auth.admin' => AdminJwtMiddleware::class,
         'jwt' => JwtAuthMiddleware::class,
         'staff' => StaffJwtMiddleware::class,
     ];

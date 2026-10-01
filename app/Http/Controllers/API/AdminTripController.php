@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Validator;
  * Mirrors AdminDashboardController: Validator::make() for input,
  * JsonResponse returns, try/catch around every service call.
  *
- * Routes (all behind auth.admin middleware):
+ * Routes (all behind staff:admin / staff:system_admin middleware):
  *   GET  /api/admin/trips                → index()
  *   GET  /api/admin/trips/live           → live()
  *   GET  /api/admin/routes/popular       → popularRoutes()

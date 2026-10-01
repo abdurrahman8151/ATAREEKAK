@@ -16,8 +16,8 @@ use Illuminate\Support\Facades\Validator;
 /**
  * AdminDriverController
  *
- * All endpoints are protected by the  auth.admin  middleware.
- * Primary-only routes are further protected by  auth.admin:primary.
+ * All endpoints are protected by the  staff:*  middleware.
+ * Primary-only routes are further protected by  staff:system_admin.
  *
  * ── Routes ──────────────────────────────────────────────────────────────────
  *

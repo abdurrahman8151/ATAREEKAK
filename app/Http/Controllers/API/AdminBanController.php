@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Validator;
  *    0 = logged out
  *    1 = active
  *
- * Routes (all behind auth.admin middleware):
+ * Routes (all behind staff:admin / staff:system_admin middleware):
  *   POST /api/admin/users/{userId}/ban    → ban()
  *   POST /api/admin/users/{userId}/unban  → unban()
  *   GET  /api/admin/users/{userId}/status → userStatus()

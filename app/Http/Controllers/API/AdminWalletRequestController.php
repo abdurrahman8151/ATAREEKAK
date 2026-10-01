@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
  *
  * Admin endpoints for reviewing and acting on wallet charge/withdraw requests.
  *
- * Routes (all behind `auth.admin` middleware):
+ * Routes (all behind `staff:admin` / `staff:system_admin` middleware):
  *   GET   /api/admin/wallet/requests              → index()
  *   POST  /api/admin/wallet/requests/{id}/approve → approve()
  *   POST  /api/admin/wallet/requests/{id}/reject  → reject()

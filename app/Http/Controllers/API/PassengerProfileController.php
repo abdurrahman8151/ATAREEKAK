@@ -28,7 +28,7 @@ use Illuminate\Support\Str;
  *
  * Provides the admin-facing passenger profile dashboard.
  *
- * ── Routes (all behind auth.admin middleware) ──────────────────────────────
+ * ── Routes (all behind staff:* middleware) ──────────────────────────────────
  *
  *  BFF (single call, returns full page):
  *    GET  /api/admin/passengers/{userId}/full-profile   → fullProfile()

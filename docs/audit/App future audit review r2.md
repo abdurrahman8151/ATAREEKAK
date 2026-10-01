@@ -3318,3 +3318,42 @@ create (plus a named check for the historical bug); the ratings unique pair is p
 **Causality needle (two independent mutations):** restoring the wrong-table `down()` → 2 failures;
 dropping the index from the live schema → 1 failure (then restored via the migration's idempotent
 `up()` path). **Full-suite gate: 2038 tests, 52 errors / 68 failures, 0 regressions vs baseline.**
+## 33. RV-31 Dead-code wave — orphaned admin-JWT path REMOVED; rest classified (live / owner-gated) — **VERIFIED FIX + recorded classification**
+
+RV-31's instruction is "grep-confirm each before deleting." Grounding every candidate showed the
+list is **partly stale and partly owner-gated**, so the work split three ways. One genuinely-dead,
+security-relevant cluster was removed; the live and owner-gated items were recorded, not touched.
+
+**REMOVED (confirmed dead, zero references — the orphaned legacy admin-JWT path):**
+`AdminJwtMiddleware` was registered as the `auth.admin` alias in the Kernel but **no route uses it** —
+every admin route is behind `staff:*` / `staff:admin,system_admin` (routes/api.php), and
+`AdminDashboardControllerTest` itself asserts "Admin routes run through StaffJwtMiddleware, not
+AdminJwtMiddleware." Its token path was fully orphaned: `JwtService::generateAdminTokenPair` had zero
+callers and `generateAdminAccessToken` was reachable only from it. Deleted the middleware file, the
+`auth.admin` Kernel alias + its import, and both dead JwtService methods. The only remaining
+references were stale doc comments in six admin controllers/services (which named a middleware that no
+longer exists) — corrected to the truth (`staff:*`). This removes a latent trap: an unused-but-registered
+admin middleware is a footgun if anyone ever routes to it. No test exercised `auth.admin`,
+`generateAdminTokenPair`, or `AdminJwtMiddleware` (test mentions were doc comments only).
+Evidence: zero code references before deletion; admin/auth suites (AdminBan 29/58, AdminDriver 25/49,
+EmployeeAuth 14/32) all green; `AdminDashboardControllerTest`'s failures and the StaffJwtMiddleware
+failure are pre-existing baseline (the dashboard test's `primaryToken()` returns void).
+**Full-suite gate: 2044 tests, 52 errors / 68 failures, 0 regressions vs baseline.**
+
+**CONFIRMED LIVE — R1's list is STALE (must NOT be deleted; documented to prevent a future sweep
+from breaking the app):** `RideService::finishRide` / `driverConfirmCompletion` are called by the
+shipped, documented seeders (`UserRealFlowSeeder`, `Atarikaktestseeder`; referenced by
+`SeedCredentialsBatchTest`); `releaseEarningsToDriver`, `recordRideCompleted`, `checkAndCompleteRide`,
+`notifyAllForConfirmation` are called from `RideService`/`BookingService` or pinned by
+`WalletTransactionServiceTest`.
+
+**OWNER-GATED (open decision 12):** the scaffold stubs `RideBookedNotification`,
+`RideCancelledNotification`, `UserVerifiedNotification`, `Jobs/SendPushNotification`,
+`Broadcasting/NotificationChannel` exist and are referenced — deletion is the owner's call (may be
+intended for future wiring). Not touched.
+
+**Notes:** `resources/views/auth/admin/*` and `start-cluster.bat`/`stop-cluster.bat` are already
+ABSENT from the tree; `.rr.yaml` is overwritten at container start by `docker/start.sh`
+(`cat > .rr.yaml`), so the committed copy is inert on the Docker path but may serve a local `rr serve`
+— a judgment call, not a blind delete. `GeocodingServiceInterface` and `RideStatus::AWAITING_CONFIRMATION`
+were not changed (interface/lifecycle decisions recorded elsewhere in the audit).

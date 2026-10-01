@@ -32,24 +32,6 @@ class JwtService
         ];
     }
 
-    /**
-     * Generate access + refresh token pair for an admin user.
-     * Embeds is_admin and admin_type claims so AdminJwtMiddleware can verify.
-     */
-    public function generateAdminTokenPair(User $adminUser, string $adminType): array
-    {
-        $accessToken = $this->generateAdminAccessToken($adminUser, $adminType);
-        $refreshToken = $this->generateRefreshToken($adminUser);
-
-        return [
-            'access_token' => $accessToken,
-            'refresh_token' => $refreshToken['token'],
-            'expires_in' => config('jwt.ttl', 15) * 60,
-            'token_type' => 'Bearer',
-            'admin_type' => $adminType,
-        ];
-    }
-
     // =========================================================================
     // PUBLIC — DECODE & VALIDATE
     // =========================================================================
@@ -276,30 +258,6 @@ class JwtService
             'expires_at' => $expiresAt->toDateTimeString(),
             'expires_in' => $expiresIn * 60,
         ];
-    }
-
-    /**
-     * Build a signed access token for an admin user.
-     * Embeds is_admin + admin_type claims for AdminJwtMiddleware.
-     */
-    private function generateAdminAccessToken(User $adminUser, string $adminType): string
-    {
-        $expiresIn = config('jwt.ttl', 15);
-        $now = Carbon::now();
-
-        $payload = [
-            'iss' => config('app.url'),
-            'sub' => $adminUser->id,
-            'iat' => $now->timestamp,
-            'exp' => $now->addMinutes($expiresIn)->timestamp,
-            'jti' => Str::uuid()->toString(),
-            'type' => 'access',
-            'ver' => $adminUser->token_version,
-            'is_admin' => true,
-            'admin_type' => $adminType,
-        ];
-
-        return $this->encodeToken($payload);
     }
 
     /**
