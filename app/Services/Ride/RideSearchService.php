@@ -4,6 +4,7 @@ namespace App\Services\Ride;
 
 use App\Enums\RideStatus;
 use App\Models\Ride;
+use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -87,10 +88,11 @@ final class RideSearchService
     private function applySpatialFilters(Builder $query, array $params): void
     {
         $maxDistanceMeters = $this->maxDistanceMeters;
-        // RV-25: search points must use the SAME axis order as the stored geometry, now
-        // POINT(lat lng) (lat-first, matching MySQL's EPSG:4326 axis-order interpretation).
-        $srcWkt = sprintf('POINT(%F %F)', $params['source_lat'], $params['source_lng']);
-        $dstWkt = sprintf('POINT(%F %F)', $params['dest_lat'], $params['dest_lng']);
+        // RV-25: search points must use the SAME axis order as the stored geometry, POINT(lat
+        // lng) (lat-first, matching MySQL's EPSG:4326 axis-order). Built through the shared
+        // GeoPoint helper so the convention cannot drift.
+        $srcWkt = GeoPoint::fromLatLng((float) $params['source_lat'], (float) $params['source_lng'])->wkt();
+        $dstWkt = GeoPoint::fromLatLng((float) $params['dest_lat'], (float) $params['dest_lng'])->wkt();
 
         $query->where(function ($q) use ($maxDistanceMeters, $srcWkt, $dstWkt) {
             // Strategy A: Direct endpoint matching
@@ -163,8 +165,8 @@ final class RideSearchService
     public function getNearbyRides(float $latitude, float $longitude, int $radiusKm = 20): Collection
     {
         $radiusMeters = $radiusKm * 1000;
-        // RV-25: POINT(lat lng) (lat-first), matching the stored geometry convention.
-        $pointWkt = sprintf('POINT(%F %F)', $latitude, $longitude);
+        // RV-25: POINT(lat lng) via the shared GeoPoint helper (lat-first).
+        $pointWkt = GeoPoint::fromLatLng($latitude, $longitude)->wkt();
 
         return Ride::query()
             ->where('status', RideStatus::ACTIVE->value)

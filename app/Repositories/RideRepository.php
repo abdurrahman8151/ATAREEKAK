@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Services\Geocoding\GeocodingService;
 use App\Services\Geocoding\RouteCalculationService;
+use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -204,17 +205,19 @@ class RideRepository implements RideRepositoryInterface
 
             $rawUpdates = [];
             if (isset($data['pickup_lat'], $data['pickup_lng'])) {
-                // RV-25: POINT(lat lng) (lat-first), matching the model mutators and MySQL's
-                // EPSG:4326 axis-order. See Ride::setPickupLocationAttribute for the rationale.
-                $rawUpdates['pickup_location'] = DB::raw(
-                    sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $data['pickup_lat'], $data['pickup_lng'])
-                );
+                // RV-25: POINT(lat lng) via the shared GeoPoint helper (lat-first, matching
+                // MySQL's EPSG:4326 axis-order). See Ride::setPickupLocationAttribute.
+                $rawUpdates['pickup_location'] = GeoPoint::fromLatLng(
+                    (float) $data['pickup_lat'],
+                    (float) $data['pickup_lng']
+                )->raw();
                 unset($data['pickup_lat'], $data['pickup_lng']);
             }
             if (isset($data['destination_lat'], $data['destination_lng'])) {
-                $rawUpdates['destination_location'] = DB::raw(
-                    sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $data['destination_lat'], $data['destination_lng'])
-                );
+                $rawUpdates['destination_location'] = GeoPoint::fromLatLng(
+                    (float) $data['destination_lat'],
+                    (float) $data['destination_lng']
+                )->raw();
                 unset($data['destination_lat'], $data['destination_lng']);
             }
 

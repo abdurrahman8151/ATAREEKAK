@@ -3094,3 +3094,37 @@ hardcode lng-first coordinate literals; they are developer scripts, not the live
 as known-soft. The `tests/Support/GeoPoint.php` helper is still test-only; promoting it to a shared
 single-source-of-truth `wkt()` writer (R2's literal prescription) is a clean follow-up now that the
 convention is settled and asserted.
+### 29.8 RV-25 follow-up — `GeoPoint` promoted to a shared app-side writer (convention can't drift) — **VERIFIED FIX**
+
+§29.7 recorded, as a remainder, that the tests-only `tests/Support/GeoPoint.php` should be
+promoted to a shared single-source-of-truth writer — R2's literal prescription ("write
+`POINT(lat lng)` through one `GeoPoint::wkt()` helper"). This round lands that, so the axis
+convention is stated and enforced in exactly one place instead of being hand-rolled at every call
+site.
+
+**Why it matters (the drift risk).** Before this, the production geometry convention existed as
+five hand-rolled `sprintf("ST_GeomFromText('POINT(%F %F)',4326)", …)` expressions spread across
+`Ride`'s two mutators + `scopeNearLocation`, and `RideRepository::updateRide`. That is precisely
+how the lng-first transposition hid for so long: each site looked correct and each could be
+re-introduced independently.
+
+**The helper — `app/Support/GeoPoint.php`.** An immutable value object built ONLY from NAMED
+coordinates (`GeoPoint::fromLatLng($lat, $lng)`), with the convention baked into `wkt()`
+(`POINT(latitude longitude)`, %F locale-independent so no injection), plus `toSql()` for a bound
+query value and `raw()` for direct column assignment. The docblock states the axis-order rule and
+explicitly says not to reintroduce lng-first. All five production write/read sites now route
+through it; the hand-rolled sprintf calls are gone from the geo path.
+
+**Verification.** `RV25GeometryAxisOrderTest` OK (4/9), `RideSearchServiceTest` OK (17/22),
+`RV24RideCoordinateReadTest` OK (4/12), `MoneyAndAuthPathBatchTest` OK (9/18) — the refactor is
+behaviour-preserving (GeoPoint emits the identical literal it replaced). **Causality needle, and
+the point of the whole change:** flipping the convention in the SINGLE `GeoPoint::wkt()` breaks 1
+RV-25 test + 7 search tests at once (restored MD5-identical) — where previously a drift would have
+required finding any of five scattered sprintf calls. **Full-suite gate: 2027 tests, 52 errors /
+68 failures, 0 regressions vs baseline.**
+
+**Recorded remainder:** the dev-flow `app/Console/Commands/Test*ride*.php` helpers still contain
+hardcoded lng-first coordinate literals; they are developer scripts (not the live request path)
+and are left as known-soft. The tests-only `tests/Support/GeoPoint.php` remains for fixture control
+(it intentionally lets a caller choose an axis order so transposed fixtures can be written
+verbatim); it is test scaffolding and does not affect the production convention.
