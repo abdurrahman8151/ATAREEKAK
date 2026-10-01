@@ -30,7 +30,7 @@ import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
 http.setResponseCallback(http.expectedStatuses(
-    { min: 200, max: 299 }, 400, 401, 403, 404, 409, 422
+    { min: 200, max: 299 }
 ));
 
 const BASE_URL = 'http://localhost:8080';
@@ -128,9 +128,9 @@ export default function () {
         t0 = Date.now();
         r = http.get(
             `${BASE_URL}/api/rides/search` +
-            `?pickup_lat=${(origin.lat + jitter).toFixed(6)}` +
-            `&pickup_lng=${(origin.lng + jitter).toFixed(6)}` +
-            `&destination_lat=${dest.lat}&destination_lng=${dest.lng}&seats=1`,
+            `?source_lat=${(origin.lat + jitter).toFixed(6)}` +
+            `&source_lng=${(origin.lng + jitter).toFixed(6)}` +
+            `&dest_lat=${dest.lat}&dest_lng=${dest.lng}&departure_date=2026-12-15&seats_required=1`,
             auth(pToken)
         );
         readLatency.add(Date.now() - t0);
@@ -149,7 +149,7 @@ export default function () {
         t0 = Date.now();
         r = http.post(
             `${BASE_URL}/api/rides/${rideId}/book`,
-            JSON.stringify({ seats: 1, pickup_lat: origin.lat, pickup_lng: origin.lng }),
+            JSON.stringify({ seats: 1, communication_number: '0912345678' }),
             auth(pToken)
         );
         writeLatency.add(Date.now() - t0);
@@ -193,22 +193,26 @@ export default function () {
         r = http.post(
             `${BASE_URL}/api/rides/create-with-route`,
             JSON.stringify({
-                from_lat: origin.lat, from_lng: origin.lng,
-                to_lat:   dest.lat,   to_lng:   dest.lng,
+                pickup_lat: origin.lat, pickup_lng: origin.lng,
+                destination_lat: dest.lat, destination_lng: dest.lng,
                 departure_time:  '2026-12-15 09:00:00',
+                vehicle_type: 'sedan',
                 available_seats: 3,
                 price_per_seat:  5,
+                payment_method: 'cash',
+                booking_type: 'direct',
+                communication_number: '0912345678',
             }),
             auth(dToken)
         );
         writeLatency.add(Date.now() - t0);
 
     } else if (roll < 99) {
-        const phone = `+96277${(Math.floor(Math.random() * 9000000) + 1000000)}`;
+        const phone = `+9629${(Math.floor(Math.random() * 90000000) + 10000000)}`;
         t0 = Date.now();
         r = http.post(
             `${BASE_URL}/api/otp/send`,
-            JSON.stringify({ phone }),
+            JSON.stringify({ phone_number: phone }),
             { headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' } }
         );
         writeLatency.add(Date.now() - t0);

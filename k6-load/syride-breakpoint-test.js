@@ -29,7 +29,7 @@ import { Rate, Trend } from 'k6/metrics';
 import { randomIntBetween } from './k6-utils.js';
 
 http.setResponseCallback(http.expectedStatuses(
-    { min: 200, max: 299 }, 400, 401, 403, 404, 409, 422
+    { min: 200, max: 299 }
 ));
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
@@ -138,8 +138,8 @@ function passengerBrowseSearchBookFlow() {
         const t0 = Date.now();
         const r = http.get(
             `${BASE_URL}/api/rides/search` +
-            `?pickup_lat=${origin.lat + jitter}&pickup_lng=${origin.lng + jitter}` +
-            `&destination_lat=${dest.lat}&destination_lng=${dest.lng}&seats=1`,
+            `?source_lat=${origin.lat + jitter}&source_lng=${origin.lng + jitter}` +
+            `&dest_lat=${dest.lat}&dest_lng=${dest.lng}&departure_date=2026-12-15&seats_required=1`,
             { ...auth(token), tags: { name: 'ride_search' } }
         );
         searchTime.add(Date.now() - t0);
@@ -155,7 +155,7 @@ function passengerBrowseSearchBookFlow() {
             const t0 = Date.now();
             const r = http.post(
                 `${BASE_URL}/api/rides/${rideId}/book`,
-                JSON.stringify({ seats: 1, pickup_lat: origin.lat, pickup_lng: origin.lng }),
+                JSON.stringify({ seats: 1, communication_number: '0912345678' }),
                 { ...auth(token), tags: { name: 'book_ride' } }
             );
             bookTime.add(Date.now() - t0);
@@ -238,13 +238,17 @@ function driverFlow() {
         const r = http.post(
             `${BASE_URL}/api/rides/create-with-route`,
             JSON.stringify({
-                origin_lat:      origin.lat,
-                origin_lng:      origin.lng,
+                pickup_lat: origin.lat,
+                pickup_lng: origin.lng,
                 destination_lat: dest.lat,
                 destination_lng: dest.lng,
                 available_seats: randomIntBetween(1, 4),
                 departure_time:  new Date(Date.now() + 3600000).toISOString(),
                 price_per_seat:  randomIntBetween(3, 10),
+                vehicle_type: 'sedan',
+                payment_method: 'cash',
+                booking_type: 'direct',
+                communication_number: '0912345678',
             }),
             { ...auth(token), tags: { name: 'create_ride' } }
         );
@@ -286,7 +290,7 @@ function authFlow() {
     group('otp send', () => {
         const r = http.post(
             `${BASE_URL}/api/otp/send`,
-            JSON.stringify({ phone: `+96279${randomIntBetween(1000000, 9999999)}` }),
+            JSON.stringify({ phone_number: `+9629${randomIntBetween(10000000, 99999999)}` }),
             { headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, tags: { name: 'otp_send' } }
         );
         check(r, { 'otp not 500': (r) => r.status !== 500, 'otp not 404': (r) => r.status !== 404 });

@@ -27,8 +27,13 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
+// RV-17: only 2xx counts as an expected response. Previously 4xx (incl. 422) was
+// listed as expected, so requests that never reached business logic — because the
+// load script violated the API contract — were recorded as SUCCESSFUL requests and
+// still fed http_req_duration{expected_response:true}. That made the published rps
+// numbers measure validation rejection, not the application.
 http.setResponseCallback(http.expectedStatuses(
-    { min: 200, max: 299 }, 400, 401, 403, 404, 409, 422
+    { min: 200, max: 299 }
 ));
 
 const BASE_URL = 'http://localhost:8080';
@@ -59,6 +64,7 @@ const LOCATIONS    = [
 
 // ─── METRICS ─────────────────────────────────────────────────────────────────
 const errorRate    = new Rate('real_5xx_errors');
+const clientErrors  = new Rate('real_4xx_errors');
 const writeLatency = new Trend('write_ops_ms', true);
 const readLatency  = new Trend('read_ops_ms', true);
 
@@ -93,6 +99,9 @@ export const options = {
     ],
     thresholds: {
         'real_5xx_errors':   ['rate<0.10'],
+        // RV-17: a run whose requests are mostly rejected by validation is NOT a
+        // capacity measurement — fail it instead of reporting rps.
+        'real_4xx_errors':   ['rate<0.05'],
         'http_req_duration': ['p(95)<60000'],
         'write_ops_ms':      ['p(95)<60000'],
     },
@@ -129,9 +138,10 @@ export default function () {
         t0 = Date.now();
         r = http.get(
             `${BASE_URL}/api/rides/search` +
-            `?pickup_lat=${(origin.lat + jitter).toFixed(6)}` +
-            `&pickup_lng=${(origin.lng + jitter).toFixed(6)}` +
-            `&destination_lat=${dest.lat}&destination_lng=${dest.lng}&seats=1`,
+            `?source_lat=${(origin.lat + jitter).toFixed(6)}` +
+            `&source_lng=${(origin.lng + jitter).toFixed(6)}` +
+            `&dest_lat=${dest.lat}&dest_lng=${dest.lng}` +
+            `&departure_date=2026-12-15&seats_required=1`,
             auth(pToken)
         );
         readLatency.add(Date.now() - t0);
@@ -150,7 +160,7 @@ export default function () {
         t0 = Date.now();
         r = http.post(
             `${BASE_URL}/api/rides/${rideId}/book`,
-            JSON.stringify({ seats: 1, pickup_lat: origin.lat, pickup_lng: origin.lng }),
+            JSON.stringify({ seats: 1, communication_number: '0912345678' }),
             auth(pToken)
         );
         writeLatency.add(Date.now() - t0);
@@ -194,22 +204,26 @@ export default function () {
         r = http.post(
             `${BASE_URL}/api/rides/create-with-route`,
             JSON.stringify({
-                from_lat: origin.lat, from_lng: origin.lng,
-                to_lat:   dest.lat,   to_lng:   dest.lng,
-                departure_time:  '2026-12-15 09:00:00',
+                pickup_lat: origin.lat, pickup_lng: origin.lng,
+                destination_lat: dest.lat, destination_lng: dest.lng,
+                departure_time: '2026-12-15 09:00:00',
+                vehicle_type: 'sedan',
                 available_seats: 3,
-                price_per_seat:  5,
+                price_per_seat: 5,
+                payment_method: 'cash',
+                booking_type: 'direct',
+                communication_number: '0912345678',
             }),
             auth(dToken)
         );
         writeLatency.add(Date.now() - t0);
 
     } else if (roll < 99) {
-        const phone = `+96277${(Math.floor(Math.random() * 9000000) + 1000000)}`;
+        const phone = `+9629${(Math.floor(Math.random() * 90000000) + 10000000)}`;
         t0 = Date.now();
         r = http.post(
             `${BASE_URL}/api/otp/send`,
-            JSON.stringify({ phone }),
+            JSON.stringify({ phone_number: phone }),
             { headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' } }
         );
         writeLatency.add(Date.now() - t0);
@@ -222,6 +236,11 @@ export default function () {
 
     const is5xx = r.status >= 500 || r.status === 0;
     errorRate.add(is5xx ? 1 : 0);
+    // RV-17: 4xx used to be invisible here (and counted as an expected response),
+    // so an expired token or a contract-breaking payload produced a green run.
+    // R1 §RV-17: "2xx rate >= 95% per named endpoint" — i.e. 4xx must stay under 5%.
+    const is4xx = r.status >= 400 && r.status < 500;
+    clientErrors.add(is4xx ? 1 : 0);
     check(r, { 'not a server error': () => !is5xx });
 }
 

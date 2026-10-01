@@ -2805,3 +2805,72 @@ so ratchet adds 3 tests / 0 failures, proving no NEW silent-discard exists anywh
 and is a separate bounded task. When RV-24 lands and the lazy set is proven small, this ratchet is
 the place the third flag joins. `Complaint` drop (§RV-38 text) was already handled in RV-23 §28.8
 (`ride_id`/`complained_id` added to schema+fillable).
+### 29.3 RV-17 — load-test contract + success accounting — **VERIFIED FIX (contract half)**; the rest of R1's spec recorded
+
+**Grounded first (not from R1's prose, but from the live validators).** R1 §RV-17's evidence is
+ACCURATE and, in one respect, was previously mis-scoped: R1 said "the script that produced
+[perf-results] isn't in the repo." That is wrong for the load scripts — `k6-load/` DOES ship
+them (`Syride-70pct-stage1.js`, `Syride-stage1-900vu-confirm.js`, `syride-breakpoint-test.js`,
+`syride-capacity-validation-test.js`, `syride-hammer-test.js`, `syride-spike-only.js`). Only the
+raw `perf-results` producer is absent. That correction is what makes this fixable in-repo.
+
+**Confirmed each 422 from the actual contract (not from memory):**
+- search → `searchRides` requires `source_lat|source_lng|dest_lat|dest_lng|departure_date|
+  seats_required`; scripts sent `pickup_lat/pickup_lng/destination_lat/destination_lng/seats`.
+- book → `BookRideRequest::rules` requires `seats` + `communication_number` (regex `^09\d{8}$`,
+  `idempotency_key` auto-injected by `prepareForValidation`); scripts sent `seats` + pickup coords.
+- create-with-route → requires `pickup_*`/`destination_*`/`departure_time`/`available_seats`/
+  `price_per_seat`/`vehicle_type`/`payment_method`/`booking_type`/`communication_number`; scripts
+  sent `from_lat/to_lat`/`origin_lat` and omitted four required fields.
+- otp/send → `SendOtpRequest` requires `phone_number` matching `/^(\+963|963|0)?9[0-9]{8}$/`; scripts
+  sent `{phone: '+96277…'}` — wrong KEY **and** a 7-digit local part that fails the regex.
+Together these are ~37–44% of the weighted mix (search 20% + book 10% + create 5% + otp 2%),
+matching R1's "≈44% never reaches business logic."
+
+**The honesty half (why the numbers were wrong, not just the requests):** every load script
+called `http.setResponseCallback(http.expectedStatuses({200..299}, 400, 401, 403, 404, 409, 422))`
+— 422 was an **expected** status — and `real_5xx_errors` counted only `>=500`. So a run where the
+majority of the mix was rejected by validation still reported a healthy rps/p95. The published
+capacity numbers (A→B→C 518→537.6→530.9 rps, "B→C no gain") therefore measured **validation
+rejection latency**, not the application.
+
+**Fix (6 k6 load scripts; NO app code touched):**
+1. search requests → `source_lat`/`source_lng`/`dest_lat`/`dest_lng` + `departure_date` +
+   `seats_required`;
+2. book bodies → `{ seats: 1, communication_number: '0912345678' }`;
+3. create-with-route bodies → `pickup_*`/`destination_*` + `vehicle_type`/`payment_method`/
+   `booking_type`/`communication_number`;
+4. otp/send → `phone_number` with a 9-digit local part (`+9629…`);
+5. `setResponseCallback` now declares ONLY 2xx expected (no 4xx), so
+   `http_req_duration{expected_response:true}` reflects only requests that actually succeeded;
+6. added a `real_4xx_errors` Rate + `rate<0.05` threshold (R1's own "2xx rate ≥ 95% per named
+   endpoint") so an expired token or a re-broken contract FAILS the run instead of reporting a
+   green number.
+
+`Syride smoke test.js` is DELIBERATELY untouched — it is a negative-path harness ("422 expected
+with fake data"), so contract-violating payloads there are the point of the test, not a defect;
+the ratchet lists it as an explicit exemption so that exclusion cannot silently widen.
+
+**Verification.** `RV17LoadTestContractRatchetTest` OK (7 tests, 81 assertions) — it derives its
+expectations from the LIVE validators (reflection over `searchRides`, `BookRideRequest::rules()`,
+`SendOtpRequest::rules()`), so if a controller contract changes the ratchet fails until the load
+scripts are updated with it, and it can never pass on stale text. It asserts: no old search param
+names; every `seats:` payload carries `communication_number`; no wrong otp field / `+96277` prefix;
+and 4xx is never listed in `expectedStatuses`. **Causality needle (two independent mutations,
+both caught):** re-introducing the old `pickup_lat`/`source_lat`… param names → 1 failure;
+re-adding `422` to `expectedStatuses` → 1 failure; both reverted MD5-identical, ratchet green
+again. **JS syntax:** all 6 changed scripts pass `node --check`. Full-suite gate recorded in the
+commit (k6 files are not PHP, so the PHP suite is unaffected apart from the new ratchet).
+
+**Recorded remainder (R1's larger spec — genuinely unverified/owner-scope, not fixed here):**
+- `setup()`-time login + per-VU seeded rides/bookings: the scripts still use **hard-coded
+  expired tokens** and ride/booking ids (R1). Until that is fixed the new 4xx threshold will
+  correctly FAIL the run (that is the intended honest behavior), but the harness cannot yet
+  produce a valid green capacity number on its own.
+- R1's remaining spec items: `constant-arrival-rate` scenarios, 3× runs with a 5-min steady
+  window, per-endpoint thresholds/tags, DB `threads_running`/lock-wait capture, committing result
+  JSON with the git SHA, and regenerating README numbers from those — all owner/perf-reporting
+  scope, not a correctness defect, and left recorded rather than half-built.
+- The historical `perf-results` (A→B→C) remain **invalid** and must not be cited as capacity
+  until a corrected run exists; this fix removes the reason they were wrong but cannot retro-
+ actively re-measure a system that is not running here.

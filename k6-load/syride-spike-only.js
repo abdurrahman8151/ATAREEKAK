@@ -62,8 +62,8 @@ export default function () {
     const t0 = Date.now();
     const r  = http.get(
         `${BASE_URL}/api/rides/search` +
-        `?pickup_lat=${origin.lat + jitter}&pickup_lng=${origin.lng + jitter}` +
-        `&destination_lat=${dest.lat}&destination_lng=${dest.lng}&seats=1`,
+        `?source_lat=${origin.lat + jitter}&source_lng=${origin.lng + jitter}` +
+        `&dest_lat=${dest.lat}&dest_lng=${dest.lng}&departure_date=2026-12-15&seats_required=1`,
         authHeader(token)
     );
     responseTime.add(Date.now() - t0);
