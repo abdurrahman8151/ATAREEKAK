@@ -3393,3 +3393,33 @@ app code modified).
 real narrowing must be a per-context allowlist migration (DTO `updateProfile()` + explicit admin
 scopes) so the ~9 privilege writers keep working — a design change, not a `$fillable` edit. Until
 then the vector is shut and now regression-locked.
+## 35. RV-38 lazy flag re-test — the "9 `User::profile` N+1s" premise is **NOT reproducible**; enabling stays blocked for a different reason — **VERIFIED ROLLBACK (premise)**
+
+Round 10's measurement said enabling `preventLazyLoading()` would surface **9 `User::profile` lazy-load
+violations** (BookingTest ×6, AdminFinancialReportEscrowTest ×2, RideValidationServiceTest ×1), which
+is why the flag was held back. Re-tested this round with the guard genuinely armed (static flag **and**
+the instance flag synced on `retrieved`, since this framework only copies the instance flag on
+multi-row hydration — the round-12 finding):
+
+- `BookingTest` → **OK (11 tests)** with the guard armed
+- `AdminFinancialReportEscrowTest` → **OK (4 tests)** with the guard armed
+- `RideValidationServiceTest` → only its known pre-existing baseline failure
+
+**ZERO lazy-loading violations. The "9 N+1s" premise does not reproduce.** The round-10 measurement
+that produced it was taken from a run corrupted by a concurrent `artisan migrate` on the shared
+scratch DB (already flagged and discarded at the time); its "9 failures" were a mix of that corruption
+plus the inert-guard artefacts, not real lazy loads. No fix was applied, nothing was deleted — the
+temporary probe was reverted and the tree is byte-identical to `1d68c07`.
+
+**Why the flag still stays OFF (the real, still-valid blocker).** Not the N+1s — the genuine reason
+is the **arming fragility** recorded in §29.5: `Model::preventsLazyLoading()` alone is inert for
+single-row loads (the instance property is only synced on multi-row hydration), and the workable
+arming mechanism (a boot-time `retrieved` listener) does **not** survive Laravel's
+`tearDownTheTestEnvironment()` dispatcher reset — a ratchet that passes alone and fails inside the
+full suite is a false green. Adopting the flag therefore needs a reliable arming mechanism first
+(a shared base model overriding `newInstance()`, or a framework version where the static flag reaches
+single-row loads), independent of any N+1 count. Until then the flag stays off in dev/test and
+log-only in production, and this is a decision-free blocker to resolve, not an owner decision.
+
+**Net:** RV-38 remains the two verified data-integrity flags (§29.2). The lazy half is blocked on
+arming robustness, not on the (now-refuted) N+1 premise.
