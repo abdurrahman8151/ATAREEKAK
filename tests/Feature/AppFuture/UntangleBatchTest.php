@@ -207,8 +207,11 @@ class UntangleBatchTest extends TestCase
                 'duration' => 14400,
                 'communication_number' => '0911000000',
             ])
-            ->rawPickup(sprintf('POINT(%F %F)', $srcLng, $srcLat))
-            ->rawDestination(sprintf('POINT(%F %F)', $dstLng, $dstLat))
+            // RV-25: storage is now POINT(lat lng) (MySQL EPSG:4326 axis-order = lat first).
+            // The helper receives (srcLng, srcLat, dstLng, dstLat); write them lat-first so the
+            // stored points represent the SAME real locations as before the flip.
+            ->rawPickup(sprintf('POINT(%F %F)', $srcLat, $srcLng))
+            ->rawDestination(sprintf('POINT(%F %F)', $dstLat, $dstLng))
             ->departureTime(now()->addMinutes($departureMinutes))
             ->create();
     }

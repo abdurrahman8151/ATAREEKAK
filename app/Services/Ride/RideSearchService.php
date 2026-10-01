@@ -87,8 +87,10 @@ final class RideSearchService
     private function applySpatialFilters(Builder $query, array $params): void
     {
         $maxDistanceMeters = $this->maxDistanceMeters;
-        $srcWkt = sprintf('POINT(%F %F)', $params['source_lng'], $params['source_lat']);
-        $dstWkt = sprintf('POINT(%F %F)', $params['dest_lng'], $params['dest_lat']);
+        // RV-25: search points must use the SAME axis order as the stored geometry, now
+        // POINT(lat lng) (lat-first, matching MySQL's EPSG:4326 axis-order interpretation).
+        $srcWkt = sprintf('POINT(%F %F)', $params['source_lat'], $params['source_lng']);
+        $dstWkt = sprintf('POINT(%F %F)', $params['dest_lat'], $params['dest_lng']);
 
         $query->where(function ($q) use ($maxDistanceMeters, $srcWkt, $dstWkt) {
             // Strategy A: Direct endpoint matching
@@ -161,7 +163,8 @@ final class RideSearchService
     public function getNearbyRides(float $latitude, float $longitude, int $radiusKm = 20): Collection
     {
         $radiusMeters = $radiusKm * 1000;
-        $pointWkt = sprintf('POINT(%F %F)', $longitude, $latitude);
+        // RV-25: POINT(lat lng) (lat-first), matching the stored geometry convention.
+        $pointWkt = sprintf('POINT(%F %F)', $latitude, $longitude);
 
         return Ride::query()
             ->where('status', RideStatus::ACTIVE->value)

@@ -74,7 +74,10 @@ class MoneyAndAuthPathBatchTest extends TestCase
                 'duration' => 240,
                 'communication_number' => '0911000000',
             ])
-            ->rawPickup(sprintf('POINT(%F %F)', $lng, $lat))
+            // RV-25: storage is now POINT(lat lng) (MySQL EPSG:4326 axis-order = lat first).
+            // The helper still receives (lng, lat) at its call sites; write them lat-first so
+            // the stored point represents the SAME real location as before the RV-25 flip.
+            ->rawPickup(sprintf('POINT(%F %F)', $lat, $lng))
             ->rawDestination('POINT(36.2021 37.1343)')
             ->departureTime(now()->addHour())
             ->create();
@@ -104,8 +107,13 @@ class MoneyAndAuthPathBatchTest extends TestCase
     {
         $this->insertRideAt(36.2765, 33.5138, $this->driver->id);
 
+        // RV-25: real Damascus->Aleppo is ~309 km. Before RV-25 the stored points were
+        // transposed, so the (wrong) distance was ~258 km and a 300 km radius still matched;
+        // now that the distance is geographically correct, 300 km genuinely excludes the
+        // ride. The test's intent — a ride outside a small radius appears in a larger one —
+        // is preserved by widening the second radius above the true ~309 km.
         $this->assertCount(0, Ride::nearLocation(36.2021, 37.1343, 10)->pluck('id'));
-        $this->assertCount(1, Ride::nearLocation(36.2021, 37.1343, 300)->pluck('id'));
+        $this->assertCount(1, Ride::nearLocation(36.2021, 37.1343, 350)->pluck('id'));
     }
 
     public function test_near_location_binds_its_parameters(): void
@@ -121,12 +129,13 @@ class MoneyAndAuthPathBatchTest extends TestCase
             'the WKT literal must not contain an unbound placeholder'
         );
         $this->assertStringContainsString('ST_GeomFromText(', $sql);
-        // WKT POINT() is X-then-Y, i.e. longitude first. The scope takes
-        // (latitude, longitude) and must transpose it into the bound value.
+        // RV-25: the corrected storage/search convention is POINT(lat lng) (MySQL applies
+        // EPSG:4326 axis-order = latitude first). The scope takes (latitude, longitude) and
+        // binds them lat-first.
         $this->assertMatchesRegularExpression(
-            '/POINT\(36\.27\d* 33\.51\d*\)/',
+            '/POINT\(33\.51\d* 36\.27\d*\)/',
             $sql,
-            'coordinates must be bound into the WKT value, as longitude then latitude'
+            'coordinates must be bound into the WKT value, as latitude then longitude'
         );
     }
 

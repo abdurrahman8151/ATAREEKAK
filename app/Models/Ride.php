@@ -112,7 +112,8 @@ class Ride extends Model
             return null;
         }
 
-        sscanf($row->wkt, 'POINT(%f %f)', $lng, $lat);
+        // RV-25: storage is now POINT(lat lng) (lat-first), so the FIRST ordinate is latitude.
+        sscanf($row->wkt, 'POINT(%f %f)', $lat, $lng);
 
         return ['lat' => $lat, 'lng' => $lng];
     }
@@ -144,7 +145,8 @@ class Ride extends Model
             return null;
         }
 
-        sscanf($row->wkt, 'POINT(%f %f)', $lng, $lat);
+        // RV-25: POINT(lat lng) — first ordinate is latitude.
+        sscanf($row->wkt, 'POINT(%f %f)', $lat, $lng);
 
         return ['lat' => $lat, 'lng' => $lng];
     }
@@ -168,8 +170,15 @@ class Ride extends Model
             // keep the read-fallback and are backfilled by the migration.
             $this->attributes['pickup_lat'] = $lat;
             $this->attributes['pickup_lng'] = $lng;
+            // RV-25: geometry is now written POINT(lat lng) (LATITUDE FIRST). MySQL applies
+            // EPSG:4326 axis-order (lat-first) to ST_Distance_Sphere / ST_GeomFromText, so
+            // writing lng-first transposed every stored point relative to real geography
+            // (Damascus->Aleppo measured 257.93 km instead of the true ~309 km). Writing
+            // lat-first makes the stored coordinates geographically correct; the existing rows
+            // are backfilled with ST_SwapXY by the migration. The scalar columns above are set
+            // from the NAMED inputs, so they are correct under either WKT order.
             $this->attributes['pickup_location'] = DB::raw(
-                sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $lng, $lat)
+                sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $lat, $lng)
             );
         }
     }
@@ -182,8 +191,9 @@ class Ride extends Model
             // RV-24: same as pickup — populate the scalar destination columns.
             $this->attributes['destination_lat'] = $lat;
             $this->attributes['destination_lng'] = $lng;
+            // RV-25: POINT(lat lng) — see setPickupLocationAttribute for the axis-order rationale.
             $this->attributes['destination_location'] = DB::raw(
-                sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $lng, $lat)
+                sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $lat, $lng)
             );
         }
     }
@@ -206,7 +216,9 @@ class Ride extends Model
         // and bind it as ONE value. %F is a locale-independent float format, so
         // coordinates can never inject and no comma-decimal locale can corrupt
         // the WKT.
-        $pointWkt = sprintf('POINT(%F %F)', $longitude, $latitude);
+        // RV-25: the query point must use the SAME axis order as the stored geometry, which is
+        // now POINT(lat lng) (lat-first, matching MySQL's EPSG:4326 axis-order interpretation).
+        $pointWkt = sprintf('POINT(%F %F)', $latitude, $longitude);
 
         $query->whereRaw(
             'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?',

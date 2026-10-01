@@ -43,12 +43,13 @@ class RV10SearchExcludesDepartedTest extends TestCase
     {
         $driver = User::factory()->create(['is_verified_driver' => true]);
 
-        // Geometry copied from the existing search tests (lng-first literals) so the
-        // endpoint matcher (source_lat 33.5138 / lng 36.2765 -> POINT(36.2765 33.5138))
-        // sits exactly on the pickup and the only thing under test is time.
+        // RV-25: the SAME real locations (Damascus 33.5138/36.2765, Aleppo 36.2021/37.1343),
+        // now written POINT(lat lng) to match the corrected storage convention (MySQL applies
+        // EPSG:4326 axis-order = lat first). Only the axis order changed; the endpoint matcher
+        // still sits exactly on the pickup, and the only thing under test remains time.
         return RideBuilder::for($driver)
-            ->rawPickup('POINT(36.2765 33.5138)')
-            ->rawDestination('POINT(37.1343 36.2021)')
+            ->rawPickup('POINT(33.5138 36.2765)')
+            ->rawDestination('POINT(36.2021 37.1343)')
             ->withAttributes([
                 'status' => RideStatus::ACTIVE->value,
                 'available_seats' => 4,

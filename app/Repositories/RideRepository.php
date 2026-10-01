@@ -204,14 +204,16 @@ class RideRepository implements RideRepositoryInterface
 
             $rawUpdates = [];
             if (isset($data['pickup_lat'], $data['pickup_lng'])) {
+                // RV-25: POINT(lat lng) (lat-first), matching the model mutators and MySQL's
+                // EPSG:4326 axis-order. See Ride::setPickupLocationAttribute for the rationale.
                 $rawUpdates['pickup_location'] = DB::raw(
-                    sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $data['pickup_lng'], $data['pickup_lat'])
+                    sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $data['pickup_lat'], $data['pickup_lng'])
                 );
                 unset($data['pickup_lat'], $data['pickup_lng']);
             }
             if (isset($data['destination_lat'], $data['destination_lng'])) {
                 $rawUpdates['destination_location'] = DB::raw(
-                    sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $data['destination_lng'], $data['destination_lat'])
+                    sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $data['destination_lat'], $data['destination_lng'])
                 );
                 unset($data['destination_lat'], $data['destination_lng']);
             }

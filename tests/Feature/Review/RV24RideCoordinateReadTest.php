@@ -37,14 +37,20 @@ class RV24RideCoordinateReadTest extends BaseTestCase
 {
     use RefreshDatabase;
 
-    /** What the ORIGINAL accessor returned: parse the geometry's WKT (first=lng, second=lat). */
+    /**
+     * What the geometry fallback returns: parse the stored WKT.
+     * RV-25: storage is now POINT(lat lng) (MySQL EPSG:4326 axis-order = lat first), so the
+     * FIRST ordinate is latitude — the opposite of the pre-RV-25 lng-first convention this
+     * test originally pinned.
+     */
     private function legacyGeometryParse(int $id, string $column): ?array
     {
         $row = DB::selectOne("SELECT ST_AsText(`{$column}`) AS wkt FROM `rides` WHERE `id` = ?", [$id]);
         if (! $row || ! isset($row->wkt)) {
             return null;
         }
-        sscanf($row->wkt, 'POINT(%f %f)', $lng, $lat);
+        // RV-25: POINT(lat lng) — first ordinate is lat.
+        sscanf($row->wkt, 'POINT(%f %f)', $lat, $lng);
 
         return ['lat' => $lat, 'lng' => $lng];
     }
@@ -63,8 +69,11 @@ class RV24RideCoordinateReadTest extends BaseTestCase
             'with no scalars, the accessor must equal the legacy geometry parse exactly');
 
         // Populate the scalars the way the mutator/backfill does, then reload: FAST path.
+        // RV-25: storage is POINT(lat lng), so ST_X (first ordinate) is LATITUDE and ST_Y is
+        // LONGITUDE — the scalars must be populated lat=ST_X, lng=ST_Y (the opposite of the
+        // pre-RV-25 convention).
         DB::statement(
-            'UPDATE rides SET pickup_lat = ST_Y(pickup_location), pickup_lng = ST_X(pickup_location) WHERE id = ?',
+            'UPDATE rides SET pickup_lat = ST_X(pickup_location), pickup_lng = ST_Y(pickup_location) WHERE id = ?',
             [$raw->id]
         );
         $viaFastPath = Ride::find($raw->id)->pickup_location;
@@ -90,11 +99,12 @@ class RV24RideCoordinateReadTest extends BaseTestCase
         $this->assertNotNull($attrs['destination_lng'] ?? null, 'mutator must populate destination_lng');
 
         $row = DB::selectOne('SELECT ST_AsText(pickup_location) AS wkt FROM rides WHERE id = ?', [$ride->id]);
-        sscanf($row->wkt, 'POINT(%f %f)', $lng, $lat);
-        $this->assertEqualsWithDelta($lng, $ride->pickup_location['lng'], 0.00000001,
-            'scalar lng must equal ST_X (first ordinate) of the stored geometry');
+        // RV-25: POINT(lat lng) — first ordinate is latitude, second is longitude.
+        sscanf($row->wkt, 'POINT(%f %f)', $lat, $lng);
         $this->assertEqualsWithDelta($lat, $ride->pickup_location['lat'], 0.00000001,
-            'scalar lat must equal ST_Y (second ordinate) of the stored geometry');
+            'scalar lat must equal the FIRST ordinate of the stored geometry (RV-25 lat-first)');
+        $this->assertEqualsWithDelta($lng, $ride->pickup_location['lng'], 0.00000001,
+            'scalar lng must equal the SECOND ordinate of the stored geometry (RV-25 lat-first)');
     }
 
     /** @test */

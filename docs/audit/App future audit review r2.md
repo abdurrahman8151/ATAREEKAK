@@ -3035,3 +3035,62 @@ partial application would be worse than none (a half-flipped write/read pair bre
 silently). Next cycle implements it atomically with a migration-needle (a DB-level needle is
 valid here only via the migration's own `up()`, not a live-table poke, because `RefreshDatabase`
 re-runs migrations).
+### 29.7 RV-25 — transposed geometry corrected to lat-first (search correctness) — **VERIFIED FIX**
+
+Landed the fix whose ground truth was established in §29.6. MySQL applies EPSG:4326
+AXIS-ORDER (**latitude first**) to `ST_GeomFromText` / `ST_Distance_Sphere`; the application wrote
+every ride point as `POINT(lng lat)`, which MySQL read as `POINT(lat lng)` — so every stored ride
+coordinate was the transpose of its real location. Write and read were consistently lng-first,
+which is exactly why it hid (a same-city query still returned 0 km). Measured before the fix:
+Damascus→Aleppo **257.93 km** instead of the true **~309 km**.
+
+**NOT a money-integrity change (verified before landing).** `ST_Distance_Sphere` is used ONLY for
+search/radius filtering. The stored `distance` column that could feed a fare is written by
+`RouteCalculationService` (OSRM summary or PHP-side Haversine on NAMED lat/lng arrays), never by
+MySQL geometry. So fares were never computed from the transposed points; what was wrong was which
+rides a radius search returns. This fix corrects the search.
+
+**The flip (atomic across writes + reads).** Both sides had to change together or search would
+silently break:
+- WRITES → `POINT(lat lng)`: `Ride::setPickupLocationAttribute` / `setDestinationLocationAttribute`
+  (and the two accessor fallbacks now parse first-ordinate-as-lat), `RideRepository::updateRide`.
+- SEARCH READS → `POINT(lat lng)`: `RideSearchService::applySpatialFilters` `$srcWkt`/`$dstWkt`
+  AND `getNearbyRides` (an early pass missed `getNearbyRides`, caught by its own test), and
+  `Ride::scopeNearLocation`.
+- BACKFILL migration `2026_10_06_000001_rv25_correct_transposed_ride_geometry`: `ST_SwapXY` on both
+  geometry columns, and swaps the scalar lat/lng columns (which the RV-24 backfill had derived as
+  lat=ST_Y/lng=ST_X from the OLD geometry, i.e. they actually held lng/lat). MySQL-guarded,
+  reversible, no-op on fresh installs. Scalar columns remain populated from NAMED inputs on write,
+  so the model path is correct under either convention.
+- TEST FIXTURES reconciled to the same real-world locations expressed lat-first (RideBuilder
+  `rawPickup`/`rawDestination` call sites in RideSearchServiceTest, RV10SearchExcludesDepartedTest,
+  UntangleBatchTest, MoneyAndAuthPathBatchTest). The RV-34-frozen transposed fixture in
+  RideSearchServiceTest was updated here — this is precisely the fixture RV-25 was authorised to
+  touch.
+
+**Two honest test-semantics updates, not fudges.** (1) `MoneyAndAuthPathBatchTest::
+test_near_location_widens_with_the_radius` widened the second radius from 300 km to 350 km: the
+old 300 km only matched because the (wrong) distance was 258 km; the real ~309 km genuinely
+excludes it, so the test's intent ("a ride outside a small radius appears in a larger one") is
+preserved with a radius above the true distance. (2) `test_near_location_binds_its_parameters`
+updated its bound-WKT regex from lng-first to lat-first (it now asserts the scope binds
+`POINT(33.51… 36.27…)`).
+
+**Verification.** `RV25GeometryAxisOrderTest` OK (4 tests, 9 assertions) pins the corrected
+convention at three levels AND guards against vacuity: (a) a written ride stores latitude in the
+first ordinate (`ST_X`==lat, `ST_Y`==lng, WKT literally starts with the latitude); (b) a real
+city distance is now geographically correct — Damascus→Aleppo lands between 295 and 320 km (no
+longer the transposed 257.93); (c) an ANTI-VACUITY test proves lat-first and lng-first genuinely
+produce different distances, so the premise isn't circular; (d) end-to-end, a ride written in
+Damascus is found by a Damascus-centred `getNearbyRides` through the real service. **Causality
+needle:** reverting the mutator to lng-first (the exact pre-RV-25 bug) makes 2 of these tests
+fail; file restored MD5-identical, final run green. **Full-suite gate: 2027 tests, 52 errors /
+68 failures, 0 regressions vs baseline** (a mid-run gate that reported 93 failures was discarded —
+it was corrupted by an `artisan migrate` run concurrent with the suite on the shared scratch DB,
+not a real regression; the clean re-run is the number above).
+
+**Recorded remainder (not done):** `app/Console/Commands/Test*ride*.php` dev-flow helpers still
+hardcode lng-first coordinate literals; they are developer scripts, not the live path, and are left
+as known-soft. The `tests/Support/GeoPoint.php` helper is still test-only; promoting it to a shared
+single-source-of-truth `wkt()` writer (R2's literal prescription) is a clean follow-up now that the
+convention is settled and asserted.

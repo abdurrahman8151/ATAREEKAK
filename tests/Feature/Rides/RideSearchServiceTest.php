@@ -381,12 +381,13 @@ class RideSearchServiceTest extends TestCase
 
     private function makeRide(array $overrides = [], ?User $driver = null): Ride
     {
-        // RV-34: shared builder. THE GEOMETRY HERE IS DELIBERATELY TRANSPOSED.
-        // This fixture wrote POINT(36.2765 33.5138) / POINT(37.1343 36.2021)
-        // (lng-first), unlike every other fixture. Those literals are load-bearing
-        // for this file's search tests, so they are reproduced verbatim. The
-        // transposition itself is finding V1, owned by RV-25 — normalising it here
-        // would silently change what these tests exercise.
+        // RV-25: the same real-world locations as before (Damascus 33.5138/36.2765,
+        // Aleppo 36.2021/37.1343), now written in the CORRECTED POINT(lat lng) convention.
+        // RV-34 froze this fixture as lng-first POINT(36.2765 33.5138) to match the then
+        // lng-first search; RV-25 is the task that flips the write AND search convention to
+        // lat-first (MySQL applies EPSG:4326 axis-order = latitude first), so the verbatim
+        // lng-first literal is updated here to keep representing the SAME cities. The search
+        // parameters in each test are unchanged (source_lat=33.5138, source_lng=36.2765, ...).
         $departureDate = $overrides['departure_date'] ?? now()->addDays(3)->toDateString();
         $hour = $overrides['departure_hour'] ?? 10;
 
@@ -407,8 +408,8 @@ class RideSearchServiceTest extends TestCase
                 'duration' => 14400,
                 'communication_number' => '09'.rand(1000000, 9999999),
             ], $overrides))
-            ->rawPickup('POINT(36.2765 33.5138)')
-            ->rawDestination('POINT(37.1343 36.2021)')
+            ->rawPickup('POINT(33.5138 36.2765)')
+            ->rawDestination('POINT(36.2021 37.1343)')
             ->departureTime(Carbon::parse($departureDate)->setHour($hour))
             ->create();
     }
