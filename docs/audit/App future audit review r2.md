@@ -2693,3 +2693,56 @@ change touching auth core. Owner decision. R1 rates RV-29 P2/P3 hardening.
    / RV-05-adjacent, recorded.
 
 **Status: RV-29 decision-free scope EXHAUSTED at slice 1 (bc6acaa).**
+## 29. Beyond Wave 5 — RV-16 (plaintext OTP storage) — **VERIFIED FIX**; four §22.4 remainders are owner/product calls
+
+**§22.4 re-grounded against CURRENT code — one of its lines was stale.** It said the read path
+was "`OtpRepository` queries `where('otp_code', $code)`". That is no longer the verify path: the
+services already use `findLatestByPhone()` + the constant-time `Otp::matchesCode()` (added by an
+earlier OTP fix), so the code was already not matched in SQL. What §22.4 correctly still named is
+the **storage** half: `otps.otp_code` was `varchar(6)` holding the **raw 6-digit code**. So the
+real remaining defect was exactly one thing — plaintext at rest — and it is high-severity because
+6 digits = 10^6 combos and the MAX_ATTEMPTS throttle only counts API guesses, never a DB read: a
+dump/backup/log leak yields every live code outright.
+
+**Fix — keyed HMAC at the single write choke point (the model mutator):**
+- `Otp::setOtpCodeAttribute()` stores `hash_hmac('sha256', code, app.key)`; every service and
+  test creates with the plaintext and is hashed transparently (22 create sites, zero signature
+  changes). Hydration uses `setRawAttributes` and does NOT pass through the mutator, so a stored
+  digest is never re-hashed — pinned.
+- `matchesCode()` compares the stored digest against `hashCode($code)` in constant time (same
+  key); the raw code is never read back out.
+- `findByPhoneAndCode()` (interface method, now caller-less) made digest-aware so it cannot be a
+  plaintext oracle if ever wired again.
+- `2026_10_04_000001_widen_otp_code_for_hmac_storage` — raw MySQL `ALTER … MODIFY otp_code
+  VARCHAR(64)` (the proven T3-6 idiom from the sibling phone-widening migration), MySQL-guarded +
+  idempotent, `down()` restores varchar(6). NOT `->change()` — this audit proved DBAL chokes on
+  exotic columns and `otps.type` is an ENUM on this table. varchar(6) would truncate the digest
+  and break every verify, so the widening is load-bearing, not cosmetic.
+
+**HMAC, deliberately not bcrypt** (documented in code): codes are minutes-old, single-use, and
+already rate-limited — the threat model is a DB-only leak, and against an attacker holding
+APP_KEY a 10^6 space is brute-forceable either way, so bcrypt's cost buys nothing here while
+slowing every verify. Choosing NOT to rehash existing rows: they expire within minutes, so the
+switch orphans no live code; a stale row's lookup simply fails the normal invalid path.
+
+**Verification — `RV16OtpPlaintextStorageTest` OK (5 tests, 13 assertions)**, all reading the RAW
+column via `DB::table` (bypassing the model, so a double-hydration bug can't hide): stored column
+is not the plaintext and contains no substring of it; value is a 64-char `[0-9a-f]` digest EQUAL
+to `Otp::hashCode($code)` (deterministic + keyed); verification still works through a fresh DB
+load (correct code matches, wrong/prefix/empty reject) and re-reading leaves the stored digest
+UNCHANGED (no re-hash on hydrate); same code + same key ⇒ same digest (lookup stays possible);
+column width ≥ 64 on MySQL. **Causality needle:** reverting ONLY the mutator to plaintext flipped
+exactly the 3 storage/verify-coupling tests while the width/determinism pins stayed green — the
+write mutator and the hash-compare are correctly interlocked. File restored MD5-identical.
+Existing OTP/auth suites unchanged: OtpTest 11/21, OtpAttemptLimit 13/55 (its `matchesCode`
+unit pins passed untouched), CleanupExpiredOtps 7/15, OtpDisclosure 8/15, EmailVerification
+17/36, ResetPassword 16/23, WalletTest 10/3F (its established baseline count). ONE test changed
+and why: `TextMeOtpControllerTest` L122 asserted `(bool) Otp::where('otp_code','445566')
+->first()->is_verified` — a plaintext DB lookup that can no longer match by construction;
+rewritten to `$otp->fresh()->is_verified` (same intent, stable non-secret key, no vacuous null).
+
+**§22.4 remainders, still open, all decision-gated (not overlooked):** phone-OTP endpoint
+deletion (owner: "unless the client uses them"), synchronous mail inside SignupController's
+transaction (needs a failure-path decision), account enumeration (product: uniform 202s change
+client behaviour), `sleep(5)` in the TextMeBot worker (belongs to the endpoint decision). Full
+-suite gate in the commit.

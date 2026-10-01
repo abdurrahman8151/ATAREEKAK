@@ -26,13 +26,20 @@ class OtpRepository implements OtpRepositoryInterface
 
     /**
      * Find OTP by phone number and code
+     *
+     * RV-16: `otp_code` is now stored as an HMAC, so the equality lookup hashes the
+     * supplied code with the same key (the model mutator owns the storage form; this is
+     * its mirror for the query side). NOTE: the OTP services do NOT use this anymore —
+     * they use findLatestByPhone() + the constant-time Otp::matchesCode() so a wrong
+     * guess still reaches the row to be counted. This exact-match variant stays only to
+     * honour the interface contract; it is deliberately digest-aware, never plaintext.
      */
     public function findByPhoneAndCode(string $phoneNumber, string $code): ?Otp
     {
         return DB::transaction(function () use ($phoneNumber, $code) {
             return $this->model
                 ->where('phone_number', $phoneNumber)
-                ->where('otp_code', $code)
+                ->where('otp_code', Otp::hashCode($code))
                 ->active()
                 ->first();
         });

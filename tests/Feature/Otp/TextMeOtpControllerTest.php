@@ -105,7 +105,7 @@ class TextMeOtpControllerTest extends TestCase
 
     public function test_otp_is_marked_verified_after_success(): void
     {
-        Otp::create([
+        $otp = Otp::create([
             'phone_number' => '+963983337214',
             'otp_code' => '445566',
             'type' => 'E-PAYMENT',
@@ -119,6 +119,9 @@ class TextMeOtpControllerTest extends TestCase
             'otp_code' => '445566',
         ]);
 
-        $this->assertTrue((bool) Otp::where('otp_code', '445566')->first()->is_verified);
+        // RV-16: otp_code is stored as an HMAC now, so this must locate the row by its
+        // stable non-secret key (the id created above), NOT by the plaintext code — a
+        // `where('otp_code', '445566')` would match nothing and vacuously pass/fail.
+        $this->assertTrue((bool) $otp->fresh()->is_verified);
     }
 }
