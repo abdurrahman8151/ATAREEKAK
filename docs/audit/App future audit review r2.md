@@ -2088,3 +2088,42 @@ four, one `ScoreLedger::apply()` can be built with pin + boundary + needle tests
   RV-10 booking rule + `rides:advance-status` auto-confirm (§26.7), RV-02 L2 / RV-20 /
   RV-21-full / RV-09-full (coupled escrow + platform-fee redesign, §26.8).
 - **Every change UNCOMMITTED** for owner review; this file is the durable record.
+### 26.11 RV-21 — seeder half of the escrow-hijack — **VERIFIED FIX** (plus a self-caught process error)
+
+**Why this was still open after §26.5.** The boundary fix made money paths *refuse* a
+user-owned wallet on a reserved phone, which is correct — but it left the deployment
+**unrepairable**: `SystemWalletSeeder` used `firstOrCreate(['phone_number' => …])`, and
+`wallets.phone_number` is UNIQUE, so when a user had already claimed the reserved phone the
+seeder *matched that row*, created nothing, and still printed "✅ System wallets ready". Re-running
+it could never fix the state, and the money boundary now throws instead — a silent-false-success
+turning into an undiagnosable outage.
+
+**Fix.** `ensureSystemWallet()` resolves by phone, then: absent → create with `user_id NULL`;
+already a system wallet → no-op (never duplicates, never resets a live escrow balance); owned by a
+user → **throw `RuntimeException` naming the offending wallet id, its owner and the remedy**. It
+never mutates that user's balance automatically. Also made `$this->command` null-safe so the seeder
+is runnable/testable outside the Artisan command.
+
+**Verification — `RV21SystemWalletSeederTest` OK (4 tests, 10 assertions):** creates both wallets
+`user_id NULL`; re-seeding twice is a no-op that preserves a 4,500,000 escrow balance and does not
+duplicate; the hijacked-phone case throws and names wallet + phone (and conjures no fake system
+wallet); the two reserved phones are asserted distinct — if a config ever collapsed them, Primary
+and SyCash would share one wallet and the 5% platform fee would silently land in escrow.
+
+**Causality needle, done twice because the first was invalid.** The needle must isolate one
+behaviour, so replacing the whole file (reverting to the old `firstOrCreate`) failed the WRONG way
+— it also removed the null-safe `command?->`, and PHPUnit promotes that warning to an error, so
+"3 failures" proved nothing. Replaced the throw with a bare `return` instead (file lints clean):
+**exactly one test fails** — the hijack test — while the other three pass. That is the correct
+needle shape: sensitive to the guard, not over-broad. File then restored by rewriting it and
+re-verified green (hash-based restore was impossible because `git checkout` reverts to HEAD).
+
+**Process error recorded (AGENTS.md: report what I got wrong).** To undo that first bad needle I
+ran `git checkout -- database/seeders/SystemWalletSeeder.php` — but the seeder improvement was still
+**uncommitted**, so that command discarded my own verified work, not the needle. Caught immediately
+when the restore hash did not match and the test went to 3 errors; rewrote the file from the
+recorded content and re-verified. Two lessons: (a) **commit verified work before needle-experimenting
+on it** — which is why this change is committed straight after its gate; (b) verify a needle's
+*specificity*, not merely that "something failed". No other file was affected; the money floor
+re-verified green (11 suites incl. MoneyPath 7/21, WalletTransactionService 27/29, PassengerConfirm
+10/47, escrow 4/14, RV-40 3/9 + 4/13, RV-15 4/12, RV-21 boundary 2/5).
