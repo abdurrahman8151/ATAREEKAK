@@ -2127,3 +2127,54 @@ on it** — which is why this change is committed straight after its gate; (b) v
 *specificity*, not merely that "something failed". No other file was affected; the money floor
 re-verified green (11 suites incl. MoneyPath 7/21, WalletTransactionService 27/29, PassengerConfirm
 10/47, escrow 4/14, RV-40 3/9 + 4/13, RV-15 4/12, RV-21 boundary 2/5).
+### 26.12 RV-40 (remaining bullet) — `rides.price_per_seat` widened to decimal(15,2) — **VERIFIED FIX**
+
+**Grounded in the schema, not in memory.** Enumerating every DECIMAL column showed the money
+standard is universal — `wallets.balance/cash_ride_debt`, `wallet_requests.amount`,
+`wallet_transactions.amount/previous_balance/new_balance`, `rides.cash_creation_fee`, and
+RV-40's own `bookings.unit_price/amount_paid/escrow_held` are all `decimal(15,2)`. The lone
+money outlier was `rides.price_per_seat` at `decimal(8,2)` (max 999,999.99), because T3-2's
+`MONEY_COLUMNS` list simply omitted it. R1 RV-40 prescribes exactly this repair verbatim
+("rides.price_per_seat -> decimal(15,2)"), and RV-40 made the outlier actively harmful: the
+per-seat price is snapshotted into `bookings.unit_price` (15,2), so the **destination can hold
+four more digits than the source** and the ride column became the choke point where a large
+price fails as an undiagnosable 500.
+
+**Scope discipline.** Only the column WIDTH. The application-side maximum is deliberately
+NOT added — choosing one config bound (CreateRideRequest caps at 100000, create-with-route at
+nothing) remains an owner decision recorded with RV-14.
+
+**Two errors caught before shipping, both recorded because they were not obvious:**
+1. **`->change()` cannot be used on `rides`.** The first attempt copied the T3-2 idiom, but
+   `->change()` introspects the whole table through Doctrine DBAL, which aborts with
+   *"Unknown database type geometry requested"* on rides' two GEOMETRY columns. T3-2 only
+   touched geometry-free tables, so its idiom did not transfer. Rewritten as the repo's other
+   established idiom (raw `ALTER`, guarded like the sibling enum migrations). Verified the
+   failed attempt left **no** `migrations` row, so it retried cleanly rather than half-applying.
+2. **A wrong column definition.** The draft carried `->default(0)`; the real column is
+   `NOT NULL` with **no** default, and inventing one would let a ride exist with a silently
+   free price. Confirmed against `information_schema` before and after.
+
+**Verification.**
+- Applied to real MySQL 8.2: `decimal(15,2)`, `IS_NULLABLE = NO`, no default, recorded exactly
+  once, **both GEOMETRY columns intact**.
+- `MigrationEffectsBatchTest` extended from **5/33 to OK (7 tests, 61 assertions)**:
+  `test_the_full_money_column_set_is_decimal_15_2` now enumerates every money column (11 pairs,
+  with a count assertion so a renamed or newly-added money column fails loudly), and
+  `test_widening_the_price_preserved_the_geometry_columns` pins the exact hazard the first
+  attempt hit. The pre-existing T3-2 six-column test was **kept, not edited**.
+- Ride/money floor unchanged: RideTest 13/2, RideControllerFull 39/8 (established pre-existing
+  counts), RideResource 16/49, RideSearchService 17/22, PassengerConfirm 10/47, MoneyPath 7/21,
+  escrow 4/14, RV-40 3/9, RV-15 4/12.
+
+**Methodological finding — a DB-level needle cannot test a schema migration.** The first needle
+tried narrowing the live column and asserting the test fails; it stayed green, because
+`RefreshDatabase` runs `migrate:fresh`, **re-applying the migration under test** and restoring
+the width. That "OK" would have been read as a passing needle while proving nothing. For a
+migration, the needle must neuter the **migration** itself: disabling the widening made the test
+fail with `Failed asserting that 8 is identical to 15` and only that test failed; the file was
+restored MD5-identical. Recorded because the distinction generalises to every schema task here.
+
+**State: VERIFIED FIX.** With this, RV-40's own bullet list is complete except the two items
+gated on owner design (the `failed` terminal state with no writer, and the statuses-as-string
+policy), and RV-14's price-bound half still needs its single config decision.

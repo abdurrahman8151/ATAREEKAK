@@ -53,6 +53,111 @@ class MigrationEffectsBatchTest extends TestCase
         }
     }
 
+    /**
+     * RV-40 — the money-precision sweep must cover EVERY column money flows through.
+     *
+     * The original T3-2 assertion enumerated six columns, and that enumeration is exactly
+     * how rides.price_per_seat stayed decimal(8,2) while everything else converged on
+     * 15,2: a hardcoded list can only check what its author remembered. RV-40 then made
+     * the outlier actively harmful, because a per-seat price is snapshotted into
+     * bookings.unit_price (15,2) — the destination can hold four more digits than the
+     * source, so the ride side became the choke point where a large price fails as a
+     * generic 500 instead of a validation error.
+     *
+     * So this list is the full set of money-bearing columns (including RV-40's own
+     * snapshot columns) and the count assertion makes a rename or a newly-added money
+     * column fail loudly rather than go unchecked.
+     */
+    public function test_the_full_money_column_set_is_decimal_15_2(): void
+    {
+        $expected = [
+            'wallets' => ['balance', 'cash_ride_debt'],
+            'wallet_requests' => ['amount'],
+            'wallet_transactions' => ['amount', 'previous_balance', 'new_balance'],
+            'rides' => ['price_per_seat', 'cash_creation_fee'],
+            'bookings' => ['unit_price', 'amount_paid', 'escrow_held'],
+        ];
+
+        $flat = [];
+        foreach ($expected as $table => $cols) {
+            foreach ($cols as $c) {
+                $flat[] = [$table, $c];
+            }
+        }
+
+        [$tableIn, $colIn] = [
+            "'".implode("','", array_column($flat, 0))."'",
+            "'".implode("','", array_column($flat, 1))."'",
+        ];
+
+        $rows = DB::select(
+            "SELECT TABLE_NAME, COLUMN_NAME, NUMERIC_PRECISION p, NUMERIC_SCALE s
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ({$tableIn}) AND COLUMN_NAME IN ({$colIn})",
+            [$this->schema()]
+        );
+
+        $this->assertCount(
+            count($flat),
+            $rows,
+            'expected every listed money column to exist; a rename/drop must fail here'
+        );
+
+        foreach ($rows as $r) {
+            $this->assertSame(15, (int) $r->p, "{$r->TABLE_NAME}.{$r->COLUMN_NAME} must be precision 15");
+            $this->assertSame(2, (int) $r->s, "{$r->TABLE_NAME}.{$r->COLUMN_NAME} must be scale 2");
+        }
+    }
+
+    /**
+     * RV-40 — the price widening must not damage the spatial columns.
+     *
+     * The first attempt used Blueprint->change(), which asks Doctrine DBAL to introspect
+     * the whole table and died on rides' two GEOMETRY columns ("Unknown database type
+     * geometry requested"). The replacement is a raw ALTER, so the real risk is no longer
+     * the type mapping but silently disturbing the spatial columns the search index and
+     * every geo test depend on. Pinned directly rather than assumed.
+     */
+    public function test_widening_the_price_preserved_the_geometry_columns(): void
+    {
+        $cols = DB::select(
+            'SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "rides" AND DATA_TYPE = "geometry"',
+            [$this->schema()]
+        );
+
+        $names = array_map(fn ($c) => $c->COLUMN_NAME, $cols);
+        sort($names);
+
+        $this->assertSame(
+            ['destination_location', 'pickup_location'],
+            $names,
+            'both geometry columns must survive the ALTER'
+        );
+
+        foreach ($cols as $c) {
+            $this->assertSame('NO', $c->IS_NULLABLE, "{$c->COLUMN_NAME} must stay NOT NULL");
+        }
+
+        // And the widened column must have kept the definition it always had —
+        // NOT NULL with no default. The first draft of the migration wrongly added
+        // DEFAULT 0, which would let a ride exist with a silently free price.
+        $def = DB::select(
+            'SELECT IS_NULLABLE, COLUMN_DEFAULT, NUMERIC_PRECISION p
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "rides" AND COLUMN_NAME = "price_per_seat"',
+            [$this->schema()]
+        )[0];
+
+        $this->assertSame('NO', $def->IS_NULLABLE, 'price_per_seat must remain NOT NULL');
+        $this->assertEquals(
+            null,
+            $def->COLUMN_DEFAULT,
+            'the widening must not invent a default the original column never had'
+        );
+    }
+
     public function test_wallet_default_survived_the_widening(): void
     {
         // ->change() in Laravel is known to silently drop column defaults.
