@@ -71,8 +71,34 @@ class Ride extends Model
     // Custom Accessors for pickup_location / destination_location
     // ------------------------------------------------------------------------//
 
+    /**
+     * Read the pickup coordinates.
+     *
+     * RV-24 (N+1 fix): this used to issue `SELECT ST_AsText(pickup_location) … WHERE id = ?` on
+     * EVERY access, so serialising a page of rides fired one extra query per ride (and
+     * RideResource alone touches it three times per ride). The scalar pickup_lat/pickup_lng
+     * columns — already in the schema but previously never written — are populated by
+     * setPickupLocationAttribute() and by the backfill migration, so the common case is a
+     * plain attribute read with zero queries.
+     *
+     * The geometry query is KEPT as a fallback for rows written as a raw DB::raw expression
+     * (seeders / factory / artisan flows bypass the mutator) and any legacy row the backfill
+     * has not reached, so behaviour is identical either way. The parse below is unchanged:
+     * `sscanf('POINT(%f %f)', $lng, $lat)` — first ordinate is lng, second is lat.
+     */
     public function getPickupLocationAttribute(): ?array
     {
+        // NOTE: the parentheses are required — PHP binds `!==` tighter than `??`, so
+        // `$x['k'] ?? null !== null` would parse as a truthiness test and wrongly skip the
+        // fast path for the perfectly valid coordinate 0.0 (equator / prime meridian).
+        if (($this->attributes['pickup_lat'] ?? null) !== null
+            && ($this->attributes['pickup_lng'] ?? null) !== null) {
+            return [
+                'lat' => (float) $this->attributes['pickup_lat'],
+                'lng' => (float) $this->attributes['pickup_lng'],
+            ];
+        }
+
         if (! isset($this->attributes['id'])) {
             return null;
         }
@@ -91,8 +117,20 @@ class Ride extends Model
         return ['lat' => $lat, 'lng' => $lng];
     }
 
+    /**
+     * Read the destination coordinates. RV-24: scalar-first with the geometry-query fallback
+     * (see getPickupLocationAttribute for the full rationale).
+     */
     public function getDestinationLocationAttribute(): ?array
     {
+        if (($this->attributes['destination_lat'] ?? null) !== null
+            && ($this->attributes['destination_lng'] ?? null) !== null) {
+            return [
+                'lat' => (float) $this->attributes['destination_lat'],
+                'lng' => (float) $this->attributes['destination_lng'],
+            ];
+        }
+
         if (! isset($this->attributes['id'])) {
             return null;
         }
@@ -120,6 +158,16 @@ class Ride extends Model
         if (isset($coords['lat'], $coords['lng'])) {
             $lat = (float) $coords['lat'];
             $lng = (float) $coords['lng'];
+            // RV-24: also materialise the scalar lat/lng columns so reads (the accessors
+            // and RideResource) do not need a per-row ST_AsText query. Derived from the SAME
+            // $lat/$lng used for the geometry below, so the two can never disagree and no
+            // coordinate-order (lat/lng transposition) decision is baked in. ST_Y=lat,
+            // ST_X=lng for the stored POINT(lng lat) — consistent with the accessor's
+            // sscanf('POINT(%f %f)', $lng, $lat) parse. Fallback: any writer that sets the
+            // geometry as a raw DB::raw expression bypasses this mutator; those rows simply
+            // keep the read-fallback and are backfilled by the migration.
+            $this->attributes['pickup_lat'] = $lat;
+            $this->attributes['pickup_lng'] = $lng;
             $this->attributes['pickup_location'] = DB::raw(
                 sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $lng, $lat)
             );
@@ -131,6 +179,9 @@ class Ride extends Model
         if (isset($coords['lat'], $coords['lng'])) {
             $lat = (float) $coords['lat'];
             $lng = (float) $coords['lng'];
+            // RV-24: same as pickup — populate the scalar destination columns.
+            $this->attributes['destination_lat'] = $lat;
+            $this->attributes['destination_lng'] = $lng;
             $this->attributes['destination_location'] = DB::raw(
                 sprintf("ST_GeomFromText('POINT(%F %F)',4326)", $lng, $lat)
             );

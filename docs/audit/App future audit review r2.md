@@ -2874,3 +2874,63 @@ commit (k6 files are not PHP, so the PHP suite is unaffected apart from the new 
 - The historical `perf-results` (A→B→C) remain **invalid** and must not be cited as capacity
   until a corrected run exists; this fix removes the reason they were wrong but cannot retro-
  actively re-measure a system that is not running here.
+### 29.4 RV-24 — Ride coordinate read N+1 — **VERIFIED FIX (read path; order-neutral)**
+
+**Grounded first.** `Ride::getPickupLocationAttribute()` / `getDestinationLocationAttribute()` ran
+`SELECT ST_AsText(col) … WHERE id = ?` on EVERY attribute access, so serialising a page of rides
+paid one extra query per ride (and `RideResource` alone touches `pickup_location` and
+`destination_location` three times each). The scalar columns `pickup_lat/pickup_lng/
+destination_lat/destination_lng decimal(10,8)/(11,8)` were already in the schema but NEVER
+written: `RideRepository` converted incoming coords to a geometry expression then `unset()` the
+scalar keys before insert, and the model mutator wrote only the geometry column. That is why the
+read had to go through geometry — the columns were dead.
+
+**Coordinate order is INHERITED, not decided.** The stored geometry is `POINT(lng lat)` (mutator
+writes `POINT(%F %F)` with lng first; accessor parses `sscanf('POINT(%f %f)', $lng, $lat)`), and
+MySQL `ST_X`=first ordinate / `ST_Y`=second (verified live: `ST_X(POINT(36.2 33.5))=36.2`,
+`ST_Y=33.5`). The backfill uses `lng=ST_X`, `lat=ST_Y` — exactly reproducing what the existing
+accessors already returned for the same row. Column widths corroborate the standard convention
+(`_lat decimal(10,8)` fits |lat|≤90; `_lng decimal(11,8)` fits |lng|≤180). **This fix does NOT
+decide whether production rows are transposed — that is RV-25 and stays owner-gated; the
+backfill faithfully copies whatever order each row stores.**
+
+**Fix (smallest correct, two parts):**
+1. Model mutators `setPickupLocationAttribute`/`setDestinationLocationAttribute` additionally
+   populate the scalar columns from the SAME `$lat`/`$lng` used for the geometry — so the two can
+   never disagree and the primary application write path (createRide / createWithRoute, which
+   assign `pickup_location` as an array) now stores both.
+2. Accessors return the scalar columns when both are present (a plain attribute read, **zero
+   queries**), and KEEP the original geometry query as a fallback for rows written as a raw
+   `DB::raw` expression (seeders / factory / artisan flows bypass the mutator) and for legacy
+   rows the backfill has not yet reached. Behaviour is identical either way.
+3. Migration `2026_10_05_000001_backfill_ride_lat_lng_from_geometry` backfills existing rows from
+   geometry via `ST_X`/`ST_Y` (MySQL-guarded, idempotent — only `WHERE … IS NULL`). `down()` is a
+   no-op: the values are derived, and dropping populated columns would discard real coordinates.
+
+**A real trap caught during implementation:** PHP binds `!==` tighter than `??`, so a guard
+written `$a['x'] ?? null !== null` parses as `$a['x'] ?? (null !== null)` — a TRUTHINESS test —
+which would have silently skipped the fast path for the valid coordinate `lat = 0.0` (equator /
+prime meridian). The guards use explicit parentheses `($a['x'] ?? null) !== null`.
+
+**Verification — `RV24RideCoordinateReadTest` OK (4 tests, 12 assertions)**, driving both real
+write paths via the project's `RideBuilder`:
+- fast path == geometry fallback == legacy parse, `assertSame` on the float arrays (identical
+  values, so no response payload can change) — proved by inserting a raw-geometry ride (scalars
+  NULL), capturing the fallback value, backfilling via `UPDATE`, reloading, and asserting equality;
+- the mutator path populates all four scalars and they match `ST_X`/`ST_Y` of the geometry;
+- **zero-query proof**: a model-written ride, loaded once, then coordinates read 3× each
+  (mirroring RideResource) issues `0` further queries;
+- an unsaved ride read returns null/array, never an error.
+**Causality needle (two independent mutations, both caught):** (1) disabling the accessor fast
+path — i.e. back to the pre-fix always-query state — fails the zero-query test; (2) swapping
+lat/lng in the mutator fails the equivalence/consistency test. Both reverted MD5-identical, final
+run green.
+
+**Recorded remainder (not done here, genuinely unverified):**
+- Writers that bypass the mutator (seeders, factory, artisan test commands) write geometry only,
+  so their NEW rows have NULL scalars and keep using the read fallback until a backfill or a
+  mutator-aware write is added. Correct, just not faster. Migrating those writers to the model
+  mutator is a follow-up, not required for correctness.
+- The historical ride rows' coordinate CORRECTNESS (transposed vs not) is RV-25 and stays
+  owner-gated; this fix is order-neutral and neither fixes nor depends on that decision.
+Full-suite gate recorded in the commit.
