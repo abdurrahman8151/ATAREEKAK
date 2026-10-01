@@ -3,7 +3,9 @@
 namespace App\Services\Admin;
 
 use App\Domain\ValueObjects\Money;
+use App\Enums\ComplaintStatus;
 use App\Models\Booking;
+use App\Models\Complaint;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
@@ -75,7 +77,17 @@ final class AdminReportService
      */
     public function getStats(): array
     {
-        $primaryWallet = Wallet::where('phone_number', config('system_admin.phone'))->first();
+        // RV-19 fake number #2 (revenue): this read config('system_admin.phone'), a key
+        // backed by NO file (V8) — the lookup was always null, so the wallet query found
+        // nothing and the dashboard's "total revenue" card showed 0.00 FOREVER, even with
+        // money in escrow. Corrected to the canonical key every money path already uses
+        // (WalletTransactionService/CashRideFeeService read admin.system_admin.phone;
+        // SystemWalletSeeder seeds that phone). Value definition unchanged — still "the
+        // Primary Escrow balance"; the fix only makes the intended lookup resolve. What
+        // that balance MEANS is Wave-3's gated escrow redesign (§26.14) — untouched here.
+        $primaryWallet = Wallet::where('phone_number', config('admin.system_admin.phone'))
+            ->whereNull('user_id')   // RV-21 boundary: only the platform-owned wallet
+            ->first();
         $primaryBalance = $primaryWallet ? (float) $primaryWallet->balance : 0.0;
 
         return [
@@ -86,7 +98,13 @@ final class AdminReportService
                 'raw' => $primaryBalance,
                 'formatted' => Money::from($primaryBalance)->formatted(),
             ],
-            'pending_complaints' => 0,
+            // RV-19 fake number #1: pending_complaints was a hardcoded literal 0, so the
+            // dashboard's open-workload card could never rise — support backlog invisible
+            // to admins regardless of queue size. Convention mirrors the sibling KPI
+            // directly below it (verification_requests counts exactly 'pending') and
+            // StaffAdminController's per-status counts: "pending" = ComplaintStatus::PENDING
+            // only; in_review/escalated are tracked in their own surfaces.
+            'pending_complaints' => Complaint::where('status', ComplaintStatus::PENDING->value)->count(),
             'verification_requests' => User::where('verification_status', 'pending')->count(),
         ];
     }

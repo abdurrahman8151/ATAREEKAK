@@ -218,15 +218,51 @@ class WaveZeroVerificationTest extends TestCase
         $this->assertMatchesRegularExpression('/DB_DATABASE"\s+value=":memory:"/', $committed);
     }
 
-    public function test_v8_system_admin_config_is_missing_so_revenue_is_always_zero(): void
+    public function test_v8_phantom_key_is_gone_from_the_report_site_but_lives_in_the_repository(): void
     {
+        // V8 remains a FACT: no config/system_admin.php exists, so the phantom key is null.
+        // (That is what made the report's revenue card 0.00 forever - RV-19 slice 1 fixed it;
+        // the behavioral proof is RV19AdminStatsTest, this is the source-level pin.)
         $this->assertNull(config('system_admin.phone'), 'V8: no config/system_admin.php exists');
 
-        // And the two production call sites depend on it:
-        $report = (string) file_get_contents(app_path('Services/Admin/AdminReportService.php'));
+        // RV-19 (2026-10-02): the recorder ORIGINALLY pinned the broken state here. Flipping
+        // it to pin the FIX instead - assertContains/assertNotContains against RAW file text
+        // would be fooled by the explanatory comment naming the old call (it matched during
+        // development and proved this), so the scan is comment-stripped via the tokenizer,
+        // the same house pattern TlsAndOctaneHygieneTest uses.
+        $report = $this->stripComments(app_path('Services/Admin/AdminReportService.php'));
+        $this->assertStringNotContainsString(
+            "config('system_admin.phone')",
+            $report,
+            'RV-19: the report service must never read the phantom system_admin.phone key again'
+        );
+        $this->assertStringContainsString(
+            "config('admin.system_admin.phone')",
+            $report,
+            'the revenue lookup must use the canonical key every money path uses'
+        );
+
+        // The SECOND V8 site stays recorded exactly as recorded: VerificationRepository still
+        // reads config('system_admin.email') -> null, so its "seed 3.0 rating for approved
+        // drivers" block never fires. Fixing it would SILENTLY ACTIVATE that dormant write
+        // (every driver approval starts inserting ratings) - that is a product decision
+        // (RV-19 remainder / decision table in §28.7), not a blind key swap.
         $verify = (string) file_get_contents(app_path('Repositories/VerificationRepository.php'));
-        $this->assertStringContainsString("config('system_admin.phone')", $report);
         $this->assertStringContainsString('system_admin', $verify);
+    }
+
+    /** Tokenizer-based comment strip: prose may NAME a pattern without tripping detectors. */
+    private function stripComments(string $path): string
+    {
+        $out = '';
+        foreach (token_get_all((string) file_get_contents($path)) as $t) {
+            if (is_array($t) && in_array($t[0], [T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            $out .= is_array($t) ? $t[1] : $t;
+        }
+
+        return $out;
     }
 
     public function test_v9_user_ratings_unique_blocks_per_ride_ratings(): void

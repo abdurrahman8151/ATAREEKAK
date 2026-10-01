@@ -2552,3 +2552,52 @@ StaffAuthControllerTest 17/30, Feature\Auth whole dir 74/191. Full suite **1995 
 - Chat `startConversation` anyone-messages-anyone (product feature decision — gated).
 - `RideResource`/`BookingResource` leak `communication_number` to every authenticated user.
 - Staff login early-return timing (unknown identifier vs wrong password).
+### 28.7 RV-19 (slice 1) — admin dashboard fake numbers — **VERIFIED FIX**; revenue definition + second V8 site remain gated
+
+**Two fake numbers in `AdminReportService::getStats()`, both confirmed live (R1 RV-19 named
+them, grounding re-verified):**
+1. `'pending_complaints' => 0` — a hardcoded literal. The support-backlog card could NEVER
+   rise regardless of queue size; admins were structurally blind to open complaints.
+2. Revenue read `config('system_admin.phone')` — a **phantom key**: V8 recorded that
+   `config/system_admin.php` does not exist, so the lookup was always null, the wallet query
+   matched nothing, and the revenue card showed `0.00` FOREVER even with escrow in the wallet.
+
+**Fixes, convention-driven — no invented semantics:**
+- Pending complaints: `Complaint::where('status', ComplaintStatus::PENDING)->count()`. The
+  convention was READ from the codebase, not chosen: the sibling KPI in the same array
+  (`verification_requests`) counts exactly `'pending'`, and `StaffAdminController` tracks
+  `in_review`/`escalated`/`resolved`/`closed` in their own status-count surfaces — so
+  "pending" here means PENDING only. Pinned explicitly (`counts_only_pending_status`: one
+  pending + one in_review + one closed + one resolved => 1).
+- Revenue: the canonical key every money path already uses (`admin.system_admin.phone`,
+  seeded by `SystemWalletSeeder`, read by `WalletTransactionService`/`CashRideFeeService`),
+  plus the RV-21 boundary `whereNull('user_id')` so a user-owned wallet squatting the phone
+  can never be read as platform revenue. **Value DEFINITION unchanged** — still "the Primary
+  Escrow balance"; what that balance MEANS is Wave-3's gated escrow redesign (§26.14). The
+  fix only made the intended lookup resolve.
+
+**Recorder flipped honestly, not weakened.** `WaveZeroVerificationTest::test_v8…` originally
+asserted the BROKEN state (`assertContains phantom key`). After the fix a naive
+assertNotContains is fooled by the explanatory comment naming the old call — it proved that
+during development. The rewritten recorder comment-strips via the tokenizer (the exact house
+pattern in `TlsAndOctaneHygieneTest`), pins BOTH halves (phantom key gone AND canonical key
+present), and still asserts `config('system_admin.phone')` is null — V8 itself remains a
+recorded fact. Its name changed to describe what it now verifies.
+
+**The SECOND V8 site deliberately NOT fixed:** `VerificationRepository` reads
+`config('system_admin.email')` → null, so its "seed a 3.0 rating for newly approved drivers"
+block NEVER FIRES. Fixing the key there would silently ACTIVATE a dormant write (every driver
+approval starts inserting ratings, changing seeded/real rating math) — a behavior change no
+owner asked for, recorded as gated in §28.7/§29.1 rather than blind-swapped.
+
+**Verification — `RV19AdminStatsTest` OK (4 tests, 7 assertions):** 0 with empty queue, 2 with
+two pending; only-PENDING convention pinned; funded primary wallet (10,000,000 via the
+production `SeedsSystemWallets` concern) reported as raw + formatted revenue; and the RV-21
+boundary (user-owned wallet on the phone ⇒ revenue 0, never adopted).
+**Causality needles** (both restored MD5-identical): reverting the count to `0` fails EXACTLY
+the 2 counting tests; the clean phantom-key swap (first attempt was an invalid needle — the
+inline comment created a parse error, caught by lint-before-trust; redone syntax-preserving)
+fails EXACTLY the revenue-behavior test + the flipped V8 recorder.
+**Floors:** WaveZero 9/25 (recorder rewritten, count grew 24→25), AdminFinancialReportEscrow
+4/14, Admin dir 114/9 = the established AdminDashboardControllerTest pre-existing 9F, nothing
+new. Full suite + gate recorded in the commit.
