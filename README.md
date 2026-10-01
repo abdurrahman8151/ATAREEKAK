@@ -9,7 +9,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-FCM-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
 
-**A production-grade, real-time carpooling backend built with Laravel — featuring JWT authentication, a multi-gateway wallet system, live chat, push notifications, a trust-score engine, and a full staff management portal.**
+**A production-grade, real-time carpooling backend built with Laravel — featuring JWT authentication, a multi-method wallet (cash and ePay settlement strategies), live chat, push notifications, a trust-score engine, and a full staff management portal.**
 
 [API Docs](#api-documentation) · [Getting Started](#getting-started) · [Architecture](#architecture) · [Load Testing](#load-testing) · [Deployment](#deployment)
 
@@ -38,7 +38,7 @@
 
 Syride is a full-featured carpooling platform API designed for scalability and reliability. Drivers post rides, passengers discover and book seats, and the platform manages the full lifecycle — from OTP-verified signup through in-ride chat, payment, and post-ride trust scoring — all in real time.
 
-The backend is engineered for production: MySQL primary/replica replication, Redis-backed caching and queues, Laravel Octane with RoadRunner for high throughput, and a comprehensive k6 load-testing suite that has validated **900+ concurrent users** under sustained load.
+The backend is engineered for production: MySQL primary/replica replication, Redis-backed caching and queues, Laravel Octane with RoadRunner for high throughput, and a comprehensive k6 load-testing suite. **Capacity has not been validated** — the load harness previously sent off-contract payloads (≈44% of the mix 422'd before reaching business logic) and counted those as successes, so its throughput numbers are not a capacity figure. The harness has been corrected (real request contract + 2xx-only success); a valid capacity number requires a fresh run against a deployed stack.
 
 ---
 
@@ -209,16 +209,18 @@ php artisan queue:work redis --queue=notifications,default
 | Variable | Description |
 |---|---|
 | `APP_KEY` | Laravel application key (`php artisan key:generate`) |
-| `DB_HOST` / `DB_READ_HOST` | MySQL primary / replica hosts |
+| `DB_HOST` / `DB_REPLICA_HOST` | MySQL primary / replica hosts (split only applies in production) |
 | `REDIS_HOST` | Redis instance |
 | `JWT_SECRET` | User JWT signing secret |
 | `STAFF_JWT_SECRET` | Staff JWT signing secret |
-| `TEXTME_API_KEY` | SMS OTP gateway (TextMe bot) |
-| `WHATSAPP_OTP_*` | WhatsApp OTP credentials |
-| `FIREBASE_*` | FCM credentials (or path to `config/firebase-credentials.json`) |
-| `EPAY_*` | ePay payment gateway credentials |
+| `TEXTMEBOT_API_KEY` / `TEXTMEBOT_ENABLED` | SMS OTP provider (TextMe bot) |
+| `CALLMEBOT_API_KEY` | WhatsApp OTP provider (CallMeBot) |
+| `MAPBOX_ACCESS_TOKEN` | Optional Arabic-place geocoding fallback |
+| `FIREBASE_*` / `FCM_*` | FCM push credentials |
+| `EPAY_*` | ePay payment settlement credentials |
 | `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
 | `BROADCAST_DRIVER` | `pusher` or `redis` for WebSocket events |
+| `OTP_BYPASS_ENABLED` | Testing-only OTP bypass (refused outside local/testing) |
 
 A full annotated `.env.example` is included in the repository.
 
@@ -386,10 +388,10 @@ Register these in `app/Console/Kernel.php` (or your cron / Horizon scheduler):
 
 | Command | Purpose |
 |---|---|
-| `otps:cleanup` | Purge expired OTPs |
+| `otp:cleanup` | Purge expired OTPs |
 | `tokens:cleanup` | Purge expired user refresh tokens |
 | `staff-tokens:cleanup` | Purge expired staff refresh tokens |
-| `noshow-reports:resolve` | Auto-resolve no-show reports past their window |
+| `noshow:resolve` | Auto-resolve no-show reports past their window |
 
 ---
 
@@ -403,7 +405,18 @@ Three benchmark snapshots track the cumulative impact of each optimisation:
 | B | After adding DB indexes on hot paths | `perf-results/B_indexes.json` |
 | C | Indexes + Redis cache + load balancer | `perf-results/C_full.json` |
 
-Key wins: composite indexes on `rides` (status + departure), `bookings` (ride_id + status), and `wallet_transactions` (wallet_id + type); Redis query caching for ride-search results; and RoadRunner eliminating per-request PHP bootstrap overhead.
+**These numbers are NOT a valid capacity measurement (RV-17/RV-25).** The load harness sent
+payloads that violated the API contract, so roughly 44% of the weighted request mix was rejected
+with HTTP 422 *before reaching business logic*, and the harness treated 422 as a successful
+response — so A→B→C (518 → 537 → 531 rps) largely measured validation-rejection latency, not the
+application. B→C also shows no real gain from cache + load balancer (within run-to-run noise). The
+indexes added in run B are real and worth keeping; the *throughput numbers* must not be cited as
+capacity until a corrected run exists. The harness has since been fixed to send the real contract
+and to require 2xx.
+
+Key wins: composite indexes on `rides` (status + departure), `bookings` (ride_id + status), and
+`wallet_transactions` (wallet_id + type, and RV-30 added `(reference, type)` for reconciliation
+reads); and RoadRunner eliminating per-request PHP bootstrap overhead.
 
 ---
 
