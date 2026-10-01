@@ -44,12 +44,13 @@ class GoogleController extends Controller
         // but WITHOUT secrets: $request stays injected only for the InvalidState path,
         // which records the exception, never the incoming state/code value.
         try {
-            $guzzleClientOptions = [];
-            if (config('app.env') === 'local' || config('app.env') === 'testing') {
-                Log::warning('Google OAuth: SSL verification is DISABLED for Guzzle client. FOR TESTING ONLY.');
-                $guzzleClientOptions['verify'] = false;
-            }
-            $client = new Client($guzzleClientOptions);
+            // RV-22: no verify=false here anymore. It was gated on config('app.env')
+            // (local/testing), but an env-gate is exactly the misdetection-prone guard
+            // this audit distrusts (RV-16): one env mistake and OAuth TLS silently
+            // disables. Verified HTTPS to accounts.google.com works from the deployment
+            // box with the configured CA bundle, and tests mock Socialite (no real TLS
+            // round-trip), so verification simply stays on.
+            $client = new Client([]);
 
             // Socialite should automatically pick up the 'code' from the $request
             $googleUser = Socialite::driver('google')

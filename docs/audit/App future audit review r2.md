@@ -2305,3 +2305,56 @@ the failure class caught twice this session, prevented by construction. Success 
 token + user created) and InvalidState path (401 + warning fired) each assert `code`/`state`
 absent. **Causality needle:** re-inserting the three lines made BOTH tests fail; restored
 MD5-identical (DA07ED00…). Google/TLS suites unchanged: 5/12, 10/40, 3/4.
+### 26.16 RV-22 (2/3) — TLS verification re-enabled + the ratchet's two blind spots closed — **VERIFIED FIX**
+
+**Pre-flight before removing anything (the honest order).** Slice 2 needs disabled-TLS flags
+gone, but ripping them out only helps if verified HTTPS actually works from this box — the
+whole reason the flags existed was a WAMP CA gap. Ran a read-only curl pre-flight with
+`VERIFYPEER=true, VERIFYHOST=2` against the exact hosts the code calls:
+`nominatim.openstreetmap.org` → **VERIFIED-OK (HTTP 403)** and `accounts.google.com` →
+**VERIFIED-OK (HTTP 200)** and mapbox → 401 (a 4xx still means the *TLS handshake + cert
+verification succeeded*; the code only logs/reads on a 2xx, so 4xx is the right failure mode).
+PHP's CA store is configured (`curl.cainfo`/`openssl.cafile` → `C:\wamp64\ssl\cacert.pem`).
+So verification is genuinely available here and the flags are pure liability.
+
+**Root cause (verified in current code).** `ArabicPlaceNameService` had `->withoutVerifying()` on
+**all three** Nominatim calls (reverse/autocomplete/search) with **no env gate** — production
+Nominatim traffic ran with peer verification off. Nominatim output becomes ride addresses and
+the OpenRoute distance feeds **fare** (AF-1), so an on-path MITM could forge coordinates and
+steer pricing. Separately, `GoogleController::callback` disabled TLS with
+`$options['verify'] = false`, gated on `config('app.env')`.
+
+**Why the env gate is not a fix.** RV-16 already established that `app.env` detection on this
+deployment is unreliable (it is `production` while the code wants testing). An env-gated
+`verify=false` means a single detection mistake silently disables OAuth TLS in prod — the exact
+class of "silent wrong branch" this audit keeps hitting. Verification is simply always-on now.
+
+**The ratchet was blind to both forms.** `TlsAndOctaneHygieneTest::test_no_outbound_http_call_
+disables_tls_verification` only matched the arrow form `'verify' => false` and
+`CURLOPT_SSL_VERIFYPEER`. Laravel's HTTP facade disables TLS via the **`withoutVerifying()`
+method**, and the controller used the **assignment** form `$options['verify'] = false` — so
+**five** live TLS-disable sites sat under a test that reported green. Extended the pattern list
+with both, comment-aware like the rest of the file (`codeOnlySources()` strips comments through
+the tokenizer, so the fix's own explanatory comment can't trip it — the pre-existing
+`WhatsAppOtpService` / `RouteCalculationService` comments are proof it already behaves this way).
+
+**Fix.** Removed `->withoutVerifying()` ×3 (Nominatim verification ON); removed the controller's
+env-gated `verify=false` (`new Client([])`); corrected the test docblock that claimed TLS is
+"disabled in local/testing" (tests mock Socialite — no real TLS happens there).
+
+**Verification.**
+- Touched suites green: `TlsAndOctaneHygieneTest` 3/4, `ArabicPlaceNameServiceTest` 18/34,
+  `AppServiceProviderTest` 18/19, `GoogleControllerTest` 5/12, `GoogleOauthTokenTest` 10/40,
+  `RV22OauthCredentialRedactionTest` 2/12 (slice 1 still holds).
+- **Causality needle:** re-inserted *both* escaped forms into real code (a `withoutVerifying()`
+  call + a `verify[]=false` assignment); the extended ratchet failed naming **both** files with
+  both new labels (`withoutVerifying()`, `verify[]=false`). Files restored **MD5-identical**
+  (A `DB9ACC9D…`, G `C729CED9…`) and the ratchet returned green. (The needle script's own
+  `leak-check` string-matched the fix's *comment text* and printed a false "STILL PRESENT" —
+  the hash match and the green re-run are the real evidence, not that line. A needle's prose can
+  lie; a hash cannot.)
+- Full-suite result recorded below.
+
+**RV-22 remaining (3/3).** `LOG_LEVEL` default `debug` with `Log::info` on hot paths + the
+non-rotating file shared by 5 replicas: a deploy-surface change (Docker/log config, not app
+code), recorded for the owner rather than edited blind.

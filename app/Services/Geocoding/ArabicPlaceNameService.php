@@ -56,11 +56,14 @@ final class ArabicPlaceNameService
         ];
 
         try {
+            // RV-22: TLS peer verification is ON (was ->withoutVerifying()). Verified
+            // HTTPS to nominatim.openstreetmap.org works from the deployment box (a CA
+            // bundle is configured), so this WAMP-dev workaround has no reason to ride
+            // into production, where a MITM on geocoding can forge addresses.
             $response = Http::withHeaders([
                 'User-Agent' => 'SyRide-App/1.0',
                 'Accept-Language' => 'ar,en;q=0.8',
             ])
-                ->withoutVerifying()
                 ->timeout(10)
                 ->get($url, $params);
 
@@ -107,7 +110,6 @@ final class ArabicPlaceNameService
                 'User-Agent' => 'SyRide-App/1.0',
                 'Accept-Language' => 'ar,en;q=0.8',
             ])
-                ->withoutVerifying()
                 ->timeout(10)
                 ->get($url, $params);
 
@@ -157,7 +159,6 @@ final class ArabicPlaceNameService
                 'User-Agent' => 'SyRide-App/1.0',
                 'Accept-Language' => 'ar,en;q=0.8',
             ])
-                ->withoutVerifying()
                 ->timeout(10)
                 ->get($url, $params);
 

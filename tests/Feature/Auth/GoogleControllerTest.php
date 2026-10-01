@@ -18,8 +18,9 @@ use Tests\TestCase;
  * GoogleController::callback()  → requires mocking the Socialite facade so no
  *                                  real OAuth round-trip happens.
  *
- * SSL verification is disabled in local/testing environments inside the
- * controller, so no extra Guzzle config is needed here.
+ * SSL verification: RV-22 removed the controller's local/testing verify=false bypass —
+ * TLS now always verifies. Tests are unaffected because Socialite is mocked and no real
+ * OAuth round-trip happens here.
  */
 class GoogleControllerTest extends TestCase
 {

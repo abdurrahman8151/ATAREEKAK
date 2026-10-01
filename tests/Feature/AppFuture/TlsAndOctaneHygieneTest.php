@@ -60,12 +60,27 @@ class TlsAndOctaneHygieneTest extends TestCase
             if (preg_match('/CURLOPT_SSL_VERIFYPEER\s*(=>|,)\s*(false|0)\b/i', $clean)) {
                 $offenders[] = str_replace(base_path().DIRECTORY_SEPARATOR, '', $path).' (VERIFYPEER=false)';
             }
+            // RV-22 blind spot: Laravel's HTTP facade disables peer verification via a
+            // METHOD, which neither regex above matches — this is how three
+            // ->withoutVerifying() calls in ArabicPlaceNameService sat under a green TLS
+            // test. Comments are already stripped by codeOnlySources(), so prose cannot
+            // trip it (the fix's own explanatory comment proves that).
+            if (preg_match('/->withoutVerifying\s*\(/i', $clean)) {
+                $offenders[] = str_replace(base_path().DIRECTORY_SEPARATOR, '', $path).' (withoutVerifying())';
+            }
+            // RV-22 blind spot 2: the ASSIGNMENT form — $options['verify'] = false — used
+            // by GoogleController before slice 1, invisible to the `verify => false`
+            // arrow regex above.
+            if (preg_match("/(['\"]verify['\"]\s*\]\s*=\s*false)/i", $clean)) {
+                $offenders[] = str_replace(base_path().DIRECTORY_SEPARATOR, '', $path).' (verify[]=false)';
+            }
         }
 
         $this->assertSame(
             [],
             $offenders,
-            'AF-1: TLS peer verification must never be disabled in app code. Offenders: '
+            'AF-1/RV-22: TLS peer verification must never be disabled in app code, in ANY '
+                .'of its forms (arrow, assignment, VERIFYPEER, withoutVerifying()). Offenders: '
                 .implode(', ', $offenders)
         );
     }
