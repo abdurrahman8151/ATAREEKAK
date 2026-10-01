@@ -22,6 +22,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('push_notification_tokens');
+        // RV-30: this migration CREATES `user_notifications`, so `down()` must drop THAT
+        // table. It previously dropped `push_notification_tokens` — a table this migration
+        // never created — so a rollback destroyed the WRONG table's data and left
+        // `user_notifications` in place.
+        Schema::dropIfExists('user_notifications');
     }
 };

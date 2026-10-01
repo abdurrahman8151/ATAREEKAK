@@ -3276,3 +3276,45 @@ established baseline. **Full-suite gate: 2034 tests, 52 errors / 68 failures, 0 
   healthcheck infra from earlier work; the remainder is deploy configuration.
 These are recorded in §31 rather than edited blind, per "do not invent owner values" and because
 compose/nginx changes take down deployments if got wrong.
+## 32. RV-30 Data model hygiene — index + migration-down correctness — **VERIFIED FIX**; rest recorded
+
+RV-30 had never been triaged (R2 carried it only as a Wave-6 "PENDING" row). Grounded against the
+live schema, its five sub-items split into two clean correctness fixes and three product/architecture
+decisions. The two fixes are landed.
+
+**Landed (VERIFIED FIX):**
+
+1. **`wallet_transactions.reference` was UNINDEXED — now `INDEX (reference, type)`.** Measured on
+   the real DB: no index on `reference` at all. It is written on essentially every money row
+   (`booking:{id}`, `ride:{id}`, `wallet:{id}`, `admin_charge:{id}` …) and every reconciliation read
+   filters on it (`WalletTransaction::where('reference', "booking:{id}")` in the money-path,
+   confirm-completion, cancel-seats and the BackfillBookingMoneySnapshot command) — a full table scan
+   on a table that only grows. Migration `2026_10_07_000001_index_wallet_transactions_reference_type`,
+   MySQL-guarded and idempotent (skips if `reference` is already indexed). Purely additive: an index
+   changes speed, never results, so it cannot weaken money integrity.
+2. **A migration `down()` dropped the WRONG table.** `2025_05_23_173034_create_user_notifications_table`
+   CREATES `user_notifications` but its `down()` dropped `push_notification_tokens` — a table it never
+   created. A rollback would therefore destroy the token table's data and leave the real table behind.
+   Fixed to drop the table it creates. A class-wide scan of all 75 migrations now confirms this was the
+   only instance and the whole class is clean.
+
+**Recorded remainder (product/architecture decisions — not changed):**
+- **Timezone** — the app runs `APP_TIMEZONE=Asia/Damascus` and parses client departure times with
+  `Carbon::parse($v, 'Asia/Damascus')`. R1 prescribes storing UTC and converting at the edge, but
+  switching the parse timezone would reinterpret every client-submitted departure time by 3 hours —
+  a client-contract change, not a hygiene fix. Owner/product decision.
+- **`user_ratings` uniqueness** — the schema enforces `unique(rater_id, rated_user_id)` (one rating per
+  PAIR) while the business rule wanted one per RIDE. V9 already recorded this and `WaveZeroVerificationTest`
+  pins the current constraint. Changing the uniqueness rule is a product decision; the working
+  constraint is now pinned by RV-30 too so any future change is deliberate.
+- **Legacy columns / photo duplication / `schema:dump`** — `rides.passengers_confirmed` (legacy, alongside
+  the live `passenger_confirmed_at`), `profiles.*_pic` columns duplicating a `photos` table, and the
+  `schema:dump`-once-stable suggestion are all destructive schema/architecture changes needing owner
+  sign-off. Recorded, not edited blind.
+
+**Verification — `RV30DataModelHygieneTest` OK (4 tests, 6 assertions):** the reference index exists
+in the real schema; a recursive scan pins that NO migration's `down()` drops a table its `up()` does not
+create (plus a named check for the historical bug); the ratings unique pair is preserved.
+**Causality needle (two independent mutations):** restoring the wrong-table `down()` → 2 failures;
+dropping the index from the live schema → 1 failure (then restored via the migration's idempotent
+`up()` path). **Full-suite gate: 2038 tests, 52 errors / 68 failures, 0 regressions vs baseline.**
