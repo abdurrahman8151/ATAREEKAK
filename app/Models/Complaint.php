@@ -12,6 +12,11 @@ class Complaint extends Model
 {
     protected $fillable = [
         'user_id',
+        // RV-23: ride_id + complained_id were written by Noshowservice::handleConflict
+        // but never fillable and never a column — Eloquent dropped them in silence, so
+        // no-show conflict complaints lost all context. Now columns + fillable below.
+        'ride_id',
+        'complained_id',
         'assigned_to',
         'title',
         'description',
@@ -30,6 +35,18 @@ class Complaint extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** RV-23: the ride a complaint refers to (null for manual complaints). */
+    public function ride(): BelongsTo
+    {
+        return $this->belongsTo(Ride::class);
+    }
+
+    /** RV-23: the user the complaint is ABOUT (distinct from the submitter). */
+    public function complainedUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'complained_id');
     }
 
     public function assignedAgent(): BelongsTo

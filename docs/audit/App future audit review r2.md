@@ -2402,3 +2402,66 @@ by verification before they became fake-green: my guessed `/api/login` route (re
 RV-22 pins 2/12. Unit\Middleware 60 tests / 2 failures — both confirmed pre-existing
 baseline items #3/#4 (`test_using_refresh_token_as_access_token…` ×2), not regressions.
 Full-suite gate recorded in the next commit message.
+## 28. Wave 5 continued — RV-26 gated; RV-27/RV-19/RV-23 slices — **grounded, statuses below**
+
+### 28.1 RV-26 authorization matrix — **GATED (headline refuted by its own fix text), no code change**
+
+Grounding refused to accept R1's framing. Every `/api/admin/*` gate was changed in T2-2
+(already committed): the financial surface is now `staff:system_admin`, and
+`AdminFinancialSurfaceAuthorizationTest`'s own docblock states **"sycash is intentionally NOT
+granted here"** — so R1's "sycash denied everywhere" is a documented design, and R1's own Fix
+line says: **"owner decision: sycash approves wallet requests, system_admin doesn't"**. The
+role×endpoint matrix, the login unification, and deleting `AdminAuthService`/`AdminJwtMiddleware`
+are exactly the authz choices this audit reserves to the owner — changing them either way grants
+or revs privileges without consent. One decision-free sub-item recorded for a later pass:
+`AdminJwtMiddleware` (`auth.admin`) is registered in Kernel but has **zero route references**
+(the `auth.admin` mentions elsewhere are stale docblocks) — dead code whose deletion is safe but
+belongs with RV-31's dead-code sweep, not mixed into a security surface while owners decide it.
+**Status: PARTIAL-GATED (no change).**
+
+### 28.2 RV-27 push pipeline — **grounded; two live code defects found, decision-free slices queued**
+
+Confirmed against current code: (a) `routes/api.php` registers **zero** push routes — the
+controller's `registerToken`/`removeToken`/`getUserTokens` are unreachable, so an app can never
+deliver FCM (R1 was right); (b) type mismatch — routed `registerToken()` passes `$request->user()`
+(a User) into `PushNotificationService::registerToken(int $userId, …)` — TypeError → 500 even if a
+route existed — while the unrouted duplicate `store()` passes `->id`; (c) `FcmSenderService` only
+warns-and-skips when credentials are absent (silent disable); (d) `removeToken($request->token)`
+deletes **globally** — any authenticated user who knows another device's token string can
+unregister it (missing ownership scope — an authorization hole).
+Queued slices (all decision-free): route them under the existing `['jwt','throttle:api']` group,
+fix the userId-type mismatch, scope removal to `$request->user()->pushTokens()`, and pin with
+feature tests. Deploy-side parts (compose secret mount, pruning retention) are recorded, not
+guessable. **Status: GROUNDING DONE, fixes next round.**
+
+### 28.3 RV-23 complaint context — slice 1 **VERIFIED FIX**; rest of the finding split
+
+Live silent data loss confirmed: `Noshowservice::handleConflict` (L461-469) writes
+`Complaint::create` with `ride_id` + `complained_id`, but **neither column existed and neither
+key was fillable** — Eloquent dropped both without a word. The auto-complaint opened when BOTH
+parties press no-show — the case support needs context for most — arrived with no ride link and
+no respondent. (Same silent-drop class RV-38 exists to surface; `createUser`-style claims of R1
+that were stale got re-verified instead of trusted.)
+
+**Fix (additive, nullable, nullOnDelete):** migration `2026_10_03_000001` adds `ride_id` →
+`rides`, `complained_id` → `users`; `$fillable` gains both; `ride()`/`complainedUser()` relations
+added. Manual complaints (no ride) are unaffected — pinned explicitly. `type`/`status` verified
+already varchar(50) in the real DB, so `no_show` inserts cleanly (R1's enum worry was stale).
+
+**Verification:** `RV23ComplaintContextTest` OK (2 tests, 8 assertions) replays the exact payload
+from the real write site (relations must resolve, not just ids); applied on MySQL (columns + both
+FKs verified in information_schema). **Two-part causality needle:** dropping the fillable keys
+fails exactly the persistence assertion ("ride_id was silently dropped before the fix"); neutering
+the migration fails it with `Unknown column 'complained_id'` — proving both halves are load-bearing.
+Files restored MD5-identical. Floors: ComplaintRepositoryTest 13/15; ComplaintControllerTest 21/1
+failure confirmed pre-existing **baseline item #38** (`test_store_accepts_all_valid_complaint_types`
+→ no_show 422). Remaining RV-23 items: least-loaded agent assignment (pure `->first()` head-of-queue
+starvation — behaviour change, queued as its own decision-free slice with tests), the racy GET-mutates
+state (`show` auto-transition, baseline-red StaffComplaintControllerTest family), notifications dedup.
+
+### 28.4 RV-19 admin numbers — **grounding started; one sub-item likely owner-gated**
+
+`AdminReportService::getStats()` — pending_complaints hardcoded 0 is a live wrong number
+(decision-free to compute properly); "revenue from config('system_admin.phone')" depends on the
+RV-21 kind-refactor design (gated). N+1 claims belong partly to RV-24. Recorded to continue with
+the complaint count first.
