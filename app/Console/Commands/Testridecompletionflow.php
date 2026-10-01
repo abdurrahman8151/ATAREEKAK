@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\Ride\BookingService;
+use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -165,10 +166,11 @@ class Testridecompletionflow extends Command
             'pickup_address' => 'Test Pickup — Damascus',
             'destination_address' => 'Test Destination — Aleppo',
 
-            // Spatial POINT columns (lng lat order, no SRID).
-            // Change to ST_GeomFromText('POINT(…)', 4326) if your migration uses SRID 4326.
-            'pickup_location' => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
-            'destination_location' => DB::raw("ST_GeomFromText('POINT(37.1343 36.2021)')"),
+            // Spatial POINT columns. RV-25: the shared GeoPoint writer emits POINT(lat lng)
+            // (latitude first), matching MySQL's EPSG:4326 axis-order and the production
+            // convention. These are the same real cities (Damascus / Aleppo).
+            'pickup_location' => GeoPoint::fromLatLng(33.5138, 36.2765)->raw(),
+            'destination_location' => GeoPoint::fromLatLng(36.2021, 37.1343)->raw(),
 
             // ── Columns that are NOT NULL with no default ──────────────────────
             // Change the unit comments if your schema differs.

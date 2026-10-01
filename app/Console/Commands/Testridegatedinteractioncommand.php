@@ -9,6 +9,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
 use App\Services\Profile\ProfileInteractionService;
+use App\Support\GeoPoint;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -416,8 +417,10 @@ class Testridegatedinteractioncommand extends Command
             'driver_id' => $driver->id,
             'pickup_address' => 'Test Pickup — Damascus',
             'destination_address' => 'Test Destination — Aleppo',
-            'pickup_location' => DB::raw("ST_GeomFromText('POINT(36.2765 33.5138)')"),
-            'destination_location' => DB::raw("ST_GeomFromText('POINT(37.1343 36.2021)')"),
+            // RV-25: shared GeoPoint writer emits POINT(lat lng) (latitude first) — same real
+            // cities (Damascus / Aleppo), matching the production convention.
+            'pickup_location' => GeoPoint::fromLatLng(33.5138, 36.2765)->raw(),
+            'destination_location' => GeoPoint::fromLatLng(36.2021, 37.1343)->raw(),
             'departure_time' => now()->subHours(3),
             'status' => 'finished',
             'available_seats' => 3,

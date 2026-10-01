@@ -3128,3 +3128,18 @@ hardcoded lng-first coordinate literals; they are developer scripts (not the liv
 and are left as known-soft. The tests-only `tests/Support/GeoPoint.php` remains for fixture control
 (it intentionally lets a caller choose an axis order so transposed fixtures can be written
 verbatim); it is test scaffolding and does not affect the production convention.
+### 29.9 RV-25 consistency — dev-flow commands brought onto the shared GeoPoint writer — **VERIFIED FIX**
+
+§29.8 recorded, as a remainder, that the three `syride:test-*` developer commands still carried
+hardcoded lng-first coordinate literals. They are not the live request path (they are
+`artisan` commands gated behind a `--commit` flag), but they live in `app/` and would reintroduce
+exactly the convention drift §29.8 exists to prevent, so they are brought onto the same writer.
+`Testfullrideflow`, `Testridecompletionflow` and `TestRideGatedInteractionCommand` now build their
+Damascus/Aleppo fixtures via `GeoPoint::fromLatLng(...)` — the SAME real cities, lat-first, matching
+production. The misleading "lng lat order" comment in `Testridecompletionflow` (which also advised
+switching to SRID 4326 "if your migration uses it") was corrected to state the lat-first rule.
+
+**Verification.** All three command classes resolve under the app autoloader and lint clean;
+`GeoPoint` emits `POINT(33.5138 36.2765)` / `ST_GeomFromText('POINT(33.5138 36.2765)', 4326)`.
+Full-suite gate: 2027 tests, 52 errors / 68 failures, 0 regressions vs baseline (these commands
+are not exercised by the suite, so the gate confirms no collateral change).
