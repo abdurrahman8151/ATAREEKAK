@@ -2178,3 +2178,54 @@ restored MD5-identical. Recorded because the distinction generalises to every sc
 **State: VERIFIED FIX.** With this, RV-40's own bullet list is complete except the two items
 gated on owner design (the `failed` terminal state with no writer, and the statuses-as-string
 policy), and RV-14's price-bound half still needs its single config decision.
+### 26.13 RV-40 (final bullet) — one no-show report per (booking, reporter) — **VERIFIED FIX**
+
+**Grounded before changing anything, and the grounding changed the answer.** The first instinct
+was that RV-40's `unique(booking_id, reporter_id)` bullet conflicts with the application, because
+the duplicate guard in `Noshowservice` is deliberately *soft* — it blocks only
+`status IN ('pending','disputed')` (L123, L246), and `void` (added by RV-02 L1) is not in that
+list. That reads like a hole: a voided report would not stop a second report.
+
+Two checks closed it before any code was written:
+
+1. `applyPenalty` requires the booking still be `confirmed` (L531), and **every** settlement path
+   then writes the booking to `no_show` (L547, L590). So once a report resolves or voids, the
+   entry precondition at L92 ("booking must be `confirmed`") rejects any later report for that
+   booking — the soft guard's gap is unreachable through the service.
+2. Concurrency is already serialised: `Booking::lockForUpdate()` opens the reporting transaction.
+
+So duplicates cannot occur today, and a blanket unique index removes **no reachable behaviour**.
+What the database did not enforce was the invariant itself, and that matters because resolving a
+report **releases escrow to the reporter** — a duplicate row is a double-release hazard for any
+writer that bypasses the service (seeder, admin tool, batch job, future endpoint).
+
+**Fix.** One UNIQUE key `uq_noshow_report_booking_reporter (booking_id, reporter_id)`.
+`booking_id` is NOT NULL, so there is no NULL-multiple loophole. Data hazard handled explicitly:
+the migration counts duplicates **first** and aborts with the offending count and a sample,
+rather than silently deleting or merging real reports — a human decides that. Idempotent via an
+index probe; `down()` drops only that index.
+
+**Verification.**
+- Applied on real MySQL 8.2: index present, columns exactly `(booking_id, reporter_id)`,
+  `NON_UNIQUE = 0`; zero pre-existing duplicates found on the live scratch schema.
+- `RV40NoshowReportUniquenessTest` OK (2 tests, 5 assertions) exercises the **denied** path, not
+  just the index's existence: the first report inserts fine (control), the second raises a
+  `QueryException` naming the index and is not stored, and a **different** reporter on the same
+  booking still inserts — so the constraint is proven not to over-reach. Asserting only
+  `information_schema` (as `MigrationEffectsBatchTest` does) would have pinned presence without
+  proving the constraint binds.
+- `MigrationEffectsBatchTest` 7/61 -> **OK (8 tests, 64 assertions)**; the existing T3-2 test was
+  kept, not edited.
+- Every no-show-touching suite unchanged: MoneyPath 7/21, NoshowSettlementGuard 3/11,
+  Untangle 8/213, PassengerConfirm 10/47.
+
+**Causality needle.** Neutering the migration's index creation (file lints clean, restored
+MD5-identical) makes **exactly** the denied-path test fail
+("a duplicate (booking_id, reporter_id) must be rejected") while the over-reach test still
+passes — sensitive to the constraint, not over-broad. Note this is the migration-level needle
+method from §26.12: a DB-level needle cannot work here, because `RefreshDatabase` runs
+`migrate:fresh` and re-applies the migration under test.
+
+**RV-40 status: decision-free scope COMPLETE.** The remaining two bullets stay refused
+deliberately, not overlooked — `failed` terminal state has no writer until RV-02 L2, and
+converting statuses away from DB ENUMs is owner decision 13.

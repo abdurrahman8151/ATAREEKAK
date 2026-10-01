@@ -110,6 +110,54 @@ class MigrationEffectsBatchTest extends TestCase
     }
 
     /**
+     * RV-40 — one no-show report per (booking, reporter), enforced by the database.
+     *
+     * The service already blocks duplicates (status-scoped guard, the confirmed-booking
+     * precondition, and a lockForUpdate on the booking), so this index does not change
+     * any reachable behaviour — it makes the invariant hold for any writer that bypasses
+     * the service. Pinned as schema metadata to match this file's house style; the money
+     * consequence is that resolving a duplicate report would release escrow twice.
+     */
+    public function test_noshow_reports_are_unique_per_booking_and_reporter(): void
+    {
+        $idx = DB::select(
+            'SELECT COLUMN_NAME c FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "noshow_reports"
+               AND INDEX_NAME = "uq_noshow_report_booking_reporter"
+             ORDER BY SEQ_IN_INDEX',
+            [$this->schema()]
+        );
+
+        $cols = array_map(fn ($r) => $r->c, $idx);
+
+        $this->assertSame(
+            ['booking_id', 'reporter_id'],
+            $cols,
+            'the unique index must cover exactly (booking_id, reporter_id)'
+        );
+
+        $unique = DB::select(
+            'SELECT NON_UNIQUE n FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "noshow_reports"
+               AND INDEX_NAME = "uq_noshow_report_booking_reporter"
+             LIMIT 1',
+            [$this->schema()]
+        )[0];
+
+        $this->assertSame(0, (int) $unique->n, 'the index must be UNIQUE, not a plain index');
+
+        // booking_id must stay NOT NULL, otherwise MySQL permits unlimited rows with a
+        // NULL booking_id and the constraint would not bind.
+        $col = DB::select(
+            'SELECT IS_NULLABLE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "noshow_reports" AND COLUMN_NAME = "booking_id"',
+            [$this->schema()]
+        )[0];
+
+        $this->assertSame('NO', $col->IS_NULLABLE, 'booking_id must remain NOT NULL');
+    }
+
+    /**
      * RV-40 — the price widening must not damage the spatial columns.
      *
      * The first attempt used Blueprint->change(), which asks Doctrine DBAL to introspect
