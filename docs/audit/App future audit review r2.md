@@ -2229,3 +2229,79 @@ method from §26.12: a DB-level needle cannot work here, because `RefreshDatabas
 **RV-40 status: decision-free scope COMPLETE.** The remaining two bullets stay refused
 deliberately, not overlooked — `failed` terminal state has no writer until RV-02 L2, and
 converting statuses away from DB ENUMs is owner decision 13.
+### 26.14 Wave 3 — **PAUSED BY OWNER (2026-10-02). These items are UNFINISHED and IMPORTANT — do not treat Wave 3 as done**
+
+The owner has no answers yet and asked to pause Wave 3 and work on unrelated items. Wave 3
+resumes the moment any answer below arrives. **Nothing here was forgotten, and nothing here is
+"won't fix": each item stopped because the next value would silently change who is penalised or
+how money settles, which the standing rules forbid inventing.**
+
+**UNFINISHED — IMPORTANT, awaiting owner input (each one is live defect exposure until done):**
+
+1. **RV-11 score consolidation — ~35% done. IMPORTANT: trust scores feed cancel-rate penalties.**
+   - Canonical tier bands: code carries TWO contradictory schemes (`>=80/60/40` Gold/Silver/Bronze
+     in `UserScore::getTierAttribute` vs `>=200/150/100` platinum/gold/silver in
+     `ScoreService::resolveTier`). The DB stores the *second*; dashboards read the *first*.
+   - Clamp: `applyDelta` clamps [0,100]; `applyAction` clamps only at 0 (uncapped top).
+   - Start score: 70 (`initializeScore`) vs 100 (`firstOrCreate` paths).
+   - **Double-count (live bug):** `recordRideCompleted` calls `applyAction` (already does
+     `total_rides+1` on positive) AND `incrementRides()` — every completed ride counts twice,
+     which inflates the `cancel_rate` denominator that `PassengerCancelPolicy` /
+     `DriverCancelRidePolicy` gate penalties on. Owner must say whether a ride counts once.
+   - No `config/score.php` exists; all four values have no single source of truth.
+   - Already done, safely: dead third path `applyScore` deleted (97 lines, zero callers).
+
+2. **RV-10 ride lifecycle — ~70% done (search guard shipped). IMPORTANT: escrow sits in SyCash
+   until someone confirms; there is no automatic path and departed rides are only hidden in search.**
+   - Needs: auto-confirm hours for `rides:advance-status` (escrow release timing = real money
+   movement, cannot be guessed), the driver-cancel window (the commented-out validator encodes an
+   arbitrary 1 h), and whether booking must reject past-departure rides (the ~335 settlement
+   fixtures deliberately book past-departure rides — coupled to RV-02 L2).
+
+3. **RV-02 L2 settlement redesign — 0% started. IMPORTANT: this is the one that unlocks the other
+   two halves below.** Needs: confirm 95/5 platform-fee split stays, and confirm SyCash becomes a
+   DERIVED balance (`escrow_held` per booking — the RV-40 column exists and is populated — instead
+   of one mutable aggregate balance).
+
+4. **RV-20 payment-strategy wiring — ~20% (charge/refund halves done in earlier waves). Coupled to
+   RV-02 L2: `releaseEscrowToDriver` in the strategy family rewrites settlement math; half-wiring
+   it against the aggregate balance would double-release.**
+
+5. **RV-09 full — ~85%. Done: deadlock ordering + after_commit queues. Remaining halves are coupled
+   to RV-02 L2: transactions `attempts=3` (retries today swallow exceptions — safe only once the
+   escrow is derived), strategies must not swallow `Exception`, and events should carry ids not
+   models.**
+
+6. **RV-21 full — ~90%. Done: runtime boundary + seeder fail-loud. Remaining: `wallets.kind` enum
+   (user/escrow/platform/treasury), double-entry top-ups (Σ balances = 0 invariant), maker-checker
+   + daily limits on admin wallet adjustments. Schema + thresholds = owner.**
+
+**Resumable in one round each** once answered; the exact questions are listed in the goal's
+blocked_reason and repeated above. Until then: RV-40 and RV-15 are COMPLETE; the rest of Wave 3 is
+paused, unfinished, and important.
+### 26.15 RV-22 [P1] TLS + log hygiene — started, unrelated to the paused Wave 3 (owner asked to move on and record the unfinished items — §26.14 does that)
+
+**RV-22 verified live in current code before touching anything** (all three claims):
+1. `GoogleController::callback` logged `$request->all()` **and** the OAuth `code` and `state`
+   individually (L39–41), plus `incoming_state` in the InvalidState catch (L176). A live
+   authorization code in a log = replayable login, and R2 notes the log file is non-rotating
+   and shared by 5 replicas. — **FIXED + NEEDLED (this §).**
+2. `ArabicPlaceNameService` calls `->withoutVerifying()` ×3 (L63/L110/L160) against
+   `nominatim.openstreetmap.org`. — next slice.
+3. The existing `TlsAndOctaneHygieneTest` regexes catch `'verify' => false` (arrow) and
+   `CURLOPT_SSL_VERIFYPEER => false` but **neither** the `withoutVerifying()` method form
+   **nor** `$options['verify'] = false` (assignment) — which is why both leaks sat under a
+   "green" TLS test. — the ratchet extension lands with slice 2.
+
+**Slice 1 (VERIFIED FIX).** Redaction only: removed the 3 debug `Log::info` lines; the
+InvalidState catch now logs `exception` class + `state_present` (bool) instead of the raw
+state value (on mismatch the raw value is either attacker-controlled or the victim's genuine
+CSRF token if the session was lost — presence still answers "did Google send a state?").
+No control flow changed; issued JWTs were never logged; failure diagnostics untouched.
+`RV22OauthCredentialRedactionTest` OK (2 tests, 12 assertions): asserts against the REAL log
+file via a dedicated single channel (a Log spy would miss any other path logging the request),
+with a sentinel line written-and-asserted FIRST so an empty sink can never pass vacuously —
+the failure class caught twice this session, prevented by construction. Success path (200 +
+token + user created) and InvalidState path (401 + warning fired) each assert `code`/`state`
+absent. **Causality needle:** re-inserting the three lines made BOTH tests fail; restored
+MD5-identical (DA07ED00…). Google/TLS suites unchanged: 5/12, 10/40, 3/4.

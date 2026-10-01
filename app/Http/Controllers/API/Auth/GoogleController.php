@@ -35,11 +35,14 @@ class GoogleController extends Controller
     // Inject Illuminate\Http\Request to inspect it
     public function callback(Request $request)
     {
-        // Log all incoming request data (query parameters and POST body)
-        Log::info('Google Callback - Incoming Request Data:', $request->all());
-        Log::info('Google Callback - Query Param "code":', ['code_param' => $request->query('code')]);
-        Log::info('Google Callback - Query Param "state":', ['state_param' => $request->query('state')]);
-
+        // RV-22 (credential redaction): the OAuth authorization `code` and the CSRF
+        // `state` arrive as query params, and `$request->all()` contains BOTH. Logging
+        // them wrote a live, single-use `code` — exchangeable for access/refresh tokens
+        // for its short TTL — plus the CSRF token, into storage/logs, visible to anyone
+        // with read access to the log file or a log aggregator. Debug-era instrumentation
+        // ("Log all incoming request data"), never a feature. Failures still log below,
+        // but WITHOUT secrets: $request stays injected only for the InvalidState path,
+        // which records the exception, never the incoming state/code value.
         try {
             $guzzleClientOptions = [];
             if (config('app.env') === 'local' || config('app.env') === 'testing') {
@@ -171,9 +174,13 @@ class GoogleController extends Controller
             ]);
 
         } catch (InvalidStateException $e) {
+            // RV-22: presence only. The raw state is either attacker-controlled (a real
+            // mismatch) or the victim's genuine CSRF token (if their session was lost);
+            // logging the value can leak it. The exception message + this flag answer the
+            // operational question ("did Google send a state at all?") without a secret.
             Log::warning('Google OAuth Callback Invalid State: '.$e->getMessage(), [
-                'exception' => $e,
-                'incoming_state' => $request->input('state'), // Log the state Socialite received
+                'exception' => get_class($e),
+                'state_present' => $request->has('state'),
             ]);
 
             return response()->json(['error' => 'Invalid state. Please try logging in again.'], 401);
