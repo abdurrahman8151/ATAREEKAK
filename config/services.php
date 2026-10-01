@@ -58,6 +58,21 @@ return [
     // test to call the LIVE provider during RV-16.
     'textmebot' => [
         'api_key' => env('TEXTMEBOT_API_KEY'),
+        // RV-28: the enabled flag was read via env() inside TextMeOtpController, which
+        // silently breaks under `php artisan config:cache` (env() outside config/ returns
+        // null once config is cached). Own it here like the api_key above.
+        'enabled' => filter_var(env('TEXTMEBOT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    // RV-28: WhatsAppOtpService read CALLMEBOT_API_KEY via env() in its constructor —
+    // the same config:cache hazard, and it also blocked Config::set in tests. Owned here.
+    'callmebot' => [
+        'api_key' => env('CALLMEBOT_API_KEY'),
+    ],
+
+    // RV-28: ArabicPlaceNameService read MAPBOX_ACCESS_TOKEN via env(). Same hazard.
+    'mapbox' => [
+        'access_token' => env('MAPBOX_ACCESS_TOKEN'),
     ],
 
 ];

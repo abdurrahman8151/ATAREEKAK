@@ -226,7 +226,13 @@ class JwtService
         return Cache::remember(
             "auth.user.{$userId}",
             300, // 5 minutes
-            fn () => User::with('profile')->find($userId)
+            // RV-28 (primary-only read): on a cache MISS we rehydrate the user from the
+            // database, and in production that read would go to the replica. If the cache was
+            // just busted (ban, password reset, role change) and the replica has not caught up,
+            // this miss path would cache a STALE user for the full 5 minutes — and every
+            // subsequent request would use it. Force the primary on the miss path so a busted
+            // cache always rehydrates from authoritative data.
+            fn () => User::with('profile')->useWritePdo()->find($userId)
         );
     }
 

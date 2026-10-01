@@ -91,8 +91,10 @@ class ArabicPlaceNameServiceTest extends TestCase
             'nominatim.openstreetmap.org/*' => Http::response([], 200), // empty results
         ]);
 
-        // MAPBOX_ACCESS_TOKEN not set → tryMapboxArabic() returns null immediately
-        putenv('MAPBOX_ACCESS_TOKEN=');
+        // RV-28: the service now reads the token via config() (config/services.php →
+        // mapbox.access_token), NOT env(). putenv() would not be seen by config, so unset
+        // the config key instead — "no token" → tryMapboxArabic() returns null immediately.
+        config(['services.mapbox.access_token' => null]);
 
         $result = $this->service->geocodeWithArabicPriority('unknownplace_xyz');
 
@@ -119,15 +121,18 @@ class ArabicPlaceNameServiceTest extends TestCase
             'api.mapbox.com/*' => Http::response($this->mapboxResponse(), 200),
         ]);
 
-        putenv('MAPBOX_ACCESS_TOKEN=fake_test_token');
+        // RV-28: set the token through config (the service reads config(), not env()).
+        config(['services.mapbox.access_token' => 'fake_test_token']);
 
-        $result = $this->service->geocodeWithArabicPriority('حلب');
+        try {
+            $result = $this->service->geocodeWithArabicPriority('حلب');
 
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey('lat', $result);
-        $this->assertArrayHasKey('lng', $result);
-
-        putenv('MAPBOX_ACCESS_TOKEN='); // clean up
+            $this->assertIsArray($result);
+            $this->assertArrayHasKey('lat', $result);
+            $this->assertArrayHasKey('lng', $result);
+        } finally {
+            config(['services.mapbox.access_token' => null]); // clean up
+        }
     }
 
     public function test_geocode_lat_lng_are_floats(): void

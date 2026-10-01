@@ -23,7 +23,10 @@ class WhatsAppOtpService
     {
         $this->otpRepository = $otpRepository;
         $this->client = new Client;
-        $this->apiKey = env('CALLMEBOT_API_KEY');
+        // RV-28: read via config (not env()) — env() outside config/ returns null once
+        // `php artisan config:cache` runs, so the API key would silently vanish in
+        // production. Owned at config/services.php → callmebot.api_key.
+        $this->apiKey = config('services.callmebot.api_key');
     }
 
     /**
@@ -176,7 +179,9 @@ class WhatsAppOtpService
      */
     private function isBypassMode(): bool
     {
-        return env('OTP_BYPASS_ENABLED', false)
+        // RV-28: config('otp.bypass') already owns OTP_BYPASS_ENABLED; reading it via env()
+        // here returned null once config was cached, silently disabling bypass. Use config.
+        return config('otp.bypass', false)
             || app()->environment(['local', 'testing']);
     }
 

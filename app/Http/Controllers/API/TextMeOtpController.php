@@ -23,7 +23,11 @@ class TextMeOtpController extends Controller
      */
     public function sendOtp(SendOtpRequest $request): JsonResponse
     {
-        if (! env('TEXTMEBOT_ENABLED', false)) {
+        // RV-28: read via config (not env()) so `php artisan config:cache` cannot silently
+        // blank this in production — env() outside config/ returns null once config is cached,
+        // which would DISABLE the provider regardless of the deployment's .env. Owned at
+        // config/services.php → textmebot.enabled.
+        if (! config('services.textmebot.enabled', false)) {
             return response()->json([
                 'success' => false,
                 'message' => 'TextMeBot service is currently disabled',

@@ -3219,3 +3219,60 @@ has reached a verified terminal state. Ten commits, each with a causality needle
 
 **Wave 3 remains PAUSED** per §26.14, awaiting the owner's answers to the three questions recorded
 there. No further decision-free work remains within the assigned §18.4 scope.
+## 31. RV-28 Infrastructure hardening — app-code/config core — **VERIFIED FIX**; infra sub-items recorded as deploy-surface
+
+RV-28 had **never been triaged** (R2 only ever carried it as a Wave-6 "PENDING" row). Grounded
+now against current code, it splits cleanly: three sub-items are decision-free app/config fixes,
+four are deploy/ops surface. The decision-free core is landed; the rest are recorded.
+
+**Landed (VERIFIED FIX):**
+
+1. **`env()` outside `config/` — closed (the `config:cache` hazard).** An `env()` call outside a
+   config file returns NULL once `php artisan config:cache` runs, silently disabling features
+   regardless of the deployment's `.env`. Three live readers remained after RV-37:
+   `WhatsAppOtpService` (`CALLMEBOT_API_KEY`, and `OTP_BYPASS_ENABLED` which already had a config
+   owner but was still read via `env()`), `TextMeOtpController` (`TEXTMEBOT_ENABLED`), and
+   `ArabicPlaceNameService` (`MAPBOX_ACCESS_TOKEN`). Each is now read through `config()`, with the
+   keys added to `config/services.php` (`callmebot.api_key`, `mapbox.access_token`,
+   `textmebot.enabled` — the latter mirroring the RV-37 pattern). **Zero raw `env()`/`getenv()` calls
+   now remain anywhere in `app/`**, pinned by a real file-content scan.
+2. **Primary-only reads on correctness-critical lookups (stale-replica correctness).** With
+   read/write splitting a plain read goes to the replica, so a lagging replica can serve stale
+   auth/money state: the login lookup (`UserRepository::findByEmail` — a just-registered user or a
+   just-banned user may be invisible), the auth cache-miss rehydrate (`JwtService::findUserCached` —
+   after a cache bust it would rehydrate and re-cache a STALE user for the full 5 minutes), and the
+   wallet balance read (`WalletController::getBalance` — money-facing). All three now force the
+   primary via `useWritePdo()`. Decision-free: it can only make auth/reads stricter and more
+   correct, never looser.
+3. **CORS allow-list made environment-driven (`CORS_ALLOWED_ORIGINS`).** It was hardcoded to
+   localhost with a "add your production domain when deploying" comment, so a real deployment's web
+   client was blocked until someone edited the image. It now merges comma-separated extra origins
+   from the environment onto the **unchanged** localhost defaults — no behaviour change, and no
+   production domain is invented here (the owner supplies it).
+
+**Verification — `RV28InfraHardeningTest` OK (4 tests, 15 assertions):** a real recursive scan of
+`app/` asserting no `env()`/`getenv()` call survives (ignoring comment lines); the three
+primary-read sites carry `useWritePdo`; the config keys resolve; the CORS default is still
+localhost-only and the specific classes no longer read raw env. **Causality needle (two
+independent mutations):** removing `useWritePdo` from `findUserCached` → 1 failure; reintroducing an
+`env('MAPBOX_ACCESS_TOKEN')` read → 2 failures (caught by both the scan and the class check). Both
+restored MD5-identical, final run green. One test adjusted honestly:
+`ArabicPlaceNameServiceTest` set the token via `putenv()` — which config-over-env no longer sees —
+so it now uses `config([...])` (the point of the change: deterministic tests). Auth (14/37), OTP
+(11/21), TextMeBot (9/18), EmployeeAuth (14/32) all green; WalletTest's 3 failures are its
+established baseline. **Full-suite gate: 2034 tests, 52 errors / 68 failures, 0 regressions.**
+
+**Recorded remainder (deploy/ops surface — owner decision, not blind-edited):**
+- **MySQL**: compose provisions only `root` despite `.env.example` saying "prefer a non-root,
+  least-privilege user"; adding `MYSQL_USER`/`MYSQL_PASSWORD` to the compose service changes how
+  the app connects in every environment.
+- **Redis**: no persistence (AOF/volume), and one instance serves cache/queue/session; splitting a
+  logical queue instance is an ops/architecture change.
+- **nginx**: `max_fails=0` disables passive failure detection (all 5 upstreams), no
+  `proxy_connect_timeout`, `client_max_body_size 20M` vs the 2–5 MB the audit expects — all
+  deployment tuning with real operational blast radius.
+- **Docker**: healthcheck coverage and `composer install --no-dev` in the production image (dev
+  dependencies leaking into the prod image) — the compose file already carries substantial
+  healthcheck infra from earlier work; the remainder is deploy configuration.
+These are recorded in §31 rather than edited blind, per "do not invent owner values" and because
+compose/nginx changes take down deployments if got wrong.

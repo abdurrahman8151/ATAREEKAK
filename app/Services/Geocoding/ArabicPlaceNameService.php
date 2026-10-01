@@ -201,7 +201,9 @@ final class ArabicPlaceNameService
      */
     private function tryMapboxArabic(string $address): ?array
     {
-        $token = env('MAPBOX_ACCESS_TOKEN');
+        // RV-28: read via config (not env()) so `php artisan config:cache` cannot silently
+        // blank the token in production. Owned at config/services.php → mapbox.access_token.
+        $token = config('services.mapbox.access_token');
 
         if (! $token) {
             return null;

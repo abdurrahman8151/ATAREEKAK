@@ -52,6 +52,13 @@ class UserRepository implements UserRepositoryInterface
     // app/Repositories/UserRepository.php
     public function findByEmail($email)
     {
-        return $this->model->where('email', $email)->first();
+        // RV-28 (primary-only read): this is the LOGIN / auth lookup. In production with
+        // read/write splitting a plain read goes to the replica, so a just-registered user,
+        // a just-applied ban, or a password change may not be visible yet — the login would
+        // then fail (or, worse, a banned user would authenticate) against stale data. The
+        // connection is 'sticky' only WITHIN a request; a fresh request can legitimately hit
+        // a lagging replica. Force the primary: correctness beats the read-replica saving on
+        // the auth path, and it is decision-free (it can only make auth stricter, never looser).
+        return $this->model->where('email', $email)->useWritePdo()->first();
     }
 }

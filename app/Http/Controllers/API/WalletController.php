@@ -177,8 +177,12 @@ class WalletController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function getBalance(Request $request): JsonResponse
     {
-        /** @var User $user */
-        $user = $request->user()->load('wallet');
+        // RV-28 (primary-only read): a wallet BALANCE is money-facing — it must reflect the
+        // authoritative ledger, not a possibly-lagging replica. The request user is already
+        // resolved; `wallet` is loaded on the primary so a read right after a payment/charge
+        // can never show a stale figure. Decision-free: it can only make the reported balance
+        // more correct, never less.
+        $user = $request->user()->load(['wallet' => fn ($q) => $q->useWritePdo()]);
 
         if (! $user->wallet) {
             return response()->json([

@@ -23,13 +23,21 @@ return [
     // preflighting arbitrary verbs and makes the permitted surface auditable.
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 
-    'allowed_origins' => [
-        'http://localhost:3000',  // Flutter web development server
-        'http://127.0.0.1:3000',
-        'http://localhost:8080',  // Alternative Flutter web port
-        'http://127.0.0.1:8080',
-        // Add your production domain here when deploying
-    ],
+    // RV-28: was hardcoded to localhost only, so a real deployment's web client was blocked
+    // until someone edited this file in the image. Make the extra origins environment-driven
+    // while keeping the current localhost defaults EXACTLY (no behaviour change), so the owner
+    // supplies their real domain via CORS_ALLOWED_ORIGINS (comma-separated) and the localhost
+    // entries remain for development. We never invent a production domain here.
+    'allowed_origins' => array_values(array_filter(array_merge(
+        [
+            'http://localhost:3000',  // Flutter web development server
+            'http://127.0.0.1:3000',
+            'http://localhost:8080',  // Alternative Flutter web port
+            'http://127.0.0.1:8080',
+        ],
+        // Comma-separated extra origins from the environment (trimmed, blanks dropped).
+        array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', '')))
+    ))),
 
     'allowed_origins_patterns' => [],
 
