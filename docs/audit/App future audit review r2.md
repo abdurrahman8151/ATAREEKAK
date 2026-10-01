@@ -3357,3 +3357,39 @@ ABSENT from the tree; `.rr.yaml` is overwritten at container start by `docker/st
 (`cat > .rr.yaml`), so the committed copy is inert on the Docker path but may serve a local `rr serve`
 — a judgment call, not a blind delete. `GeocodingServiceInterface` and `RideStatus::AWAITING_CONFIRMATION`
 were not changed (interface/lifecycle decisions recorded elsewhere in the audit).
+## 34. RV-29 / T4-5 — User mass-assignment: vector confirmed NOT open; ratchet pinned instead of narrowing `$fillable` — **VERIFIED FIX (ratchet); narrowing correctly NOT applied (2nd time, on evidence)**
+
+Owner approved fixing "User::$fillable privileged keys" — the mass-assignment surface carrying
+`status` / `token_version` / `is_verified_*` / `verification_status` / `wallet_id` / `national_id` /
+ban fields. This is **T4-5, rolled back before**. Grounded it before touching anything, and the
+grounding **overturns the premise**:
+
+**THE ESCALATION VECTOR IS NOT CURRENTLY OPEN.** A scan of every `User` mass-assign site found:
+- **ZERO** sites pass `$request->all()` / raw request input / unfiltered `$request->validated()`
+  wholesale into `User::create|update|fill` (the privilege-escalation vector).
+- The two variable-array sites are both **explicitly allowlisted/hardcoded**:
+  `ProfileUpdateService::updateProfile` filters through `array_intersect_key($data,
+  array_flip(USER_MODEL_FIELDS))` (only first_name/last_name/gender survive, so privileged keys
+  can't reach the User row even if present in `$data`); `ProfileController` uses a hardcoded literal.
+- All privileged writes (~9 sites: ban/unban, verification approve/reject, admin actions) are
+  explicit, code-reviewed `update([...])` calls.
+
+**So a blanket `$fillable` narrowing would break working privilege paths for NO live security
+gain** — exactly why T4-5 was rolled back. Re-applying it blind repeats recorded history. Instead
+this lands a **ratchet that keeps the vector shut and cannot be re-opened**, without touching the
+working writers:
+
+`RV29UserMassAssignmentRatchetTest` (3 tests) pins: (1) no `User` mass-assign may take raw request
+input (the vector stays closed); (2) the privileged columns still exist and a code-controlled
+privileged write still persists (the ratchet can't be "passed" by gutting the feature); (3)
+`$fillable` still carries the privileged keys — a guard against a future half-applied T4-5 narrowing.
+
+**Causality needle:** injecting `$user->update($request->all())` into `ProfileController` made the
+ratchet fail with a self-naming message naming the exact offender; restored MD5-identical, final run
+green. **Full-suite gate: 2047 tests, 52 errors / 68 failures, 0 regressions** (test-only change; no
+app code modified).
+
+**Recorded (still yours to call):** if you later want defence-in-depth beyond this ratchet, the
+real narrowing must be a per-context allowlist migration (DTO `updateProfile()` + explicit admin
+scopes) so the ~9 privilege writers keep working — a design change, not a `$fillable` edit. Until
+then the vector is shut and now regression-locked.
