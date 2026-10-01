@@ -122,14 +122,12 @@ class GoogleController extends Controller
             }
 
             // ── Block banned accounts BEFORE issuing any credential ──────────
-            // Parity with LoginController:77-83. This matters specifically
-            // because of T2-9: the token below is now a REAL credential that
-            // the jwt middleware accepts, so without this gate a suspended
-            // account finishing Google OAuth would be handed a working access
-            // token plus a 7-day refresh-token row. (The middleware still
-            // refuses status == -1 on every request, so this closes the
-            // credential-issuance step rather than a bypass.)
-            if ((int) $user->status === -1) {
+            // Parity with LoginController — and required since T2-9 made the token
+            // below a REAL credential. RV-12: isBannedNow() honours ban_expires_at so
+            // an expired TEMPORARY ban does not lock the user out of Google sign-in
+            // forever (the same dead-end the password path had); a PERMANENT ban (or
+            // one with no expiry) is still refused, exactly as before.
+            if ($user->isBannedNow()) {
                 Log::warning('Google OAuth Callback: refused to issue tokens for a banned account.', [
                     'user_id' => $user->id,
                 ]);
@@ -139,6 +137,21 @@ class GoogleController extends Controller
                     'message' => 'Your account has been suspended. Please contact support.',
                     'code' => 'ACCOUNT_BANNED',
                 ], 403);
+            }
+
+            // RV-12: an expired temporary ban is no longer in force. The status flip
+            // below makes it ACTIVE, after which the middleware's auto-lift (a
+            // status === -1 branch) can never clear these columns — so, exactly as
+            // the password path does, the door that lifts the ban clears the dead
+            // fields. (ban_* are all in $fillable, so this write actually persists.)
+            if ($user->banHasExpired()) {
+                $user->update([
+                    'ban_reason' => null,
+                    'ban_type' => null,
+                    'banned_at' => null,
+                    'ban_expires_at' => null,
+                    'banned_by' => null,
+                ]);
             }
 
             // Parity with LoginController:86-88, and required for the fix to

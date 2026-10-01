@@ -260,6 +260,13 @@ final class AdminBanController extends Controller
      */
     private function bustBanCaches(int $userId): void
     {
+        // RV-12: the middleware serves the user object from this cache for 5 minutes.
+        // ban() also busts it via revokeAllTokens, but unban() must NOT rely on that:
+        // without this line a user the admin just unbanned kept hitting a cached copy
+        // with status=-1 and got USER_BANNED for up to 5 minutes AFTER the unban —
+        // the "stale USER_INACTIVE/USER_BANNED after unban" R1 named, confirmed live.
+        Cache::forget("auth.user.{$userId}");
+
         Cache::forget("admin.user.status.{$userId}");
         Cache::forget('admin.dashboard.data');
         Cache::forget('admin.dashboard.stats');

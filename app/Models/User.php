@@ -68,6 +68,43 @@ class User extends Authenticatable
         $this->notify(new CustomResetPassword($token));
     }
 
+    // ── RV-12: one account-status rule for every entry point ────────────────
+    /**
+     * Is this account banned RIGHT NOW?
+     *
+     * `users.status` overloads three meanings (-1 banned / 0 logged-out / 1 active),
+     * and a temporary ban also carries `ban_expires_at`. Before this method the rule
+     * lived in three copies that disagreed: the middleware honoured the expiry (and
+     * auto-lifted it) while LoginController and GoogleController rejected ANY
+     * status === -1 unconditionally. A banned user's tokens were revoked at ban time,
+     * so the middleware's auto-lift can never run for them — it only executes on an
+     * AUTHENTICATED request. Result: a temporary ban that expired still locked the
+     * user out forever, because logging in is the only door left and that door ignored
+     * the expiry.
+     *
+     * This is the single source of truth: banned means status -1 AND NOT an expired
+     * temporary ban. Callers must not re-implement the condition.
+     */
+    public function isBannedNow(): bool
+    {
+        if ((int) $this->status !== -1) {
+            return false;
+        }
+
+        return ! $this->banHasExpired();
+    }
+
+    /**
+     * A temporary ban whose end time has passed is no longer in force.
+     * Permanent bans (or a missing expiry) never self-lift.
+     */
+    public function banHasExpired(): bool
+    {
+        return $this->ban_type === 'temporary'
+            && $this->ban_expires_at !== null
+            && now()->greaterThan($this->ban_expires_at);
+    }
+
     // ── Relationships ────────────────────────────────────────────────────────
     public function profile()
     {

@@ -75,12 +75,30 @@ class LoginController extends Controller
         }
 
         // ── Block banned accounts ─────────────────────────────────────────────
-        if ((int) $user->status === -1) {
+        // RV-12: honour ban_expires_at. The middleware auto-lifts expired bans, but
+        // it only runs for AUTHENTICATED requests, and a banned user's tokens were
+        // revoked at ban time — login was the only remaining door, and it ignored
+        // the expiry, so an expired TEMPORARY ban locked the user out forever.
+        // isBannedNow() is the single source of truth (status -1 AND not expired).
+        if ($user->isBannedNow()) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Your account has been suspended. Please contact support.',
                 'code' => 'ACCOUNT_BANNED',
             ], 403);
+        }
+
+        if ($user->banHasExpired()) {
+            // The ban is no longer in force: clear the dead ban fields so the row
+            // cannot be mistaken for an active ban by anything reading it, exactly
+            // as the middleware's auto-lift does.
+            $user->update([
+                'ban_reason' => null,
+                'ban_type' => null,
+                'banned_at' => null,
+                'ban_expires_at' => null,
+                'banned_by' => null,
+            ]);
         }
 
         // ── All checks passed — issue tokens ──────────────────────────────────

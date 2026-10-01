@@ -2358,3 +2358,47 @@ env-gated `verify=false` (`new Client([])`); corrected the test docblock that cl
 **RV-22 remaining (3/3).** `LOG_LEVEL` default `debug` with `Log::info` on hot paths + the
 non-rotating file shared by 5 replicas: a deploy-surface change (Docker/log config, not app
 code), recorded for the owner rather than edited blind.
+## 27. Wave 5 started (owner instruction): RV-12 — expired temporary ban locked the user out of logging in — **VERIFIED FIX (decision-free core); R1's model refactor stays PARTIAL**
+
+**R1 staleness check first.** RV-12 claims "the middleware auto-lifts expired bans" and
+"unban busts caches" — both were TRUE (middleware L66-85 handles expiry + `bustBanCaches`
+exists), so half of R1's list was already fixed by earlier work. Grounding found TWO
+genuinely live bugs, both decision-free:
+
+1. **The expiry deadlock.** Login/Google reject `status === -1` **unconditionally**, but the
+   middleware's auto-lift only runs on an AUTHENTICATED request — and a banned user's tokens
+   were revoked at ban time. So an **expired temporary ban locked the user out forever**: the
+   only door (login) ignored exactly the field (`ban_expires_at`) that the other door (the
+   middleware) honoured.
+2. **Unban left a stale cached copy.** `ban()` busts `auth.user.{id}` via `revokeAllTokens`,
+   but `bustBanCaches()` (used by unban) forgot it — a user the admin just unbanned kept
+   hitting a 5-minute cached `status=-1` and received USER_BANNED *after* being un-banned.
+
+**Fix.** One shared domain rule on the model: `User::isBannedNow()` (status -1 AND not an
+expired temporary ban) + `banHasExpired()` — replacing the disagreeing copies so the rule
+cannot drift again (R1's "one source of truth" principle, applied without the gated refactor).
+`LoginController` and `GoogleController` now gate with `isBannedNow()` and, when lifting an
+expired ban at the door, clear the dead `ban_*` fields (all fillable — verified, the RV-38
+silent-noop class). `bustBanCaches()` forgets `auth.user.{id}` too. The middleware keeps its
+existing auto-lift; permanent / not-yet-expired / temp-with-null-expiry bans still refuse
+(fail-closed — null expiry never self-lifts, pinned).
+
+**Out of scope on purpose (recorded, not skipped silently):** dropping the persisted
+"logged-out" status=0, migrating all readers to a `BanService`, `createUser`'s
+`status => 1` override (currently harmless: unverified-email check precedes the ban gate, so
+no exploit — it is hygiene for the model refactor), and the admin-readers' drift. Those are
+R1's larger model change, entangled with owner decisions.
+
+**Verification — `RV12ExpiredBanLoginTest` OK (8 tests, 21 assertions):** expired temp ban →
+login 200 + status 1 + ban fields cleared; permanent / active-temp / temp-null-expiry → 403
+(door did not swing open); unban evicts `auth.user.{id}`; Google path lifts an expired ban and
+clears fields too; end-to-end ban→expire→login→re-ban→refused. **Causality needle:** reverting
+`isBannedNow()` to the old unconditional rule fails EXACTLY the 3 expiry-dependent tests,
+refuse-tests stay green both ways; file restored MD5-identical. Two wrong assumptions caught
+by verification before they became fake-green: my guessed `/api/login` route (real:
+`/api/auth/login` — 404 caught it) and `$admin->assignRole()` (house pattern: Employee +
+`adminToken()` via `/api/admin/login`, `auth.admin` middleware).
+**Floors green:** Feature\Auth 74/191 (whole dir), AdminBanControllerTest 29/58,
+RV-22 pins 2/12. Unit\Middleware 60 tests / 2 failures — both confirmed pre-existing
+baseline items #3/#4 (`test_using_refresh_token_as_access_token…` ×2), not regressions.
+Full-suite gate recorded in the next commit message.
