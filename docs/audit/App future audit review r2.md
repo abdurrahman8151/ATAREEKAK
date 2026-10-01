@@ -3143,3 +3143,33 @@ switching to SRID 4326 "if your migration uses it") was corrected to state the l
 `GeoPoint` emits `POINT(33.5138 36.2765)` / `ST_GeomFromText('POINT(33.5138 36.2765)', 4326)`.
 Full-suite gate: 2027 tests, 52 errors / 68 failures, 0 regressions vs baseline (these commands
 are not exercised by the suite, so the gate confirms no collateral change).
+### 29.10 RV-29 (item 3) — staff/admin login timing oracle — **VERIFIED FIX**
+
+§28.9 grounded this one and parked it as "low-priority hardening, recorded" — it is in fact
+**decision-free security hardening** (no product decision, no contract change) and is landed here.
+
+**The defect.** Both `EmployeeAuthService::authenticate` (staff) and `AdminAuthService::authenticate`
+returned as soon as the login identifier was not found, **before any `Hash::check`**. bcrypt (cost
+12, `config/hashing.php`) is deliberately expensive, so the "no such account" path skipped ~100 ms of
+work that the "wrong password" path paid. An attacker could therefore enumerate valid staff/admin
+usernames and emails by timing responses. The HTTP layer was already uniform (401, identical
+`INVALID_CREDENTIALS` body), so the oracle was **timing-only**.
+
+**The fix.** On the unknown-identifier path, compare the submitted password against a fixed
+**dummy hash** so both paths perform the same expensive work. The dummy is a real cost-12 bcrypt
+hash of a random, never-issued secret — it can never authenticate anyone, and it can never be
+matched by a guesser because the secret was discarded. (`AdminAuthService` additionally checked
+role/is_active *before* the password, another ordering leak on the same surface; the unknown-id
+timing is what this closes — role/ordering are left as-is, they do not create the enumeration
+oracle because a wrong-role user is still a KNOWN identifier and pays full bcrypt cost.)
+
+**Verification — `RV29AuthTimingEqualizationTest` OK (3 tests, 7 assertions).** TIMING is flaky to
+assert directly, so the test proves the MECHANISM: it binds a counting decorator over the real
+hasher (`$app['hash']`, forwarding every call so the real bcrypt work genuinely happens) and
+asserts that `check()` is invoked on the unknown-identifier path for BOTH services, while the
+result is still `null` (no authentication is ever granted). A third test confirms a known employee
+with a wrong password is still rejected. `EmployeeAuthServiceTest` OK (14/32) and the pre-existing
+`StaffJwtMiddlewareTest` failure matches the baseline (no new regression).
+**Causality needle:** removing the dummy `Hash::check` from both services — i.e. restoring the
+oracle — fails 2 of the 3 tests; files restored MD5-identical, final run green.
+**Full-suite gate: 2030 tests, 52 errors / 68 failures, 0 regressions vs baseline.**

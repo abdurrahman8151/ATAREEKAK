@@ -15,6 +15,14 @@ use Illuminate\Support\Facades\Log;
  */
 final class EmployeeAuthService
 {
+    /**
+     * A fixed bcrypt hash compared against when the login identifier does not exist, purely
+     * to spend the same ~100ms of work the real path spends, so response timing does not
+     * reveal whether an account exists. It is a hash of a value nobody can supply as a
+     * password (a random, never-issued secret), so this can never authenticate anyone.
+     */
+    private const DUMMY_HASH = '$2y$12$KdyEj/F8DFgVEmYFFnVsQemtKoKwSbpX1z/gWy061r3yCUjoemuo6';
+
     public function __construct(
         private readonly EmployeeRepositoryInterface $employeeRepository,
         private readonly StaffJwtService $jwtService,
@@ -33,6 +41,14 @@ final class EmployeeAuthService
         $employee = $this->resolveEmployee($identifier);
 
         if (! $employee) {
+            // RV-29 (timing oracle): when the identifier is unknown we used to return BEFORE
+            // any Hash::check, so the ~100ms bcrypt work only happened for an EXISTING
+            // account. That let an attacker distinguish "no such user" from "wrong password"
+            // by timing alone and enumerate valid usernames/emails, even though the HTTP
+            // response is already uniform (401 / INVALID_CREDENTIALS). Burn the same work
+            // here against a fixed dummy hash so both paths cost the same.
+            Hash::check($password, self::DUMMY_HASH);
+
             Log::warning('Staff login: unknown identifier', ['identifier' => $identifier]);
 
             return null;

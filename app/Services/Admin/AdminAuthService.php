@@ -24,6 +24,14 @@ use Illuminate\Support\Facades\Log;
  */
 final class AdminAuthService
 {
+    /**
+     * A fixed bcrypt hash (cost 12, matching config('hashing.bcrypt.rounds')) compared against
+     * when the login identifier does not exist, purely to spend the same work the real path
+     * spends so response timing does not reveal whether an account exists. It is a hash of a
+     * random, never-issued secret, so it can never authenticate anyone.
+     */
+    private const DUMMY_HASH = '$2y$12$KdyEj/F8DFgVEmYFFnVsQemtKoKwSbpX1z/gWy061r3yCUjoemuo6';
+
     public function __construct(
         private readonly StaffJwtService $jwtService,
     ) {}
@@ -45,6 +53,12 @@ final class AdminAuthService
             ->first();
 
         if (! $employee) {
+            // RV-29 (timing oracle): unknown identifier used to return BEFORE any Hash::check,
+            // so the bcrypt cost was only paid for EXISTING accounts - letting an attacker
+            // enumerate valid admin usernames/emails by timing. Spend the same work on a fixed
+            // dummy hash so both paths cost the same. The HTTP response was already uniform.
+            Hash::check($password, self::DUMMY_HASH);
+
             return null;
         }
 
