@@ -2934,3 +2934,51 @@ run green.
 - The historical ride rows' coordinate CORRECTNESS (transposed vs not) is RV-25 and stays
   owner-gated; this fix is order-neutral and neither fixes nor depends on that decision.
 Full-suite gate recorded in the commit.
+### 29.5 RV-38 part 2 — lazy-loading guard investigation — **VERIFIED ROLLBACK of the enable; three real findings recorded**
+
+§29.2 deferred RV-38's THIRD strictness flag (`preventLazyLoading`) while R1 expected a large
+"N+1 from RV-24" surface. RV-24 has since landed (b84cea0), so this round investigated whether the
+flag could now be adopted. It could not, and the attempt was **rolled back** — the two-flag state
+from 61896df is restored byte-for-byte. Three findings are worth keeping regardless:
+
+**FINDING 1 — `Model::preventLazyLoading()` alone is INERT for single-model loads (false green).**
+The guard in `HasAttributes::getRelationValue()` reads the INSTANCE property
+`$model->preventsLazyLoading`, declared `public $preventsLazyLoading = false` on Model. In this
+framework version the static flag is copied to the instance only inside `Builder::hydrate()` and
+only when `count($items) > 1`. So `Model::find(...)` / `first()` leaves the instance flag false and
+the guard never fires — the flag reads as enabled while doing nothing. An early probe in this round
+hit exactly this false green (an unsaved model reported "no-throw" and proved nothing). **Any
+future adoption of this flag MUST arm the instance flag for single-row loads or it is theatre.**
+
+**FINDING 2 — arming via a `retrieved` listener does not survive Laravel's test lifecycle.**
+The obvious fix (register a `retrieved` listener that syncs the instance flag) works when the app
+boots for that test, but Laravel's `tearDownTheTestEnvironment()` **replaces the model event
+dispatcher between tests**, discarding boot-time-registered listeners. Consequence: the ratchet
+passed when the file ran alone and after one other file, but FAILED inside the full suite (the
+first full run showed exactly 1 failure — `arming_the_guard_makes_a_genuine_lazy_load_throw`).
+A boot-time event listener is therefore not a reliable mechanism here. A robust approach would need
+to set the instance flag at model construction (e.g. an overridden `newInstance()` on a shared base
+model) — which the app does not have (models extend `Illuminate\Database\Eloquent\Model` directly).
+
+**FINDING 3 — the real N+1 surface, enumerated.** With the guard genuinely armed for a throwaway
+measurement, the full suite surfaces NINE genuine violations, all
+`Attempted to lazy load [profile] on model [App\Models\User]`, in:
+`BookingTest` (6: verify/book, reduce-seats, ride-full, idempotency, accept, reject),
+`AdminFinancialReportEscrowTest` (2: per-passenger escrow release, SyCash balance drop),
+`RideValidationServiceTest` (1: verified driver with all documents). These are booking /
+admin-escrow / ride-validation paths — money-integrity code that must be grounded and eager-loaded
+in its own task, not rushed to satisfy a flag.
+
+**Why ROLLBACK, not ship-with-enable-held-back.** Holding the enable back while landing the arming
+mechanism was the first plan, but Finding 2 shows the mechanism itself is unreliable under the test
+harness — a ratchet that passes alone and fails in-suite is worse than no ratchet. Shipping a
+non-functional "groundwork" hook would be a false green of exactly the kind this audit is meant to
+remove. So everything from this round (the arming helper, the prod handler, the lazy ratchet test)
+was reverted; `AppServiceProvider` is back to the verified two-flag enable and the tree is clean.
+
+**Recorded remainder (the exact, honest follow-up):** (1) eager-load `User::profile` at the 9 sites
+in Finding 3; (2) introduce a reliable arming mechanism (a shared base model overriding
+`newInstance()` to default `preventsLazyLoading`, or upgrading to a framework version where the
+static flag reaches single-row loads) — THEN enable the flag non-production. Until all of that, RV-38
+remains the two verified data-integrity flags, and lazy-loading detection stays off in dev/test and
+log-only in prod.
