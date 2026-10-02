@@ -12,15 +12,15 @@ with each status taken from the newest section that mentions it. The per-task lo
 - None.
 
 ## Done recently (newest first; detail is in the audit record)
-- RV-37 (order half) - VERIFIED FIX for the order-dependence problem (task stays PARTIAL: the
-  hermeticity half is open), `App future audit review r2.md` section 39. Sec 23.6's "0 classes
-  without a database trait" was wrong: 58 lack one and 5 of those write, committing 7 users per
-  suite pass - the leak AdminDriverServiceTest/NotificationTest counted. `RefreshDatabase` added
-  to the 5 + a third determinism ratchet (every DB-writing TestCase subclass must be transactional,
-  needle-tested both directions). Full suite 4 orders (default + seeds 20260929/424242/777001):
-  byte-identical 120-test red set, zero committed residue; at HEAD the V14 seed added 2 leak
-  victims + 7 leaked rows. Not touched: owner's RideController eager-loads, phpunit.xml,
-  .gitignore, AGENTS.md, staged scripts/*.ps1, ROADMAP.md, other audit files.
+- RV-37 (order half) - VERIFIED FIX for the order-dependence problem in git `c45e05e` (task stays
+  PARTIAL: the hermeticity half is open), `App future audit review r2.md` section 39. Sec 23.6's
+  "0 classes without a database trait" was wrong: 58 lack one and 5 of those write, committing 7
+  users per suite pass - the leak AdminDriverServiceTest/NotificationTest counted. `RefreshDatabase`
+  added to the 5 + a third determinism ratchet (every DB-writing TestCase subclass must be
+  transactional, needle-tested both directions). Full suite 4 orders (default + seeds
+  20260929/424242/777001): byte-identical 120-test red set, zero committed residue; at HEAD the V14
+  seed added 2 leak victims + 7 leaked rows. Not touched: owner's RideController eager-loads,
+  phpunit.xml, .gitignore, AGENTS.md, staged scripts/*.ps1, ROADMAP.md, other audit files.
 - RV-39 seeders - VERIFIED FIX in git `094479a`, `App future audit review r2.md` section 38
   (production guard on the four data-forging seeders via `RefusesProduction`;
   `Syrideseeder.php` -> `SyrideSeeder.php` + directory-wide filename==class sweep;
