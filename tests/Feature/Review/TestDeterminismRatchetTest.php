@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Review;
 
+use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\DatabaseTruncation;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
@@ -104,6 +108,203 @@ class TestDeterminismRatchetTest extends TestCase
     }
 
     /**
+     * Traits that make a test class's database writes rollback-able.
+     *
+     * @var list<class-string>
+     */
+    private const DB_TRAITS = [
+        RefreshDatabase::class,
+        DatabaseTransactions::class,
+        DatabaseMigrations::class,
+        DatabaseTruncation::class,
+    ];
+
+    /**
+     * Code shapes that persist or read database rows. A class containing any of them
+     * without a transactional trait runs outside the suite's rollback, so its rows are
+     * COMMITTED for the rest of the PHP process.
+     *
+     * `::create(` is deliberately NOT here: `Request::create()` (Symfony) and
+     * `Path::create()` build an object, not a row. `Model::create(` is matched by the
+     * explicit list below instead, and a local needle test (see RV-37 section 39)
+     * proves the list still fires on a real `Model::create(`.
+     *
+     * @var list<string>
+     */
+    private const DB_WRITE_MARKERS = [
+        'factory(',
+        '->save(',
+        '->push(',
+        'assertDatabaseHas',
+        'assertDatabaseMissing',
+        'assertDatabaseCount',
+        'DB::table(',
+        'DB::insert',
+        'DB::update',
+        'DB::delete',
+        'DB::statement',
+        'DB::transaction',
+        'Schema::',
+        'RideBuilder::build',
+    ];
+
+    /** Eloquent models whose `::create(` writes a row. */
+    private const DB_CREATED_MODELS = [
+        'User', 'Wallet', 'Ride', 'Booking', 'Complaint', 'Notification', 'UserNotification',
+        'Otp', 'WalletRequest', 'WalletTransaction', 'Employee', 'Photo', 'DriverDocument',
+        'Conversation', 'Message', 'Rating', 'Commission', 'RefreshToken', 'PasswordResetToken',
+        'Driver', 'Passenger', 'System', 'NoShowReport', 'PaymentStrategy',
+    ];
+
+    /**
+     * RV-37 §23.6's root cause, found by measurement.
+     *
+     * §23.6 recorded that some class left rows COMMITTED and that later count-style
+     * assertions (AdminDriverServiceTest's aggregates) counted them, then ruled that
+     * "every TestCase subclass has a database trait - 0 classes without one". That
+     * ruling was wrong: 58 classes extend TestCase without a database trait, and five of
+     * them write. Measured, per file, against the scratch database (committed rows
+     * survive the process, so a leak is directly observable):
+     *
+     *   Feature/RateLimiting/RateLimiterIdentityKeyTest   2 users
+     *   Feature/Review/CreateRideRouteTest                2 users
+     *   Feature/Review/RV29UserMassAssignmentRatchetTest 1 user
+     *   Unit/Providers/EventServiceProviderTest           1 user
+     *   Unit/Providers/RouteServiceProviderTest           1 user
+     *
+     * This ratchet keeps that set empty. It is the same shape as the putenv ratchet:
+     * a structural property of every test file, checked in one place.
+     *
+     * @test
+     */
+    public function every_test_class_that_writes_to_the_database_is_transactional(): void
+    {
+        $violations = [];
+        $self = strtolower(str_replace('/', '\\', __FILE__));
+
+        foreach ($this->test_classes_in_tests() as $class) {
+            $file = (new \ReflectionClass($class))->getFileName();
+            if ($file === false || strtolower(str_replace('/', '\\', $file)) === $self) {
+                continue;
+            }
+
+            $relative = str_replace(
+                ['/', '\\'],
+                '/',
+                str_replace(base_path().DIRECTORY_SEPARATOR, '', $file)
+            );
+
+            if ($this->declares_db_trait($class)) {
+                continue;
+            }
+
+            $code = $this->strip_comments_and_strings((string) file_get_contents($file));
+            $marker = $this->first_db_write_marker($code);
+
+            if ($marker !== null) {
+                $violations[] = sprintf('%s writes to the database (%s) without %s',
+                    $relative, $marker, $this->trait_short_names());
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $violations,
+            'RV-37 ratchet: these test classes persist rows with no transactional trait, so '
+            .'MySQL commits them and every test that runs later in the same process sees them '
+            .'(this is the committed-leak order dependence recorded in R2 section 23.6; it is '
+            ."why count-style assertions change with test order). Add `use RefreshDatabase;`:\n  "
+            .implode("\n  ", $violations)
+        );
+    }
+
+    /** A trait on the class or any ancestor (an intermediate abstract test base counts). */
+    private function declares_db_trait(string $class): bool
+    {
+        foreach (class_uses_recursive($class) as $trait) {
+            if (in_array($trait, self::DB_TRAITS, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The first marker in $code that proves the class touches rows, or null.
+     *
+     * `Model::create(` is matched by model name so `Request::create()` (which builds an
+     * HTTP request object, not a row) is not a false positive - three real test files
+     * would otherwise be flagged for it.
+     */
+    private function first_db_write_marker(string $code): ?string
+    {
+        foreach (self::DB_WRITE_MARKERS as $marker) {
+            if (str_contains($code, $marker)) {
+                return $marker;
+            }
+        }
+
+        foreach (self::DB_CREATED_MODELS as $model) {
+            if (preg_match('/(?<![\w\\\\])'.$model.'::create\s*\(/', $code)) {
+                return $model.'::create(';
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<string> */
+    private function trait_short_names(): string
+    {
+        return implode('|', array_map(
+            static fn (string $t): string => class_basename($t),
+            self::DB_TRAITS
+        ));
+    }
+
+    /**
+     * Every concrete test class under tests/, discovered from the source files so a
+     * class that no longer matches its filename is still seen.
+     *
+     * @return list<class-string>
+     */
+    private function test_classes_in_tests(): array
+    {
+        $classes = [];
+
+        foreach ($this->phpFilesInTests() as $file) {
+            if (str_contains(str_replace('\\', '/', $file), '/tests/Support/')) {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file);
+            $namespace = preg_match('/^namespace\s+([^;]+);/m', $source, $ns) ? trim($ns[1]).'\\' : '';
+            if (! preg_match('/class\s+(\w+)\s+extends\s+(\w+)/', $source, $m)) {
+                continue;
+            }
+
+            $fqcn = $namespace.$m[1];
+            // The abstract base of the suite itself, and helper classes, are skipped:
+            // the base has no trait by design and helpers are not tests.
+            if (! class_exists($fqcn)) {
+                continue;
+            }
+
+            $reflection = new \ReflectionClass($fqcn);
+            if ($reflection->isAbstract() || ! $reflection->isSubclassOf(TestCase::class)) {
+                continue;
+            }
+
+            $classes[] = $fqcn;
+        }
+
+        sort($classes);
+
+        return $classes;
+    }
+
+    /**
      * Remove comments so a docblock mentioning putenv() is not counted as a call.
      */
     private function stripComments(string $source): string
@@ -112,6 +313,21 @@ class TestDeterminismRatchetTest extends TestCase
         $withoutLine = preg_replace('#(^|\s)//[^\n]*#', '$1', $withoutBlock);
 
         return (string) $withoutLine;
+    }
+
+    /**
+     * Comments AND string literals: this file names the markers it searches for, so
+     * without stripping strings the ratchet would flag its own allow-list prose.
+     */
+    private function strip_comments_and_strings(string $source): string
+    {
+        $withoutComments = $this->stripComments($source);
+
+        // Single- and double-quoted strings, and heredoc/nowdoc bodies.
+        $withoutStrings = preg_replace('/\'(?:\\\\.|[^\'\\\\])*\'/', "''", $withoutComments);
+        $withoutStrings = preg_replace('/"(?:\\\\.|[^"\\\\])*"/', '""', $withoutStrings);
+
+        return (string) preg_replace('/<<<[A-Z]+.*?^[A-Z]+;/ms', '', $withoutStrings);
     }
 
     /**

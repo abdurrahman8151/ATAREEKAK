@@ -12,6 +12,15 @@ with each status taken from the newest section that mentions it. The per-task lo
 - None.
 
 ## Done recently (newest first; detail is in the audit record)
+- RV-37 (order half) - VERIFIED FIX for the order-dependence problem (task stays PARTIAL: the
+  hermeticity half is open), `App future audit review r2.md` section 39. Sec 23.6's "0 classes
+  without a database trait" was wrong: 58 lack one and 5 of those write, committing 7 users per
+  suite pass - the leak AdminDriverServiceTest/NotificationTest counted. `RefreshDatabase` added
+  to the 5 + a third determinism ratchet (every DB-writing TestCase subclass must be transactional,
+  needle-tested both directions). Full suite 4 orders (default + seeds 20260929/424242/777001):
+  byte-identical 120-test red set, zero committed residue; at HEAD the V14 seed added 2 leak
+  victims + 7 leaked rows. Not touched: owner's RideController eager-loads, phpunit.xml,
+  .gitignore, AGENTS.md, staged scripts/*.ps1, ROADMAP.md, other audit files.
 - RV-39 seeders - VERIFIED FIX in git `094479a`, `App future audit review r2.md` section 38
   (production guard on the four data-forging seeders via `RefusesProduction`;
   `Syrideseeder.php` -> `SyrideSeeder.php` + directory-wide filename==class sweep;
@@ -19,10 +28,10 @@ with each status taken from the newest section that mentions it. The per-task lo
   a whole-repo drift ratchet; system wallets resolved from `config/admin.php`; per-wallet unique
   driver/passenger phones). Zero regressions: identical 27 red tests at HEAD and after,
   failure-name diff empty.
-- See "App future audit review r2.md" sections 26-38 (latest status lives there, NOT in its
-  index tables at section 12 and 18.4, which are stale). Newest: RV-39 seeders (38), RV-38 flag-
-  off/flag-on scoped measurement (37), RV-38 `GuardsLazyLoading` arming mechanism (36), RV-38 lazy
-  flag re-test (35), RV-29 / T4-5 ratchet (34), RV-31 (33), RV-30 (32).
+- See "App future audit review r2.md" sections 26-39 (latest status lives there, NOT in its
+  index tables at section 12 and 18.4, which are stale). Newest: RV-37 order half (39), RV-39
+  seeders (38), RV-38 flag-off/flag-on scoped measurement (37), RV-38 `GuardsLazyLoading` arming
+  mechanism (36), RV-38 lazy flag re-test (35), RV-29 / T4-5 ratchet (34), RV-31 (33), RV-30 (32).
 - RV-32 README / docs corrections - DONE in git `e878f25` (README.md, +23/-10). Removed from Next.
 - RV-33 Ratchet additions to `BoundaryDependencyTest` - DONE in git `97792b6`
   (`tests/Feature/Review/RV33BoundaryDependencyTest.php`, +178). Removed from Next.

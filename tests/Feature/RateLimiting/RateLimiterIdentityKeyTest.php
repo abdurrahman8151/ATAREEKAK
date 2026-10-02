@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Cache\RateLimiting\Unlimited;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
@@ -28,9 +29,15 @@ use Tests\TestCase;
  * bucket keys is the faithful, deterministic instrument for this control.
  *
  * No real credential appears here — only synthetic emails/phones/ips.
+ *
+ * RV-37: two tests persist a factory user only to read its id for the bucket key.
+ * Without a database trait those rows were COMMITTED, and every later count-style
+ * assertion in the suite (AdminDriverServiceTest's aggregates) saw them.
  */
 class RateLimiterIdentityKeyTest extends TestCase
 {
+    use RefreshDatabase;
+
     private function authPerMinute(): int
     {
         return (int) config('rate-limiting.limits.auth');

@@ -8,6 +8,7 @@ use App\Listeners\SendUserVerifiedNotification;
 use App\Models\User;
 use App\Providers\EventServiceProvider;
 use App\Services\NotificationService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
@@ -18,9 +19,15 @@ use Tests\TestCase;
  * services. The map now contains the one chain that is genuinely wired AND
  * functional (UserVerified -> SendUserVerifiedNotification), and the tests
  * assert that truth plus the DELETIONS that closed the fake-assurance gap.
+ *
+ * RV-37: the listener test persists a user and asserts two tables, so it needs
+ * `RefreshDatabase`; without it the fixture user was COMMITTED to the scratch
+ * database and every later count-style assertion saw it.
  */
 class EventServiceProviderTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_event_service_provider_is_registered(): void
     {
         $provider = $this->app->getProvider(EventServiceProvider::class);

@@ -5,6 +5,7 @@ namespace Tests\Unit\Providers;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\RateLimiter;
@@ -19,9 +20,14 @@ use Tests\TestCase;
  *   boot() — rate limiter registration and route file loading
  *   API routes registered with /api prefix
  *   Rate limiter closure — returns Limit, keys by user ID or IP
+ *
+ * RV-37: the "keys by user id" test persists a factory user to read its id, so it
+ * needs `RefreshDatabase`; without it that row was COMMITTED to the scratch database
+ * and every later count-style assertion in the suite saw a phantom user.
  */
 class RouteServiceProviderTest extends TestCase
 {
+    use RefreshDatabase;
     // ─── HOME constant ────────────────────────────────────────────────────────
 
     public function test_home_constant_equals_slash_home(): void

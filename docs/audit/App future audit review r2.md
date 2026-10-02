@@ -3618,3 +3618,127 @@ assertions with the guard/data-provider legs);
    itself is owner-owned staged work — untouched); a Windows file-permissions repair was applied to
    the workspace root mid-session (recovery files under `C:\wamp64\www\.acl-recovery-4th_year`,
    outside the repo).
+
+---
+
+## 39. RV-37 continued — the committed-leak root cause IS FOUND AND FIXED; order-independence measured at suite level — **VERIFIED FIX (order half); hermeticity half still open**
+
+**Original finding (sec 3 / sec 23).** The suite reported different failures depending on run
+order (V14: 68 default vs 85 under the V14 seed at the time of sec 23.6). Sec 23.6 ruled out
+`putenv()`, `DatabaseMigrations`, in-test `migrate`/`DB::commit`, and `MigrationEffectsBatchTest`,
+then stated: "every `Tests\TestCase` subclass has a database trait (`RefreshDatabase`,
+`DatabaseTransactions` or `DatabaseMigrations`) — **0 classes without one**". It left open: "which
+class writes rows outside the per-test transaction".
+
+**That 0-count ruling was WRONG — found by measurement, not inspection.** 58 concrete test classes
+extend `Tests\TestCase` with no database trait. Most never touch MySQL (pure unit tests over
+enums/value objects), but **five persist rows through the autocommitting default connection**, so
+their rows are COMMITTED for the rest of the PHP process and every later count-style assertion in
+the suite sees them. Measured per-file against the scratch DB (clean → run one file → count rows
+that survived the process):
+
+| Class | Committed after one isolated run |
+| --- | --- |
+| `Feature\RateLimiting\RateLimiterIdentityKeyTest` | 2 users |
+| `Feature\Review\CreateRideRouteTest` | 2 users |
+| `Feature\Review\RV29UserMassAssignmentRatchetTest` | 1 user |
+| `Unit\Providers\EventServiceProviderTest` | 1 user |
+| `Unit\Providers\RouteServiceProviderTest` | 1 user |
+
+**7 committed users per full-suite pass** — exactly the phantom drivers `AdminDriverServiceTest`'s
+aggregates counted in sec 23.2/23.6 (the mechanism there was real but partial: the replica read
+path was one amplifier, these five were the source).
+
+**Fix applied.**
+- `use RefreshDatabase;` on all five classes. All five use factory-created users only as fixtures
+  for in-test assertions (bucket keys, provider maps, listener notifications, `$fillable` proof),
+  so transactional wrapping preserves every assertion.
+- A THIRD ratchet in `tests\Feature\Review\TestDeterminismRatchetTest.php`:
+  `every_test_class_that_writes_to_the_database_is_transactional` — reflection over every concrete
+  `Tests\TestCase` subclass under `tests/` (excluding `tests/Support/`, abstracts, and
+  non-subclasses); a class with no `RefreshDatabase|DatabaseTransactions|DatabaseMigrations|
+  DatabaseTruncation` trait anywhere in its `class_uses_recursive` closure fails if its
+  comment-and-string-stripped source contains a DB-write shape (`factory(`, `->save(`, `->push(`,
+  `assertDatabaseHas|Missing|Count`, `DB::table|insert|update|delete|statement|transaction`,
+  `Schema::`, `RideBuilder::build`, or `<Model>::create(` for a model in an explicit list).
+  The bare `::create(` shape was dropped after the first run flagged three non-writers —
+  `HorizonAccessTest`/`EnvironmentGuardsBatchTest` call `Request::create()` (Symfony, builds no
+  row) and `NoDuplicatedFixtureHelpersTest` matched a docblock phrase — the model-name gate is the
+  correction, the list still fires on a real `Wallet::create(` style write (needle-tested below).
+
+**Falsifiability (both directions).**
+- Needle 1: remove `use RefreshDatabase;` from `CreateRideRouteTest` → the ratchet fails naming
+  exactly that file (`factory(`); file restored MD5-identical (`42DB1DEC…`) and re-green.
+- Needle 2 (mechanism causality): same file, same command, without the trait the isolated run
+  leaves **2 committed users**; with it, **0**. The trait is what stops the leak.
+
+**Suite-level verification — the full suite was run, because this task's acceptance criterion IS
+suite-level ordering (AGENTS' scoped rule's own exception: "never run the full suite" cannot
+measure order independence). All on scratch MySQL 127.0.0.1:3399 only.**
+
+| Tree | Order | Errors / Failures / Skipped | Committed rows left |
+| --- | --- | --- | --- |
+| fixed | default | 52 / 68 / 7 (2066 tests) | **0** |
+| fixed | random seed 20260929 (the V14 seed) | 52 / 68 / 7 | **0** |
+| fixed | random seed 424242 | 52 / 68 / 7 | **0** |
+| fixed | random seed 777001 | 52 / 68 / 7 | **0** |
+| HEAD (pre-fix, same local files) | default | 52 / 68 / 7 (2065 tests) | 7 users |
+| HEAD (pre-fix, same local files) | random seed 20260929 | 52 / 70 / 7 | 7 users (+ leaked notification rows) |
+
+- Name-level equality: the red set on the fixed tree is **120 failing tests, byte-for-byte the same
+  list under default order and all three random seeds** (multiset `Compare-Object` diff = ∅ for
+  every seed). At HEAD, under matched local-file state, default order = 120 red but the V14 seed =
+  **122**: the two extras are `Models\NotificationTest::test_recent_scope_accepts_custom_day_count`
+  and `..._returns_notifications_within_7_days` — count-style assertions on the `notifications`
+  table, the exact leak victims (sec 23.6 predicted "count-style assertions"; the victims also
+  live in `Unit/Models`, not only `AdminDriverServiceTest`). Both are green on the fixed tree in
+  every order. That is the acceptance criterion met: the failure set under random order equals the
+  default-order failure set.
+- Causality: at HEAD the V14 seed still produced extra failures (70 vs 68) and left the 7 committed
+  users plus leaked notification rows; the fixed tree is flat 68 in every order with zero residue.
+  The 2066-vs-2065 total difference is the new ratchet method itself.
+
+- No regression in money/identity: the money floors (`tests/Feature/Wallet`, `Payment`,
+  `Unit/Domain`) and `BoundaryDependencyTest` all ran inside the full suite; failure-name diff
+  fixed-vs-HEAD = ∅.
+- The earlier "68 vs 85" (sec 23.6) and today's "68 vs 70" differ because `AdminDriverServiceTest`
+  fixtures changed state between those measurements; the comparison recorded here is same-commit,
+  same-config, name-level — that is the causality, not the historical number.
+
+**Environment caveat this task uncovered (NOT fixed — separate problem).**
+`Unit\Jobs\SendPushNotificationTest`'s two log-count tests are sensitive to the gitignored local
+file `storage/app/firebase/service-account.json`: with the file present they fail (the real
+`PushNotificationService` reaches its FCM branch and logs), without it they pass. The HEAD worktree
+lacks the file, so the first HEAD-vs-fixed comparison flagged these two as "flipped" — they are an
+environment artifact of the developer's working tree, already listed as a stale-stub family in
+sec 19.2 item 8, and unrelated to the trait fix (my changes stashed, with the file copied in, HEAD
+fails them identically). Recorded so nobody re-attributes them to RV-37; the matched-state
+comparisons above are the honest ones.
+
+**Files changed (this task).** `tests\Feature\RateLimiting\RateLimiterIdentityKeyTest.php`,
+`tests\Feature\Review\CreateRideRouteTest.php`,
+`tests\Feature\Review\RV29UserMassAssignmentRatchetTest.php`,
+`tests\Unit\Providers\EventServiceProviderTest.php`,
+`tests\Unit\Providers\RouteServiceProviderTest.php` (trait + a short RV-37 note in each docblock),
+`tests\Feature\Review\TestDeterminismRatchetTest.php` (the ratchet); docs record.
+
+**State: PARTIAL — the order-independence half is now root-caused, fixed, ratcheted and measured at
+suite level (4 orders, name-level identical, zero residue); sec 23.6's "next lead" is CLOSED and its
+"0 classes without a trait" ruling is corrected here.** Still open, unchanged from sec 23.4:
+`Http::preventStrayRequests()` + container-level provider fakes (hermeticity half), and the CI
+double-run-with-seed (belongs to RV-18). The "no test writes a tracked file" clause was verified
+once by hand (`git status` clean of test-produced files after the 2066-test run) but has NO ratchet.
+
+**Genuinely unverified / not done.**
+1. `Http::preventStrayRequests()` was NOT enabled; no survey of legitimately-networking tests was
+   done this task (the wider half of RV-37, unchanged).
+2. The ratchet is a static-shape detector: exotic writes it does not name (a raw
+   `->getConnection()->insert(...)` without the `DB::` facade, or a service call that happens to
+   write) would slip past; the five known leak shapes are pinned, future exotic ones are not.
+3. Order-independence was measured on 4 orders (default + 3 seeds). A permutation no seed produced
+   could still leak; the leak SOURCE (committed writes outside a transaction) is what was removed,
+   and its residue is now 0 in every run measured.
+4. HEAD-vs-fixed numbers come from two trees (worktree without `storage/logs` rotation state of the
+   main tree); the matched-firebase A/B above is the same comparison under identical local-file
+   state for the one test family that reads it.
+

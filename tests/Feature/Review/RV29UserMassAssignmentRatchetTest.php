@@ -3,6 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -36,9 +37,15 @@ use Tests\TestCase;
  *      so the ratchet cannot be "passed" by deleting the feature.
  *
  * A future change that introduces `$user->update($request->all())` fails immediately.
+ *
+ * RV-37: the "still writable" proof below persists a factory user, so this class
+ * needs `RefreshDatabase`; without it that row was COMMITTED and leaked into every
+ * later count-style assertion in the suite.
  */
 class RV29UserMassAssignmentRatchetTest extends TestCase
 {
+    use RefreshDatabase;
+
     /** Privileged User columns that must never come from mass-assigned external input. */
     private const PRIVILEGED = [
         'status', 'token_version', 'is_verified_passenger', 'is_verified_driver',

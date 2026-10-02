@@ -4,6 +4,7 @@ namespace Tests\Feature\Review;
 
 use App\Models\User;
 use App\Services\JwtService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
@@ -18,10 +19,16 @@ use Tests\TestCase;
  * (`price_per_seat` has no maximum, so it can overflow the column). Reached through
  * the route, the request must be validated by `CreateRideRequest`.
  *
+ * RV-37: `driverToken()` persists a factory user, so without a database trait its
+ * rows were COMMITTED and later count-style assertions (e.g. AdminDriverServiceTest's)
+ * saw phantom rows. `RefreshDatabase` makes the fixture transactional.
+ *
  * @see RoutesIntegrityTest
  */
 class CreateRideRouteTest extends TestCase
 {
+    use RefreshDatabase;
+
     private function driverToken(): string
     {
         $driver = User::factory()->create(['is_verified_driver' => true]);
