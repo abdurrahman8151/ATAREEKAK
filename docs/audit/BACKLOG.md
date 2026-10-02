@@ -126,7 +126,7 @@ in section 6. So every number below carries both the text and the row it gates; 
 | 22 | RV-02 | No-show settlement can pay twice / mispay (L1 + L2) | P0 | PARTIAL | 2, 3 (L2) | L1 refuted by V16; L2 = AF-6/Wave 3; consumes `void` enum (RV-40) | R2 sec 16 (L1 VF), sec 26.14 item 3 (L2 0%, Wave 3 PAUSED); ba45e4b |
 | 23 | RV-03 | Staff cancel endpoints strand money, no role gate | P0 | BLOCKED | 6 | RV-02, RV-09 | R1 sec 4 RV-03; R2 sec 12 `BLOCKED - the only Wave-1 blocker` |
 | 24 | RV-34 | Shared test-support layer (both red root causes) | P1 | VERIFIED FIX | n/a | V15; T4-1 harness | R2 sec 17, sec 17.4; 5414344 - 443 -> 71 errors |
-| 25 | RV-37 | Test determinism and hermeticity | P2 | PARTIAL | none | V13, V14; RV-18 (CI order) | R2 sec 23, sec 23.5 PARTIAL, sec 23.6 correction, sec 39 VF (order half) + sec 39.1 VF (hermeticity half); cd6a49a + c45e05e + a087342. CI double-run is RV-18's; "no test writes a tracked file" still has no ratchet |
+| 25 | RV-37 | Test determinism and hermeticity | P2 | PARTIAL | none | V13, V14; RV-18 (CI order) | R2 sec 23, sec 23.5 PARTIAL, sec 23.6 correction, sec 39 VF (order half) + sec 39.1 VF (hermeticity) + sec 39.2 (tracked-file ratchet + CI double-run); cd6a49a + c45e05e + a087342. All decision-free acceptance criteria met - row status is the owner's to close |
 | 26 | RV-18 | CI signal (V6 driver leak, migration guards) | P1 | VERIFIED FIX | n/a | V6, AF-2' | R2 sec 24, sec 24.2 VF; 51b6ca7 - whole-suite red is separate debt (sec 24.1) |
 | 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 (halves 1-2 are unblocked) | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3 PARTIAL; 980741c |
 | 28 | RV-14 | Route/controller mismatches, lying endpoints | P1 | PARTIAL | un5 (the price-width half is closed) | V10, V8; RV-40 did the price width | R2 sec 21, sec 21.1, sec 21.2 PARTIAL; 1c18c07 |
@@ -438,7 +438,7 @@ acceptance conditions, not implementation instructions.
 - The privileged-`$fillable` item is **not** part of this task's remaining work: `sec 34` proved the vector is not open and
   pinned a ratchet instead (`1d68c07`), and narrowing was declined twice on owner instruction (`T4-5`).
 
-**RV-37 - test determinism and hermeticity** *(Blocked by = none; both halves CLOSED `R2 sec 39` + `sec 39.1`, CI double-run is RV-18's)*
+**RV-37 - test determinism and hermeticity** *(Blocked by = none; every decision-free criterion CLOSED `R2 sec 39` + `39.1` + `39.2`)*
 - `Http::preventStrayRequests()` is on in `TestCase::setUp` and the suite passes, after the tests that legitimately call
   a provider are given a container-level fake (`ROUTING_DRIVER=fake`, faked FCM/geocoding bindings) - acceptance is
   "no test can reach the network", not "the number of strays is small". **DONE (R2 sec 39.1): guard armed, zero strays
@@ -446,11 +446,11 @@ acceptance conditions, not implementation instructions.
   are closed by neutralising their credentials in the test bootstrap; both needle-proven.**
 - Order independence demonstrated across at least three different `--order-by=random` seeds with the seed printed in
   the CI log, plus the CI job running the suite twice; `V14`'s single seed is not proof, and the corrected count is
-  68 default failures vs 85 under the `V14` seed (`R2 sec 23.6`). **LOCAL HALF DONE (R2 sec 39): default + seeds
-  20260929/424242/777001 give a byte-identical 120-test red set with zero committed residue; the CI double-run with the
-  seed printed is RV-18's remaining wiring.**
+  68 default failures vs 85 under the `V14` seed (`R2 sec 23.6`). **DONE (R2 sec 39 + 39.2): default + seeds
+  20260929/424242/777001/758619 (4 random + default) give a byte-identical 120-test red set with zero committed
+  residue; the CI job now runs the suite twice (default + random, seed printed) in `sonar.yml`.**
 - No `putenv()` in tests (already 0 - pinned) and no test writes a tracked file; the ratchet keeps both closed.
-  **putenv: pinned. tracked-file clause: verified by hand once (clean `git status` after the 2066-test run), no ratchet - OPEN.**
+  **BOTH PINNED (R2 sec 39 tracked-file ratchet + existing putenv ratchet).**
 - The remaining order dependence is root-caused (not just reduced): the failure set under random order equals the
   default-order failure set. **DONE (R2 sec 39): the source was 5 test classes writing rows with no transactional trait
   (7 committed users per suite pass); sec 23.6's "0 classes without a trait" ruling was wrong - now measured, fixed,

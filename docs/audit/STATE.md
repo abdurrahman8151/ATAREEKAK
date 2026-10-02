@@ -12,6 +12,15 @@ with each status taken from the newest section that mentions it. The per-task lo
 - None.
 
 ## Done recently (newest first; detail is in the audit record)
+- RV-37 final clauses (tracked-file ratchet + CI double-run) - DONE (`App future audit review r2.md` sec 39.2).
+  New ratchet `no_test_writes_a_tracked_file` (word-boundary global-call scan; first draft flagged
+  `->touch()`/"untouched"/"rename" prose - corrected; needle-proven by injecting a real
+  `touch(base_path('README.md'))`). `sonar.yml` now re-runs the suite under `--order-by=random` with
+  the seed echoed, placed AFTER the Sonar scan so it cannot suppress coverage, no `|| true`. The
+  exact CI command verified locally on a 5th seed (758619 -> 52E/68F, zero residue). Every
+  decision-free RV-37 acceptance criterion is now met; row status is the owner's to close.
+
+## Done recently (newest first; detail is in the audit record)
 - RV-37 hermeticity half - VERIFIED FIX in git `a087342` (`App future audit review r2.md` sec 39.1). `Http::preventStrayRequests()`
   armed in `TestCase::setUp` (zero strays across the full suite; the facade only covers OpenRoute/Geocoding/
   ArabicPlaceName, confirmed by grep). The three Guzzle-direct seams (WhatsAppOtp, TextMeBotOtp, GoogleController)

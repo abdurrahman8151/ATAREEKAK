@@ -275,6 +275,116 @@ class TestDeterminismRatchetTest extends TestCase
         );
     }
 
+    /**
+     * Filesystem-write primitives only.
+     *
+     * Deliberately excludes Eloquent's `->delete()` / `->create()` / `->copy()` /
+     * `->move()`: those write DATABASE rows and appear in dozens of tests. A test that
+     * touches the filesystem and leaves a tracked file behind is a different failure —
+     * it dirties the working tree for the next run and can silently rewrite a fixture.
+     *
+     * Matching is done by regex (see matches_fs_write_marker), not str_contains: the
+     * first draft of this ratchet flagged five innocent files because the bare words
+     * "touch"/"rename" appear inside `->touch()`, inside "untouched" in an assertion
+     * message, and inside the word "rename" in a docblock. A word-boundary global call
+     * - the primitive followed by `(`, not preceded by `->` or `::` - is the real shape.
+     *
+     * @var list<string>
+     */
+    private const FS_WRITE_MARKERS = [
+        'file_put_contents',
+        'fwrite',
+        'fputs',
+        'fopen',
+        'touch',
+        'unlink',
+        'rmdir',
+        'mkdir',
+        'rename',
+        'copy',
+        'symlink',
+        'chmod',
+    ];
+
+    /**
+     * Files allowed to call a filesystem-write primitive, each with the reason it is
+     * safe. The bar is the same as the putenv allow-list: the write must land on a
+     * path that git does not track.
+     *
+     * @var array<string,string>
+     */
+    private const FS_WRITE_ALLOWLIST = [
+        'tests/Feature/Review/RV22OauthCredentialRedactionTest.php' => 'The subject of the test is a log file, so it must create one: the path is '
+            .'storage_path(\'logs/rv22-*.log\') — under storage/, which .gitignore excludes — '
+            .'and the test unlinks it in a finally.',
+    ];
+
+    /**
+     * RV-37 acceptance clause: "no test writes a tracked file; the ratchet keeps both
+     * closed" (BACKLOG sec 4). The putenv half has a ratchet; this is the file half.
+     *
+     * A test that wrote a tracked file would not fail loudly — it would leave a dirty
+     * working tree that the NEXT test run inherits, which is the same class of
+     * cross-run contamination this file exists to prevent.
+     *
+     * @test
+     */
+    public function no_test_writes_a_tracked_file(): void
+    {
+        $violations = [];
+        $self = strtolower(str_replace('/', '\\', __FILE__));
+
+        foreach ($this->phpFilesInTests() as $file) {
+            if (strtolower(str_replace('/', '\\', $file)) === $self) {
+                continue;
+            }
+
+            $relative = str_replace(
+                ['/', '\\'],
+                '/',
+                str_replace(base_path().DIRECTORY_SEPARATOR, '', $file)
+            );
+
+            if (array_key_exists($relative, self::FS_WRITE_ALLOWLIST)) {
+                continue;
+            }
+
+            $code = $this->stripComments((string) file_get_contents($file));
+
+            $marker = $this->first_fs_write_marker($code);
+            if ($marker !== null) {
+                $violations[] = sprintf('%s calls %s()', $relative, $marker);
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $violations,
+            'RV-37 ratchet: these test files write to the filesystem, so whatever they create '
+            .'survives the process and can dirty the working tree the next run inherits. Write '
+            .'under storage_path() / sys_get_temp_dir(), or add the file to FS_WRITE_ALLOWLIST with '
+            ."the reason the path is untracked:\n  ".implode("\n  ", $violations)
+        );
+    }
+
+    /**
+     * The first filesystem-write primitive called as a global function in $code, or
+     * null. Word-boundary global-call match so `->touch()`, `::putFile` and the words
+     * "untouched"/"rename" inside a message are not false positives.
+     */
+    private function first_fs_write_marker(string $code): ?string
+    {
+        foreach (self::FS_WRITE_MARKERS as $marker) {
+            // `(?<![\w>:$])` rejects an object/static call (->touch(), Fs::put);
+            // `\s*\(` requires it to actually be invoked.
+            if (preg_match('/(?<![\w>:$])\b'.preg_quote($marker, '/').'\s*\(/', $code)) {
+                return $marker;
+            }
+        }
+
+        return null;
+    }
+
     /** A trait on the class or any ancestor (an intermediate abstract test base counts). */
     private function declares_db_trait(string $class): bool
     {

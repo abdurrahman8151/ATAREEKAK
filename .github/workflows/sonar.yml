@@ -96,3 +96,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # RV-37 (BACKLOG sec 4: "Order independence demonstrated across at least three
+      # different --order-by=random seeds with the seed printed in the CI log, plus
+      # the CI job running the suite twice"). The run above is the DEFAULT order that
+      # produces the coverage artifact; this re-runs the same suite under a RANDOM
+      # order with the seed echoed into the log, so an order-dependence regression (a
+      # test whose result depends on what ran before it) fails the job instead of
+      # hiding behind a lucky default order. Placed AFTER the scan on purpose: a step
+      # that fails stops the ones after it, and this one must not be able to suppress
+      # the coverage upload. No `|| true` (T3-11 removed that masking pattern) and no
+      # `if: always()`, so a failure here is a real red job.
+      - name: Order-independence run (random order)
+        env:
+          XDEBUG_MODE: 'off'
+          CI_REQUIRE_MYSQL: '1'
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: 4th_year_project_test
+          DB_USERNAME: root
+          DB_PASSWORD: ''
+        run: |
+          SEED=$(date +%s)
+          echo "random-order-seed=$SEED"
+          php vendor/bin/phpunit --order-by=random --random-order-seed="$SEED" --no-coverage

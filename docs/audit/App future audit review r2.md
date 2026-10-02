@@ -3773,28 +3773,51 @@ floors ran inside that pass; no assertion was weakened.
 the CI double-run-with-seed (which belongs to RV-18) and the un-ratcheted "no test writes a
 tracked file" clause.
 
-**Genuinely unverified / not done (39.1).**
-1. The three Guzzle-direct call sites are still not *interceptable* — they are prevented from
-   egressing by having no credential under test. A code change that read a credential from a
-   non-`services.*` path (or a new Guzzle call site) would not be covered by either the guard or the
-   ratchet; the ratchet is config-key-shaped, not code-path-shaped.
-2. The provider credentials are neutralised for the suite but the owner's real `.env` values are
-   untouched, as required.
+### 39.2 The last two decision-free clauses: tracked-file ratchet + CI double-run
 
-**State (of the whole section).** Both halves of sec 23.4's first two rows are now closed; the
-order-independence and hermeticity criteria are met and needle-proven. The CI double-run remains
-open and is RV-18's.
+**"No test writes a tracked file" - now a ratchet.** `TestDeterminismRatchetTest::
+no_test_writes_a_tracked_file` scans every PHP file under `tests/` (comments stripped) for global
+filesystem-write primitives (`file_put_contents`, `fwrite`, `fopen`, `touch`, `unlink`, `mkdir`,
+`rename`, `copy`, ...). The single existing writer is allow-listed with its reason
+(`RV22OauthCredentialRedactionTest` - its subject IS a log file, written under `storage_path()`,
+which `.gitignore` excludes, and unlinked in a `finally`). The file-write shapes are matched with a
+word-boundary **global-call** regex, not `str_contains`: the first draft flagged five innocent files
+because "touch" and "rename" appear inside Eloquent's `->touch()`, the word "untouched" in an
+assertion message, and prose in a docblock. Needle: injecting a real
+`touch(base_path('README.md'))` into `RideTest.php` fails the ratchet naming that file; the file was
+restored MD5-identical.
+
+**CI double-run-with-seed.** `.github/workflows/sonar.yml` now runs the suite a second time under
+`--order-by=random` with `--random-order-seed=$(date +%s)` echoed into the log. Placement is
+deliberate: AFTER the SonarQube scan, because a failing step stops the ones after it and this gate
+must not be able to suppress the coverage upload. It carries the same process-level `DB_*` env the
+primary run uses (RV-18's mechanism) and no `|| true` (the masking pattern T3-11 removed). The
+command was exercised locally in its exact shape: seed 758619 -> 52E/68F, zero committed residue - a
+fifth distinct random order confirming order-independence (default, 20260929, 424242, 777001,
+758619).
+
+**State after 39.2: every acceptance criterion in BACKLOG sec 4 that does NOT require an owner
+decision is now met.** What remains on RV-37 is nothing executable without a ruling: the CI wiring
+lives in the same repo (done here), and the residual `V13`/`V14` narrative is historical. The row
+may be closed by the owner; this section closes the work, not the row's status field.
+
+**Genuinely unverified / not done (39.2).**
+1. The CI step is verified by local execution of its exact command and by the YAML parsing, but it
+   has not run on GitHub Actions (no push, by protocol). First CI execution will confirm it.
+2. The tracked-file ratchet is a source scanner; a write performed by an app/service under test (not
+   literal in the test file) that lands on a tracked path is not detected. The clause is a
+   best-effort ratchet, stated as such.
 
 **Genuinely unverified / not done (whole task).**
 1. ~~`Http::preventStrayRequests()` was NOT enabled~~ — CLOSED in 39.1 above.
 2. The ratchet is a static-shape detector: exotic writes it does not name (a raw
    `->getConnection()->insert(...)` without the `DB::` facade, or a service call that happens to
    write) would slip past; the five known leak shapes are pinned, future exotic ones are not.
-3. Order-independence was measured on 4 orders (default + 3 seeds). A permutation no seed produced
-   could still leak; the leak SOURCE (committed writes outside a transaction) is what was removed,
-   and its residue is now 0 in every run measured.
+3. Order-independence was measured on 5 orders (default + 4 random seeds). A permutation no seed
+   produced could still leak; the leak SOURCE (committed writes outside a transaction) is what was
+   removed, and its residue is now 0 in every run measured.
 4. HEAD-vs-fixed numbers come from two trees (worktree without `storage/logs` rotation state of the
    main tree); the matched-firebase A/B above is the same comparison under identical local-file
    state for the one test family that reads it.
-5. "No test writes a tracked file" is still only hand-verified once; it has no ratchet.
+5. "No test writes a tracked file" is ratcheted as of 39.2 (it was hand-verified only before).
 
