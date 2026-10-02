@@ -12,13 +12,13 @@ with each status taken from the newest section that mentions it. The per-task lo
 - None.
 
 ## Done recently (newest first; detail is in the audit record)
-- RV-39 seeders - VERIFIED FIX, `App future audit review r2.md` section 38 (production guard on the
-  four data-forging seeders via `RefusesProduction`; `Syrideseeder.php` -> `SyrideSeeder.php` +
-  directory-wide filename==class sweep; `TRUNCATE_TABLES` FK-closure proven against the live
-  schema; shared `App\Enums\LedgerType` with a whole-repo drift ratchet; system wallets resolved
-  from `config/admin.php`; per-wallet unique driver/passenger phones). Zero regressions: identical
-  27 red tests at HEAD and after, failure-name diff empty; the owner's uncommitted RideController
-  eager-loads, `phpunit.xml`, `.gitignore`, and `AGENTS.md` were not committed or touched.
+- RV-39 seeders - VERIFIED FIX in git `094479a`, `App future audit review r2.md` section 38
+  (production guard on the four data-forging seeders via `RefusesProduction`;
+  `Syrideseeder.php` -> `SyrideSeeder.php` + directory-wide filename==class sweep;
+  `TRUNCATE_TABLES` FK-closure proven against the live schema; shared `App\Enums\LedgerType` with
+  a whole-repo drift ratchet; system wallets resolved from `config/admin.php`; per-wallet unique
+  driver/passenger phones). Zero regressions: identical 27 red tests at HEAD and after,
+  failure-name diff empty.
 - See "App future audit review r2.md" sections 26-38 (latest status lives there, NOT in its
   index tables at section 12 and 18.4, which are stale). Newest: RV-39 seeders (38), RV-38 flag-
   off/flag-on scoped measurement (37), RV-38 `GuardsLazyLoading` arming mechanism (36), RV-38 lazy

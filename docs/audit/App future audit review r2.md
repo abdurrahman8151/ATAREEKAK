@@ -3561,8 +3561,8 @@ Seeder::__invoke -> run()`) never passes through.
 - `DriverSeeder`/`PassengerSeeder`: `WALLET_PHONE_BASE` (+2-digit suffix) replaces the shared
   `COMM_NUMBER`; distinct bases (...72 / ...73) keep both runnable in one database. Proven by
   running BOTH through the real `artisan db:seed` entry point: 20 users, 20 wallets, 20 distinct
-  phones (this flow previously crashed on wallet #2 — recorded here as measured, the old shape
-  could not complete).
+  phones. (The old collision itself is inferred from `wallets.phone_number` UNIQUE + ten identical
+  values, not re-executed: the baseline worktree run had no test that seeds these two.)
 - `tests/Feature/T3Batch/SeedCredentialsBatchTest.php`: its pinned seeder path string follows the
   rename (path only; no assertion weakened).
 
