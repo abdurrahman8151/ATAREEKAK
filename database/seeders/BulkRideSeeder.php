@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class BulkRideSeeder extends Seeder
 {
+    use RefusesProduction;
+
     // Tune these to hit the row count you want
     private const TARGET_RIDES = 500_000;
 
@@ -29,6 +31,9 @@ class BulkRideSeeder extends Seeder
 
     public function run(): void
     {
+        // RV-39: 1.5M fake rows in production = dead. Refuse before touching data.
+        $this->refuseProduction();
+
         // Pull existing driver and passenger IDs — seeded by SyrideSeeder
         $driverIds = DB::table('users')->where('is_verified_driver', true)->pluck('id')->toArray();
         $passengerIds = DB::table('users')->where('is_verified_passenger', true)->pluck('id')->toArray();

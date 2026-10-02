@@ -30,7 +30,15 @@ class PassengerSeeder extends Seeder
 {
     use ResolvesSeedCredentials;
 
-    private const COMM_NUMBER = '+963983337214';
+    // RV-39: same defect as DriverSeeder - one UNIQUE phone reused across all 10
+    // wallets made the second Wallet::create throw. This base (...73) does not
+    // overlap DriverSeeder's ...72 base, so both seeders share a database safely.
+    private const WALLET_PHONE_BASE = '+9639833373';
+
+    private function walletPhone(int $n): string
+    {
+        return self::WALLET_PHONE_BASE.str_pad((string) $n, 2, '0', STR_PAD_LEFT);
+    }
 
     private array $passengers = [
         ['suffix' => '1',  'gender' => 'M'],
@@ -91,7 +99,7 @@ class PassengerSeeder extends Seeder
             // ── 5. Create passenger wallet ──────────────────────────────────
             $wallet = Wallet::create([
                 'user_id' => $user->id,
-                'phone_number' => self::COMM_NUMBER,
+                'phone_number' => $this->walletPhone((int) $n),
                 'balance' => 50000, // 50,000 SYP starting balance for testing
             ]);
 

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\BookingStatus;
+use App\Enums\LedgerType;
 use App\Enums\RideStatus;
 use App\Enums\StaffRole;
 use App\Models\Employee;
@@ -19,7 +20,30 @@ use Illuminate\Support\Str;
 
 class SyrideSeeder extends Seeder
 {
+    use RefusesProduction;
     use ResolvesSeedCredentials;
+
+    /**
+     * RV-39: every table this seeder's data can orphan. The audit's defect was that
+     * `noshow_reports`, `refresh_tokens` and `otps` were missing from the old list, so
+     * with FK checks off they kept pointing at truncated users/bookings forever.
+     * RV39SeederHygieneTest derives the list from information_schema: any table with a
+     * FK into one of these must itself be here (employees is deliberately preserved -
+     * staff accounts are re-created by seedStaff()/SpecialAccountSeeder, not truncated).
+     */
+    public const TRUNCATE_TABLES = [
+        'user_notifications', 'notifications',
+        'noshow_reports',
+        'user_ratings',
+        'wallet_requests',
+        'push_notification_tokens',
+        'profile_comments',
+        'messages', 'conversation_participants', 'conversations',
+        'complaint_attachments', 'complaints',
+        'wallet_transactions', 'wallets', 'bookings', 'rides',
+        'score_transactions', 'user_scores', 'photos', 'profiles', 'otps',
+        'refresh_tokens', 'password_reset_tokens', 'users',
+    ];
 
     private const VERIFIED_DRIVERS = 250;
 
@@ -37,7 +61,8 @@ class SyrideSeeder extends Seeder
 
     private ?Wallet $sycashWallet = null;
 
-    private ?Employee $sycashEmployee = null;
+    /** RV-39: the Primary (platform-fee) wallet; the creation-fee credit lands here. */
+    private ?Wallet $primaryWallet = null;
 
     private string $placeholderDoc = '';
 
@@ -167,6 +192,9 @@ class SyrideSeeder extends Seeder
 
     public function run(): void
     {
+        // RV-39: this seeder truncates user/ride/wallet data. Refuse in production.
+        $this->refuseProduction();
+
         config(['database.connections.mysql.read' => config('database.connections.mysql.write')]);
         DB::purge('mysql');
         DB::reconnect('mysql');
@@ -180,7 +208,7 @@ class SyrideSeeder extends Seeder
         }
 
         $this->seedStaff();
-        $this->resolveSycashWallet();
+        $this->resolveSystemWallets();
 
         [$drivers, $passengers] = $this->seedUsers();
 
@@ -215,17 +243,10 @@ class SyrideSeeder extends Seeder
     {
         $this->command->info('Truncating tables (preserving employees)…');
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        foreach ([
-            'user_notifications', 'notifications',
-            'user_ratings',
-            'wallet_requests',
-            'push_notification_tokens',
-            'profile_comments',
-            'messages', 'conversation_participants', 'conversations',
-            'complaint_attachments', 'complaints',
-            'wallet_transactions', 'wallets', 'bookings', 'rides',
-            'score_transactions', 'user_scores', 'photos', 'profiles', 'users',
-        ] as $table) {
+        // RV-39: one list (self::TRUNCATE_TABLES); completeness is derived and pinned by
+        // RV39SeederHygieneTest. The previous inline copy silently drifted: otps,
+        // refresh_tokens and noshow_reports were missing and orphaned under FK checks off.
+        foreach (self::TRUNCATE_TABLES as $table) {
             DB::table($table)->truncate();
         }
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
@@ -291,24 +312,37 @@ class SyrideSeeder extends Seeder
     }
 
     // =========================================================================
-    // SYCASH WALLET
+    // SYSTEM WALLETS
     // =========================================================================
 
-    private function resolveSycashWallet(): void
+    /**
+     * RV-39: resolve the platform wallets the money services read them by - the phone
+     * numbers in config/admin.php - instead of conjuring a THIRD SyCash wallet on a
+     * private number (+963999000001) that no service ever reads. The audit (R2 sec 3)
+     * recorded that seeded ledger rows therefore landed outside every admin report
+     * (AdminReportService resolves SyCash + Primary by exactly these config phones) and
+     * that no Primary wallet was created at all. Delegation to SystemWalletSeeder keeps
+     * the RV-21 loud-failure semantics: if a user owns a reserved phone this seeder
+     * refuses to continue rather than double-reporting success.
+     */
+    private function resolveSystemWallets(): void
     {
-        $this->sycashEmployee = Employee::where('username', 'sycash')->firstOrFail();
+        // Same entry point the RV-21 tests use: run() directly (null-safe on $this->command).
+        (new SystemWalletSeeder)->run();
 
-        $this->sycashWallet = Wallet::firstOrCreate(
-            ['phone_number' => '+963999000001'],
-            [
-                'user_id' => null,
-                'wallet_number' => 'SYR-ESCROW-001',
-                'balance' => 0,
-                'cash_ride_debt' => 0,
-            ]
+        $this->sycashWallet = Wallet::where('phone_number', config('admin.sycash.phone'))
+            ->whereNull('user_id')
+            ->firstOrFail();
+
+        $this->primaryWallet = Wallet::where('phone_number', config('admin.system_admin.phone'))
+            ->whereNull('user_id')
+            ->firstOrFail();
+
+        // Null-safe so the method is runnable (and testable) without an Artisan command.
+        $this->command?->info(
+            '  ✓ System wallets ready (SyCash #'.$this->sycashWallet->id
+            .' + Primary #'.$this->primaryWallet->id.', resolved by config/admin.php phones)'
         );
-
-        $this->command->info('  ✓ SyCash escrow wallet ready (ID '.$this->sycashWallet->id.')');
     }
 
     // =========================================================================
@@ -682,16 +716,20 @@ class SyrideSeeder extends Seeder
             $this->walletDebit(
                 wallet: $driver->wallet->fresh(),
                 amount: $feeAmount,
-                type: 'ride_creation_fee',
+                type: LedgerType::RIDE_CREATION_FEE,
                 description: "رسوم إنشاء رحلة (5%) — رحلة #{$rideId}",
                 txId: "FEE-{$rideId}-".rand(1000, 9999),
                 ref: "ride:{$rideId}",
                 userId: $driver->id,
             );
+            // RV-39: the fee's counterpart credit goes to the PRIMARY wallet, exactly
+            // where the live cash path (CashRideFeeService) books it. It used to land on
+            // a phantom SyCash wallet (+963999000001) no service reads; putting fee money
+            // into the real SyCash would also break escrow in/out reconciliation.
             $this->walletCredit(
-                wallet: $this->sycashWallet,
+                wallet: $this->primaryWallet,
                 amount: $feeAmount,
-                type: 'ride_creation_fee_received',
+                type: LedgerType::RIDE_CREATION_FEE_RECEIVED,
                 description: "رسوم إنشاء رحلة #{$rideId} من السائق #{$driver->id}",
                 txId: "FEERCV-{$rideId}-".rand(1000, 9999),
                 ref: "ride:{$rideId}",
@@ -779,10 +817,14 @@ class SyrideSeeder extends Seeder
             $passenger->refresh();
             if ($passenger->wallet && $passenger->wallet->balance >= $totalCost) {
 
+                // RV-39: same type names the live booking path writes
+                // (WalletTransactionService::chargePassengerForBooking + release), so the
+                // admin report sums seeded money. Amount semantics are unchanged -
+                // the 95/5 split belongs to Wave 3 (RV-02 L2 / AF-6), not here.
                 $this->walletDebit(
                     wallet: $passenger->wallet->fresh(),
                     amount: $totalCost,
-                    type: 'ride_payment',
+                    type: LedgerType::RIDE_BOOKING_PAYMENT,
                     description: "دفع رحلة #{$ride['id']} (أمانة)",
                     txId: "PAY-{$bookingId}-".rand(1000, 9999),
                     ref: "booking:{$bookingId}",
@@ -791,7 +833,7 @@ class SyrideSeeder extends Seeder
                 $this->walletCredit(
                     wallet: $this->sycashWallet,
                     amount: $totalCost,
-                    type: 'escrow_hold',
+                    type: LedgerType::ESCROW_RECEIVED,
                     description: "أمانة حجز #{$bookingId}",
                     txId: "ESC-{$bookingId}-".rand(1000, 9999),
                     ref: "booking:{$bookingId}",
@@ -804,7 +846,7 @@ class SyrideSeeder extends Seeder
                         $this->walletDebit(
                             wallet: $this->sycashWallet->fresh(),
                             amount: $totalCost,
-                            type: 'escrow_release',
+                            type: LedgerType::ESCROW_RELEASE,
                             description: "إفراج أمانة حجز #{$bookingId} للسائق",
                             txId: "ESCREL-{$bookingId}-".rand(1000, 9999),
                             ref: "booking:{$bookingId}",
@@ -813,7 +855,7 @@ class SyrideSeeder extends Seeder
                         $this->walletCredit(
                             wallet: $driver->wallet->fresh(),
                             amount: $totalCost,
-                            type: 'ride_earning',
+                            type: LedgerType::RIDE_EARNING,
                             description: "أرباح رحلة #{$ride['id']}",
                             txId: "EARN-{$bookingId}-".rand(1000, 9999),
                             ref: "booking:{$bookingId}",
@@ -1202,7 +1244,7 @@ class SyrideSeeder extends Seeder
         WalletTransaction::create([
             'wallet_id' => $wallet->id,
             'user_id' => null,
-            'type' => 'admin_charge',
+            'type' => LedgerType::ADMIN_CHARGE->value,
             'amount' => $amount,
             'previous_balance' => $prev,
             'new_balance' => $new,
@@ -1216,7 +1258,7 @@ class SyrideSeeder extends Seeder
     private function walletDebit(
         Wallet $wallet,
         float $amount,
-        string $type,
+        LedgerType $type,
         string $description,
         string $txId,
         string $ref,
@@ -1235,7 +1277,7 @@ class SyrideSeeder extends Seeder
         WalletTransaction::create([
             'wallet_id' => $wallet->id,
             'user_id' => $userId,
-            'type' => $type,
+            'type' => $type->value,
             'amount' => -$amount,
             'previous_balance' => $prev,
             'new_balance' => $new,
@@ -1249,7 +1291,7 @@ class SyrideSeeder extends Seeder
     private function walletCredit(
         Wallet $wallet,
         float $amount,
-        string $type,
+        LedgerType $type,
         string $description,
         string $txId,
         string $ref,
@@ -1265,7 +1307,7 @@ class SyrideSeeder extends Seeder
         WalletTransaction::create([
             'wallet_id' => $wallet->id,
             'user_id' => $userId,
-            'type' => $type,
+            'type' => $type->value,
             'amount' => $amount,
             'previous_balance' => $prev,
             'new_balance' => $new,

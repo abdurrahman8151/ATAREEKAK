@@ -44,6 +44,7 @@ use Illuminate\Support\Str;
  */
 class UserRealFlowSeeder extends Seeder
 {
+    use RefusesProduction;
     use ResolvesSeedCredentials;
 
     private const TARGET_USER_ID = 36;
@@ -71,6 +72,9 @@ class UserRealFlowSeeder extends Seeder
 
     public function run(): void
     {
+        // RV-39: mutates a fixed real user (#36) and forges rides/bookings.
+        $this->refuseProduction();
+
         $this->rideRepo = app(RideRepository::class);
         $this->rideService = app(RideService::class);
         $this->bookingService = app(BookingService::class);

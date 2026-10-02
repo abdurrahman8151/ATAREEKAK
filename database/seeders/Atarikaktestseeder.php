@@ -27,6 +27,7 @@ use Illuminate\Support\Str;
 
 class Atarikaktestseeder extends Seeder
 {
+    use RefusesProduction;
     use ResolvesSeedCredentials;
 
     private array $cities = [
@@ -58,6 +59,9 @@ class Atarikaktestseeder extends Seeder
 
     public function run(): void
     {
+        // RV-39: forges rides/bookings and freezes Carbon::setTestNow(). Refuse in production.
+        $this->refuseProduction();
+
         config(['broadcasting.default' => 'log']);
         config(['mail.default' => 'log']);
 

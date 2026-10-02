@@ -30,7 +30,9 @@ class SeedCredentialsBatchTest extends TestCase
         return [
             'database/seeders/PassengerSeeder.php',
             'database/seeders/DriverSeeder.php',
-            'database/seeders/Syrideseeder.php',
+            // RV-39: file renamed from Syrideseeder.php so the path matches the
+            // declared class (PSR-4 autoload failed on case-sensitive Linux before).
+            'database/seeders/SyrideSeeder.php',
             'database/seeders/Atarikaktestseeder.php',
             'database/seeders/UserRealFlowSeeder.php',
             'database/seeders/ResolvesSeedCredentials.php',

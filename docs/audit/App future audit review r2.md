@@ -1,13 +1,14 @@
+> SUPERSEDED for status/next steps by docs/audit/BACKLOG.md. History only.
+
 # SyRide — Review Addendum R2
 
 Delta to `APP_FUTURE_AUDIT_REVIEW.md` (called **R1** below). Read R1 first; this file only changes or adds.
 Date: 2026-09-29. Same working rules as R1 §0 and `AGENTS.md`: one task at a time, explain → smallest fix → verify → `VERIFIED FIX` / `VERIFIED ROLLBACK`, log in `docs/audit/`, no secrets in the record. New tests go in `tests/Feature/Review/`; never edit an existing assertion just to turn it green (list it in RV-35 instead).
 
-> **Start here for "where are we": §18.** It holds the commit map (which commit produced each
-> terminal state), the consolidated open-decision list with what each one blocks, the explicit
-> next sequence, and the RV-35 handoff. §12 is the per-wave progress table, and §§9–§17 are the
-> per-task logs carrying the checks, causality evidence and regressions behind each terminal
-> state. Wave-0 verify results are in §9 (R2) and R1 §9 (V1–V10).
+> **Start here:** see docs/audit/STATE.md (and docs/audit/BACKLOG.md for every task and its status).
+> The map this block pointed at still exists below: sec 18 holds the commit map and the
+> consolidated open-decision list, sec 12 is the per-wave progress table, and sec 9-sec 17 are
+> the per-task logs. Their *status* role is superseded; their history role is not.
 
 ---
 
@@ -421,7 +422,7 @@ state lives in the numbered sections above; this table is the index.
 and previously masked by `setUp` errors — inventoried for RV-35.
 **Also awaiting the owner:** the `phpunit.xml` remote-database hazard (§17.5) — the worktree file
 points the suite at a reachable Aiven database and `RefreshDatabase` drops tables.
-**Next:** RV-35 (inventory the remaining red), then RV-37/RV-18. RV-03 still needs decision 6.
+**Next:** see docs/audit/STATE.md.
 **Awaiting the owner:** (a) RV-01 storage half — approve a staff-authenticated document
 streaming route so KYC can move off the public disk; (b) RV-04 — token unification is a
 refactor, and decision 9 (access TTL 600 → 15–60) is yours; (c) RV-08 placement;
@@ -3504,3 +3505,116 @@ enablement is an owner decision given the numbers above (section 30 still lists 
 prerequisites as owner-blocked). Nothing here changes the two verified data-integrity flags of
 section 29.2 or the `GuardsLazyLoading` mechanism of section 36, which remains correct and
 available whenever the decision is made.
+
+---
+
+## 38. RV-39 seeders (guard, rename, truncate closure, shared ledger vocabulary, wallet phones) — **VERIFIED FIX**
+
+**Original finding** (`BACKLOG.md` Order 56, this file sec 3, confirmed on disk 2026-10-03 by the
+BACKLOG reconciliation): the four state-forging seeders had no production guard
+(`db:seed --class=... --force` ran them against a live database); `Syrideseeder.php` declared
+class `SyrideSeeder` (PSR-4 autoload breaks on case-sensitive Linux without a classmap dump);
+`truncateTables()` omitted `noshow_reports` / `refresh_tokens` / `otps`, orphaning their rows under
+`FOREIGN_KEY_CHECKS=0`, and created a private SyCash wallet (+963999000001, `SYR-ESCROW-001`) that
+no service reads while creating no Primary wallet at all; the ledger rows were hand-written in a
+third vocabulary (`ride_payment`, `escrow_hold`, `ride_creation_fee_received`, ...) invisible to
+the admin reports; `DriverSeeder`/`PassengerSeeder` gave every one of their 10 wallets the same
+`COMM_NUMBER` although `wallets.phone_number` is UNIQUE (the second `Wallet::create` threw).
+
+**Root cause.** Same pattern as T1-2 (writer/reader drift) plus three single-source-of-truth
+failures: truncate list, wallet phones, and the guard seam. Seeders were never covered by AF-4f
+because that guard lives at Symfony's `execute()`, which the seeder path (`SeedCommand ->
+Seeder::__invoke -> run()`) never passes through.
+
+**Fix applied.**
+- `database/seeders/RefusesProduction.php` (new trait): `refuseProduction()` throws while
+  `app()->environment('production')`; called as the FIRST statement of `run()` in SyrideSeeder,
+  BulkRideSeeder, Atarikaktestseeder, UserRealFlowSeeder (a trait cannot wrap the framework's
+  `__invoke`; run() is the only seam every path — `db:seed`, `$this->call()`, direct `run()` —
+  shares). Deploy seeders (SpecialAccountSeeder, SystemAdminSeeder, SystemWalletSeeder) are
+  deliberately NOT guarded — they are the idempotent production-bootstrap creators, pinned both
+  ways by the new test.
+- `git mv Syrideseeder.php -> SyrideSeeder.php` (rename tracked as R in git); whole directory
+  swept by filename==declared-name + composer-psr-4-prefix test.
+- `SyrideSeeder::TRUNCATE_TABLES` (public const): adds `noshow_reports`, `otps`, `refresh_tokens`,
+  `password_reset_tokens`; completeness is not hand-maintained — the test derives the closure rule
+  from `information_schema.KEY_COLUMN_USAGE` on the migrated scratch MySQL, so a new FK into a
+  truncated table fails the suite until the list grows with it (`employees` is the deliberate,
+  pinned parent-preserved exception).
+- `app/Enums/LedgerType.php` (new, shared kernel): the live `wallet_transactions.type` vocabulary,
+  one case per value with writer annotations. SyrideSeeder's six ledger writes now pass enum cases
+  (`ride_payment -> RIDE_BOOKING_PAYMENT`, `escrow_hold -> ESCROW_RECEIVED`, the release pair to
+  `ESCROW_RELEASE`/`RIDE_EARNING` — the same names `WalletTransactionService` writes — and
+  `ride_creation_fee_received` lands on the PRIMARY wallet with `RIDE_CREATION_FEE(_RECEIVED)`,
+  mirroring where `CashRideFeeService` books fees). A ratchet test scans every
+  `WalletTransaction::create` in `app/` and the seeders (comment-stripped, paren-balanced block
+  parse, including `$var` tracing) and fails if any written value is not a `LedgerType` case.
+  Services still pass literals; converting them is AF-6's `LedgerEvent` job — the enum pins the
+  VOCABULARY, not the call style. Cases are annotated where they are migration-vocabulary-only
+  (`ride_creation_fee*`: no app writer today) or orphaned (`withdrawal`: one writer, zero readers
+  — recorded, AF-6 decides).
+- `resolveSystemWallets()` (replaces `resolveSycashWallet()`): delegates to
+  `SystemWalletSeeder::run()` (keeping the RV-21 loud-failure semantics) then resolves SyCash and
+  Primary by the `config/admin.php` phones — the exact rows `AdminReportService` sums, so a seeded
+  database reconciles on the dashboards instead of reading 0.00. Phantom literals gone; the dead
+  `sycashEmployee` property (assigned, never read) removed with it.
+- `DriverSeeder`/`PassengerSeeder`: `WALLET_PHONE_BASE` (+2-digit suffix) replaces the shared
+  `COMM_NUMBER`; distinct bases (...72 / ...73) keep both runnable in one database. Proven by
+  running BOTH through the real `artisan db:seed` entry point: 20 users, 20 wallets, 20 distinct
+  phones (this flow previously crashed on wallet #2 — recorded here as measured, the old shape
+  could not complete).
+- `tests/Feature/T3Batch/SeedCredentialsBatchTest.php`: its pinned seeder path string follows the
+  rename (path only; no assertion weakened).
+
+**Files changed.** `database/seeders/RefusesProduction.php`, `SyrideSeeder.php` (renamed from
+`Syrideseeder.php`), `BulkRideSeeder.php`, `Atarikaktestseeder.php`, `UserRealFlowSeeder.php`,
+`DriverSeeder.php`, `PassengerSeeder.php`; `app/Enums/LedgerType.php`;
+`tests/Feature/Review/RV39SeederHygieneTest.php` (new, 14 methods running as 23 tests / 130
+assertions with the guard/data-provider legs);
+`tests/Feature/T3Batch/SeedCredentialsBatchTest.php` (path string).
+
+**Tests / checks run** (all DB commands scratch-pinned, `scripts/db-ping.ps1` OK at 127.0.0.1:3399):
+- `php -l` + `pint --test` clean on every changed file; static gate of `scripts/test-related.ps1`
+  green (12 changed PHP files).
+- `scripts/test-related.ps1 -File tests/Feature/Review/RV39SeederHygieneTest.php` (adds
+  BoundaryDependencyTest by rule 3 since `app/` gained a file): **OK (23 tests, 130 assertions)**.
+  Includes both guard directions through the REAL seam (probe seeder records `'entered'` vs `'ran'`
+  so the refusal is proven at the guard, not at the framework's own `confirmToProceed` gate —
+  `--force` is passed, which is the audited bypass shape).
+- Full diff-derived scoped selection (25 files, 332 tests): `Errors: 9, Failures: 18` — and the
+  red set is the SAME 27 named tests at HEAD: a baseline worktree run of the identical selection
+  without any RV-39 change produced `Tests: 318, Errors: 9, Failures: 18` with a
+  `Compare-Object` diff of failure names showing **zero regressions and zero newly red**; the 27
+  match the pre-recorded inventory families (sec 18.5: WalletRequestControllerTest 14 = family 1
+  `wallet_id NOT NULL` schema question; RideControllerFullTest 8 = family 7; WalletTest 3 = its
+  established baseline per sec 34/37 notes; RideTest 2 = families 5/7 + fee-expectation).
+- Causality (truncate closure): a probe FK from an extra table into `users` would make test
+  `test_truncate_list...` name it — the check is derived from the live schema, not a copied list.
+
+**Final state: VERIFIED FIX.**
+
+**Genuinely unverified / not done (explicit):**
+1. The physical `truncateTables()` call is NOT executed inside the RefreshDatabase test: TRUNCATE
+   is DDL and implicitly commits, which would break test-transaction isolation (and, on a real
+   DB, the harness pin — the scratch gate is what protects that, per AGENTS.md). Proof is
+   structural (list == FK-closure over the live migrated MySQL schema) + per-table existence.
+2. No test runs the full 1,000-user `SyrideSeeder::run()` to completion (spatial SQL + minutes of
+   runtime); its internals are tested individually (guard, resolveSystemWallets, truncate list,
+   vocabulary) and the ledger vocabulary is proven by construction (enum-typed helpers).
+3. R2 sec 3's prose suggestion "make seeders drive RideService/BookingService" was NOT adopted:
+   bulk raw inserts are the point of BulkRideSeeder (500k rows), and it is not part of the
+   BACKLOG sec 4 acceptance set. The ledger rows it writes are now readable by the reports,
+   which is what the acceptance criterion asked.
+4. The case-sensitive-Linux autoload failure itself is not observable on this Windows checkout
+   (NTFS is case-insensitive); the test asserts the STORED filename byte-case via
+   `[IO.Directory]::GetFileSystemEntries` and the ReflectionClass file identity instead.
+5. `LedgerType` covers only values with a live writer/reader plus the two annotated exceptions; the
+   migration-dialect values nobody writes (`ride_booking_received`, `no_booking_refund`,
+   `full_creation_fee_refund`, `driver_self_cancellation_refund`) are NOT in the enum — deleting
+   dead vocabulary is AF-6's decision, not this task's.
+6. Incidentals this task surfaced and did NOT change: the scoped runner feeds every changed
+   `tests/*.php` file to PHPUnit, so a standalone non-TestCase fixture under `tests/` aborts the
+   whole selection (the probe is therefore declared inside the test file; `scripts/test-related.ps1`
+   itself is owner-owned staged work — untouched); a Windows file-permissions repair was applied to
+   the workspace root mid-session (recovery files under `C:\wamp64\www\.acl-recovery-4th_year`,
+   outside the repo).

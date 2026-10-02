@@ -4,42 +4,41 @@ Put this file at `docs/audit/STATE.md`. Keep it under about 80 lines, ASCII only
 If any other document disagrees with it, this file wins.
 
 Reconciled against `git log` and `git status` in a documentation-only session (no code edits,
-no tests, flag left OFF). The audit record is `docs/audit/App future audit review r2.md`.
+no tests, flag left OFF). Status authority is `docs/audit/BACKLOG.md` - every task, one table,
+with each status taken from the newest section that mentions it. The per-task logs stay in
+`docs/audit/App future audit review r2.md`. Feature plan: `docs/audit/ROADMAP.md`.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- CLEARED THIS SESSION. No repository edits were made; this block was reconciled against the
-  working tree and git. RV-38 part 3 is NOT being worked on: it is parked, flag OFF, and needs
-  an explicit decision before anything is armed.
-    - VERIFIED on disk: the `// PROBE` line and the `AppServiceProvider.php.b` backup are GONE
-      (`git grep PROBE -- app/` is empty; no `*.b` file exists in the tree).
-    - VERIFIED on disk: `app/Http/Controllers/API/RideController.php` still carries its 3
-      uncommitted eager-load edits (create, show, driverView; `git diff -stat` = 9 insertions).
-      These are owner-owned uncommitted work - do not discard them.
-    - VERIFIED on disk: the flag is OFF. `AppServiceProvider::boot()` arms only
-      `preventSilentlyDiscardingAttributes()` and `preventAccessingMissingAttributes()`;
-      `preventLazyLoading()` appears only inside a comment.
-    - Superseded: the old goal "lazy-load violations 13 -> 0" is replaced by the measured
-      numbers in R2 section 37. Option A as written does NOT reach 0.
+- None.
 
 ## Done recently (newest first; detail is in the audit record)
-- See "App future audit review r2.md" sections 26-37 (latest status lives there, NOT in its
-  index tables at section 12 and 18.4, which are stale). Newest: RV-38 flag-off/flag-on scoped
-  measurement (37), RV-38 `GuardsLazyLoading` arming mechanism (36), RV-38 lazy flag re-test
-  (35), RV-29 / T4-5 ratchet (34), RV-31 (33), RV-30 (32), RV-28 (31).
+- RV-39 seeders - VERIFIED FIX, `App future audit review r2.md` section 38 (production guard on the
+  four data-forging seeders via `RefusesProduction`; `Syrideseeder.php` -> `SyrideSeeder.php` +
+  directory-wide filename==class sweep; `TRUNCATE_TABLES` FK-closure proven against the live
+  schema; shared `App\Enums\LedgerType` with a whole-repo drift ratchet; system wallets resolved
+  from `config/admin.php`; per-wallet unique driver/passenger phones). Zero regressions: identical
+  27 red tests at HEAD and after, failure-name diff empty; the owner's uncommitted RideController
+  eager-loads, `phpunit.xml`, `.gitignore`, and `AGENTS.md` were not committed or touched.
+- See "App future audit review r2.md" sections 26-38 (latest status lives there, NOT in its
+  index tables at section 12 and 18.4, which are stale). Newest: RV-39 seeders (38), RV-38 flag-
+  off/flag-on scoped measurement (37), RV-38 `GuardsLazyLoading` arming mechanism (36), RV-38 lazy
+  flag re-test (35), RV-29 / T4-5 ratchet (34), RV-31 (33), RV-30 (32).
 - RV-32 README / docs corrections - DONE in git `e878f25` (README.md, +23/-10). Removed from Next.
 - RV-33 Ratchet additions to `BoundaryDependencyTest` - DONE in git `97792b6`
   (`tests/Feature/Review/RV33BoundaryDependencyTest.php`, +178). Removed from Next.
 
-## Next unblocked tasks (in order; verify each is still open before starting)
-1. RV-38 part 3 - arm the lazy-loading flag. Measure before arming: R2 section 37 shows option A
-   as written does NOT reach 0 (flag on: 1 error / 28 failures, 18 new; residual `[driver]` on
-   Ride x7 at EPayPaymentStrategy:53, `[wallet]` on User x3 at CashRideFeeService:79,
-   `[profile]` on User x1 at RideSearchServiceTest:330). This needs an owner decision, not more
-   code. Do NOT enable the flag as-is.
-2. RV-39 Seeders [P2] - STAYS OPEN. PENDING per R2 section 12. Check R2 sections 26.11 and later
-   first; the escrow-seeder half of RV-21 may already cover part of it.
-   Per R2 section 30, "no further decision-free work remains" within the old section 18.4 scope,
-   so items in this list must be re-confirmed as genuinely open. If none are open: stop and report.
+## Next task - one rule, no list
+
+The next task is **the first row in `docs/audit/BACKLOG.md` (section 2, the table) whose Status
+is `OPEN` and whose Blocked by is `none`, at the lowest `Order`**. `Order` is the wave order of
+`APP_FUTURE_SONNET.md` section 7 as amended by `App future audit review r2.md` section 6: Wave 0
+verify checks, then Waves 1-6, then the `AF-` plan, then the `T-` bug audit.
+
+Re-verify the row is still open before starting it. If the rule yields no row, stop and report -
+do not pick a task off a stale wave table or an old progress table. `PARTIAL` rows that carry
+decision-free remainders are named in `BACKLOG.md` section 4; this rule does not select them,
+because their Status is not `OPEN`. No answer to this rule is cached here on purpose: a written-down
+"next task" is exactly what went stale in the four audit files.
 
 ## Blocked on owner (do not guess; each needs a decision)
 - Wave 3 money/lifecycle is PAUSED (R2 section 26.14): RV-11 tier bands + ride double-count,
