@@ -12,7 +12,7 @@ with each status taken from the newest section that mentions it. The per-task lo
 - None.
 
 ## Done recently (newest first; detail is in the audit record)
-- RV-37 hermeticity half - VERIFIED FIX (`App future audit review r2.md` sec 39.1). `Http::preventStrayRequests()`
+- RV-37 hermeticity half - VERIFIED FIX in git `a087342` (`App future audit review r2.md` sec 39.1). `Http::preventStrayRequests()`
   armed in `TestCase::setUp` (zero strays across the full suite; the facade only covers OpenRoute/Geocoding/
   ArabicPlaceName, confirmed by grep). The three Guzzle-direct seams (WhatsAppOtp, TextMeBotOtp, GoogleController)
   closed by nulling their credentials in the test-owned `CreatesApplication` (the local .env carries live values for
