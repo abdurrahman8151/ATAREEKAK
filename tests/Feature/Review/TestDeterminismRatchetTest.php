@@ -108,6 +108,63 @@ class TestDeterminismRatchetTest extends TestCase
     }
 
     /**
+     * The hermeticity half of RV-37: the suite must be unable to reach the network.
+     *
+     * Two independent protections, both checked here so neither can be quietly
+     * deleted:
+     *
+     *  1. `Http::preventStrayRequests()` in `TestCase::setUp` - an outgoing request
+     *     that no `Http::fake()` stub matched throws instead of going out.
+     *  2. The Guzzle-direct call sites (WhatsApp/TextMeBot OTP, GoogleController)
+     *     are outside that guard but credential-gated, so `CreatesApplication`
+     *     nulls those keys for the whole test process. This is the assertion that
+     *     catches a developer's `.env` re-opening the hole - the owner's
+     *     `phpunit.xml` and `.env` are never-committed local files and may pin
+     *     nothing at all.
+     *
+     * @test
+     */
+    public function the_test_environment_cannot_reach_the_network(): void
+    {
+        // Strip comments first: TestCase's own docblock NAMES the method (to explain
+        // why it is there), and a naive substring check would match the prose and pass
+        // even with the call deleted - which is exactly what the first needle did.
+        $testCaseCode = $this->stripComments((string) file_get_contents(base_path('tests/TestCase.php')));
+
+        $this->assertMatchesRegularExpression(
+            '/Http::preventStrayRequests\s*\(\s*\)\s*;/',
+            $testCaseCode,
+            'tests/TestCase.php must keep Http::preventStrayRequests() - an un-faked request '
+            .'would otherwise leave the process silently'
+        );
+
+        foreach ([
+            'services.textmebot.api_key',
+            'services.callmebot.api_key',
+            'services.chatdaddy.api_key',
+            'services.google.client_id',
+            'services.google.client_secret',
+        ] as $key) {
+            $this->assertEmpty(
+                config($key),
+                "{$key} must be empty under the testing environment: its call site builds a "
+                .'Guzzle client directly, so Http::preventStrayRequests() cannot see it and a '
+                .'credential present in the developer\'s .env would let the suite egress. '
+                .'A test needing the configured branch must Config::set it for that test only.'
+            );
+        }
+
+        // The enable-flag is the same hole one level up: with it true, the controller
+        // stops returning "provider disabled" and routes the send to the provider.
+        $this->assertFalse(
+            (bool) config('services.textmebot.enabled', false),
+            'services.textmebot.enabled must be false under testing - otherwise a developer .env '
+            .'with TEXTMEBOT_ENABLED=true steers the suite down the real provider path '
+            .'(measured: TextMeOtpControllerTest\'s 400-disabled branch turned into 200).'
+        );
+    }
+
+    /**
      * Traits that make a test class's database writes rollback-able.
      *
      * @var list<class-string>

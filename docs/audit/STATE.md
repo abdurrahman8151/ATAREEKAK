@@ -12,6 +12,17 @@ with each status taken from the newest section that mentions it. The per-task lo
 - None.
 
 ## Done recently (newest first; detail is in the audit record)
+- RV-37 hermeticity half - VERIFIED FIX (`App future audit review r2.md` sec 39.1). `Http::preventStrayRequests()`
+  armed in `TestCase::setUp` (zero strays across the full suite; the facade only covers OpenRoute/Geocoding/
+  ArabicPlaceName, confirmed by grep). The three Guzzle-direct seams (WhatsAppOtp, TextMeBotOtp, GoogleController)
+  closed by nulling their credentials in the test-owned `CreatesApplication` (the local .env carries live values for
+  exactly those keys) plus `textmebot.enabled=false`; owner phpunit.xml/.env untouched. Caught one real regression
+  mid-way (TextMeOtp disabled-branch 400->200) and fixed it. Both needles (remove guard / remove neutralisation)
+  fail the ratchet and restore byte-identical; the first ratchet draft was itself needle-caught matching its own
+  docblock. Full suite 2067 tests, 52E/68F - name-identical to the pre-change baseline. Task stays PARTIAL only for
+  the CI double-run (RV-18's) and the un-ratcheted tracked-file clause.
+
+## Done recently (newest first; detail is in the audit record)
 - RV-37 (order half) - VERIFIED FIX for the order-dependence problem in git `c45e05e` (task stays
   PARTIAL: the hermeticity half is open), `App future audit review r2.md` section 39. Sec 23.6's
   "0 classes without a database trait" was wrong: 58 lack one and 5 of those write, committing 7

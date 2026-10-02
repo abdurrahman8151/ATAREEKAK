@@ -3722,16 +3722,71 @@ comparisons above are the honest ones.
 `tests\Unit\Providers\RouteServiceProviderTest.php` (trait + a short RV-37 note in each docblock),
 `tests\Feature\Review\TestDeterminismRatchetTest.php` (the ratchet); docs record.
 
-**State: PARTIAL — the order-independence half is now root-caused, fixed, ratcheted and measured at
-suite level (4 orders, name-level identical, zero residue); sec 23.6's "next lead" is CLOSED and its
-"0 classes without a trait" ruling is corrected here.** Still open, unchanged from sec 23.4:
-`Http::preventStrayRequests()` + container-level provider fakes (hermeticity half), and the CI
-double-run-with-seed (belongs to RV-18). The "no test writes a tracked file" clause was verified
-once by hand (`git status` clean of test-produced files after the 2066-test run) but has NO ratchet.
+### 39.1 Hermeticity half — `Http::preventStrayRequests()` armed, Guzzle-direct seams closed, suite unchanged
 
-**Genuinely unverified / not done.**
-1. `Http::preventStrayRequests()` was NOT enabled; no survey of legitimately-networking tests was
-   done this task (the wider half of RV-37, unchanged).
+The order half above is closed; this closes the other half of sec 23.4.
+
+**What the guard covers, measured not assumed.** `Http::preventStrayRequests()` (added to
+`TestCase::setUp`) intercepts only the `Http` **facade**. A grep of `app/` shows the facade is used
+by exactly three services — `RouteCalculationService` (OpenRoute), `GeocodingService`,
+`ArabicPlaceNameService` — while `WhatsAppOtpService`, `TextMeBotOtpService` and
+`GoogleController` construct a **Guzzle client directly** and are invisible to it. With the guard
+armed, the full suite produced **zero** stray-request failures: no test had been relying on a
+facade request escaping to the network (V13's finding — "no test calls a live provider without
+`Http::fake()`" — is confirmed at suite scale).
+
+**The hole the facade cannot see was real, and is closed where it can be.** Those three Guzzle
+paths are all credential-gated (`if (! empty($this->apiKey))`). The developer's `.env` carries
+live values for exactly those keys (`TEXTMEBOT_API_KEY`, `CHATDADDY_API_KEY`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET` — presence checked, values never printed), so any test that reached a
+configured branch could have left the process. Fix: `CreatesApplication::createApplication()`
+nulls those keys (and forces `textmebot.enabled => false`) for the whole test process, in
+test-owned code. Neither `phpunit.xml` nor `.env` is touched — both are owner-owned, never-committed
+local files that pin nothing about these keys. A test that needs a configured branch sets the key
+itself with `Config::set` for that test only (the pattern RV-22 already established).
+
+**One real regression found and fixed during this phase — recorded because the measurement caught
+it, not because it was predicted.** With the api_key nulled but `enabled` left as `.env` had it
+(`TEXTMEBOT_ENABLED=true`), `TextMeOtpControllerTest::test_send_otp_fails_when_textmebot_disabled`
+turned from 400 (the controller's "provider disabled" branch) into 200 (it fell through to the
+service, which no longer had a key to send with). The neutralisation therefore sets the enable-flag
+false as well, which is both correct for a hermetic suite and restores the branch the test asserts.
+
+**Falsifiability.**
+- Needle A: remove `Http::preventStrayRequests()` from `TestCase` → the ratchet fails naming it.
+- Needle B: remove the credential neutralisation from `CreatesApplication` → the ratchet fails with
+  the developer's `.env` key visible in `services.textmebot.api_key` (i.e. the hole demonstrably
+  existed). Both files restored MD5-identical after each needle.
+- The first version of the ratchet was itself defective and the needle caught it: it matched the
+  substring `preventStrayRequests` anywhere in `TestCase.php`, and the docblock explaining *why*
+  the guard is there satisfied that check even with the call deleted. It now strips comments and
+  matches the actual call `Http::preventStrayRequests();`. (Same class of self-defeating assertion
+  as sec 23.3's `in_array`/allow-list bug — worth remembering that a ratchet must be run with its
+  own needle before it is trusted.)
+
+**Suite-level result.** Full suite with everything in place: **2067 tests, 52 errors / 68 failures
+/ 7 skipped**, committed residue 0, zero stray failures. The 120-entry red set is **name-for-name
+identical** to the pre-change baseline (the +1 test is the new ratchet method). Money and identity
+floors ran inside that pass; no assertion was weakened.
+
+**State after 39.1: hermeticity half VERIFIED FIX.** RV-37 as a row stays PARTIAL only because of
+the CI double-run-with-seed (which belongs to RV-18) and the un-ratcheted "no test writes a
+tracked file" clause.
+
+**Genuinely unverified / not done (39.1).**
+1. The three Guzzle-direct call sites are still not *interceptable* — they are prevented from
+   egressing by having no credential under test. A code change that read a credential from a
+   non-`services.*` path (or a new Guzzle call site) would not be covered by either the guard or the
+   ratchet; the ratchet is config-key-shaped, not code-path-shaped.
+2. The provider credentials are neutralised for the suite but the owner's real `.env` values are
+   untouched, as required.
+
+**State (of the whole section).** Both halves of sec 23.4's first two rows are now closed; the
+order-independence and hermeticity criteria are met and needle-proven. The CI double-run remains
+open and is RV-18's.
+
+**Genuinely unverified / not done (whole task).**
+1. ~~`Http::preventStrayRequests()` was NOT enabled~~ — CLOSED in 39.1 above.
 2. The ratchet is a static-shape detector: exotic writes it does not name (a raw
    `->getConnection()->insert(...)` without the `DB::` facade, or a service call that happens to
    write) would slip past; the five known leak shapes are pinned, future exotic ones are not.
@@ -3741,4 +3796,5 @@ once by hand (`git status` clean of test-produced files after the 2066-test run)
 4. HEAD-vs-fixed numbers come from two trees (worktree without `storage/logs` rotation state of the
    main tree); the matched-firebase A/B above is the same comparison under identical local-file
    state for the one test family that reads it.
+5. "No test writes a tracked file" is still only hand-verified once; it has no ratchet.
 
