@@ -3458,3 +3458,49 @@ model, and nothing changed behaviourally because the flag stays off.
 `AppServiceProvider::boot()` (next to the other two flags). §35 established there are no current
 lazy-load regressions; the arming is now correct and durable. **Recorded, not flipped**, so the
 default runtime behaviour is unchanged until that explicit decision.
+## 37. RV-38 part 3 - flag-off / flag-on scoped measurement: option A as written does NOT reach 0 - MEASURED (flag OFF); enabling still refused
+
+Documentation-only entry. No code was changed and **the flag was not enabled** in this round:
+the lazy-loading strictness flag is still OFF, so runtime behaviour is unchanged from section 36.
+This records the measurement that decides whether section 36's one-line enablement is safe.
+
+**Scope.** A scoped run, not the full suite: the ride/wallet/profile areas plus the review
+ratchets. Two runs, identical selection, the only difference being whether
+`Model::preventLazyLoading()` was armed.
+
+**Results.**
+
+| Run | Tests | Errors | Failures | vs baseline |
+|---|---|---|---|---|
+| Flag OFF (scoped baseline) | 267 | 0 | 10 | - |
+| Flag ON | 267 | 1 | 28 | +1 error, +18 failures |
+
+So enabling the flag adds 1 error and 18 new failures on the same 267 tests.
+
+**Residual lazy loads actually observed with the flag ON** (the violations that survive a fix
+limited to the 3 `RideResource` render sites):
+
+- `[driver]` on `Ride` - x7 - at `EPayPaymentStrategy` line 53
+- `[wallet]` on `User` - x3 - at `CashRideFeeService` line 79
+- `[profile]` on `User` - x1 - at `RideSearchServiceTest` line 330
+
+**Conclusion: option A as written does not reach 0.** The 3 uncommitted eager-load edits in
+`RideController.php` cover the `RideResource` render path only. The residuals above sit in the
+payment strategy, the cash-fee service and a search service test - different code paths from the
+ones the 3 sites touch. Arming the flag on the strength of option A alone would therefore leave
+the strictness flag tripping on real lazy loads, i.e. it would not produce a green scoped run.
+
+**Unverified inference - recorded as an inference, NOT as a finding.**
+The statement "the 3 sites do not address these" is an **unverified inference**. It is reasoned
+from the locations named in the residual list (payment strategy, cash-fee service, search-service
+test) versus the controller render sites - a location comparison only. It was **not** verified by
+per-site causality testing: no isolation was run that re-measures each residual with the flag ON
+and the corresponding site individually patched or reverted. The residuals are measured; the claim
+that the 3 sites cannot cover them is not. Treat the inference as open until a causal per-site run
+confirms it.
+
+**Disposition.** RV-38 part 3 stays parked: flag OFF, option A not adopted as written, and the
+enablement is an owner decision given the numbers above (section 30 still lists RV-38 flag
+prerequisites as owner-blocked). Nothing here changes the two verified data-integrity flags of
+section 29.2 or the `GuardsLazyLoading` mechanism of section 36, which remains correct and
+available whenever the decision is made.
