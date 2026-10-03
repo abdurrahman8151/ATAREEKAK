@@ -1,3 +1,4 @@
+## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 # STATE - the only file that says "what is next"
 
 Put this file at `docs/audit/STATE.md`. Keep it under about 80 lines, ASCII only, no secrets.
@@ -9,18 +10,19 @@ with each status taken from the newest section that mentions it. The per-task lo
 `docs/audit/App future audit review r2.md`. Feature plan: `docs/audit/ROADMAP.md`.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- DECISION BATCH (owner 2026-10-02; full slate in `App future audit review r2.md` sec 40).
+- (empty - no task is mid-flight. The decision batch has reached its end; see below.)
+- OWNER DECISION SLATE 2026-10-02 - ALL 18 DECISIONS DISPATCHED. Branch `Agentic` only, never pushed.
   DONE + committed: decision record `77e9820`, un10 wallet fixtures `bff1d3e`, un2 score policy
   `de61c7b`, un5 delete finish/driver-confirm `1510663` (+`23457eb` near-miss record),
   un9 lazy loading + flag ARMED `00f7b9d`/`5bbadad`, decision 11 KYC action gate `0c6a1f6`,
   decision 1b staff document streaming `066b1dd` (+`b4885d8` boundary fix), decision 6 staff-cancel
   full refund `364cc0c`, un11 auth cache DTO `8732a0e`, un8 Larastan report-only `67f0113`,
   decision 7 Render deploy `2114308`, un12 k6 setup() harness `ff8e6f0`, un1 MinIO storage `3e9a304`,
-  decision 2 booking expiry `5926230` (FIRST migration-group task; verified up AND down on real data).
-  REMAINING: the last three migration/ledger tasks, each with owner standing authorisation from the
-  2026-10-02 batch ("do them all ... I wont be here to do inputs"). Branch: `Agentic` only, never pushed.
-  13 (17 DB ENUM columns -> varchar), un13 (account status + BanService), un3 (money foundation:
-  wallet kind + double-entry + thresholds). Each needs its own migration verified BOTH directions.
+  decision 2 booking expiry `5926230` (verified up AND down), decision 13 DB ENUM -> varchar `e93f3c5`
+  (18 columns, verified up AND down, fail-loud rollback), un13 account status + BanService `8b939cf`,
+  un3 money foundation `ae09981` **PARTIAL - `wallets.kind` shipped, double-entry + thresholds NOT
+  built** (measured scope in R2 sec 56: 31 ledger write sites + 27 balance mutations; half a ledger
+  rewrite is worse than none, so it is its own task).
   OPEN QUESTION for the owner (raised in sec 47, deliberately not actioned): RV-03's ROLE-GATE half -
   both staff-cancel endpoints are callable by ANY authenticated employee, so any of them can move real
   money. Tightening it is an auth change that can lock legitimate staff out, and AGENTS.md requires
