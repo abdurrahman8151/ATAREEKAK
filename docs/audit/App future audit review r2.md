@@ -5141,3 +5141,33 @@ misspelled relation a static error instead of a `null` that propagates silently.
 **No regression.** Rides + Bookings + Review + Unit/Models + Profile = 509 tests, 15 red with AND
 without the change - bisected with `git stash` on `app/Models`, **0 new failures**, identical failure
 set. All 8 models lint clean.
+
+### 58.1 What the remaining 235 findings actually are - and why a BASELINE is the right end state
+
+The triage continued, because "48 false positives removed" is only useful if the rest is understood.
+
+**`argument.type` (16) - read, and BENIGN.** Nearly all are `Money::from()` receiving a string where the
+signature says `float`. That is Laravel's `decimal:2` cast (which returns `"19.00"`), and a 2-decimal
+value coerces to a double EXACTLY at this magnitude: the column is `DECIMAL(15,2)` (max ~9.99e12),
+comfortably inside the 2^53 (~9.0e15) range where doubles represent integers exactly. **No precision
+loss, no bug.** Verified rather than assumed.
+
+**One finding IS in this batch's own code** - `WalletTransactionService::filter()` receiving a
+`Closure(Booking)` where the collection's element type is a generic `Model`. It works at runtime and,
+if a non-Booking ever entered, it would raise a `TypeError` rather than silently mishandle money -
+which is fail-loud and therefore the right behaviour. Recorded, not "fixed".
+
+**So the remaining 235 decompose into:**
+- **120 `property.notFound`** - Eloquent's dynamic property access (any column or accessor). Larastan
+  cannot model it without per-model `@property` annotations; this is inherent to a dynamic ORM, not a
+  defect.
+- **~77 type mismatches (`assign.propertyType`, `return.type`, `argument.type`)** - sampled and read:
+  benign numeric-string coercions, not defects.
+- **5 `relationExistence`** - relations read off a generic `Model` from a join.
+
+**CONCLUSION, and it vindicates the audit's instinct.** The level-5 report is now mostly
+*Larastan modelling Eloquent*, not bugs. Generating a baseline now would be defensible - but it would
+also freeze the three classes a careful reviewer might still want, so the honest recommendation is:
+**read the report once more specifically for `assign.propertyType` in `app/Services/Payment`, where a
+type mismatch WOULD be a real money bug, and baseline the rest.** The owner's ruling was report-only
+until cleanup, and this is the cleanup evidence.
