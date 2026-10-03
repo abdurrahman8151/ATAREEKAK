@@ -232,6 +232,17 @@ final class CashRideFeeService
             'reference' => "ride:{$ride->id}",
         ]);
 
+        // ── Decision un3: double-entry legs (driver → platform) ──────────────────
+        // NOTE the DEFERRED branch above posts NO legs, deliberately: it moves no money (it raises
+        // `cash_ride_debt`, and the balance row above records `amount = 0`). A 0.00 transfer is not a
+        // transfer; posting legs for it would pad the ledger with entries that say nothing moved.
+        // Debt is an obligation, and it becomes a real movement when it is later charged or cleared -
+        // which those methods record.
+        app(LedgerService::class)->postTransfer([
+            ['wallet_id' => $driverWallet->id, 'amount' => -$feeAmount, 'description' => "ride #{$ride->id}: cash creation fee"],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $feeAmount, 'description' => "ride #{$ride->id}: fee received by platform"],
+        ]);
+
         Log::info('Cash ride fee charged immediately', [
             'ride_id' => $ride->id,
             'driver_id' => $driver->id,
@@ -402,6 +413,15 @@ final class CashRideFeeService
             'reference' => "ride:{$ride->id}",
         ]);
 
+        // ── Decision un3: double-entry legs (platform → driver, partial) ────────
+        // A PARTIAL refund: only `$refundAmount` moves back to the driver; the platform keeps
+        // `$platformKeeps`. The legs cover what actually moved, not the original fee - which is why
+        // the sum is the refund and not the fee.
+        app(LedgerService::class)->postTransfer([
+            ['wallet_id' => $primaryWallet->id, 'amount' => -$refundAmount, 'description' => "ride #{$ride->id}: fee refund issued"],
+            ['wallet_id' => $driverWallet->id, 'amount' => $refundAmount, 'description' => "ride #{$ride->id}: fee refund to driver"],
+        ]);
+
         Log::info('Cash ride creation fee refunded', [
             'ride_id' => $ride->id,
             'driver_id' => $driver->id,
@@ -484,6 +504,15 @@ final class CashRideFeeService
             'transaction_id' => 'PRIMARY_'.$txId,
             'status' => 'completed',
             'reference' => "wallet:{$lockedWallet->id}",
+        ]);
+
+        // ── Decision un3: double-entry legs (driver → platform) ──────────────────
+        // This is where the DEFERRED fee from `chargeCashRideCreationFee` finally becomes a real
+        // movement: the driver topped up, so the debt is collected now. The deferred branch posted no
+        // legs because nothing moved then; this is the leg pair for that obligation being settled.
+        app(LedgerService::class)->postTransfer([
+            ['wallet_id' => $lockedWallet->id, 'amount' => -$debt, 'description' => "driver #{$driver->id}: deferred fee debt cleared"],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $debt, 'description' => "driver #{$driver->id}: deferred fee received"],
         ]);
 
         Log::info('Cash ride debt auto-cleared after top-up', [

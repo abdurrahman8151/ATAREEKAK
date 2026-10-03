@@ -5027,3 +5027,31 @@ untouched by this work.
 **Still unconverted.** `CashRideFeeService` (fee charge, fee refund, debt auto-clear),
 `AdminWalletService`, `AdminWalletRequestController`, `PassengerProfileController`. The ledger is a
 partial witness for those flows; they remain listed as the RV-21 blocker.
+
+### 57.3 CashRideFeeService converted (3/3 money methods) - **VERIFIED FIX**
+
+The last money service. `chargeCashRideCreationFee`, `refundCashRideCreationFee` and `autoClearDebt`
+now post balanced legs.
+
+**The DEFERRED branch deliberately posts NO legs, and that is the interesting decision here.** When a
+driver cannot afford the cash-creation fee it is not charged - it is added to `cash_ride_debt` and the
+balance row records `amount = 0`. No money moved, so there is nothing to post: a 0.00 transfer is not a
+transfer, and recording legs for it would pad the ledger with entries that assert nothing happened.
+Debt is an OBLIGATION; it becomes a real movement when `autoClearDebt` collects it after a top-up -
+and that is exactly where its leg pair is posted, which ties the two halves of the same obligation
+together across time.
+
+**The partial refund is recorded as what moved, not as what was originally charged.** Only
+`$refundAmount` returns to the driver; the platform keeps `$platformKeeps`. The legs sum to the refund,
+not the fee, because those are the two amounts that actually crossed.
+
+**Regression check done properly.** The `CashRideFeeServiceTest` run showed 5 failures. Rather than
+assume, I bisected with `git stash` and ran the file against the committed version: **the same 5
+fail, identically.** They are in the recorded pre-existing baseline (3 refund-tier + 2 deferred-refund
+debt tests) and are not caused by this work. An earlier bisect attempt that stripped the ledger calls
+by line range produced invalid PHP and proved nothing - it was discarded rather than reported.
+
+**Still unconverted (the remainder of RV-21).** `AdminWalletService`,
+`AdminWalletRequestController` and `PassengerProfileController` - administrative and reporting money
+movements. Every RIDE money movement now has balanced legs; wallet-creation top-ups and the
+passenger-facing wallet transaction list do not yet.
