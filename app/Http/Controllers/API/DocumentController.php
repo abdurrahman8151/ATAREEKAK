@@ -42,7 +42,33 @@ class DocumentController extends Controller
 
         $this->photoRepo->deleteDocumentsByType($user->id, $request->type);
 
-        $path = $request->file('file')->store('documents', 'public');
+        // Decision un1 (owner, 2026-10-02): which disk KYC documents land on is a deploy decision.
+        //
+        // `DOCUMENTS_DISK` defaults to `public` so that merely deploying this change cannot break
+        // document upload on a host with no object storage yet. Set it to `minio` once the bucket
+        // exists and the DOCUMENTS_S3_* / MINIO_* variables are populated; that switch also closes
+        // the remaining half of RV-01, because the documents stop being reachable at
+        // /storage/documents/... and are served only through the staff-authenticated route.
+        //
+        // NOTE the store() return value is stored verbatim in photos.path. On a private S3 disk
+        // Laravel returns "documents/xxx.jpg" (the key), NOT a disk-prefixed path - so the value
+        // already stored by the public disk keeps working unchanged when the disk is switched. That
+        // is why DOCUMENTS_PREFIX below deliberately stays empty: a prefix would break every
+        // existing row.
+        $disk = config('filesystems.documents_disk', 'public');
+
+        $path = $request->file('file')->store('documents', $disk);
+
+        if ($path === false) {
+            // Storage::put returning false with throw=false means a disk misconfiguration (bucket
+            // missing, endpoint wrong, credentials rejected). Returning 500 here beats storing
+            // nothing and reporting success, which would leave a user with a "submitted" document
+            // that does not exist.
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not store the document. Please try again.',
+            ], 500);
+        }
 
         $photo = $this->photoRepo->storeDocument($user->id, $request->type, $path);
 

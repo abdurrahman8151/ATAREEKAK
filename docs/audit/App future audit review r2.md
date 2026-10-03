@@ -4593,3 +4593,54 @@ iterations is a smaller load than you think, not a pass).
 number is claimed anywhere. The p95 threshold (800ms) is a starting proposal to be argued with, not a
 measured SLO - it is the single value most likely to need changing once real numbers exist. Ride
 detail reads only run when `K6_RIDE_IDS` is supplied, so the default run exercises search only.
+
+---
+
+## 52. un1 - MinIO object storage configured (private disk for KYC documents) - **VERIFIED FIX (enabled by deploy, not by code)**
+
+**Owner ruling (sec 40.1, Option A):** "MinIO - if it doesn't require payments and so on, free".
+This is the AF-5 storage half, and it is the item that closes the last open part of RV-01.
+
+**Measured first.** Laravel already ships an `s3` disk, and MinIO speaks the S3 API, so **no new
+package is required** - this is configuration, not a dependency. The application currently uploads
+KYC documents with `->store('documents', 'public')`, i.e. to the web-served disk that decision 1b
+removed the *application's* link to.
+
+**Delivered.**
+- `config/filesystems.php`: a `minio` disk (s3 driver, path-style addressing, `visibility private`,
+  and **deliberately no `url` key** - a disk with a public url is precisely the defect being removed).
+  Kept separate from the stock `s3` disk so staging can run MinIO while production runs a cloud
+  provider without touching application code.
+- `filesystems.documents_disk` (`DOCUMENTS_DISK`), and `DocumentController::store` now resolves the
+  disk from config.
+- `docker-compose.yml`: a `minio` service (API 9000, console 9001, loopback-only, persistent volume)
+  with the credentials required from the environment using the file's existing `${VAR:?...}`
+  hard-fail convention.
+- `.env.example` keys for the MinIO endpoint/credentials/bucket.
+
+**THE IMPORTANT DESIGN CHOICE: this cannot break a deploy.** `DOCUMENTS_DISK` defaults to `public`,
+i.e. today's behaviour. Flipping identity documents onto object storage is a **one-variable deploy
+change**, made only once the bucket exists. Had this flipped the default, every host without MinIO
+would have started failing document upload at the moment this commit deployed.
+
+**One correctness detail that would have broken the migration quietly.** `UploadedFile::store()`
+returns a **disk-prefixed** path on some disks but a bare key on S3-style ones. `photos.path` stores
+that value verbatim, so a disk switch that also introduced a prefix would silently orphan every
+document row already in the database. No prefix is introduced, and the existing rows keep resolving.
+
+**A failure case that was previously invisible is now explicit.** With `'throw' => false`, a
+misconfigured disk makes `store()` return `false` and the old code would have stored nothing and
+still returned success - a user left holding a "submitted" document that does not exist. That now
+returns a 500 with a message.
+
+**Verified.** 21 tests OK (`DocumentControllerTest` + `KycDocumentAccessTest`) with the default in
+place, so the switch is genuinely inert. Config resolves: `documents_disk=public`,
+`minio.driver=s3`, `minio.bucket=syride-private`, `minio.pathstyle=true`, `minio.has_url=false`.
+docker-compose.yml parses with the new service and volume.
+
+**Genuinely unverified.** **No MinIO instance was run and no file was uploaded to one** - Docker is
+not available in this environment, so the S3-compatible round trip, the bucket-creation step and the
+path-style requirement are all untested against a live server. `photos.path` values written while
+`DOCUMENTS_DISK=public` remain readable from a private bucket ONLY if the objects are migrated
+(`mc mirror`); this task configures the destination, it does not move existing files. That migration
+is a deploy task with its own rollback, and it is the step that actually closes RV-01.
