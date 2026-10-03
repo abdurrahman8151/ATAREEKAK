@@ -4097,3 +4097,21 @@ caused by the deletion.
 next full-suite checkpoint. If any Flutter client still calls `/finish` or `/driver-confirm` it
 will now get a 404 - which is the owner's intent, but it must be in the frontend-coordination note
 (sec 40.3) so the app team is not surprised.
+
+### 43.1 Near-miss recorded: a commit swept in owner-owned uncommitted work
+
+`un5` had to edit `app/Http/Controllers/API/RideController.php`, which is one of the owner's
+uncommitted files (two RV-38 eager-load edits, listed as owner-owned and never to be committed).
+`git commit -- <path>` takes the **working-tree** content of a path, so those two owner lines were
+committed along with the intended deletion. Caught on the commit-stat review, not by a test.
+
+**Correction applied.** The commit was amended so `RideController.php` inside it contains only the
+method deletion (rebuilt from `HEAD~1` minus the two methods, owner lines excluded), and the owner's
+two eager-load edits were restored to the working tree as uncommitted changes. Verified after the
+fact: 0 owner lines in the commit, 2 present uncommitted in the working tree, and the ride floor
+still reports the same 46 tests / 4 pre-existing failures.
+
+**Rule reinforced for the rest of this batch: a task must not touch an owner-owned uncommitted file.**
+When a task genuinely needs one, the commit has to be built from a reconstruction of HEAD rather than
+from the working tree, and the owner's edits must be put back afterwards - not discovered afterwards
+by reading `git show`.
