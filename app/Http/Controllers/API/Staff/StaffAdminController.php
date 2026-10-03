@@ -72,7 +72,10 @@ final class StaffAdminController extends Controller
                                 : null,
                             'documents' => $u->photos->map(fn ($p) => [
                                 'type' => $p->type,
-                                'url' => asset('storage/'.$p->path),
+                                // Decision 1b: KYC documents are served by the staff-authenticated
+                                // streaming route, not as a public asset() URL. The old public URL was
+                                // an IDOR: anyone holding it could download a face ID / licence.
+                                'url' => route('staff.documents.show', ['photoId' => $p->id]),
                             ])->values()->all(),
                             'submitted_at' => $u->updated_at->toIso8601String(),
                         ];

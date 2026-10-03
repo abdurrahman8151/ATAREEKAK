@@ -29,6 +29,7 @@ use App\Http\Controllers\API\Staff\StaffAdminController;
 use App\Http\Controllers\API\Staff\StaffAuthController;
 use App\Http\Controllers\API\Staff\StaffChatController;
 use App\Http\Controllers\API\Staff\StaffComplaintController;      // ← NEW
+use App\Http\Controllers\API\Staff\StaffDocumentController;      // decision 1b
 use App\Http\Controllers\API\Staff\StaffOperationsController;
 use App\Http\Controllers\API\Staff\StaffReviewController;
 use App\Http\Controllers\API\TextMeOtpController;
@@ -414,6 +415,14 @@ Route::prefix('staff')->name('staff.')->group(function () {
 
         Route::post('logout', [StaffAuthController::class, 'logout'])->name('logout');
         Route::get('me', [StaffAuthController::class, 'me'])->name('me');
+
+        // Decision 1b (owner 2026-10-02): KYC identity documents are served ONLY to
+        // authenticated staff. They used to be rendered as asset('storage/'.$path), a public URL for
+        // a face ID photo / back ID / driving licence. Both routes sit inside the `staff` gate.
+        Route::prefix('documents')->name('documents.')->group(function () {
+            Route::get('/{photoId}', [StaffDocumentController::class, 'show'])->name('show');
+            Route::get('/{photoId}/identity', [StaffDocumentController::class, 'identity'])->name('identity');
+        });
 
         Route::prefix('reviews')->name('reviews.')->group(function () {
             Route::get('/', [StaffReviewController::class, 'index'])->name('index');

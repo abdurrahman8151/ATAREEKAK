@@ -4239,3 +4239,55 @@ passenger gate -> fails; remove the driver gate -> fails.
 
 **Genuinely unverified.** None for this decision; the three halves are pinned by tests that fail when
 the behaviour is removed.
+
+---
+
+## 46. Decision 1b - staff-authenticated KYC document streaming - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1):** add a staff-authenticated route so KYC documents stop being public.
+
+**The IDOR, measured.** `DocumentController::store` uploads every document to the `public` disk
+(`$file->store('documents', 'public')`) and the staff surfaces render them as
+`asset('storage/'.$p->path)` - a PUBLIC URL to a face ID photo, a back ID photo, a driving licence
+and a mechanic card. Anyone holding the URL (it appears in API responses; storage keys are guessable)
+could download another person's identity documents with **no authentication at all**.
+
+**Delivered.**
+- `app/Http/Controllers/API/Staff/StaffDocumentController.php` (new): `show` (any KYC type) and
+  `identity` (face/back ID only), both inside the existing `staff` middleware group - the same gate
+  every other staff read uses.
+- `routes/api.php`: `GET /api/staff/documents/{photoId}` and `.../identity`, inside
+  `['staff', 'throttle:staff']`.
+- `StaffAdminController` (the verification queue) now hands out
+  `route('staff.documents.show', ['photoId' => $p->id])` instead of the public asset URL.
+- Responses are `nosniff` + `no-store` + `Content-Security-Policy: default-src 'none'; sandbox`;
+  the content type is derived from the extension, never trusted blindly.
+
+**Two real bugs my own tests caught (both fixed):**
+1. `CacheStatusHeader` middleware calls `$response->header(...)`, which does not exist on a
+   Symfony `BinaryFileResponse` - the first version of this endpoint turned every request into a 500.
+   Now it sets the header through `$response->headers->set(...)`, which works on BOTH response types.
+   (This was a latent pre-existing middleware incompatibility that only this endpoint exposed.)
+2. The first test version seeded a fixed filename; `RefreshDatabase` rolls back the database but NOT
+   the real filesystem, so a stale `documents/test-face_id.jpg` from an earlier run was served. It now
+   uses a unique name per run. (Recorded because "no test writes a tracked file" does not cover the
+   real filesystem - this class leaves files in `storage/app/public/documents/`.)
+
+**`tests/Feature/Review/KycDocumentAccessTest.php` (new, 5 tests)** pins: no token -> 401; a USER
+token -> 401 (audience separation holds); staff token -> 200 with the real bytes and the correct
+security headers; a licence is served on the general route but 404 on the identity alias; a missing
+photo is 404, not 500.
+
+**Needle: moving the two routes OUT of the `staff` middleware makes exactly the two 401-tests fail
+(routes restored byte-identical).** The security rests on the middleware, not on luck.
+
+**What this does NOT close (open, recorded honestly).** The files still physically sit on the
+**public** disk, so any previously-shared URL keeps resolving. This change stops the APPLICATION from
+handing out or accepting an unauthenticated document URL; fully revoking old links needs the
+documents moved to a private disk (plus `storage:link` scope review and, for cloud storage, an object
+ACL) - a separate deploy/storage task, and `ProfileController`'s user-facing
+`/api/profile/verify/status` still returns the user's OWN documents by public URL, which is correct
+for self-view but should move to the same route when the private-disk move happens.
+
+**Genuinely unverified.** No test exercises a real uploaded binary through the route end-to-end (the
+fixtures write text bytes); the auth boundaries, routing, headers and 404 semantics are covered.
