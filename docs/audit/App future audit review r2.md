@@ -4199,3 +4199,43 @@ assertion). No test changed state.
 
 **State: VERIFIED FIX (un9). The owner asked for performance and quality "even if that means more
 work"; the work is done, measured, and the guard is on.**
+
+---
+
+## 45. Decision 11 - KYC gates the ACTIONS, not the account - **VERIFIED FIX (the behaviour already existed; this task PINS it)**
+
+**Owner ruling (sec 40.1):** "the user can still search and everything even if he is not verified but he
+cant make or book rides."
+
+**Measured before writing anything: BOTH halves were already true in the code.**
+- Ride creation: `RideService::createRide` -> `RideValidationService::validateDriverCanCreateRide`,
+  which refuses `is_verified_driver = false`, a missing profile, and missing required documents.
+- Booking: `BookingService::bookRide` -> `validatePassengerCanBook`, which refuses
+  `is_verified_passenger = false` (the live refusal message is "You must be verified as a passenger
+  to book rides").
+- Browsing: `routes/api.php` puts search / autocomplete / route-options behind auth + throttle only,
+  with **no** verification check - so a logged-in but unverified user can search freely.
+
+So this decision required **no behaviour change**; the deliverable is the PIN, because nothing
+asserted either half and the "browse freely" half is exactly what someone could break by adding a
+verification check to search (the opposite of what the owner asked for).
+
+**`tests/Feature/Review/KycActionGateTest.php` (new, 3 tests)** proves all three:
+1. an unverified user CAN search and get results;
+2. an unverified user CANNOT create a ride - 422 whose message names verification;
+3. an unverified user CANNOT book a ride - 422 whose message names verification.
+
+**Two of my own mistakes caught before commit, both by needles:**
+- The first draft asserted `assertContains($status, [401,403,422])` and sent `from_*`/`to_*` fields.
+  The create request 422'd on a missing `pickup_lat` - a VALIDATION failure - so the test passed for
+  the wrong reason, and the needle that removed the passenger gate still passed. Fixed to use the
+  real `CreateRideDTO` field names and to assert the message names verification. (A test that passes
+  when the thing it guards is removed is worse than no test.)
+- The login response shape is `tokens.access_token` (taken from the repo's own `RideTest::getToken`),
+  not `token`/`access_token`.
+
+**Needles, all three biting, all restoring byte-identical:** gate search -> fails; remove the
+passenger gate -> fails; remove the driver gate -> fails.
+
+**Genuinely unverified.** None for this decision; the three halves are pinned by tests that fail when
+the behaviour is removed.
