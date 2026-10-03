@@ -184,4 +184,66 @@ class DoubleEntryLedgerTest extends TestCase
     {
         return Wallet::where('phone_number', config('admin.sycash.phone'))->firstOrFail();
     }
+
+    /**
+     * The 95/5 settlement split - the transfer that most needed a ledger, because it is THREE
+     * parties moving as ONE event: SyCash gives, the driver receives 95%, the platform 5%.
+     *
+     * This is also where arithmetic drift would hide: if the shares ever stopped summing to
+     * `$total`, a single-sided ledger would record a perfectly plausible-looking payout while
+     * creating or destroying money. `postTransfer` refuses instead.
+     *
+     * @test
+     */
+    public function the_95_5_settlement_writes_three_legs_that_balance(): void
+    {
+        $ride = RideBuilder::forUserId($this->driver->id)
+            ->withAttributes([
+                'pickup_address' => 'Damascus', 'destination_address' => 'Aleppo',
+                'available_seats' => 4, 'price_per_seat' => 10_000,
+                'payment_method' => 'e-pay', 'booking_type' => 'direct',
+                'status' => 'active', 'communication_number' => '0911000000',
+            ])
+            ->departureTime(now()->subHour())
+            ->create();
+
+        $booking = Booking::create([
+            'user_id' => $this->passenger->id, 'ride_id' => $ride->id,
+            'seats' => 2, 'status' => 'confirmed',
+            'communication_number' => '0912345678',
+            'unit_price' => 10_000, 'amount_paid' => 20_000, 'payment_method' => 'e-pay',
+        ]);
+
+        // Fund escrow as the charge would have.
+        $this->service->chargePassengerForBooking($booking, $ride, $this->passenger);
+        LedgerEntry::query()->delete();   // isolate: measure the settlement's own legs
+
+        // The driver needs a wallet to receive into; the factory does not create one.
+        $driverWallet = Wallet::create([
+            'user_id' => $this->driver->id,
+            'phone_number' => '095'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.substr(bin2hex(random_bytes(5)), 0, 12),
+            'balance' => 0,
+        ]);
+        $this->driver->update(['wallet_id' => $driverWallet->id]);
+
+        $this->service->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
+
+        $legs = LedgerEntry::orderBy('id')->get();
+        $this->assertCount(3, $legs, 'the 95/5 split is one transfer with three legs');
+        $this->assertSame(0.0, round((float) $legs->sum('amount'), 2),
+            'THE INVARIANT: escrow out must equal driver + platform shares exactly');
+
+        $driverLeg = $legs->firstWhere('wallet_id', $driverWallet->id);
+        $platformLeg = $legs->firstWhere('wallet_id', Wallet::where('phone_number', config('admin.system_admin.phone'))->value('id'));
+        $escrowLeg = $legs->firstWhere('wallet_id', $this->syCashWallet()->id);
+
+        $this->assertNotNull($driverLeg);
+        $this->assertNotNull($platformLeg);
+        $this->assertNotNull($escrowLeg);
+
+        $this->assertSame(-20_000.0, (float) $escrowLeg->amount, 'the whole escrow leaves SyCash');
+        $this->assertSame(19_000.0, (float) $driverLeg->amount, '95% of 20,000');
+        $this->assertSame(1_000.0, (float) $platformLeg->amount, '5% of 20,000');
+    }
 }

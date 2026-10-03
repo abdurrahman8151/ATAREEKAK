@@ -274,6 +274,32 @@ class WalletTransactionService
             'reference' => "ride:{$ride->id}",
         ]);
 
+        // ── Decision un3: double-entry legs for the 95/5 split ─────────────────
+        // THIS is the transfer that most needed a ledger. One wallet gives, TWO receive: the split
+        // is not two independent events, it is one event with two outcomes, and the single-sided rows
+        // above cannot state that. A `from`/`to` pair of columns could not express it either, which
+        // is why the ledger is N legs per transfer.
+        //
+        // The sum is checked by `postTransfer`, so if the 95/5 arithmetic ever drifts from `$total`
+        // the transfer is REFUSED rather than silently creating or destroying money.
+        $this->ledger->postTransfer([
+            [
+                'wallet_id' => $syCashWallet->id,
+                'amount' => -$total,
+                'description' => "ride #{$ride->id}: escrow released",
+            ],
+            [
+                'wallet_id' => $driverWallet->id,
+                'amount' => $driverShare,
+                'description' => "ride #{$ride->id}: driver share 95%",
+            ],
+            [
+                'wallet_id' => $primaryWallet->id,
+                'amount' => $primaryShare,
+                'description' => "ride #{$ride->id}: platform fee 5%",
+            ],
+        ]);
+
         Log::info('Ride earnings released', [
             'ride_id' => $ride->id,
             'driver_share' => $driverShare,
@@ -350,6 +376,31 @@ class WalletTransactionService
                 'passenger_id' => $booking->user_id,
                 'amount' => $refundAmount,
             ]);
+        }
+
+        // ── Decision un3: double-entry legs for the whole refund ───────────────
+        // One transfer, N+1 legs - NOT one transfer per passenger. `postTransfer` checks the fan-out
+        // sums to zero, so the refunds can never exceed what SyCash actually gave.
+        //
+        // The AMOUNTS here still come from `seats * ride.price_per_seat` (decision 3's territory,
+        // owner-flagged "reconsider") - this records what the code actually did, it does not change
+        // what that is. Changing the refund amount and recording it are separate decisions.
+        if ($bookings->isNotEmpty()) {
+            $legs = [[
+                'wallet_id' => $syCashWallet->id,
+                'amount' => -$totalRefund,
+                'description' => "ride #{$ride->id}: driver cancellation refund out",
+            ]];
+
+            foreach ($bookings as $booking) {
+                $legs[] = [
+                    'wallet_id' => $this->lockWalletByUserId($booking->user_id)->id,
+                    'amount' => (float) $booking->seats * (float) $ride->price_per_seat,
+                    'description' => "ride #{$ride->id}: refund to booking #{$booking->id}",
+                ];
+            }
+
+            $this->ledger->postTransfer($legs);
         }
     }
 
@@ -467,6 +518,29 @@ class WalletTransactionService
                 'amount' => $refundAmount,
                 'source' => 'booking.amount_paid snapshot',
             ]);
+        }
+
+        // ── Decision un3: double-entry legs for the whole refund ───────────────
+        // N passengers, so N+1 legs: SyCash gives once, each passenger receives. The sum is checked,
+        // so the fan-out can never refund more (or less) than SyCash actually gave. Note the legs
+        // are posted ONCE after the loop, not per passenger - a refund to five people is ONE
+        // transfer with six legs, not five transfers.
+        if ($refundable->isNotEmpty()) {
+            $legs = [[
+                'wallet_id' => $syCashWallet->id,
+                'amount' => -$totalRefund,
+                'description' => "ride #{$ride->id}: staff cancellation refund out",
+            ]];
+
+            foreach ($refundable as $booking) {
+                $legs[] = [
+                    'wallet_id' => $this->lockWalletByUserId($booking->user_id)->id,
+                    'amount' => (float) $booking->amount_paid,
+                    'description' => "ride #{$ride->id}: refund to booking #{$booking->id}",
+                ];
+            }
+
+            $this->ledger->postTransfer($legs);
         }
 
         return [

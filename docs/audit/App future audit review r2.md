@@ -4957,3 +4957,42 @@ remaining RV-21 blocker.
 returns a fraction of real movements and must not be read as "the ledger says no money moved". The
 `ledger_entries` table is not yet reconciled against `wallet_transactions`, so there is no job proving
 the two agree across all history.
+
+### 57.1 Double-entry extended: the 95/5 settlement split + both refund fan-outs - **VERIFIED FIX**
+
+Section 57 landed the ledger and converted ONE path. This adds the three that matter most, chosen
+because they are the ones a single-sided ledger gets wrong least visibly.
+
+**`releaseEarningsToDriver` — the 95/5 split (the case the ledger exists for).** SyCash gives, the
+driver receives 95%, the platform 5%: ONE event with TWO outcomes. The three single-sided rows above
+it cannot state that they belong together, and a `from`/`to` pair of columns could not express it at
+all - which is exactly why the ledger is N legs per transfer. It is also where arithmetic drift would
+hide: if the shares ever stopped summing to `$total`, a single-sided ledger records a
+plausible-looking payout while creating or destroying money. `postTransfer` refuses instead.
+
+**`refundPassengersForDriverCancellation` and `refundPassengersForStaffCancellation` — the fan-outs.**
+SyCash gives once, N passengers receive. Posted as ONE transfer with N+1 legs, NOT one transfer per
+passenger: a refund to five people is a single event with six legs. The sum check is what makes the
+fan-out safe, because it proves the refunds can never exceed what SyCash actually gave.
+
+**Deliberately unchanged: the REFUND AMOUNT.** `refundPassengersForDriverCancellation` still derives
+from `seats * ride.price_per_seat`, not the RV-40 `amount_paid` snapshot. That is decision 3's
+territory (cancellation money policy, owner-flagged "reconsider"). Recording what the code actually
+did is not the same as deciding what it should have done, and the two are separate decisions.
+
+**`tests/Feature/Review/DoubleEntryLedgerTest.php` (6 tests now).** The new one asserts the 95/5 split
+writes exactly three legs summing to zero, with the escrow leaving SyCash at -20,000, the driver at
+19,000 and the platform at 1,000 - so the split is pinned numerically, not just structurally.
+
+**Two fixture mistakes I made and fixed while writing it:** a `forceFill(['id' => null])` to "reset"
+a wallet (which is nonsense - the column is a non-null primary key), and passing a support Collection
+where the service is typed for an Eloquent Collection. Both caught by running the test.
+
+**No regression.** Money floor (Payment, Wallet, RV40 backfill + snapshot, staff-cancel refund,
+ledger tests) = 80 tests, only the 3 long-recorded OTP `WalletTest` failures.
+
+**Still unconverted (recorded, not hidden):** `processTimeBasedCancellation`,
+`processPassengerNoShow`, `processDriverNoShowRefund`, `releaseEscrowToDriver`, and everything in
+`CashRideFeeService` (fee charge, fee refund, debt auto-clear) plus `AdminWalletService`,
+`AdminWalletRequestController` and `PassengerProfileController`. The ledger is still a PARTIAL witness
+for those flows until each posts legs and each is checked against what the balances did.
