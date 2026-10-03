@@ -5055,3 +5055,34 @@ by line range produced invalid PHP and proved nothing - it was discarded rather 
 `AdminWalletRequestController` and `PassengerProfileController` - administrative and reporting money
 movements. Every RIDE money movement now has balanced legs; wallet-creation top-ups and the
 passenger-facing wallet transaction list do not yet.
+
+### 57.4 The ledger is now PROVEN to explain the balances, not merely to balance
+
+**The gap this closes, stated plainly.** `LedgerService::postTransfer` checks that a transfer's legs
+sum to zero. That is necessary but NOT sufficient. A transfer could post beautiful, balanced legs
+describing a completely different amount from the one the balances actually moved, and nothing would
+notice - because the sum is zero either way. The ledger would be a confident lie.
+
+**Balances are the thing customers hold. The ledger is the explanation.** If they ever disagree, the
+explanation is worthless, so that agreement is the property worth having.
+
+**The new test walks a FULL ride lifecycle** - the escrow charge and then the 95/5 settlement - and
+for every wallet touched asserts that the ledger legs **exactly equal the balance change**. Not
+approximately: exactly. It also asserts the whole system conserves (all legs sum to zero across every
+wallet). So "the ledger explains the money" is now a verified property rather than an intention.
+
+**Needle:** making the legs describe a different amount than the balance moved (the passenger debit
+scaled by 0.9, so the legs still balance against a *consistent* SyCash leg) fails the test. This is
+precisely the failure mode the previous tests could not see - the transfer remains perfectly balanced,
+and the ledger still lies. Restored byte-identically.
+
+**Money floor:** 94 tests, 8 failures, all in the recorded pre-existing baseline (5
+`CashRideFeeServiceTest` + 3 OTP `WalletTest`).
+
+**The design question is now EVIDENCED, not assumed.** All three unconverted sites were read:
+`AdminWalletService::chargeWallet` (admin credit, no debit anywhere),
+`AdminWalletRequestController` (top-up or **withdrawal** processed by admin - money leaving to
+outside), and `PassengerProfileController::chargeWallet` (admin credit). Every one is an EXTERNAL
+inflow/outflow with no internal counterparty. Posting a synthetic leg to force each to balance would
+corrupt what the ledger represents, so they stay unconverted pending the owner's answer on whether
+this ledger models external flows at all.

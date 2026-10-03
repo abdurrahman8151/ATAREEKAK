@@ -246,4 +246,73 @@ class DoubleEntryLedgerTest extends TestCase
         $this->assertSame(19_000.0, (float) $driverLeg->amount, '95% of 20,000');
         $this->assertSame(1_000.0, (float) $platformLeg->amount, '5% of 20,000');
     }
+
+    /**
+     * THE INVARIANT THAT MAKES THE LEDGER TRUSTWORTHY, not merely balanced.
+     *
+     * `postTransfer` checks that a transfer's own legs sum to zero. That is necessary but NOT
+     * sufficient: a transfer could post beautiful, balanced legs that describe a completely
+     * different amount from the one the balances actually moved, and nothing would notice. Balances
+     * are the thing customers hold; the ledger is the explanation. If they ever disagree, the ledger
+     * is a confident lie.
+     *
+     * So this walks a full ride lifecycle - charge, then settle - and asserts that for every wallet
+     * touched, the ledger legs exactly equal the balance change. It is the check that makes "the
+     * ledger explains the money" a verified property rather than an intention.
+     *
+     * @test
+     */
+    public function the_ledger_agrees_with_the_balances_across_a_full_ride(): void
+    {
+        $ride = RideBuilder::forUserId($this->driver->id)
+            ->withAttributes([
+                'pickup_address' => 'Damascus', 'destination_address' => 'Aleppo',
+                'available_seats' => 4, 'price_per_seat' => 10_000,
+                'payment_method' => 'e-pay', 'booking_type' => 'direct',
+                'status' => 'active', 'communication_number' => '0911000000',
+            ])
+            ->departureTime(now()->addHours(3))
+            ->create();
+
+        $booking = Booking::create([
+            'user_id' => $this->passenger->id, 'ride_id' => $ride->id,
+            'seats' => 2, 'status' => 'confirmed', 'communication_number' => '0912345678',
+            'unit_price' => 10_000, 'amount_paid' => 0, 'payment_method' => 'e-pay',
+        ]);
+
+        $driverWallet = Wallet::create([
+            'user_id' => $this->driver->id, 'phone_number' => '095'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.substr(bin2hex(random_bytes(5)), 0, 12), 'balance' => 0,
+        ]);
+        $this->driver->update(['wallet_id' => $driverWallet->id]);
+
+        $syCash = $this->syCashWallet();
+        $primary = Wallet::where('phone_number', config('admin.system_admin.phone'))->firstOrFail();
+
+        $watched = [
+            $this->passengerWallet->id, $syCash->id, $driverWallet->id, $primary->id,
+        ];
+        $before = [];
+        foreach ($watched as $id) {
+            $before[$id] = (float) Wallet::where('id', $id)->value('balance');
+        }
+
+        // Two real movements: the escrow charge, then the 95/5 settlement.
+        $this->service->chargePassengerForBooking($booking, $ride, $this->passenger);
+        $this->service->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
+
+        foreach ($watched as $id) {
+            $ledgerTotal = round((float) LedgerEntry::where('wallet_id', $id)->sum('amount'), 2);
+            $balanceDelta = round((float) Wallet::where('id', $id)->value('balance') - $before[$id], 2);
+
+            $this->assertSame(
+                $balanceDelta,
+                $ledgerTotal,
+                "wallet #{$id}: the ledger must EXACTLY explain the balance change, not merely balance"
+            );
+        }
+
+        // And the whole system conserves: across every wallet, legs sum to zero.
+        $this->assertSame(0.0, round((float) LedgerEntry::sum('amount'), 2));
+    }
 }
