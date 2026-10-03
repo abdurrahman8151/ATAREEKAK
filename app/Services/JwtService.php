@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\DTOs\Auth\CachedUser;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Carbon\Carbon;
@@ -202,10 +203,22 @@ class JwtService
      *
      * TTL: 5 minutes. Matches the access token TTL so a logged-out
      * user's cache entry expires around the same time their token does.
+     *
+     * ── Decision un11 (owner, 2026-10-02): WHAT IS CACHED ────────────────────
+     * A `CachedUser` DTO, NOT the User model. `Cache::remember` serialises whatever it is given,
+     * so caching the model wrote every user's bcrypt `password` hash into Redis in plain
+     * serialized form on every miss. No code reads `$request->user()->password` (every Hash::check
+     * in the app uses a freshly-queried model or the separate Employee model), so the credential is
+     * pure exposure. The DTO carries everything the app actually reads and drops `password`; the
+     * model is rebuilt from it on read. See app/DTOs/Auth/CachedUser.php for the full rationale.
+     *
+     * The return type is still `?User` so every existing caller (middleware, controllers, tests) is
+     * unaffected — the change is entirely inside this method.
      */
     public function findUserCached(int $userId): ?User
     {
-        return Cache::remember(
+        /** @var CachedUser|null $dto */
+        $dto = Cache::remember(
             "auth.user.{$userId}",
             300, // 5 minutes
             // RV-28 (primary-only read): on a cache MISS we rehydrate the user from the
@@ -214,8 +227,12 @@ class JwtService
             // this miss path would cache a STALE user for the full 5 minutes — and every
             // subsequent request would use it. Force the primary on the miss path so a busted
             // cache always rehydrates from authoritative data.
-            fn () => User::with('profile')->useWritePdo()->find($userId)
+            fn () => CachedUser::fromOptionalModel(
+                User::with('profile')->useWritePdo()->find($userId)
+            )
         );
+
+        return $dto?->toUser();
     }
 
     // =========================================================================

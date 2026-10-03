@@ -4356,3 +4356,64 @@ the structural line-removal needle then proved it bites.)
   is raised here rather than done unilaterally.
 - `refundPassengersForDriverCancellation()` still derives from the mutable price. That is decision 3
   (owner-flagged "reconsider"), explicitly out of scope here.
+
+---
+
+## 48. un11 (RV-29 cache DTO) - the auth cache no longer stores password hashes - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1, Option A):** "full refactor" - cache a safe DTO (no password hash) AND fix the
+auto-lift hazard. Rationale: "I want performance/quality good". This is the item R2 sec 30 recorded as
+"the safe fix is a cache DTO touching auth core, blocked by the `JwtAuthMiddleware` auto-lift
+`update()` data-loss hazard -> owner call on the auth-core refactor".
+
+**THE FINDING.** `JwtService::findUserCached()` cached the whole `User` Eloquent model:
+`Cache::remember("auth.user.{$userId}", 300, fn () => User::with('profile')->...->find($userId))`.
+`Cache::remember` SERIALISES whatever it is handed, so every user's bcrypt `password` hash was written
+into the cache backend (Redis) in plain serialized form on every miss, for the 5-minute TTL. A bcrypt
+hash is a credential: anything able to read the cache - a compromised Redis, a snapshot, a dump, a
+`KEYS` on a shared instance - has password hashes for offline cracking.
+
+**THE GATE THAT HAD TO BE CLEARED FIRST.** Sec 30 said the fix was blocked because "the full
+`$request->user()->password` consumer set cannot be bounded from here". **It bounds.** Every `->password`
+hit in `app/` (8 total): 5 are the separate `Employee` model; 1 is `$request->password` (an input, not
+a model); `LoginController:55` and `ResetPasswordController:82` both operate on a FRESHLY queried User
+(`User::where('email',...)->first()`), never the cached one. **Zero consumers read the password off the
+request user.** That is why the fix is safe - established by measurement, not assumption.
+
+**FIX.**
+- `app/DTOs/Auth/CachedUser.php` (new): caches `getAttributes()` **minus `password`**, plus the
+  `profile` relation. `toUser()` rebuilds the model with `forceFill`/`setRawAttributes`, and marks
+  `profile` explicitly loaded (or loaded-and-null) so no read lazy-loads - which matters now that the
+  lazy-loading guard is armed.
+- `JwtService::findUserCached()` caches the DTO and rebuilds the `User`. **The signature is still
+  `?User`**, so every existing caller is untouched; the change is contained inside one method.
+- `JwtAuthMiddleware`: the auto-lift no longer calls `update()` on the cache-derived `$user`. It
+  re-reads the authoritative row with `User::useWritePdo()->find()` and writes to THAT. This is the
+  recorded data-loss hazard closed by construction: a cache-shaped partial model can never be the
+  thing that persists. `useWritePdo` also avoids re-reading a lagging replica and writing the ban
+  fields back over the lift.
+
+**A behaviour trap avoided.** The first draft used `findOrFail()`, which would have turned the
+middleware's clean 401 USER_NOT_FOUND into a 500. `fromOptionalModel()` preserves the null path, and a
+test pins it.
+
+**`tests/Feature/Review/AuthCacheDtoTest.php` (new, 5 tests):** the raw cache payload contains no
+hash and no `password` KEY at all; the DTO still carries every field the app reads off
+`$request->user()`; the rebuilt model serves identity/status/token_version/verification flags and a
+pre-loaded `profile`; a deleted user still resolves to null (401, not 500); a profileless user reads
+null without a lazy load.
+
+**Needle: restoring the vulnerable `fn () => User::with('profile')->find($userId)` makes the payload
+test fail** (3 errors, including the "VULNERABILITY" assertion) and the service restores
+byte-identically. The pin detects the original defect, not just its absence.
+
+**No regression.** Identity floor (`tests/Feature/Auth`, `tests/Unit/Middleware`,
+`tests/Feature/Security` + the two auth review tests) = **164 tests, 2 failures, both in the recorded
+pre-existing baseline** (`test_using_refresh_token_as_access_token_returns_401`,
+`test_staff_refresh_token_rejected_with_token_type_invalid`, both present in the full-suite red list
+before this task). `BoundaryDependencyTest` still green - no baseline moved.
+
+**Genuinely unverified.** The cache backend in CI/tests is array/file, not a real Redis, so the test
+proves the SERIALIZED PAYLOAD is credential-free (which is the property that matters - it is what any
+backend would persist), not Redis' own behaviour. A pre-existing Redis already holding hashes from
+before this commit keeps them until its TTL expires; a production flush is a deploy step.

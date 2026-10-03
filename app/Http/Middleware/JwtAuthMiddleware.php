@@ -69,15 +69,29 @@ class JwtAuthMiddleware
                 && $user->ban_expires_at !== null
                 && now()->gt($user->ban_expires_at)
             ) {
-                // Ban expired — restore to logged-out, user must log in again
-                $user->update([
-                    'status' => 0,
-                    'ban_reason' => null,
-                    'ban_type' => null,
-                    'banned_at' => null,
-                    'ban_expires_at' => null,
-                    'banned_by' => null,
-                ]);
+                // Ban expired — restore to logged-out, user must log in again.
+                //
+                // Decision un11: this used to call `update()` on `$user` itself — the instance
+                // rebuilt from the auth cache. That was the data-loss hazard recorded in R2 sec 30:
+                // the cached model is a partial reconstruction, and an Eloquent `update()` on a
+                // model whose attributes are not the full column set writes back what it holds,
+                // not what the DB holds. Re-read the authoritative row from the primary and write
+                // to THAT, so a cache-shaped model can never be the thing that persists.
+                // `useWritePdo` for the same reason as the cache-miss path (RV-28): after a ban
+                // write the replica may lag, and re-reading a stale replica row here would write
+                // the ban fields back over the lift.
+                $fresh = User::useWritePdo()->find($user->id);
+
+                if ($fresh !== null) {
+                    $fresh->update([
+                        'status' => 0,
+                        'ban_reason' => null,
+                        'ban_type' => null,
+                        'banned_at' => null,
+                        'ban_expires_at' => null,
+                        'banned_by' => null,
+                    ]);
+                }
 
                 // Bust the cache — the cached object still has status=-1.
                 // Without this, the user stays "banned" for up to 5 minutes
