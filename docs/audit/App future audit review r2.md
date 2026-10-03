@@ -4534,3 +4534,62 @@ confirmed against the branch the app is actually released from; if releases happ
 `Agentic`, every service in this file needs that branch changed (4 occurrences). Render's plan/plan-tier
 fields are not set (they must be chosen in the dashboard). The VPS workflow has not been executed
 either, now or before.
+
+---
+
+## 51. un12 - k6 setup() harness + a 3-run perf spec - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1, Option A):** "proper `setup()` harness", rationale "trustworthy perf
+numbers". Audit item RV-17: *"k6 harness needs setup()-login + seeded rides/bookings (hard-coded
+expired tokens today...) plus R1's constant-arrival-rate / 3x-run / threshold / result-JSON reporting
+spec"*.
+
+**Measured first.** 11 of 12 existing specs already HAVE a `setup()` - that was never the problem.
+RV-07 had already removed the ~500 committed bearer tokens and moved them to
+`K6_PASSENGER_TOKENS`/`K6_DRIVER_TOKENS` env vars, and the folder's own README explains why: *"they
+expired silently (the ones in git had been dead since 2026-08-14 while the load tests kept 'passing'
+- the search slice was 422-ing the whole time)"*.
+
+**THE REAL DEFECT is that an env-var token is the same failure in new clothing.** It is a snapshot
+minted by a human and pasted into a shell; it rots the same way. So the harness now LOGS IN.
+
+**Delivered.**
+- `k6-load/harness.js` - `authSetup()` authenticates through the REAL API
+  (`POST /api/auth/login` -> `tokens.access_token`) inside `setup()` and returns the tokens to every
+  VU, so login is paid ONCE per run (and is not what the thresholds measure). Missing credentials
+  and a failed login are both **fatal**, never an empty pool.
+- `k6-load/perf-3run.js` - `constant-arrival-rate` (not ramping VUs: ramping measures "how long to go
+  slow", steady arrival measures what happens to a user arriving every second, which is where a
+  queue or a lock fails). Three escalating runs - baseline, same rate, 1.5x - because identical
+  back-to-back runs mostly measure cache warmth. Thresholds on the SLO metric, not raw
+  `http_req_duration`. `--summary-export` writes JSON for date-over-date comparison.
+- `k6-load/README.md` documents both, and keeps the hand-minting recipe for anyone who needs it.
+
+**Verified end-to-end with the real k6 binary (v2.0.0) against the running app:**
+- no `K6_PEOPLE` -> fails loudly with the reason (never a fake green);
+- wrong credentials -> refuses to start;
+- valid credentials -> `[harness] minted 1 token(s), 1 distinct`, then **7 real search requests,
+  0 non-success, 0 auth rejections**;
+- the thresholds then CORRECTLY FAILED (`dropped_iterations: 11`, p95 ~27s). That is the harness
+  working: PHP's single-threaded built-in dev server cannot sustain 2 arrivals/sec, and the run said
+  so instead of reporting a flattering number.
+
+**A k6 landmine found by running it, documented so it cannot bite again.** The natural name
+`K6_DURATION` **collides with a k6 v2 built-in config key**: k6 logs
+`"env" level configuration overrode scenarios configuration entirely`, silently builds its own
+`default` scenario, and surfaces only an unrelated `the duration must be at least 1s, but is 1ms`.
+The run measures a different load than the file describes. `K6_RATE` and `BASE_URL` are unaffected;
+bisected to a 12-line reproduction. Renamed to `K6_RUN_SECONDS` with the warning in the script header
+AND the README.
+
+**Two metrics are warnings in disguise, by design:** `syride_auth_rejections == 0` (non-zero means
+the RV-17 stale-token failure returned) and `dropped_iterations == 0` (a low p95 with dropped
+iterations is a smaller load than you think, not a pass).
+
+**No app code touched**; the test account, dev server and temp files were removed afterwards
+(proved by `git status`).
+
+**Genuinely unverified.** No load was run against a production-shaped target, so NO performance
+number is claimed anywhere. The p95 threshold (800ms) is a starting proposal to be argued with, not a
+measured SLO - it is the single value most likely to need changing once real numbers exist. Ride
+detail reads only run when `K6_RIDE_IDS` is supplied, so the default run exercises search only.
