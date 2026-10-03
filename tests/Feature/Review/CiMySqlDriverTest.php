@@ -92,9 +92,12 @@ class CiMySqlDriverTest extends TestCase
         );
 
         // And prove the named suites exist, so this list cannot rot into fiction.
+        // The helper is snake_case (Pint's `php_unit_method_casing` renamed it from
+        // testFileExists on 2026-10-03); the call site has to follow, and only CI sees it
+        // because this test is inert unless CI_REQUIRE_MYSQL=1.
         foreach (self::MONEY_OR_GEO_SUITES as $class) {
             $this->assertTrue(
-                $this->testFileExists($class),
+                $this->test_file_exists($class),
                 "RV-18: {$class} is listed as a money/geo suite but no longer exists; "
                 .'update MONEY_OR_GEO_SUITES.'
             );
