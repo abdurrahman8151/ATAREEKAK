@@ -23,18 +23,20 @@ jobs:
           extensions: mbstring, pdo, pdo_mysql
 
       - name: Install dependencies
-        # CI could not run at all before this: `composer install` triggers
-        # `artisan package:discover`, which BOOTS the app, and with no .env in this
-        # workflow APP_ENV defaults to 'production', so the boot guard added for the
-        # JWT work (AppServiceProvider::guardJwtSecret) throws "JWT_SECRET must be set
-        # to at least 32 bytes" and the job dies before Pint ever runs. Same failure on
-        # every commit (observed at 26fbdb3, c92e1e2, eaa7f14). APP_ENV=testing states
-        # what this job is; the guard stays armed for real deployments, and a dummy
-        # secret is supplied so the step is not sensitive to that choice.
-        env:
-          APP_ENV: testing
-          JWT_SECRET: ci-no-real-secret-0123456789abcdef0123456789
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        # CI could not run at all before this. `composer install` runs
+        # `artisan package:discover` via post-autoload-dump, which BOOTS the app, and a
+        # style-only job has no .env: the JWT boot guard threw "JWT_SECRET must be set to
+        # at least 32 bytes" (APP_ENV defaults to production with no .env), and once
+        # APP_ENV=testing was supplied the next boot requirement failed instead -
+        # `Pusher\Pusher::__construct(): Argument #1 ($auth_key) must be of type string,
+        # null given`, because config/broadcasting.php defaults to pusher. The same
+        # failure predates this audit on every commit (26fbdb3, c92e1e2, eaa7f14).
+        #
+        # Pinning one env key at a time is the wrong fix: this job only needs
+        # vendor/bin/pint, so `--no-scripts` skips the application boot entirely and
+        # removes the whole class of boot-time coupling. Nothing here needs the package
+        # manifest, and the JWT guard stays armed for anything that does boot.
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
       - name: Check formatting (no writes)
         run: vendor/bin/pint --test
