@@ -143,7 +143,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AdminTripService::class);
         $this->app->singleton(AdminDriverService::class);
         $this->app->singleton(AdminUserService::class);
-        // ── Staff / Employee Services ────────────────────────────────────────────
+        // â”€â”€ Staff / Employee Services â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         $this->app->singleton(StaffJwtService::class);
         $this->app->singleton(EmployeeAuthService::class);
         $this->app->singleton(EmployeeManagementService::class);
@@ -239,9 +239,9 @@ class AppServiceProvider extends ServiceProvider
 
         Schema::defaultStringLength(191);
 
-        // RV-38 — Eloquent data-integrity strictness, OUTSIDE PRODUCTION.
+        // RV-38 â€” Eloquent data-integrity strictness, OUTSIDE PRODUCTION.
         //
-        // WHY: silent data loss is invisible by construction — `Model::create([...
+        // WHY: silent data loss is invisible by construction â€” `Model::create([...
         // 'not_fillable' => x])` drops the value with no error, and reading a column that
         // wasn't selected returns null as if it were legitimately absent. This session alone
         // found several such bugs (RV-23: complaint ride_id/complained_id silently dropped;
@@ -251,18 +251,27 @@ class AppServiceProvider extends ServiceProvider
         //
         // WHY NOT production: an exception in prod is a 500; production keeps today's
         // lenient behavior. This is R1's prescription verbatim (`shouldBeStrict(!
-        // isProduction())`), and the "roll out tests first, fix what surfaces" step is done —
+        // isProduction())`), and the "roll out tests first, fix what surfaces" step is done â€”
         // measured: enabling these two flags across the full suite surfaced EXACTLY 2
         // offenders (both now fixed: PushTokenManager's redundant updated_at mass-assign, and
         // a stale UntangleBatch fixture with 4 phantom keys).
         //
-        // WHY these two and NOT preventLazyLoading(): R1's own note expects the lazy-loading
-        // half to be large ("N+1 from RV-24"); that is a separate task (RV-24) and would
-        // flood with PERFORMANCE fallout, not data-integrity. We adopt only the flags that
-        // are demonstrably clean today and grow the surface deliberately.
+        // preventLazyLoading() is now armed too (RV-37 / un9, owner ruling 2026-10-02). It was
+        // held back here because "the lazy-loading half is large (N+1 from RV-24)" - so the sites
+        // were found by arming it LOCALLY and running the whole suite (86 failures / 27 logged
+        // violations), then fixed at the fetch sites, which is where the N+1s actually cost a
+        // query each: BookingService (booking fetches, idempotent replay, refresh returns),
+        // RideService (cancel/finish/confirm), CashRideFeeService, ScoreService,
+        // RideValidationService, WalletController, AdminDriverService, AdminReportService, the
+        // backfill command, and four test fixtures that rendered a resource without loading the
+        // relations it reads. Measured after the fixes: arming the flag adds **zero** failing
+        // tests versus the flag-off baseline (identical 87-entry red set both ways). The guard
+        // stays off in PRODUCTION only - a violation there would be a 500, and production is
+        // monitored for performance, not for eager-load correctness.
         if (! $this->app->isProduction()) {
             Model::preventSilentlyDiscardingAttributes();
             Model::preventAccessingMissingAttributes();
+            Model::preventLazyLoading();
         }
 
         Event::listen(CacheHit::class, function () {
@@ -294,8 +303,8 @@ class AppServiceProvider extends ServiceProvider
         // existing env()-missing -> refuse pattern. Exempted in local AND
         // testing, so it can never brick a developer machine or the suite
         // (which legitimately runs without real broadcast credentials); every
-        // real deployment environment — production, staging, or any environment
-        // added later — is still covered.
+        // real deployment environment â€” production, staging, or any environment
+        // added later â€” is still covered.
         if (! app()->environment('local', 'testing')
             && config('broadcasting.default') === 'pusher'
             && (empty(config('broadcasting.connections.pusher.key'))
@@ -310,7 +319,7 @@ class AppServiceProvider extends ServiceProvider
 
         // T3-14: SendPushNotificationJob is ShouldQueue with tries/backoff, but
         // config/queue.php defaults QUEUE_CONNECTION to `sync`, which runs it
-        // inline — a slow or failing FCM call (3 retries + backoff) then executes
+        // inline â€” a slow or failing FCM call (3 retries + backoff) then executes
         // inside the HTTP request and the retry configuration is meaningless
         // there. Previously an unset env silently degraded every notification
         // into a request-blocking call. Fail fast outside local/testing,
@@ -335,7 +344,7 @@ class AppServiceProvider extends ServiceProvider
      * `JwtService::generateSignature()` passes `config('jwt.secret')` straight to
      * `hash_hmac()`. PHP 8.2 coerces the null that an unset/blank JWT_SECRET
      * produces into '', so the app will happily sign HS256 tokens with an EMPTY
-     * key — and an empty key is public knowledge, which makes every access token
+     * key â€” and an empty key is public knowledge, which makes every access token
      * forgeable by anyone. (`StaffJwtService::secret()` throws on this; the user
      * path never did.) `.env.example` ships `JWT_SECRET=` blank, so this is one
      * missing variable away from being live, and the failure is silent: the app
@@ -365,7 +374,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * RV-16 — refuse to boot with a testing OTP mode enabled outside development.
+     * RV-16 â€” refuse to boot with a testing OTP mode enabled outside development.
      *
      * These switches exist so the test suite and local work can read a code back out
      * of the API instead of waiting for a real message. Left enabled on a deployed

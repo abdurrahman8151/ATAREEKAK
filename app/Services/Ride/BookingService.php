@@ -80,7 +80,9 @@ final class BookingService
                     'existing_booking_id' => $existing->id,
                 ]);
 
-                return $existing->load(['ride', 'user']);
+                // RV-37 / un9: the idempotent-replay return goes straight into BookingResource, which
+                // reads user.profile and ride.driver.profile - load the same set as a fresh booking.
+                return $existing->load(['user.profile', 'ride.driver.profile']);
             }
             // 3. Load and lock ride row to prevent race conditions on seat count.
             // RV-37 / un9: eager-load `driver` (and its profile) here rather than lazily at the
@@ -135,7 +137,10 @@ final class BookingService
                 'payment_method' => $ride->payment_method,
             ]);
 
-            return $booking->refresh();
+            // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
+            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
+            // per booking. Re-load the relations the response path needs.
+            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
         });
     }
 
@@ -196,7 +201,10 @@ final class BookingService
                 'driver_id' => $driver->id,
             ]);
 
-            return $booking->refresh();
+            // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
+            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
+            // per booking. Re-load the relations the response path needs.
+            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
         });
     }
 
@@ -243,7 +251,10 @@ final class BookingService
                 'driver_id' => $driver->id,
             ]);
 
-            return $booking->refresh();
+            // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
+            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
+            // per booking. Re-load the relations the response path needs.
+            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
         });
     }
 
@@ -330,7 +341,10 @@ final class BookingService
                 'elapsed_pct' => $refundPolicy['time_elapsed_percentage'],
             ]);
 
-            return $booking->refresh();
+            // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
+            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
+            // per booking. Re-load the relations the response path needs.
+            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
         });
     }
 

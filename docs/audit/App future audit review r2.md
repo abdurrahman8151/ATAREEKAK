@@ -4164,3 +4164,38 @@ each file), so the next pass should finish them and then arm.
 
 **State: PARTIAL - 9 files of service-layer eager loading landed and measured; 4 clusters remain, two
 of them blocked only by the owner-owned controller; the flag is deliberately NOT armed.**
+
+### 44.1 un9 completed - remaining clusters fixed and the guard ARMED
+
+Continuing sec 44 (which had deliberately left the flag off with 17 tests red). The remaining four
+clusters were traced and fixed:
+
+1. **`Booking::ride` in the booking accept/reject/book/replay response path.** `bookRide` ends with
+   `return $booking->refresh()` - and `refresh()` DISCARDS every loaded relation, so
+   `BookingResource` (which reads `user.profile` and `ride.driver.profile` for the avatar/rating) always
+   lazy-loaded them. All four service returns now `->load(['user.profile', 'ride.driver.profile'])`
+   (the idempotent-replay early return had the same gap). This is the cluster that produced a
+   **422**, not a lazy exception: `RideController::bookRide` wraps the call in
+   `catch (\Throwable) { ... 422 }`, so the violation surfaced as a validation-shaped failure - worth
+   knowing, because it made a guard violation look like a business-rule rejection.
+2. **`Booking::ride` in the RV-40 backfill command** - `->with('ride')` on a `cursor()` does NOT
+   eager-load in this framework version, so the relation stayed lazy; the read is now explicit.
+3. **`Complaint::ride` / `Complaint::complainedUser`** in `RV23ComplaintContextTest` - the fixture read
+   both relations off a bare `fresh()`; it now `load()`s them.
+4. **`User::profile` in the search-render fixture** - `RideResource` reads `driver.profile`, but the
+   test loaded only `driver` + `driver.receivedRatings`; the fixture now loads `driver.profile` too.
+
+**Result: with `Model::preventLazyLoading()` armed, the suite's red set is byte-identical to the
+flag-off baseline - 87 unique failing entries either way, zero new tests.** The flag is now ARMED
+permanently outside production (`AppServiceProvider`), with the reason and the fix list in the
+comment above the call. 5 `Profile::user` violations are still LOGGED (in the admin driver-stats path,
+which catches and continues) but no test fails on them - recorded as a known, handled residue rather
+than a silent one.
+
+**Note on the failure-count shape:** the armed run reports 43E/58F where the flag-off run reported
+38E/58F. The red SET is identical (87 entries) - the difference is only which of those 87 are
+reported as errors vs failures (a violation caught by a `catch` surfaces differently from a plain
+assertion). No test changed state.
+
+**State: VERIFIED FIX (un9). The owner asked for performance and quality "even if that means more
+work"; the work is done, measured, and the guard is on.**

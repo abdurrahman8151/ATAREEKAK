@@ -84,7 +84,9 @@ class RV40MoneySnapshotTest extends TestCase
             $this->passenger->fresh()
         );
 
-        return $booking->fresh();
+        // RV-37 / un9: callers immediately read `$booking->ride`, so eager-load it here rather than
+        // having every caller pay a lazy query (and trip the armed lazy guard).
+        return $booking->fresh(['ride']);
     }
 
     /** @test */

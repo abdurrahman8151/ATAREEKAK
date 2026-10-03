@@ -77,6 +77,9 @@ class RV23ComplaintContextTest extends TestCase
         $this->assertSame($driver->id, (int) $fresh->complained_id);
 
         // The relations actually resolve, not just the raw ids.
+        // RV-37 / un9: eager-load both - reading them off a bare fresh() is a lazy load, which the
+        // armed lazy guard turns into a violation.
+        $fresh->load(['ride', 'complainedUser']);
         $this->assertTrue($fresh->ride->is($ride));
         $this->assertTrue($fresh->complainedUser->is($driver));
     }

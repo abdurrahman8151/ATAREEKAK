@@ -327,7 +327,10 @@ class RideSearchServiceTest extends TestCase
             'dest_lng' => 37.1343,
         ]);
 
-        $row = (new RideResource($ride->fresh(['driver', 'driver.receivedRatings'])))->toArray(request());
+        // RV-37 / un9: RideResource also reads `driver.profile` (the avatar fallback), so the
+        // fixture must eager-load it as well - loading only driver + receivedRatings lazy-loads
+        // the profile per rendered row, which the armed lazy guard turns into a violation.
+        $row = (new RideResource($ride->fresh(['driver', 'driver.profile', 'driver.receivedRatings'])))->toArray(request());
 
         $this->assertSame(
             4.0,

@@ -57,12 +57,13 @@ class BackfillBookingMoneySnapshot extends Command
         $cashMarked = 0;
         $skippedNoLedger = 0;
 
-        // RV-37 / un9: `ride` is read for every backfilled booking; chunk-eager-load it rather
-        // than paying one query per row (and satisfying the armed lazy guard).
+        // RV-37 / un9: `ride` is read for every backfilled booking. chunkById, not cursor(): cursor()
+        // streams row-by-row and does NOT honour eager loads in this framework version, so the
+        // relation stayed lazy and the armed lazy guard caught it (one query per row, and an error).
         $unfilled = Booking::with('ride')->where('amount_paid', 0)->cursor();
 
         foreach ($unfilled as $booking) {
-            $ride = $booking->ride;
+            $ride = $booking->relationLoaded('ride') ? $booking->ride : $booking->load('ride')->ride;
 
             if ($ride && $ride->payment_method === 'e-pay') {
                 $paid = $escrowByBooking[$booking->id] ?? null;
