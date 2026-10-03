@@ -4291,3 +4291,68 @@ for self-view but should move to the same route when the private-disk move happe
 
 **Genuinely unverified.** No test exercises a real uploaded binary through the route end-to-end (the
 fixtures write text bytes); the auth boundaries, routing, headers and 404 semantics are covered.
+
+---
+
+## 47. Decision 6 - staff-initiated cancel refunds in full, no driver score penalty - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1, Option A):** "full passenger refund, no driver score penalty". Rationale in
+the owner's words: *"staff cancellation is rare; make it non-ad-hoc"* - i.e. one explicit, ledgered
+operation instead of an ad-hoc status flip. This is the decision that unblocked RV-03
+(`BACKLOG` row 23: "Staff cancel endpoints strand money, no role gate").
+
+**The defect, measured.** `StaffOperationsController::cancelTrip()` and `::cancelBooking()` marked
+bookings `cancelled` and moved **no money at all**. `cancelTrip` even carried the comment
+"Refund all confirmed bookings (e-pay only)" directly above `$booking->update(['status' => 'cancelled'])`
+- a comment describing behaviour the code did not perform. Every e-pay passenger's escrow stayed
+stranded in the SyCash wallet permanently. The existing 80-test `StaffOperationsControllerTest` passed
+throughout and never noticed, because **not one of those tests asserted money**.
+
+**Fix.** New `WalletTransactionService::refundPassengersForStaffCancellation(Ride, Collection)`,
+called by both staff-cancel endpoints INSIDE their existing transaction, BEFORE the status flip so a
+failed refund rolls the whole cancellation back (a ride can never end up cancelled with stranded money).
+
+**The amount is the RV-40 `amount_paid` snapshot, never `seats * price_per_seat`.** `price_per_seat` is
+mutable: a price edit between charge and cancellation silently over/under-refunds, which is the exact
+divergence RV-40 exists to prevent.
+
+**Bookings with no snapshot are reported, never guessed.** A confirmed e-pay booking with
+`amount_paid = 0` is a pre-RV-40 legacy row. Rather than re-deriving an amount from the current price
+(precisely the bug being removed), it is returned as `needs_review` and logged with the hint to run
+`bookings:backfill-money-snapshot`. The response surfaces `refund_total`, `refund_bookings`,
+`refund_amount_source` and `needs_manual_review`, so a staff member can see what moved.
+
+**Cash bookings are untouched** - cash never touches SyCash, so there is nothing to refund.
+
+**No driver score penalty** was already the behaviour (neither endpoint called `ScoreService`); it is
+now pinned by a test rather than left implicit, because "the fix must not add a penalty" is exactly
+the kind of thing that regresses silently.
+
+**Two bugs my own tests caught:**
+1. `collect([$booking])` produced an `Illuminate\Support\Collection` where the service signature
+   requires `Eloquent\Collection` - a hard 500 on every `cancelBooking` call. Fixed by re-reading
+   through the model query; the 8 affected existing tests caught it immediately.
+2. My first fixture used `Ride::create([... 'pickup_location' => ...])`, which is not fillable; the
+   repo's own `RideBuilder` is the supported path, so the fixture now uses it.
+
+**`tests/Feature/Review/StaffCancellationRefundTest.php` (new, 6 tests)** asserts, on the allowed AND
+denied sides: full refund to the wallet; SyCash actually debited; the amount is the snapshot not the
+current price (price edited to 99,999 after charging 25,000); single-booking cancel; **no driver
+score or cancellation-counter change**; a no-snapshot row is reported not guessed; a cash booking is
+not refunded.
+
+**Needles (both bite, both restore byte-identical):** deriving the refund from the mutable price
+instead of the snapshot -> 3 failures; removing the refund call from `cancelTrip` -> all 6 fail. (A
+first needle attempt appeared to "pass" only because the PowerShell multi-line replace never matched;
+the structural line-removal needle then proved it bites.)
+
+**No regression:** `StaffOperationsControllerTest` + `WalletTransactionServiceTest` +
+`RV40BackfillSnapshotTest` + this file - **117 tests, 265 assertions, OK**.
+
+**Genuinely unverified / deliberately NOT changed.**
+- The **role gate** half of RV-03 is untouched. Both endpoints sit in `['staff','throttle:staff']`,
+  so any authenticated employee can move money. Tightening it is an authorization change that can lock
+  legitimate staff out, and `AGENTS.md` requires the owner to approve auth/permission changes - so it
+  is raised here rather than done unilaterally.
+- `refundPassengersForDriverCancellation()` still derives from the mutable price. That is decision 3
+  (owner-flagged "reconsider"), explicitly out of scope here.

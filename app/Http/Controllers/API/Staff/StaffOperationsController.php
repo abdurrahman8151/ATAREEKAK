@@ -11,6 +11,7 @@ use App\Models\UserRating;
 use App\Services\Admin\AdminTripService;
 use App\Services\Admin\AdminUserService;
 use App\Services\NotificationService;
+use App\Services\Payment\WalletTransactionService;
 use App\Services\Score\ScoreService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -411,14 +412,28 @@ final class StaffOperationsController extends Controller
                 ], 422);
             }
 
-            DB::transaction(function () use ($ride, $request, $agent) {
+            $refund = ['refunded' => 0.0, 'bookings' => 0, 'needs_review' => 0, 'amount_source' => 'none'];
 
-                // Refund all confirmed bookings (e-pay only)
-                $confirmedBookings = $ride->bookings()
+            DB::transaction(function () use ($ride, $request, $agent, &$refund) {
+
+                // The bookings this cancellation actually affects.
+                $affectedBookings = $ride->bookings()
                     ->whereIn('status', ['confirmed', 'pending'])
                     ->get();
 
-                foreach ($confirmedBookings as $booking) {
+                // Decision 6 (owner 2026-10-02): a staff-initiated cancellation refunds every
+                // affected passenger IN FULL and applies NO driver score penalty. Before this the
+                // endpoint only flipped the status - the comment above claimed "refund all
+                // confirmed bookings" but no money ever moved, so e-pay escrow stayed stranded in
+                // SyCash (RV-03). The amount comes from the RV-40 `amount_paid` snapshot, never
+                // from the mutable ride price.
+                //
+                // Money first: if the refund cannot be funded the transaction rolls back and the
+                // ride is NOT cancelled, so we can never leave a cancelled ride with stranded money.
+                $refund = app(WalletTransactionService::class)
+                    ->refundPassengersForStaffCancellation($ride, $affectedBookings);
+
+                foreach ($affectedBookings as $booking) {
                     $booking->update(['status' => 'cancelled']);
                 }
 
@@ -427,7 +442,7 @@ final class StaffOperationsController extends Controller
 
                 // Notify affected passengers
                 $notificationService = app(NotificationService::class);
-                foreach ($confirmedBookings as $booking) {
+                foreach ($affectedBookings as $booking) {
                     $notificationService->createNotification(
                         User::find($booking->user_id),
                         'ride_cancelled',
@@ -444,7 +459,11 @@ final class StaffOperationsController extends Controller
                     'agent_id' => $agent->id,
                     'agent_name' => $agent->fullName(),
                     'reason' => $request->input('reason'),
-                    'bookings_affected' => $confirmedBookings->count(),
+                    'bookings_affected' => $affectedBookings->count(),
+                    'refunded_total' => $refund['refunded'],
+                    'refunded_bookings' => $refund['bookings'],
+                    'needs_review' => $refund['needs_review'],
+                    'driver_score_penalty' => 'none (decision 6: not the driver\'s fault)',
                 ]);
             });
 
@@ -455,6 +474,12 @@ final class StaffOperationsController extends Controller
                     'ride_id' => $ride->id,
                     'new_status' => 'cancelled',
                     'bookings_cancelled' => $ride->bookings()->where('status', 'cancelled')->count(),
+                    // Decision 6: surfaced so staff can see the money actually moved, and so a
+                    // legacy booking with no snapshot is visible instead of silently dropped.
+                    'refund_total' => $refund['refunded'],
+                    'refund_bookings' => $refund['bookings'],
+                    'refund_amount_source' => $refund['amount_source'],
+                    'needs_manual_review' => $refund['needs_review'],
                 ],
             ]);
 
@@ -502,10 +527,22 @@ final class StaffOperationsController extends Controller
                 ], 422);
             }
 
-            DB::transaction(function () use ($booking, $request, $agent) {
+            $refund = ['refunded' => 0.0, 'bookings' => 0, 'needs_review' => 0, 'amount_source' => 'none'];
+
+            DB::transaction(function () use ($booking, $request, $agent, &$refund) {
 
                 $seatsToRestore = $booking->seats;
                 $ride = $booking->ride;
+
+                // Decision 6 (owner 2026-10-02): full refund, no driver score penalty. Same reason
+                // as cancelTrip - this endpoint used to move no money at all, stranding e-pay
+                // escrow. Refund BEFORE the status flip so a failed refund rolls the whole thing back.
+                if ($ride) {
+                    // An ELOQUENT collection, not collect(): the service signature is typed to
+                    // Eloquent's Collection and a support-collection here was a hard 500.
+                    $refund = app(WalletTransactionService::class)
+                        ->refundPassengersForStaffCancellation($ride, Booking::whereIn('id', [$booking->id])->get());
+                }
 
                 // Cancel booking
                 $booking->update(['status' => 'cancelled']);
@@ -540,6 +577,9 @@ final class StaffOperationsController extends Controller
                     'agent_name' => $agent->fullName(),
                     'reason' => $request->input('reason'),
                     'seats' => $seatsToRestore,
+                    'refunded_total' => $refund['refunded'],
+                    'needs_review' => $refund['needs_review'],
+                    'driver_score_penalty' => 'none (decision 6: not the driver\'s fault)',
                 ]);
             });
 
@@ -550,6 +590,9 @@ final class StaffOperationsController extends Controller
                     'booking_id' => $booking->id,
                     'new_status' => 'cancelled',
                     'seats_restored_to_ride' => $booking->seats,
+                    'refund_total' => $refund['refunded'],
+                    'refund_amount_source' => $refund['amount_source'],
+                    'needs_manual_review' => $refund['needs_review'],
                 ],
             ]);
 

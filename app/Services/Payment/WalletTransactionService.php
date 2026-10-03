@@ -320,6 +320,130 @@ class WalletTransactionService
     }
 
     // =========================================================================
+    // STAFF-INITIATED CANCELLATION  (SyCash → Passenger, full refund)
+    // =========================================================================
+
+    /**
+     * Decision 6 (owner, 2026-10-02): a staff-initiated cancellation refunds every affected
+     * passenger IN FULL and applies NO driver score penalty.
+     *
+     * Rationale in the owner's words: "staff cancellation is rare; make it non-ad-hoc". So this is
+     * one explicit, ledgered operation rather than the ad-hoc status flip the staff endpoints used
+     * to perform (they marked bookings `cancelled` and moved no money at all, stranding escrow in
+     * SyCash - RV-03).
+     *
+     * THE AMOUNT IS THE RV-40 SNAPSHOT (`amount_paid`), NOT `seats * ride.price_per_seat`.
+     * `price_per_seat` is mutable: a price edit between charge and cancellation would silently
+     * over- or under-refund, which is the exact divergence RV-40 was created to remove. The sibling
+     * `refundPassengersForDriverCancellation()` still derives from the price; that is decision 3's
+     * territory (cancellation money policy, owner-flagged "reconsider"), NOT this task.
+     *
+     * ONLY bookings with `amount_paid > 0` are refunded, because that is the exact moment money
+     * moved (see `BookingService`: DIRECT+e-pay charges at booking, REQUEST+e-pay at driver accept;
+     * cash never touches SyCash). A confirmed e-pay booking with `amount_paid = 0` is a pre-RV-40
+     * legacy row - it is NOT guessed at, it is reported as `needs_review` so staff can run
+     * `bookings:backfill-money-snapshot` and re-try. Guessing is what this whole task removes.
+     *
+     * Must be called INSIDE a DB transaction (the caller owns the booking-status update).
+     *
+     * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
+     */
+    public function refundPassengersForStaffCancellation(Ride $ride, Collection $bookings): array
+    {
+        $refundable = $bookings->filter(fn (Booking $b) => (float) $b->amount_paid > 0.0);
+
+        // Confirmed e-pay rows with no snapshot: charged before RV-40 exists. Never fabricate an
+        // amount from the current price; surface them for manual review instead.
+        $needsReview = $bookings->filter(function (Booking $b) use ($refundable) {
+            return (float) $b->amount_paid <= 0.0
+                && ! $refundable->contains($b)
+                && $b->status === 'confirmed';
+        })->count();
+
+        if ($needsReview > 0) {
+            Log::warning('Staff cancellation found bookings with no money snapshot', [
+                'ride_id' => $ride->id,
+                'needs_review' => $needsReview,
+                'hint' => 'run: php artisan bookings:backfill-money-snapshot, then retry',
+            ]);
+        }
+
+        if ($refundable->isEmpty()) {
+            return [
+                'refunded' => 0.0,
+                'bookings' => 0,
+                'needs_review' => $needsReview,
+                'amount_source' => 'none',
+            ];
+        }
+
+        $totalRefund = (float) $refundable->sum(fn (Booking $b) => (float) $b->amount_paid);
+        $syCashWallet = $this->lockWalletByPhone(config('admin.sycash.phone'));
+
+        $this->assertSufficientBalance(
+            $syCashWallet,
+            $totalRefund,
+            "Insufficient SyCash balance for staff-cancellation refunds. Required: {$totalRefund}"
+        );
+
+        $txId = 'STAFF_CANCEL_'.time().'_'.Str::random(6);
+
+        $syCashPrev = $syCashWallet->balance;
+        $syCashWallet->balance -= $totalRefund;
+        $syCashWallet->save();
+
+        WalletTransaction::create([
+            'wallet_id' => $syCashWallet->id,
+            'user_id' => null,
+            'type' => 'staff_cancellation_refunds',
+            'amount' => -$totalRefund,
+            'previous_balance' => $syCashPrev,
+            'new_balance' => $syCashWallet->balance,
+            'description' => "Full refunds for staff-cancelled ride: {$ride->pickup_address} → {$ride->destination_address}",
+            'transaction_id' => 'SYCASH_'.$txId,
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
+        ]);
+
+        foreach ($refundable as $booking) {
+            $refundAmount = (float) $booking->amount_paid;
+            $passengerWallet = $this->lockWalletByUserId($booking->user_id);
+            $passengerPrev = $passengerWallet->balance;
+
+            $passengerWallet->balance += $refundAmount;
+            $passengerWallet->save();
+
+            WalletTransaction::create([
+                'wallet_id' => $passengerWallet->id,
+                'user_id' => $booking->user_id,
+                'type' => 'staff_cancellation_refund',
+                'amount' => $refundAmount,
+                'previous_balance' => $passengerPrev,
+                'new_balance' => $passengerWallet->balance,
+                'description' => "Full refund — cancelled by support: {$ride->pickup_address} → {$ride->destination_address}",
+                'transaction_id' => 'PASS_'.$txId.'_'.$booking->id,
+                'status' => 'completed',
+                'reference' => "booking:{$booking->id}",
+            ]);
+
+            Log::info('Passenger refunded for staff cancellation', [
+                'ride_id' => $ride->id,
+                'booking_id' => $booking->id,
+                'passenger_id' => $booking->user_id,
+                'amount' => $refundAmount,
+                'source' => 'booking.amount_paid snapshot',
+            ]);
+        }
+
+        return [
+            'refunded' => $totalRefund,
+            'bookings' => $refundable->count(),
+            'needs_review' => $needsReview,
+            'amount_source' => 'amount_paid',
+        ];
+    }
+
+    // =========================================================================
     // TIME-BASED PASSENGER CANCELLATION  (SyCash → Passenger + Driver)
     // =========================================================================
 
