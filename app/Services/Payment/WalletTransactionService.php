@@ -56,6 +56,15 @@ use Illuminate\Support\Str;
  */
 class WalletTransactionService
 {
+    /**
+     * Decision un3: the double-entry ledger is injected rather than resolved from the container
+     * inside each method, so a test can substitute it and so the dependency is visible here instead
+     * of being a hidden `app()` call on the money path.
+     */
+    public function __construct(
+        private readonly LedgerService $ledger = new LedgerService,
+    ) {}
+
     // =========================================================================
     // BOOKING PAYMENT  (Passenger → SyCash)
     // =========================================================================
@@ -143,6 +152,30 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
+        ]);
+
+        // ── Decision un3: double-entry legs ────────────────────────────────────
+        // The two `wallet_transactions` rows above are the SINGLE-SIDED record: one row per wallet
+        // that moved. These legs state that they are two halves of ONE movement - the passenger's
+        // money out, SyCash's money in - summing to zero by construction.
+        //
+        // Nothing about the balances or the existing rows changes. The ledger is a WITNESS to this
+        // transfer, not a second mover of money, and `LedgerService::postTransfer` refuses to write
+        // legs that do not balance, so a half-written transfer cannot be recorded as complete.
+        //
+        // This is the reference implementation of the pattern; the remaining money paths convert the
+        // same way, one at a time, each verified to leave balances unchanged.
+        $this->ledger->postTransfer([
+            [
+                'wallet_id' => $passengerWallet->id,
+                'amount' => -$amount,
+                'description' => "booking #{$booking->id}: passenger debit",
+            ],
+            [
+                'wallet_id' => $syCashWallet->id,
+                'amount' => $amount,
+                'description' => "booking #{$booking->id}: escrow credit",
+            ],
         ]);
 
         Log::info('Passenger charged — escrow held in SyCash', [

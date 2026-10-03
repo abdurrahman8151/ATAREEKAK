@@ -4900,3 +4900,60 @@ MySQL, so this is not exercised anywhere else. They add a per-write cost that ha
 to `kind`; it is correct today (the trigger keeps the two in agreement) but is the next place to
 convert. **The double-entry ledger and balance thresholds remain unbuilt** - that is the honest state
 of this decision, and it should be its own task with its own review, not a tail on a foundation PR.
+
+---
+
+## 57. un3 remainder - double-entry ledger (foundation + reference path) - **PARTIAL (by design)**
+
+Section 56 shipped `wallets.kind` and declined to build double-entry in the same pass. The owner said
+continue, so this is that work - done as a FOUNDATION plus ONE converted path, with the invariant
+proven, rather than as the 31-site rewrite section 56 warned against.
+
+**THE INVARIANT, which is the whole point:** *the signed legs of a transfer sum to zero.* That is the
+one rule that makes a ledger trustworthy, and it is checkable. `wallet_transactions` is SINGLE-SIDED
+(one row per wallet that moved) and therefore cannot express it - the escrow charge writes a -100 for
+the passenger and a +100 for SyCash as two unrelated rows, so nothing detects it if only one is ever
+written. These legs state they are two halves of ONE movement.
+
+**Delivered.**
+- `ledger_entries` table: one row per leg, `wallet_id`, nullable `wallet_transaction_id`, signed
+  `amount`. **No `direction` column** - the sign IS the direction, and two representations of one
+  fact eventually disagree. Legs rather than a from/to pair because real flows are not two-party
+  (the 95/5 split, a refund fanning out over many passengers).
+- `LedgerService::postTransfer()` **refuses** any transfer whose legs do not sum to zero, and refuses
+  a single leg (that is precisely the single-sided record double-entry replaces). Sums are rounded to
+  2dp first, so 10.005 + (-10.005) is not rejected for "not balancing".
+- `WalletTransactionService::chargePassengerForBooking` converted as the reference path, with
+  `LedgerService` injected via a constructor (it had none) rather than an `app()` call on the money
+  path.
+
+**THE DESIGN DECISION THAT MAKES THIS SAFE: the ledger is a WITNESS, not a second mover of money.**
+`postTransfer()` records WHAT MOVED; it never adjusts balances. The existing code still does exactly
+what it did, in its own transaction with its own locking. So converting a path cannot change a single
+balance or a single existing row - which is asserted explicitly, because "additive" is a claim that
+needs a test.
+
+**`tests/Feature/Review/DoubleEntryLedgerTest.php` (new, 5 tests):** a charge writes exactly two legs
+summing to zero, with the debit on the passenger and the credit on SyCash; balances and the two
+existing rows are UNCHANGED; an unbalanced transfer is refused AND leaves no rows behind; a single leg
+is refused; a three-way 95/5 split still balances.
+
+**Needles, both biting, both restoring byte-identical:** removing the balance guard in
+`LedgerService` -> 1 failure; changing the escrow leg amount by 2% (a plausible off-by-one in a
+settlement) -> 2 errors. The test detects a half-written movement in the real money path.
+
+**No regression.** Money floor (Payment, Wallet, RV40 backfill + snapshot, staff-cancel refund, the
+new ledger tests) = 79 tests, only the 3 long-recorded OTP `WalletTest` failures. Migration verified
+BOTH directions on the scratch DB (table dropped, then restored).
+
+**Still NOT built - the remaining money paths.** 30 of the 31 `WalletTransaction::create` sites are
+unchanged: settlement, the 95/5 split, every refund path, wallet creation, fee creation and refunds,
+withdrawals. They are now MECHANICAL: add a `postTransfer()` call alongside the existing writes. Each
+still needs the check that the legs agree with what the balances actually did - that is the work, and
+until it is done the ledger is a partial witness, not a complete one. Listed in BACKLOG as the
+remaining RV-21 blocker.
+
+**Genuinely unverified.** Only the escrow path writes legs, so a query of `ledger_entries` today
+returns a fraction of real movements and must not be read as "the ledger says no money moved". The
+`ledger_entries` table is not yet reconciled against `wallet_transactions`, so there is no job proving
+the two agree across all history.
