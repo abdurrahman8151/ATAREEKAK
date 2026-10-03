@@ -3908,3 +3908,73 @@ outside this task are fixed. The row is closed by the owner's decision recorded 
    state for the one test family that reads it.
 5. "No test writes a tracked file" is ratcheted as of 39.2 (it was hand-verified only before).
 
+---
+
+## 40. OWNER DECISION SLATE — all 27 audit decisions answered in one session (2026-10-02)
+
+The owner was walked through every outstanding decision one at a time (see the transcript in the
+session). This section is the **authoritative record** of what was decided, in the owner's words
+where it matters. Three buckets: **DECIDED-DO-NOW** (execute as their own task), **FLAGGED-
+RECONSIDER** (the for-now choice stands; revisit later), **LATER/BLOCKED** (not this batch).
+
+### 40.1 DECIDED-DO-NOW
+
+| Decision | Choice | Owner's stated reason / constraint | Work it creates |
+| --- | --- | --- | --- |
+| `un10` wallet-before-topup | **A** — a user must have a wallet before requesting a top-up; the schema is right, the fixtures were wrong | "wallet required first is correct behaviour" | Fix the ~20 `wallet_id` fixtures (NOT the schema) |
+| `un9` lazy-loading flag | **B** — turn it on | "I want performance to be good and quality good even if that means more work" | Fix the 19 sites, THEN arm the flag (not flip over 19 failures) |
+| `un8` Larastan | **A** — add report-only (no gate) | "needs work after we finish these tasks completely" | Add Larastan report-only; cleanup is a follow-up task |
+| `un5` `finish` / `driver-confirm` | **C** — **delete** them | "I don't want someone implementing them because they don't know the flow" (passengers confirm individually; money moves per-passenger; ride auto-finishes when all bookings are terminal — already implemented) | Delete both endpoints + their 10 stale test call-sites |
+| `2` auto-confirm window | **B** — expire unconfirmed bookings, do NOT auto-confirm | marked "important to be reconsidered" | Implement expiry + an escrow-release rule for expired bookings |
+| `11` KYC document gate | **A** — gate the ACTIONS, not the account | "the user can still search and everything even if he is not verified but he cant make or book rides" | Unverified: can browse/search; cannot create or book rides |
+| `6` staff-initiated cancel | **A** — full passenger refund, no driver score penalty | (staff cancellation is rare; make it non-ad-hoc) | Define the staff-cancel refund + penalty in code |
+| `un11` auth cache DTO | **A** — full refactor | "I want performance/quality good" | Cache a safe DTO (no password hash) + fix the auto-lift hazard |
+| `1b` KYC streaming route | **A** — staff-only route | (close the public-URL IDOR) | Add staff-authenticated document streaming (frontend-coordination item) |
+| `7` deploy target | **B — Render** | "we moved to Render to save the cost of the subscription" | Rewrite deploy for Render; the VPS workflow becomes obsolete |
+| `un12` k6 harness | **A** — proper `setup()` harness | (trustworthy perf numbers) | Build k6 `setup()` that seeds/logs-in + a 3-run perf spec |
+| `un1` object storage | **A — MinIO** | "if it doesn't require payments and so on, free" | MinIO (self-hosted, free) — AF-5 storage |
+| `13` status/type columns | **A** — PHP enums, drop DB ENUMs | (PHP enums are already the source of truth in code) | Migrate the 17 DB `ENUM` columns to varchar |
+| `un13` account-status | **A** — clean `status` + `BanService` | (root cause of ban bugs) | Refactor account status + migration |
+| `un3` money foundation | **A** — kind + double-entry + thresholds | "mark it needs more explaining" | `wallets.kind`, double-entry ledger, adjustment thresholds **+ a written explanation of the money model** |
+
+### 40.2 FLAGGED-RECONSIDER (for-now choice stands; revisit later)
+
+| Decision | For-now choice | Note for the revisit |
+| --- | --- | --- |
+| `3` cancellation money policy | **A — UNCHANGED** | "highest priority to check later". Cancellation tiers stay: passenger refund by elapsed %, driver gets the remainder, platform 5% only on completion/acceptance/no-show. Two facts found while tracing: (i) `BookingService:443` comments say the 5% goes to SyCash but the code credits **Primary Admin**; (ii) on passenger cancellation the platform takes **0%**. |
+| `9` access-token TTL | **B — keep 600 min** | "worth noting to be considered later". Only shorten once the client silently refreshes, or riders get logged out mid-ride. |
+| `10` `users.phone` | **B — no** | "to be reconsidered in future". Phones stay on wallet + booking (one source of truth each). |
+| `4` phone-OTP endpoints | **B — keep** | "should be reconsidered". Two public OTP route groups stay. |
+| `14` cancel routes | **A — keep both** | "to be reconsidered". |
+
+### 40.3 LATER / BLOCKED (not this batch)
+
+- **`un4` error envelope + `/api/v1` — Option C.** "Don't change now till I get the frontend repo or
+  I discuss it with the frontend team." Measured: the API emits **three** error dialects today
+  (`status:error` ×153, `success:false` ×70, plus Laravel's built-in), so a blanket change would
+  break the live client. Standardise **new** endpoints only. Related frontend-coordination items:
+  `un4`, `un5` (deleted routes), `1b` (KYC route) — one coordinated pass with the app team.
+- **`5` driver-phone visibility — DEFERRED by the owner.** "This needs more thinking." The API and
+  the booking broadcast both expose `communication_number`, so an API-only fix is incomplete; also
+  needs the client (it may read the number from a list, not the ride).
+- **`un7` revenue model — A, verify later.** Owner definition: **revenue = Primary Admin wallet
+  balance** (the 5% cut, minus cash-fee refunds it pays out); **SyCash = escrow, balance must be 0
+  when no rides are in flight**. Already implemented in code; the SyCash-zero invariant is
+  **described but never asserted** — a test for it is a later task.
+- **`12` stub notification classes — MOOT.** The stubs were deleted under AF-4 (a test pins they
+  stay gone); the two remaining push classes are live. No action.
+- **`un6` complaint policy — NO CHANGE.** All three parts verified already-correct: both-party
+  no-show → auto `no_show` complaint (manual human handling); staff opening a complaint
+  auto-transitions `pending→in_review` + assigns it (the owner's **intended transparency feature**,
+  `StaffComplaintController::show` → `openComplaint`); the **public** complaint form cannot file
+  `no_show` (validated in `ComplaintController::store`).
+
+### 40.4 Notes for whoever executes
+- The owner's `un2` answer (score: **start 70, max 100**, bands **80/60/40**, gates **50** create
+  rides / **40** book) **matches the existing code** except one real bug: `ScoreService::resolveTier`
+  writes a `tier` column using a **200/150/100** scale against a 0–100 score, so every user is
+  permanently stored as `bronze`. Fix: point the tier writer at the model's real bands and pin all
+  of it with tests.
+- `un5`'s deletion removes 6 of the 8 recorded `RideControllerFullTest` failures; the recorded red
+  baseline shifts and must be updated so the next session doesn't read it as a regression.
+

@@ -95,6 +95,40 @@ in section 6. So every number below carries both the text and the row it gates; 
 `un*` numbers are owner calls the audit records describe but never numbered. They are flagged as
 **OWNER DECISION** in section 6 so they are not mistaken for the 1-14 list.
 
+**All 27 decisions were answered by the owner on 2026-10-02** (walked one at a time). The full
+record with the owner's reasons is `App future audit review r2.md` sec 40; the short form:
+
+| Key | Answered | Bucket |
+|---|---|---|
+| `1a` | A — SyCash never approves; staff only | already-correct |
+| `1b` | A — staff-only KYC streaming route | do-now (frontend coordination) |
+| `2` | B — expire unconfirmed bookings, no auto-confirm | do-now (reconsider) |
+| `3` | A — cancellation money policy UNCHANGED | reconsider, HIGHEST priority |
+| `4` | B — keep phone-OTP endpoints | reconsider |
+| `5` | DEFERRED — driver-phone visibility needs more thinking | later |
+| `6` | A — staff cancel: full refund, no driver score penalty | do-now |
+| `7` | B — Render (cost) | do-now |
+| `8` | A — uniform errors, no account enumeration | already-correct |
+| `9` | B — keep 600-min TTL | reconsider |
+| `10` | B — no `users.phone` | reconsider |
+| `11` | A — KYC gates the ACTIONS (browse yes, ride no) | do-now |
+| `12` | MOOT — stubs already deleted | no action |
+| `13` | A — PHP enums, drop DB ENUMs | do-now |
+| `14` | A — keep both cancel routes | reconsider |
+| `un1` | A — MinIO (free, self-hosted) | do-now |
+| `un2` | A — start 70 / max 100 / bands 80-60-40 / gates 50-40 | do-now (+ tier bug fix) |
+| `un3` | A — kind + double-entry + thresholds, **needs explanation** | do-now |
+| `un4` | C — change nothing until the frontend repo/team is available | later |
+| `un5` | C — DELETE `finish` / `driver-confirm` | do-now |
+| `un6` | no change — all three parts verified already-correct | no action |
+| `un7` | A — revenue = Primary balance; SyCash escrow → 0 | verify later |
+| `un8` | A — Larastan report-only, cleanup after | do-now + follow-up |
+| `un9` | B — fix the 19 sites, THEN arm the flag | do-now |
+| `un10` | A — wallet required before top-up; fixtures are wrong | do-now |
+| `un11` | A — full auth cache-DTO refactor | do-now |
+| `un12` | A — proper k6 `setup()` harness | do-now |
+| `un13` | A — clean account status + `BanService` | do-now |
+
 ---
 
 ## 2. The backlog

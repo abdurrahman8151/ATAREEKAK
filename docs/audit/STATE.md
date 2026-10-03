@@ -9,7 +9,24 @@ with each status taken from the newest section that mentions it. The per-task lo
 `docs/audit/App future audit review r2.md`. Feature plan: `docs/audit/ROADMAP.md`.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- None.
+- OWNER DECISION SLATE 2026-10-02 (all 27 audit decisions answered in one session; detail and
+  evidence in `App future audit review r2.md` sec 40, which is the authoritative record).
+  Execute each as its own task, verify, commit; roll back anything that cannot be proven.
+  DECIDED-DO-NOW: un10 (wallet-before-topup, fixtures), un2 (score tier fix + pin), un5 (delete
+  finish/driver-confirm), 2 (booking expiry, no auto-confirm), 11 (KYC gate actions-not-account),
+  6 (staff-cancel full refund / no driver penalty), un11 (auth cache DTO), un9 (fix 19 lazy sites
+  then arm), un8 (Larastan report-only), 1b (staff KYC streaming route), 7 (Render deploy),
+  un12 (k6 harness), un1 (MinIO), 13 (PHP enums / drop DB ENUMs), un13 (account-status refactor),
+  un3 (money foundation - kind + double-entry + thresholds).
+  FLAGGED-RECONSIDER (for-now choice stands, revisit later): 3 (cancellation money policy UNCHANGED -
+  HIGHEST priority review), 9 (keep 600min TTL), 10 (no users.phone), 4 (keep phone-OTP), 14 (keep
+  both cancel routes).
+  LATER / BLOCKED (not this batch): un4 (error envelope - until frontend repo available, decision
+  C = change nothing now), 5 (driver-phone visibility - deferred, needs product + frontend), un7
+  (revenue model - verify later), 12 (stub notifs - moot, already gone), un6 (complaint policy -
+  no change, all 3 verified correct).
+  NOT touched (owner-owned uncommitted): RideController.php, phpunit.xml, .gitignore, AGENTS.md,
+  other audit docs, staged scripts/*.ps1, ROADMAP.md.
 
 ## Done recently (newest first; detail is in the audit record)
 - RV-37 CLOSED as VERIFIED FIX (owner instruction) - `App future audit review r2.md` sec 39 / 39.1 /
