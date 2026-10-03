@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\AccountStatus;
 use App\Models\User;
+use App\Services\Admin\BanService;
 use App\Services\JwtService;
 use Closure;
 use Illuminate\Http\Request;
@@ -61,44 +63,20 @@ class JwtAuthMiddleware
             return $this->fail('USER_NOT_FOUND', 'User not found');
         }
 
-        // 5. Ban check — status -1 = banned
-        if ($user->status == -1) {
-            // Auto-lift expired temporary bans
-            if (
-                $user->ban_type === 'temporary'
-                && $user->ban_expires_at !== null
-                && now()->gt($user->ban_expires_at)
-            ) {
-                // Ban expired — restore to logged-out, user must log in again.
-                //
-                // Decision un11: this used to call `update()` on `$user` itself — the instance
-                // rebuilt from the auth cache. That was the data-loss hazard recorded in R2 sec 30:
-                // the cached model is a partial reconstruction, and an Eloquent `update()` on a
-                // model whose attributes are not the full column set writes back what it holds,
-                // not what the DB holds. Re-read the authoritative row from the primary and write
-                // to THAT, so a cache-shaped model can never be the thing that persists.
-                // `useWritePdo` for the same reason as the cache-miss path (RV-28): after a ban
-                // write the replica may lag, and re-reading a stale replica row here would write
-                // the ban fields back over the lift.
-                $fresh = User::useWritePdo()->find($user->id);
+        // 5. Ban check. Decision un13: this used to contain its OWN copy of the un-ban write (status 0 +
+        // clear every ban field + forget one cache key), which is how the three copies of "unban"
+        // drifted apart. It now calls the single implementation.
+        //
+        // The service re-reads the authoritative row from the primary under a lock, so the write can
+        // never be applied to a cache-shaped partial model (the hazard recorded in R2 sec 30) and
+        // cannot race an admin who has just changed the ban. `useWritePdo` matters here too: after a
+        // ban write the replica may lag, and reading a stale replica row would write the ban fields
+        // straight back over the lift.
+        if ($user->status == AccountStatus::BANNED->value) {
+            if ($user->banHasExpired()) {
+                app(BanService::class)->liftExpiredBan($user->id);
 
-                if ($fresh !== null) {
-                    $fresh->update([
-                        'status' => 0,
-                        'ban_reason' => null,
-                        'ban_type' => null,
-                        'banned_at' => null,
-                        'ban_expires_at' => null,
-                        'banned_by' => null,
-                    ]);
-                }
-
-                // Bust the cache — the cached object still has status=-1.
-                // Without this, the user stays "banned" for up to 5 minutes
-                // even after the ban is lifted.
-                Cache::forget("auth.user.{$user->id}");
-
-                // Fall through to the inactive check below (status is now 0)
+                // Fall through to the inactive check below (status is now LOGGED_OUT)
             } else {
                 // Still banned — only /api/contact is allowed
                 if (! $request->is('api/contact')) {

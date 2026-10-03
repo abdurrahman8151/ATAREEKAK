@@ -4769,3 +4769,72 @@ ONLY in the PHP enums, so a raw SQL client can insert a nonsense status and the 
 it. That is the accepted trade of this decision (the PHP enum is the single source of truth), but it
 means validation at the application boundary matters more than before, and it is the strongest
 argument for keeping the enums in PHP rather than relying on the column.
+
+---
+
+## 55. un13 - one BanService + a real AccountStatus enum - **VERIFIED FIX** (third migration-group task)
+
+**Owner ruling (sec 40.1, Option A):** "clean `status` + `BanService`", rationale "root cause of ban
+bugs". No schema change was needed - `users.status` is already a `tinyint`, not an enum, so decision 13
+had nothing to do here.
+
+**THE ACTUAL FINDING is not the magic numbers.** "Un-ban" existed in THREE copies that already
+disagreed about which caches to clear:
+1. `AdminBanController::unban` - status 0 + clear every ban field + bust the full cache list;
+2. `AdminBanController::ban` - status -1 + ban fields + revoke tokens + bust the full list;
+3. `JwtAuthMiddleware` auto-lift - its OWN copy of the un-ban write, forgetting only
+   `auth.user.{id}`.
+
+The divergence had a user-visible consequence already recorded by the audit: an account whose
+temporary ban expired stopped being locked out of the app (the middleware forgot the key it read
+from) while still counting as banned on every admin dashboard (the middleware never cleared those
+keys at all).
+
+**Delivered.**
+- `AccountStatus` int-backed enum: LOGGED_OUT=0, ACTIVE=1, BANNED=-1. Values deliberately UNCHANGED -
+  they are already persisted and already returned by the admin API, so renumbering would be a
+  destructive migration for nothing.
+- `BanService` with `ban()`, `unban()`, `liftExpiredBan()` and ONE private `bustCaches()` holding the
+  complete key list. All three previous call sites now delegate to it; the duplicated
+  `bustBanCaches` in the controller was deleted.
+- `liftExpiredBan()` re-reads under `lockForUpdate()` on the primary, so the write can never land on
+  a cache-shaped partial model (the R2 sec 30 hazard) and cannot race an admin who just changed the ban.
+
+**One genuine behaviour change, stated plainly.** The auto-lift now busts the FULL cache list
+instead of one key. That is a fix, not a regression: an expired ban should stop counting as a ban
+everywhere at once. Everything else - columns written, token revocation, which keys - is unchanged.
+
+**A real bug in my own first implementation, caught by its own test.** I guarded the auto-lift with
+`! $user->isBannedNow() || ! $user->banHasExpired()`. But `isBannedNow()` ALREADY returns false once
+a temporary ban has expired, so that condition asks for a ban that is simultaneously in force and
+expired - it can never be true, and **the auto-lift never fired at all**. The correct precondition is
+the raw one (status is BANNED and the window has closed). This is exactly the class of mistake the
+decision exists to prevent, and it is now documented at the call site: `isBannedNow()` is the
+predicate for deciding whether to BLOCK someone, not whether to RELEASE them.
+
+**Two flaws in my first version of the consolidation test, also caught by running it.** (1) The cache
+keys were seeded BEFORE the ban, so `ban()` cleared them and the assertions passed on work the ban
+had already done - they proved nothing about the lift. They are now seeded after the ban, immediately
+before the lift. (2) The per-user keys used a literal id `1`, which belongs to a different user
+depending on suite order; the test passed alone and failed in the file. Both are the kind of green
+that means nothing.
+
+**`tests/Feature/Review/AccountStatusBanServiceTest.php` (new, 6 tests):** ban writes status and every
+ban field; a permanent ban never carries an expiry (`banHasExpired()` treats a missing expiry as
+"never lifts"); unban clears everything and returns to LOGGED_OUT; **every ban-dependent cache is
+cleared by the auto-lift path**; the lift refuses when the ban has not expired; it never touches a
+permanent ban; the enum keeps its persisted integer values.
+
+**Needle: removing the admin-cache busting from the auto-lift path - i.e. reproducing the original
+defect - fails the suite (1 failure), byte-identical restore.** The test detects the exact bug this
+task fixed.
+
+**No regression.** Identity floor (AdminBanControllerTest, Unit/Middleware, Feature/Auth, the two auth
+review tests, BoundaryDependencyTest) = 183 tests / 2 failures, both the long-recorded pre-existing
+pair (`test_using_refresh_token_as_access_token_returns_401`,
+`test_staff_refresh_token_rejected_with_token_type_invalid`).
+
+**Genuinely unverified.** `AdminBanController::formatUserStatus()` and `PassengerProfileController`
+still map the status with their own `match` on the raw int - they are read-only display mappers, not
+writers, so they are safe, but they are the remaining places a new AccountStatus case would have to be
+added. The concurrency claim about `lockForUpdate()` is reasoned, not load-tested.

@@ -4,10 +4,10 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\JwtService;
+use App\Services\Admin\BanService;
 use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Http\JsonResponse;      // ← added
+use Illuminate\Http\JsonResponse;      // â† added
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -24,25 +24,25 @@ use Illuminate\Support\Facades\Validator;
  *    1 = active
  *
  * Routes (all behind staff:admin / staff:system_admin middleware):
- *   POST /api/admin/users/{userId}/ban    → ban()
- *   POST /api/admin/users/{userId}/unban  → unban()
- *   GET  /api/admin/users/{userId}/status → userStatus()
+ *   POST /api/admin/users/{userId}/ban    â†’ ban()
+ *   POST /api/admin/users/{userId}/unban  â†’ unban()
+ *   GET  /api/admin/users/{userId}/status â†’ userStatus()
  *
- * ── Caching summary ─────────────────────────────────────────────────────────
+ * â”€â”€ Caching summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  *
- *  NOT CACHED  ban()        mutation — also busts status + dashboard caches
- *  NOT CACHED  unban()      mutation — also busts status + dashboard caches
+ *  NOT CACHED  ban()        mutation â€” also busts status + dashboard caches
+ *  NOT CACHED  unban()      mutation â€” also busts status + dashboard caches
  *  CACHED      userStatus() admin.user.status.{userId}  5 min
  *                           (busted immediately by ban / unban)
  */
 final class AdminBanController extends Controller
 {
-    // ── POST /api/admin/users/{userId}/ban ────────────────────────────────────
+    // â”€â”€ POST /api/admin/users/{userId}/ban â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Ban a user.
      *
-     * Mutation — not cached. After writing, busts:
+     * Mutation â€” not cached. After writing, busts:
      *   - The specific user's status cache
      *   - Dashboard and driver stat aggregates (active counts change)
      *
@@ -82,22 +82,16 @@ final class AdminBanController extends Controller
                 ], 422);
             }
 
-            $user->update([
-                'status' => -1,
-                'ban_reason' => $request->input('reason'),
-                'ban_type' => $request->input('type'),
-                'banned_at' => now(),
-                'ban_expires_at' => $request->input('type') === 'temporary'
-                    ? $request->input('expires_at')
-                    : null,
-                'banned_by' => $request->user()?->id,
-            ]);
-
-            // Revoke all tokens — ban takes effect on the very next request
-            app(JwtService::class)->revokeAllTokens($user->id);
-
-            // Bust caches — a ban changes active user/driver counts and the user's status
-            $this->bustBanCaches($userId);
+            // Decision un13: the ban write itself (status + ban fields + token revocation + cache busting)
+            // now lives in BanService. This controller validated the input and notifies; it does not
+            // decide what a ban IS. Previously the same write existed in three places.
+            $user = app(BanService::class)->ban(
+                $user,
+                $request->input('reason'),
+                $request->input('type'),
+                $request->input('expires_at'),
+                $request->user()?->id,
+            );
 
             Log::info('User banned', [
                 'user_id' => $user->id,
@@ -141,12 +135,12 @@ final class AdminBanController extends Controller
         }
     }
 
-    // ── POST /api/admin/users/{userId}/unban ──────────────────────────────────
+    // â”€â”€ POST /api/admin/users/{userId}/unban â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Lift a ban from a user.
      *
-     * Mutation — not cached. Busts the same keys as ban().
+     * Mutation â€” not cached. Busts the same keys as ban().
      *
      * Body (optional):
      *   admin_notes  string  reason for lifting the ban
@@ -171,17 +165,8 @@ final class AdminBanController extends Controller
                 ], 422);
             }
 
-            $user->update([
-                'status' => 0,   // logged out — user must log in again
-                'ban_reason' => null,
-                'ban_type' => null,
-                'banned_at' => null,
-                'ban_expires_at' => null,
-                'banned_by' => null,
-            ]);
-
-            // Bust caches — an unban changes active user/driver counts
-            $this->bustBanCaches($userId);
+            // Decision un13: same service, same write - see ban() above.
+            app(BanService::class)->unban($user, $request->user()?->id);
 
             Log::info('User unbanned', [
                 'user_id' => $userId,
@@ -223,10 +208,10 @@ final class AdminBanController extends Controller
         }
     }
 
-    // ── GET /api/admin/users/{userId}/status ──────────────────────────────────
+    // â”€â”€ GET /api/admin/users/{userId}/status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
-     * CACHED — 5 minutes per user.
+     * CACHED â€” 5 minutes per user.
      * The cache is invalidated immediately by ban() and unban(), so the worst
      * case staleness is limited to background processes changing status
      * (e.g. an expired temporary ban being lifted by a scheduled job).
@@ -248,31 +233,7 @@ final class AdminBanController extends Controller
         }
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
-    /**
-     * Clears all caches that become stale after a ban or unban.
-     *
-     * Covers:
-     *   - The specific user's status entry
-     *   - Main dashboard BFF and stat cards (active user count changes)
-     *   - Driver management BFF and stat cards (active driver count changes)
-     */
-    private function bustBanCaches(int $userId): void
-    {
-        // RV-12: the middleware serves the user object from this cache for 5 minutes.
-        // ban() also busts it via revokeAllTokens, but unban() must NOT rely on that:
-        // without this line a user the admin just unbanned kept hitting a cached copy
-        // with status=-1 and got USER_BANNED for up to 5 minutes AFTER the unban —
-        // the "stale USER_INACTIVE/USER_BANNED after unban" R1 named, confirmed live.
-        Cache::forget("auth.user.{$userId}");
-
-        Cache::forget("admin.user.status.{$userId}");
-        Cache::forget('admin.dashboard.data');
-        Cache::forget('admin.dashboard.stats');
-        Cache::forget('admin.drivers.dashboard');
-        Cache::forget('admin.drivers.stats');
-    }
+    // â”€â”€ Private â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private function formatUserStatus(User $user): array
     {
