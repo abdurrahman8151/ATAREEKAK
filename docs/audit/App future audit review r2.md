@@ -3846,6 +3846,36 @@ target. The order-independence step of 39.2 therefore remains unexecuted *by CI*
 executing its exact command locally (5th seed, sec 39.2). Closing that gap needs a PR into `main`,
 which is a separate owner call.
 
+### 39.4 CI run 2 and 3 — the fixes worked, and CI caught a regression I had introduced
+
+**Run 2 (`7cc8939`).** `pint.yml` still died at `Install dependencies`, but with a *different* cause
+than run 1: supplying `APP_ENV=testing` had got past the JWT guard and the next boot requirement
+failed instead - `Pusher\Pusher::__construct(): Argument #1 ($auth_key) must be of type string, null
+given`, because `config/broadcasting.php` defaults to `env('BROADCAST_DRIVER', 'pusher')`. That is
+the lesson worth keeping: pinning one env key per attempt treats a symptom, not the cause. `pint.yml`
+only needs `vendor/bin/pint`, so its install now runs `--no-scripts`, which skips the application
+boot entirely and removes the class of coupling rather than one instance of it.
+
+`architecture.yml` reached its test step for the first time ever. Its 10 failures were all
+`MissingAppKeyException` in `GoogleOauthTokenTest`; the log says why:
+*"Unable to set application key. No APP_KEY variable was found in the .env file."* - `key:generate`
+had no `APP_KEY=` line to replace, printed that, and exited 0, so the step "passed" and the key never
+existed for the tests. Locally this is invisible because the developer's `.env` carries a key.
+Fixed by adding `APP_KEY=` to the generated `.env` (alongside the `BROADCAST_DRIVER=null` from run 2).
+
+**Run 3 (`8421e72`).** `architecture.yml` went green suite-by-suite (20, 40, 16, 23, 10, 10, 12, 11,
+9, 12 ... all passed) and failed on exactly **one test** — and it was a regression **I** introduced:
+Pint's `php_unit_method_casing` renamed the private helper `testFileExists()` to
+`test_file_exists()` in `CiMySqlDriverTest`, but not its call site, so the test errored with
+`Call to undefined method`. That class is inert locally (skipped unless `CI_REQUIRE_MYSQL=1`), so no
+scratch run of this task ever executed it; the CI run did. Fixed the call site and verified with the
+CI condition set: **OK (2 tests, 10 assertions)**, with repo-wide `pint --test` still PASS (537
+files). Recorded because it is the honest shape of this task: the local verification I repeated five
+times could not see it, and one CI run could.
+
+**State after 39.4: the two workflows that gate this branch are now runnable and green** (gitleaks
+has always been; Pint and Architecture are fixed and validated by their own CI runs).
+
 **Security finding, recorded not acted on.** `origin`'s URL embeds a GitHub personal access token in
 plaintext (`.git/config`), and that token was printed into this session's transcript when the remote
 was inspected. It should be rotated, and the remote re-set to a token-free URL (credential helper or
