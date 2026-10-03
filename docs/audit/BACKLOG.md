@@ -220,7 +220,7 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 | 82 | T3-1 | `chargeWallet` mints txn id from a timestamp (same-second collision) | P2 | VERIFIED FIX | n/a | RV-15 | S P2 table row T3-1 VF; 3443979 |
 | 83 | T3-2 | Financial columns use three precisions for one currency | P2 | VERIFIED FIX | n/a | RV-40, RV-14 | S P2 table VF; 3443979 |
 | 84 | T3-3 | Wallet-creation OTP optional; unaudited create-direct route | P2 | DEFERRED | owner: deferred | RV-21, T3-4 | S P2 table `DEFERRED (owner: leave for later)` |
-| 85 | T3-4 | `wallet_requests.processed_by` references users; admin actors are employees | P2 | OPEN | un10 + the settled T2-1 decision | T2-1, sec 19.3 (26 tests) | S P2 table `NOT STARTED`; no commit |
+| 85 | T3-4 | `wallet_requests.processed_by` references users; admin actors are employees | P2 | OPEN | the T2-1 decision (un10 SETTLED 2026-10-02 = wallet required before top-up, schema stays NOT NULL - R2 sec 41) | T2-1 | S P2 table `NOT STARTED`; R2 sec 41 (un10 done) |
 | 86 | T3-5 | Conflicting/duplicated indexes; `down()` drops unconditionally | P2 | VERIFIED FIX | n/a | RV-30 | S P2 table VF; 3443979 |
 | 87 | T3-6 | MySQL-only raw SQL contradicts the SQLite test config | P2 | VERIFIED FIX | n/a | RV-18, V6 | S P2 table VF (7 migrations guarded); 3443979 |
 | 88 | T3-7 | `VerifyOtpMiddleware` a no-op; a test asserts it works | P2 | VERIFIED FIX | n/a | RV-16 | S P2 sec T3-7 VF (stub + misleading test deleted); 3443979 - file absent (re-checked) |

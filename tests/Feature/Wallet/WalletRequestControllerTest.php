@@ -5,8 +5,10 @@ namespace Tests\Feature\Wallet;
 use App\Enums\WalletRequestStatus;
 use App\Enums\WalletRequestType;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Models\WalletRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class WalletRequestControllerTest extends TestCase
@@ -21,6 +23,12 @@ class WalletRequestControllerTest extends TestCase
     {
         parent::setUp();
         $this->user = User::factory()->create(['password' => bcrypt('password123')]);
+        // un10 (owner ruling 2026-10-02): a wallet request always belongs to a wallet, so the
+        // user under test owns one. The API path itself already enforces this - see
+        // WalletRequestService::requestCharge, which refuses with 422 when `$user->wallet` is
+        // missing - and `wallet_requests.wallet_id` is NOT NULL. These fixtures were inserting
+        // requests with no wallet, which is the side of the invariant the owner ruled wrong.
+        $this->ensureWallet($this->user);
         $this->token = $this->getToken($this->user);
     }
 
@@ -56,6 +64,11 @@ class WalletRequestControllerTest extends TestCase
 
     public function test_user_can_submit_a_withdrawal_request(): void
     {
+        // A withdrawal is only valid against real funds: WalletRequestService::requestWithdraw
+        // checks `pendingTotal + amount <= balance` under a row lock. The wallet created in
+        // setUp() starts empty, so fund it here rather than weakening the check.
+        $this->ensureWallet($this->user)->update(['balance' => 500.00]);
+
         $this->withToken($this->token)
             ->postJson('/api/wallet/requests', [
                 'type' => WalletRequestType::WITHDRAWAL->value,
@@ -273,12 +286,32 @@ class WalletRequestControllerTest extends TestCase
 
     private function walletRequestData(array $overrides = []): array
     {
+        // The wallet belongs to whichever user the request is for, so a request built for a
+        // second user does not point at the first user's wallet.
+        $user = $overrides['user_id'] ?? null
+            ? User::find($overrides['user_id'])
+            : $this->user;
+
         return array_merge([
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
+            'wallet_id' => $this->ensureWallet($user)->id,
             'type' => WalletRequestType::TOP_UP->value,
             'amount' => 100.00,
             'status' => WalletRequestStatus::PENDING->value,
         ], $overrides);
+    }
+
+    /** Create (once) and return the user's wallet, mirroring the real signup flow. */
+    private function ensureWallet(User $user): Wallet
+    {
+        return Wallet::firstOrCreate(
+            ['user_id' => $user->id],
+            [
+                'phone_number' => '09'.random_int(10000000, 99999999),
+                'wallet_number' => 'WLT-'.Str::random(8),
+                'balance' => 0,
+            ]
+        );
     }
 
     private function getToken(User $user): string
