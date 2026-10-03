@@ -282,7 +282,11 @@ final class ScoreService
             }
 
             $userScore->score = $newScore;
-            $userScore->tier = $this->resolveTier($newScore);
+            // R2 sec 42: the stored `tier` write is GONE. The column is legacy and
+            // `UserScore::setTierAttribute` deliberately discards assignments ("computed from score
+            // - never stored"), so this line silently did nothing while appearing to maintain a
+            // third copy of the bands - and it used a 200/150/100 scale against a 0-100 score, so
+            // it labelled every user `bronze`. The computed accessor is now the only definition.
             $userScore->save();
 
             // FIX: resolve reference from the passed $reference object directly,
@@ -331,16 +335,5 @@ final class ScoreService
     private function incrementCancellations(User $user): void
     {
         $this->getScore($user)->incrementCancellations();
-    }
-
-    // FIX: was "rivate function" (missing 'p') — caused "Unexpected: identifier" at line 379
-    private function resolveTier(int $score): string
-    {
-        return match (true) {
-            $score >= 200 => 'platinum',
-            $score >= 150 => 'gold',
-            $score >= 100 => 'silver',
-            default => 'bronze',
-        };
     }
 }

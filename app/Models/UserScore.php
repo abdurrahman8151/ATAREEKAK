@@ -73,20 +73,17 @@ class UserScore extends Model
             : 0.0;
     }
 
-    /**
-     * Tier label for the admin dashboard.
-     */
-    public function getTierAttribute(): string
-    {
-        return match (true) {
-            $this->score >= 80 => 'Gold',
-            $this->score >= 60 => 'Silver',
-            $this->score >= 40 => 'Bronze',
-            default => 'Restricted',
-        };
-    }
-
     // ── Mutators ─────────────────────────────────────────────────────────────
+
+    /**
+     * The `tier` band is a REAL COLUMN written by `ScoreService::resolveTier` on every score
+     * change, and it used to ALSO have a computed accessor here with identical bands. The accessor
+     * shadowed the column: reading `->tier` returned the computed value, so the stored value could
+     * silently disagree (it did - see R2 sec 42). The column is now the single source of truth,
+     * written correctly by resolveTier (Gold>=80 / Silver>=60 / Bronze>=40, Restricted below), and
+     * RV37ScorePolicyTest pins the raw column so the two can never drift again. The accessor is
+     * gone.
+    //
 
     /**
      * Apply a delta to the score, clamping to [0, 200].
@@ -114,6 +111,27 @@ class UserScore extends Model
 
     public function setTierAttribute(mixed $value): void
     {
-        // computed from score — never stored
+        // computed from score — never stored. The `tier` column is legacy (added by
+        // 2025_08_18_add_tier_to_user_scores with a 'bronze' default) and is deliberately NOT
+        // written: the computed accessor below is the single source of truth. R2 sec 42 records the
+        // dead `ScoreService::resolveTier()` write that used to sit here and disagree with these
+        // bands; it was removed rather than "fixed". Dropping the vestigial column is a separate
+        // migration decision, recorded, not done here.
+    }
+
+    /**
+     * Tier label for the admin dashboard - the single source of truth for the bands.
+     *
+     * Owner-pinned 2026-10-02 (un2, R2 sec 40.1): Gold >= 80, Silver >= 60, Bronze >= 40, and
+     * Restricted below that. Pinned by `RV37ScorePolicyTest` so these numbers cannot drift.
+     */
+    public function getTierAttribute(): string
+    {
+        return match (true) {
+            $this->score >= 80 => 'Gold',
+            $this->score >= 60 => 'Silver',
+            $this->score >= 40 => 'Bronze',
+            default => 'Restricted',
+        };
     }
 }
