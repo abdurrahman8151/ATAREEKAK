@@ -5086,3 +5086,25 @@ outside), and `PassengerProfileController::chargeWallet` (admin credit). Every o
 inflow/outflow with no internal counterparty. Posting a synthetic leg to force each to balance would
 corrupt what the ledger represents, so they stay unconverted pending the owner's answer on whether
 this ledger models external flows at all.
+
+### 57.5 `ledger:reconcile` - the invariant, runnable against real data on demand
+
+The reconciliation exists as a test, which proves it for a controlled scenario. A test cannot watch
+production. `ledger:reconcile` is the same check against real data, and it is scheduled daily at
+04:30 (low-traffic window, matching the other cleanup jobs).
+
+**IT REPORTS INCOMPLETENESS RATHER THAN HIDING IT.** A wallet whose balance moved with no legs is
+printed as `unexplained`, with an explicit note that this is EXPECTED for the admin wallet paths
+(external credit / withdrawal) and UNEXPECTED anywhere else - a converted money path that moved a
+balance without posting legs.
+
+**It checks system conservation first, and returns a non-zero exit code if that fails**, because
+every per-wallet row is meaningless if the ledger does not balance overall. A broken ledger should
+stop the reading, not decorate it.
+
+**Verified end-to-end inside a transaction** with real legs present: the command exits 0, and the
+per-wallet comparison it reports on genuinely holds for the escrow charge. `tests/Feature/Review/
+DoubleEntryLedgerTest.php` is now 8 tests.
+
+**Why a money check is scheduled rather than only tested:** a money bug found a day later is a money
+bug that has already been paid out.

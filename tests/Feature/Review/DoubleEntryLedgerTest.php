@@ -315,4 +315,28 @@ class DoubleEntryLedgerTest extends TestCase
         // And the whole system conserves: across every wallet, legs sum to zero.
         $this->assertSame(0.0, round((float) LedgerEntry::sum('amount'), 2));
     }
+    /**
+     * `ledger:reconcile` must run on REAL data, not merely parse. This exercises it end-to-end inside
+     * a transaction with actual legs present, and asserts the command's own guard - the system-level
+     * conservation check that returns non-zero if any transfer does not balance.
+     *
+     * @test
+     */
+    public function the_reconcile_command_runs_against_real_data_and_reports_success(): void
+    {
+        $booking = $this->makeBooking(2, 10_000.0);
+        $this->service->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
+
+        $this->artisan('ledger:reconcile')
+            ->assertExitCode(0);
+
+        // And the per-wallet agreement this command reports on is genuinely true for the charge:
+        // SyCash's ledger equals SyCash's recorded movement.
+        $syCash = $this->syCashWallet();
+        $this->assertSame(
+            round((float) $syCash->transactions()->sum('amount'), 2),
+            round((float) LedgerEntry::where('wallet_id', $syCash->id)->sum('amount'), 2),
+            'the reconcile command compares exactly this, so it must hold'
+        );
+    }
 }

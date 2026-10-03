@@ -76,6 +76,18 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/scheduled/booking-expiry.log'));
 
+        // ── LEDGER RECONCILIATION (decision un3) ───────────────────────────────
+        // Proactive counterpart to the invariant test: checks on real data that every wallet
+        // balance change is explained by its ledger legs. Catches a converted money path moving a
+        // balance without posting legs - the failure the per-transfer sum check cannot see.
+        // Scheduled because a money bug found a day later is a money bug that has already been paid out.
+        $schedule->command('ledger:reconcile')   // ← matches ReconcileLedgerCommand
+            ->daily()
+            ->at('04:30')
+            ->onOneServer()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduled/ledger-reconcile.log'));
+
         // ── ADMIN PASSWORD ROTATION ──────────────────────────────────────────
         // Uncomment and adjust frequency to your security policy.
         //
