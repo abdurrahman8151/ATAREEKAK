@@ -1,0 +1,58 @@
+name: Static analysis (Larastan, report-only)
+
+# Decision un8 (owner, 2026-10-02): Larastan is added REPORT-ONLY.
+#   Owner's words: "needs work after we finish these tasks completely" - i.e. add the tooling now,
+#   do the cleanup later as its own task.
+#
+# THIS JOB CANNOT FAIL THE BUILD. `continue-on-error: true` is deliberate and load-bearing, not a
+# placeholder: at level 5 the first run reports 276 findings over app/, dominated by Eloquent
+# relations PHPStan cannot see ("X is not found in model", 54) and unresolvable dynamic properties.
+# Gating on that today would make every PR red for a reason nobody has triaged - the same
+# "always-red gate is an ignored gate" failure recorded under T3-11.
+#
+# The value is that the debt is now MEASURED on every push and visible in the job log, so the
+# follow-up task ("triage the report, then add a baseline and flip this to gating") starts from a
+# number instead of an impression.
+#
+# When that follow-up happens, the sequence is:
+#   1. read the report, fix or baseline the noise;
+#   2. php vendor/bin/phpstan analyse --generate-baseline phpstan-baseline.neon
+#   3. remove continue-on-error here.
+# Step 3 is deliberately NOT done in this commit: a baseline generated without anyone reading the
+# output just freezes the debt silently, which is the opposite of the point.
+
+on:
+  push:
+    branches: [ main, Agentic ]
+  pull_request:
+
+jobs:
+  phpstan:
+    runs-on: ubuntu-latest
+    # REPORT-ONLY - see the header. Flipping this to false is the follow-up task's last step.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_mysql, pcntl, posix
+
+      - name: Install dependencies
+        # pcntl/posix are required by laravel/horizon (locked in composer.lock) and this runner
+        # does not provide them by default.
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+
+      - name: Analyse (report only)
+        # APP_ENV=testing is REQUIRED, not cosmetic: Larastan's bootstrap boots the application to
+        # teach PHPStan about Eloquent, and AppServiceProvider's guard refuses to start with the
+        # testing OTP modes outside local/testing. Without it the job dies with
+        # "Refusing to start with a testing OTP mode enabled outside local/testing" - which is the
+        # guard working correctly, not a bug.
+        env:
+          APP_ENV: testing
+          APP_KEY: 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+        run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --no-progress

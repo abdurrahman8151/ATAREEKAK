@@ -4417,3 +4417,54 @@ before this task). `BoundaryDependencyTest` still green - no baseline moved.
 proves the SERIALIZED PAYLOAD is credential-free (which is the property that matters - it is what any
 backend would persist), not Redis' own behaviour. A pre-existing Redis already holding hashes from
 before this commit keeps them until its TTL expires; a production flush is a deploy step.
+
+---
+
+## 49. un8 - Larastan added REPORT-ONLY - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1, Option A):** "add report-only (no gate)". Owner's words: *"needs work after we
+finish these tasks completely"* - add the tooling now, cleanup is a separate later task. The audit had
+deferred it precisely because level 5 over this codebase "produces noise" (R2 sec 1; RV-33).
+
+**What shipped.**
+- `larastan/larastan` **2.9** added to `require-dev` (dev-only; verified absent from `require`).
+  Version pinned deliberately: 3.x requires `illuminate/console ^11.15` and this project is Laravel 10.
+- `phpstan.neon.dist` - level 5, `paths: app/`, tests NOT analysed (analysing them is what produced
+  the original noise), no baseline file, one accurate `ignoreErrors` pattern.
+- `.github/workflows/static-analysis.yml` - runs on push/PR, **`continue-on-error: true`**.
+
+**The measured result: 276 findings at level 5**, dominated by two families that are exactly what a
+static analyser sees and a human does not:
+- **54** "X is not found in model" - Eloquent relations defined in a parent/trait or resolved at runtime;
+- **69 + 15 + 13 + 9** accesses to dynamic properties (`::$ride`, `::$user`, `::$seats`, `::$id`);
+- **28** mixed `int|string` vs float; **25** type mismatches on calls.
+
+This is the "noise" the audit predicted, now MEASURED on every push instead of assumed.
+
+**Why `continue-on-error: true` is load-bearing, not a placeholder.** Gating on 276 untriaged
+findings would make every PR red for a reason nobody has read - the same "an always-red gate is an
+ignored gate" failure already recorded under T3-11. The job's value today is that the debt is
+visible and countable. The header of the workflow documents the exact three-step follow-up (read the
+report -> `--generate-baseline` -> flip the flag) so it is not forgotten.
+
+**Why NO baseline in this commit.** A generated baseline that nobody has read freezes the debt
+silently, which defeats the purpose. It is explicitly deferred to the triage task.
+
+**One environment gotcha worth recording.** Larastan's bootstrap BOOTS the application, and
+`AppServiceProvider`'s OTP guard refuses to start with the testing OTP modes outside local/testing
+(`Refusing to start with a testing OTP mode enabled outside local/testing`). The job therefore sets
+`APP_ENV=testing`. That is the guard working correctly - recorded so the next person does not "fix"
+it by weakening the guard.
+
+**Installed with `--ignore-platform-req=ext-pcntl --ignore-platform-req=ext-posix` locally only**
+(this WAMP PHP build lacks them; `laravel/horizon`, locked at v5.48.3, requires them). The flag was
+NOT written into composer.json, and the CI runner explicitly installs both extensions.
+
+**Verification.** The exact command the workflow runs was reproduced locally: 276 findings, no crash.
+Composer change is additive and dev-only.
+
+**Genuinely unverified.** The CI run itself has not executed (no push was authorised this session).
+Level 5 vs a lower level was chosen by judgement, not by measuring which level yields signal; if the
+triage task finds level 5 too noisy even as a report, lowering it is a one-line change. `app/Http/
+Middleware` is excluded from analysis (routing/DI plumbing), which is a judgement call, not a measured
+one.

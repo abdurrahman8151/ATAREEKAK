@@ -1,0 +1,41 @@
+includes:
+    - ./vendor/larastan/larastan/extension.neon
+
+# Decision un8 (owner, 2026-10-02): Larastan is REPORT-ONLY. It reports; it never fails the build.
+#
+# WHY. The audit deferred Larastan because running it at a useful level over this codebase
+# "produces noise" (R2 sec 1, RV-33 note). A report-only job is the first step: it makes the debt
+# VISIBLE and measurable without turning every PR red on day one. Two of the three options were
+# rejected for now - (a) gating on the full error list is the "|| true removed under T3-11"
+# disease in reverse (permanently red = ignored), and (b) a generated baseline is premature until
+# somebody has actually read the output and decided what is signal.
+#
+# LEVEL 5 is chosen because it is the first level that reports UNDEFINED variables and methods -
+# the class of defect that produces real bugs in this codebase (the money paths, nullable relations
+# and enum->string coercions). Level 5 is a strict-but-not-maximal floor.
+#
+# There is deliberately NO baseline file. When the report has been read and triaged, adding
+# `phpstan-baseline.neon` (with `--generate-baseline`) and flipping the CI `continue-on-error`
+# to `false` becomes a small, informed follow-up task. That is the "cleanup is a follow-up"
+# the owner named.
+
+parameters:
+    level: 5
+
+    paths:
+        - app
+
+    # Tests are NOT analysed. They are the regression floor, not production code; analysing them
+    # would flood the report with fixture and factory noise (the very thing that made level 5
+    # "produce noise" and get deferred in the first place).
+    excludePaths:
+        - app/Http/Middleware/*
+
+    checkMissingIterableValueType: false
+    checkGenericClassInNonGenericObjectType: false
+
+    # Framework magic is understood by the Larastan extension above. These two patterns only ever
+    # fire on framework internals or on Eloquent's documented dynamic-property access in this project.
+    # (An UNMATCHED ignore pattern is itself an error in PHPStan, so the list must stay accurate.)
+    ignoreErrors:
+        - '#Access to an undefined property App\\Models\\#'
