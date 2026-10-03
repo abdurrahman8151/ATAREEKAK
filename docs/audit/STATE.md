@@ -14,10 +14,11 @@ with each status taken from the newest section that mentions it. The per-task lo
   `de61c7b`, un5 delete finish/driver-confirm `1510663` (+`23457eb` near-miss record),
   un9 lazy loading + flag ARMED `00f7b9d`/`5bbadad`, decision 11 KYC action gate `0c6a1f6`,
   decision 1b staff document streaming `066b1dd` (+`b4885d8` boundary fix), decision 6 staff-cancel
-  full refund `364cc0c`, un11 auth cache DTO `8732a0e`, un8 Larastan report-only `67f0113`.
-  NEXT, in this order: decision 7 (Render deploy), un12 (k6 harness),
-  un1 (MinIO), then the migration/money group last, each needing explicit owner sign-off: decision 2
-  (booking expiry), 13 (PHP enums), un13 (account status), un3 (money foundation).
+  full refund `364cc0c`, un11 auth cache DTO `8732a0e`, un8 Larastan report-only `67f0113`,
+  decision 7 Render deploy `2114308`, un12 k6 setup() harness `ff8e6f0`, un1 MinIO storage `3e9a304`.
+  REMAINING: only the migration/money group, each of which AGENTS.md says needs explicit owner
+  sign-off before the semantics move - decision 2 (booking expiry), 13 (PHP enums), un13 (account
+  status), un3 (money foundation). No routine task is left.
   OPEN QUESTION for the owner (raised in sec 47, deliberately not actioned): RV-03's ROLE-GATE half -
   both staff-cancel endpoints are callable by ANY authenticated employee, so any of them can move real
   money. Tightening it is an auth change that can lock legitimate staff out, and AGENTS.md requires
