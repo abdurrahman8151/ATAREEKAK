@@ -23,9 +23,17 @@ with each status taken from the newest section that mentions it. The per-task lo
   un3 money foundation `ae09981` **PARTIAL - `wallets.kind` shipped, double-entry + thresholds NOT
   built** (measured scope in R2 sec 56: 31 ledger write sites + 27 balance mutations; half a ledger
   rewrite is worse than none, so it is its own task), un3 double-entry ledger `8b8d5ef` **PARTIAL -
-`ledger_entries` + `LedgerService` + the escrow path converted, balancing invariant enforced and
-needle-proven; 30 of 31 ledger write sites remain** (now mechanical: add a `postTransfer` call, but
-each still needs its legs checked against what the balances did).
+  `ledger_entries` + `LedgerService`; then `5df7da5`/`ecba915`/`4bb4b90` converted
+  WalletTransactionService 8/8 methods (95/5 split, both refund fan-outs, both no-show flows, escrow
+  release, time-based cancellation) and CashRideFeeService 3/3 - every RIDE money movement is now
+  covered, each balance-verified and needle-proven.
+  **LEDGER REMAINDER - OPEN DESIGN QUESTION.** `AdminWalletService::chargeWallet`,
+  `AdminWalletRequestController` and `PassengerProfileController` are NOT converted, deliberately: an
+  admin wallet credit is money entering the system from OUTSIDE, with no internal counterparty to
+  debit. Posting a synthetic leg to force it to balance would corrupt what the ledger MEANS. The open
+  question is whether this ledger models only internal transfers or also external inflows - that
+  decides whether those three get legs at all, and how any future reconciliation ("sum of wallets vs
+  sum of ledger") is phrased. Not guessed at.
   OPEN QUESTION for the owner (raised in sec 47, deliberately not actioned): RV-03's ROLE-GATE half -
   both staff-cancel endpoints are callable by ANY authenticated employee, so any of them can move real
   money. Tightening it is an auth change that can lock legitimate staff out, and AGENTS.md requires
