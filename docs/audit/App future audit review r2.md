@@ -3801,6 +3801,63 @@ decision is now met.** What remains on RV-37 is nothing executable without a rul
 lives in the same repo (done here), and the residual `V13`/`V14` narrative is historical. The row
 may be closed by the owner; this section closes the work, not the row's status field.
 
+### 39.3 CI executed for the first time on this branch - and was already broken before any of this work
+
+The owner authorised pushing `Agentic` (branch only; `main` untouched). GitHub Actions ran on
+`eaa7f14` for the first time on this branch, and the result is the reason the criterion could not be
+closed blind:
+
+| Workflow | Result | Where it stopped |
+| --- | --- | --- |
+| gitleaks | **success** | - |
+| Style (Pint) | failure | `Install dependencies` |
+| Architecture gate | failure | `Install dependencies` |
+
+Neither failing job ever reached a test or a lint check. Both die in `composer install`, because
+`post-autoload-dump` runs `artisan package:discover`, which **boots the application**:
+
+- **`pint.yml`** wrote no `.env` at all, so `APP_ENV` defaulted to `production` and the JWT boot
+  guard (`AppServiceProvider::guardJwtSecret`, added for the T3-11 work) threw
+  *"JWT_SECRET must be set to at least 32 bytes outside local/testing environments; it currently
+  resolves to an EMPTY value"* - `exit 1`.
+- **`architecture.yml`** writes `.env` (with `APP_ENV=testing` and a fresh `JWT_SECRET`) but never
+  sets a broadcast driver, so `config/broadcasting.php`'s `env('BROADCAST_DRIVER', 'pusher')` default
+  resolves to pusher and `package:discover` dies with
+  `Pusher\Pusher::__construct(): Argument #1 ($auth_key) must be of type string, null given`.
+
+**This is pre-existing and not caused by any commit in this audit.** The same two workflows fail
+identically on `c92e1e2` (before this session) and on `26fbdb3`; the failing step is `Install
+dependencies`, which nothing in this record touches. The audit-branch CI has therefore never been a
+gate in practice - `gitleaks` is the only workflow that has ever passed here.
+
+**Fixes applied (CI configuration only, no application code, no secrets).** `pint.yml` now sets
+`APP_ENV: testing` + a dummy `JWT_SECRET` on the install step; `architecture.yml` adds
+`BROADCAST_DRIVER=null` to the `.env` it generates. Both state what the job is; the JWT guard stays
+armed for real deployments. Once install passes, `vendor/bin/pint --test` surfaced **3
+pre-existing style violations in files this audit never touched**
+(`ResetPasswordControllerTest`, `SignupPasswordOverwriteTest`, `CiMySqlDriverTest`) - also auto-fixed
+(`ordered_imports`, `single_quote`, `php_unit_method_casing`, operator spacing), semantics
+preserving, and the three files' tests still pass (30 tests, 66 assertions, 2 announced skips).
+Repo-wide `pint --test` is now **PASS, 537 files**.
+
+**Still not exercised by CI: the suite.** `sonar.yml` triggers on `push: main` / `pull_request:
+main`, so pushing `Agentic` cannot run it - by the owner's instruction the branch is the only push
+target. The order-independence step of 39.2 therefore remains unexecuted *by CI*, verified instead by
+executing its exact command locally (5th seed, sec 39.2). Closing that gap needs a PR into `main`,
+which is a separate owner call.
+
+**Security finding, recorded not acted on.** `origin`'s URL embeds a GitHub personal access token in
+plaintext (`.git/config`), and that token was printed into this session's transcript when the remote
+was inspected. It should be rotated, and the remote re-set to a token-free URL (credential helper or
+a token supplied at push time).
+
+**State after 39.3: RV-37's code and audit work is complete and CI-blocking defects that were
+outside this task are fixed. The row is closed by the owner's decision recorded in BACKLOG row 25.**
+
+**Genuinely unverified / not done (39.3).**
+1. The suite workflow (`sonar.yml`, and with it the 39.2 order-independence step) has still never
+   executed; it needs a PR into `main`.
+
 **Genuinely unverified / not done (39.2).**
 1. The CI step is verified by local execution of its exact command and by the YAML parsing, but it
    has not run on GitHub Actions (no push, by protocol). First CI execution will confirm it.

@@ -63,12 +63,12 @@ class CiMySqlDriverTest extends TestCase
             'mysql',
             $driver,
             "RV-18/V6: CI_REQUIRE_MYSQL=1 but the tests are running on '{$driver}'. "
-            ."This is the silent-skip leak: the committed phpunit.xml pins "
-            ."DB_CONNECTION=sqlite with no force, and neither .env (Dotenv is immutable) "
-            ."nor a late putenv can win against a value already set -- so the fix must be "
-            ."at the PROCESS level: the CI workflows set DB_CONNECTION=mysql in the job "
-            ."env:, and locally run vendor/bin/phpunit -c phpunit.mysql.xml, which does "
-            ."not pin the driver."
+            .'This is the silent-skip leak: the committed phpunit.xml pins '
+            .'DB_CONNECTION=sqlite with no force, and neither .env (Dotenv is immutable) '
+            .'nor a late putenv can win against a value already set -- so the fix must be '
+            .'at the PROCESS level: the CI workflows set DB_CONNECTION=mysql in the job '
+            .'env:, and locally run vendor/bin/phpunit -c phpunit.mysql.xml, which does '
+            .'not pin the driver.'
         );
     }
 
@@ -109,7 +109,7 @@ class CiMySqlDriverTest extends TestCase
      * and would false-red the CI green floor — the very "flaky gate people start to
      * ignore" failure RV-18 exists to remove.
      */
-    private function testFileExists(string $class): bool
+    private function test_file_exists(string $class): bool
     {
         $needle = $class.'.php';
         $iterator = new \RecursiveIteratorIterator(

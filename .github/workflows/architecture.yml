@@ -74,6 +74,7 @@ jobs:
           echo "CACHE_DRIVER=array" >> .env
           echo "SESSION_DRIVER=array" >> .env
           echo "QUEUE_CONNECTION=sync" >> .env
+          echo "BROADCAST_DRIVER=null" >> .env
           echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
           echo "JWT_TTL=600" >> .env
           echo "OTP_BYPASS_ENABLED=true" >> .env

@@ -12,13 +12,16 @@ with each status taken from the newest section that mentions it. The per-task lo
 - None.
 
 ## Done recently (newest first; detail is in the audit record)
-- RV-37 final clauses (tracked-file ratchet + CI double-run) - DONE (`App future audit review r2.md` sec 39.2).
-  New ratchet `no_test_writes_a_tracked_file` (word-boundary global-call scan; first draft flagged
-  `->touch()`/"untouched"/"rename" prose - corrected; needle-proven by injecting a real
-  `touch(base_path('README.md'))`). `sonar.yml` now re-runs the suite under `--order-by=random` with
-  the seed echoed, placed AFTER the Sonar scan so it cannot suppress coverage, no `|| true`. The
-  exact CI command verified locally on a 5th seed (758619 -> 52E/68F, zero residue). Every
-  decision-free RV-37 acceptance criterion is now met; row status is the owner's to close.
+- RV-37 CLOSED as VERIFIED FIX (owner instruction) - `App future audit review r2.md` sec 39 / 39.1 /
+  39.2 / 39.3; commits c45e05e (order), a087342 (hermeticity), eaa7f14 (tracked-file ratchet + CI
+  double-run), plus this record. CI then ran for the first time on `Agentic` (owner authorised the
+  push; `main` untouched): gitleaks green, Pint + Architecture both dead at `Install dependencies`
+  for PRE-EXISTING reasons - `pint.yml` has no `.env` so the JWT boot guard throws at package
+  discovery, `architecture.yml` sets no broadcast driver so Pusher is constructed with a null key;
+  the same two failures exist on c92e1e2 and 26fbdb3. Both fixed (CI config only) and 3 pre-existing
+  Pint violations in files this audit never touched auto-fixed; `pint --test` now PASS (537 files).
+  Recorded, not acted on: the GitHub PAT is embedded in `origin`'s URL and should be rotated.
+  The suite workflow still needs a PR into `main` to execute.
 
 ## Done recently (newest first; detail is in the audit record)
 - RV-37 hermeticity half - VERIFIED FIX in git `a087342` (`App future audit review r2.md` sec 39.1). `Http::preventStrayRequests()`
