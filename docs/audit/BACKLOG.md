@@ -183,7 +183,7 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 | 45 | RV-12 | Account status model (temporary ban lock-out) | P1 | PARTIAL | un13 | RV-31, RV-29 | R2 sec 27 "VERIFIED FIX (decision-free core); R1's model refactor stays PARTIAL"; 1173a69 |
 | 46 | RV-26 | Staff/admin authorization matrix | P2 | GATED | 1a | **headline refuted by T2-2's own fix text** | R2 sec 28.1 GATED; no commit |
 | 47 | RV-27 | Push pipeline cannot deliver | P1 | VERIFIED FIX | n/a | T3-14, T2-8 | R2 sec 28.2, sec 28.5 VF (decision-free core); 364c3db - FCM keys = ops, sec 5 |
-| 48 | RV-29 | Auth hardening batch | P2 | PARTIAL | 5, un11 | **T4-5** item 4, AF-4b | R2 sec 28.6 slice1 VF, sec 28.9 slice2 proven/gated, sec 29.10 item3 VF, sec 34 VF (ratchet); bc6acaa + 4185af3 + 1d68c07 |
+| 48 | RV-29 | Auth hardening batch | P2 | PARTIAL | 5 | **T4-5** item 4, AF-4b | R2 sec 28.6 slice1 VF, sec 28.9 slice2 proven/gated, sec 29.10 item3 VF, sec 34 VF (ratchet); bc6acaa + 4185af3 + 1d68c07; R2 sec 48 (un11: auth cache DTO - password hash no longer reaches the cache backend, auto-lift hazard closed) `8732a0e`. Remaining item is decision 5 (driver phone visibility), deferred to the owner. |
 | 49 | RV-19 | Fake or derived numbers in admin | P2 | PARTIAL | 10, un7 | V8 | R2 sec 28.4, sec 28.7 VF (slice 1), sec 30 item 6; bc49fc6 |
 | 50 | RV-23 | Complaints (context, routing, notifications) | P2 | PARTIAL | un6 | RV-31 | R2 sec 28.3 slice1 VF, sec 28.8 slice2 VF; c59fed6 + bfc6fd1 |
 | 51 | RV-28 | Infrastructure hardening | P2 | VERIFIED FIX | n/a | V7 (never run); RV-05 | R2 sec 31 VF (app/config core); 8ece5af - infra halves are deploy-surface, sec 5 |

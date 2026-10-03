@@ -13,12 +13,15 @@ with each status taken from the newest section that mentions it. The per-task lo
   DONE + committed: decision record `77e9820`, un10 wallet fixtures `bff1d3e`, un2 score policy
   `de61c7b`, un5 delete finish/driver-confirm `1510663` (+`23457eb` near-miss record),
   un9 lazy loading + flag ARMED `00f7b9d`/`5bbadad`, decision 11 KYC action gate `0c6a1f6`,
-  decision 1b staff document streaming `066b1dd` (+`b4885d8` boundary fix).
-  NEXT, in this order: decision 6 (staff-cancel full refund + no driver penalty - money path, so
-  per AGENTS.md this needs the owner to confirm before the semantics move), un11 (auth cache DTO),
-  un8 (Larastan report-only), decision 7 (Render deploy), un12 (k6 harness), un1 (MinIO), then the
-  migration/money group last, each needing explicit owner sign-off: decision 2 (booking expiry),
-  13 (PHP enums), un13 (account status), un3 (money foundation).
+  decision 1b staff document streaming `066b1dd` (+`b4885d8` boundary fix), decision 6 staff-cancel
+  full refund `364cc0c`, un11 auth cache DTO `8732a0e`.
+  NEXT, in this order: un8 (Larastan report-only), decision 7 (Render deploy), un12 (k6 harness),
+  un1 (MinIO), then the migration/money group last, each needing explicit owner sign-off: decision 2
+  (booking expiry), 13 (PHP enums), un13 (account status), un3 (money foundation).
+  OPEN QUESTION for the owner (raised in sec 47, deliberately not actioned): RV-03's ROLE-GATE half -
+  both staff-cancel endpoints are callable by ANY authenticated employee, so any of them can move real
+  money. Tightening it is an auth change that can lock legitimate staff out, and AGENTS.md requires
+  owner approval for permission changes.
   RULE for this batch (learned in sec 43.1): never `git commit -- <path>` a file the owner owns
   uncommitted (RideController.php, phpunit.xml, .gitignore, AGENTS.md). If a task needs one, rebuild
   it from HEAD and restore their edits afterwards.
