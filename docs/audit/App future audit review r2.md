@@ -4468,3 +4468,69 @@ Level 5 vs a lower level was chosen by judgement, not by measuring which level y
 triage task finds level 5 too noisy even as a report, lowering it is a one-line change. `app/Http/
 Middleware` is excluded from analysis (routing/DI plumbing), which is a judgement call, not a measured
 one.
+
+---
+
+## 50. Decision 7 - deploy on Render - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1, Option B):** "we moved to Render to save the cost of the subscription".
+Owner's note: *"Rewrite deploy for Render; the VPS workflow becomes obsolete."*
+
+**Measured first.** The migration was **already half-done and nobody had noticed**:
+- `render.yaml` EXISTED but was a 9-line stub (one web service, nothing else);
+- `docker/start.sh` was already written for Render (`PORT`, `WEB_CONCURRENCY`, a minimum of 2
+  workers "so health checks never starve") - someone had adapted the container without finishing the
+  infrastructure;
+- `routes/web.php` carries a `/up` healthcheck whose comment explicitly says
+  `// Platform healthcheck (render.yaml:5) and the deploy workflow depend on this`;
+- `docker-compose.yml` still described the VPS topology: `app1..app5` + its own nginx + a local
+  mysql **primary AND replica** + redis + a horizon `queue` + a `while true` `scheduler`.
+
+So the deliverable was not "write a Render setup" but "finish it, and account for every process the
+compose file was running".
+
+**`render.yaml` rewritten as a complete Blueprint - three services, nothing dropped:**
+
+| compose (VPS) | Render service |
+|---|---|
+| `app1..app5` + `nginx` (TLS terminator) | `web` - one service behind Render's edge; `WEB_CONCURRENCY` + the plan do the scaling |
+| `queue` (`php artisan horizon`) | `worker` - `atareekak-queue` |
+| `scheduler` (`while true; do schedule:run; sleep 60; done`) | `cron` - a real Render scheduler at `*/5 * * * *`, not a busy loop |
+
+The database and Redis are deliberately **NOT** created by the blueprint: production MySQL is external
+(Aiven, with the primary/replica split the app depends on) and Redis is external. The local
+mysql+redis+nginx cluster is not something Render should re-create.
+
+**Secrets are never committed.** Every credential is `sync: false`, which makes Render prompt once
+and store it encrypted. That includes one that is easy to overlook and is a *correctness* key, not a
+cosmetic one: `ADMIN_WALLET_PHONE`. `WalletTransactionService::lockWalletByPhone` resolves the SYSTEM
+SyCash/Primary wallet and refuses any user-owned row; the wrong value fails every escrow operation
+closed.
+
+**A blueprint bug I caught and fixed before committing.** I first wrote the worker/cron env blocks as
+`fromService: { type: web, ..., property: envVars }` to inherit secrets from the web service. Render's
+`fromService` can only copy a **datastore connection string** - there is no way to copy a named env
+var between services, so that blueprint would have failed to apply. Each service now declares
+`sync: false` itself, with the reason written next to the block so nobody "tidies" it back into an
+invalid form.
+
+**Migrations: no `preDeployCommand`.** `docker/start.sh` already runs `php artisan migrate --force`
+after a DB-readiness wait, and the Dockerfile's CMD is that script - so migrations run on deploy
+exactly as the VPS workflow ran them explicitly. Adding `preDeployCommand` would run migrate twice,
+which is how a partially-applied migration turns into a deadlock.
+
+**The VPS workflow is disarmed, not deleted.** Its `push:` trigger on branch `samer` is removed and it
+now runs only on `workflow_dispatch`, with a header explaining the deprecation. AGENTS.md requires the
+owner to approve deleting code, and "becomes obsolete" is not the same as "delete it"; keeping it
+manual also preserves a rollback path.
+
+**Verification.** `render.yaml` parses and yields exactly `web:atareekak`, `worker:atareekak-queue`,
+`cron:atareekak-scheduler` with 45/14/11 env vars. All six workflow YAMLs parse. Confirmed `/up`
+exists and names `render.yaml`; confirmed the Dockerfile installs `pcntl`+`sockets` that Octane needs.
+
+**Genuinely unverified.** The Blueprint has never been applied to a real Render account, and no deploy
+has run - `branch: samer` is carried over from the old workflow's trigger branch and MUST be
+confirmed against the branch the app is actually released from; if releases happen from `main` or
+`Agentic`, every service in this file needs that branch changed (4 occurrences). Render's plan/plan-tier
+fields are not set (they must be chosen in the dashboard). The VPS workflow has not been executed
+either, now or before.

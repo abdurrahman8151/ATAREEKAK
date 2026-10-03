@@ -1,9 +1,243 @@
+# SyRide — Render Blueprint
+#
+# Decision 7 (owner, 2026-10-02, Option B): "we moved to Render to save the cost of the
+# subscription". This file REPLACES the VPS deploy workflow (deploy-to-vps.yml), which is now
+# manual-only because its trigger branch (`samer`) and its SSH/VPS assumptions no longer describe
+# where this app runs.
+#
+# ── HOW TO USE ──────────────────────────────────────────────────────────────────────
+#  1. Render dashboard -> New -> Blueprint -> pick this repository. Render reads this file.
+#  2. Every key marked `sync: false` is NOT in the repo. Render prompts for the value once, stores
+#     it encrypted, and injects it at runtime. That is deliberate: no credential is ever committed.
+#  3. The production database is EXTERNAL (Aiven MySQL) and Redis is external, so this blueprint
+#     creates NEITHER. `DB_HOST` / `DB_REPLICA_HOST` / `REDIS_*` are secrets pointing at them.
+#     The old compose file's local mysql+redis+nginx+5-app-cluster shape does not exist on Render:
+#     Render terminates TLS, routes to the service, and scales it.
+#
+# ── SHAPE CHANGE WORTH KNOWING ──────────────────────────────────────────────────────
+# The VPS ran app1..app5 behind its own nginx. On Render that is ONE web service behind Render's
+# edge, which is why `WEB_CONCURRENCY` (Octane/RoadRunner workers) and the service plan do the
+# scaling work instead. The three long-lived processes the compose file defined are all preserved
+# as first-class Render services below — nothing is silently dropped:
+#     compose `app1..app5` + nginx  -> the `web` service
+#     compose `queue`   (horizon)  -> the `worker` background service
+#     compose `scheduler` (loop)   -> the `cron` service (Render Cron Jobs, which is a real
+#                                     scheduler rather than a `while true` loop)
+#
+# ── MIGRATIONS ──────────────────────────────────────────────────────────────────────
+# `docker/start.sh` already runs `php artisan migrate --force` after a DB-readiness wait, and the
+# Dockerfile's CMD is that script, so migrations run on every deploy exactly as they did under the
+# VPS workflow's explicit `docker compose exec app php artisan migrate --force`. A `preDeployCommand`
+# is deliberately NOT added: running migrate twice (once here, once in preDeploy) is the kind of
+# duplication that turns a partial migration into a deadlock.
+
 services:
+  # ── Web (Octane + RoadRunner) ─────────────────────────────────────────────────────
   - type: web
     name: atareekak
     runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /up
+    # /start.sh is the Dockerfile CMD already; stating it here makes the Render dashboard show it.
     dockerCommand: /start.sh
+    # Push-to-branch deploys. The branch must match where the app is actually released from.
+    branch: samer
+    autoDeploy: true
+    numInstances: 1
     envVars:
       - key: PORT
         value: 8000
+      # Octane worker count. Render gives a free instance 512 MB - keep this LOW or RoadRunner's
+      # workers will be OOM-killed. Raise it only together with the plan.
+      - key: WEB_CONCURRENCY
+        value: 2
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      # ── Application identity (sync:false = supplied in the Render dashboard, never committed)
+      - key: APP_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      # ── External MySQL (Aiven). NOT Render-managed.
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # The app reads from the replica for cache-miss rehydration and forces the primary where a
+      # stale read would be unsafe (JwtService::findUserCached, the ban auto-lift). Both hosts must
+      # be set or the replica read silently falls back to the primary.
+      - key: DB_REPLICA_HOST
+        sync: false
+      - key: DB_REPLICA_PORT
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: DB_TRUST_SERVER_CERTIFICATE
+        value: "true"
+      - key: DB_ENCRYPT
+        value: "true"
+      # ── External Redis (cache / session / queue)
+      - key: REDIS_CLIENT
+        value: predis
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: CACHE_DRIVER
+        value: redis
+      - key: SESSION_DRIVER
+        value: redis
+      - key: QUEUE_CONNECTION
+        value: redis
+      # ── Realtime
+      - key: BROADCAST_DRIVER
+        value: pusher
+      - key: PUSHER_APP_ID
+        sync: false
+      - key: PUSHER_APP_KEY
+        sync: false
+      - key: PUSHER_APP_SECRET
+        sync: false
+      - key: PUSHER_APP_CLUSTER
+        sync: false
+      # ── Push notifications
+      - key: FCM_SERVER_KEY
+        sync: false
+      - key: FCM_SENDER_ID
+        sync: false
+      - key: FCM_CREDENTIALS
+        sync: false
+      # ── Mail
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      # ── Optional providers. Disabled by leaving the key unset; the app reads them as null.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: CHATDADDY_API_KEY
+        sync: false
+      - key: CALLMEBOT_API_KEY
+        sync: false
+      - key: TEXTMEBOT_API_KEY
+        sync: false
+      # ── Money: the platform wallet's phone resolves the SYSTEM SyCash/Primary wallets
+      # (WalletTransactionService::lockWalletByPhone refuses any user-owned row). Wrong value here
+      # means every escrow operation fails closed - it is a correctness key, not a cosmetic one.
+      - key: ADMIN_WALLET_PHONE
+        sync: false
+    disk:
+      # Render's container filesystem is ephemeral; storage/ is where uploaded KYC documents and
+      # logs live, so it must be a real disk or every deploy deletes them.
+      name: syride-storage
+      mountPath: /var/www/html/storage
+      sizeGB: 1
+
+  # ── Horizon queue worker (the compose file's `queue` service) ─────────────────────
+  # NOTE ON REPEATED SECRETS. Render's `fromService` can only copy a datastore
+  # connection string, NOT a named env var from another service - so a secret cannot be
+  # inherited from the `web` service. Each service therefore declares `sync: false`
+  # itself and the value is entered once per service in the dashboard. That is
+  # duplication in this file on purpose; the alternative (hard-coding) would put
+  # credentials in the repository.
+  - type: worker
+    name: atareekak-queue
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    branch: samer
+    autoDeploy: true
+    dockerCommand: php artisan horizon
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: QUEUE_CONNECTION
+        value: redis
+      - key: CACHE_DRIVER
+        value: redis
+    disk:
+      name: atareekak-queue-storage
+      mountPath: /var/www/html/storage
+      sizeGB: 1
+
+  # ── Scheduler (the compose file's `scheduler` service) ───────────────────────────
+  # Render Cron Jobs are a real scheduler, so the compose file's `while true; do schedule:run;
+  # sleep 60; done` loop is replaced rather than replicated. schedule:run itself stays idempotent.
+  - type: cron
+    name: atareekak-scheduler
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    branch: samer
+    dockerCommand: php artisan schedule:run
+    schedule: "*/5 * * * *"
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_REPLICA_HOST
+        sync: false
+      - key: CACHE_DRIVER
+        value: redis

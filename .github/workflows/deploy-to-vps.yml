@@ -1,9 +1,25 @@
-name: Deploy to VPS
+name: Deploy to VPS (DEPRECATED - manual only)
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# DEPRECATED as of 2026-10-03 (decision 7, owner ruling: "we moved to Render to save the cost
+# of the subscription" - Option B, Render).
+#
+# This workflow is NOT deleted, only disarmed. Two reasons:
+#   1. AGENTS.md requires the owner to approve deleting code, and "becomes obsolete" is not the
+#      same instruction as "delete it";
+#   2. the deploy rollback story stays available if a Render rollback is ever needed.
+#
+# The push trigger on branch `samer` is REMOVED, so this can no longer fire on its own. It runs
+# only when someone explicitly dispatches it.
+#
+# THE REPLACEMENT is `render.yaml` (Render Blueprint) at the repository root, which defines the
+# web service, the Horizon queue worker and the scheduler. Render deploys from the same branch on
+# push; migrations run from `docker/start.sh` exactly as this workflow ran them by hand.
+# ─────────────────────────────────────────────────────────────────────────────────────
 
 on:
-  push:
-    branches:
-      - samer
+  # Push trigger deliberately removed - see the deprecation note above.
+  workflow_dispatch:
 
 concurrency:
   group: deploy-samer
