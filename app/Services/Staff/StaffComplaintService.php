@@ -6,6 +6,7 @@ use App\Enums\ComplaintStatus;
 use App\Models\Complaint;
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;
 
@@ -326,7 +327,7 @@ final class StaffComplaintService
         try {
             $user = User::find($complaint->user_id);
             if ($user) {
-                app(\App\Services\NotificationService::class)->createNotification(
+                app(NotificationService::class)->createNotification(
                     $user,
                     $type,
                     $title,
