@@ -4115,3 +4115,52 @@ still reports the same 46 tests / 4 pre-existing failures.
 When a task genuinely needs one, the commit has to be built from a reconstruction of HEAD rather than
 from the working tree, and the owner's edits must be put back afterwards - not discovered afterwards
 by reading `git show`.
+
+---
+
+## 44. un9 - lazy-loading: service-layer N+1 sites fixed and measured; the guard is NOT yet armed - **PARTIAL**
+
+**Owner ruling (sec 40.1, Option B):** "I want performance to be good and quality good even if that means
+more work" - i.e. fix the sites, THEN arm the flag.
+
+**How the sites were found.** `Model::preventLazyLoading()` was armed LOCALLY (uncommitted, via a
+temporary probe in AppServiceProvider) and the full suite was run: **86 failures**, 27 logged
+violation hits across 7 relation targets. The probe was then removed and never committed; the
+committed default is still `if (! production) { preventSilentlyDiscardingAttributes();
+preventAccessingMissingAttributes(); }`.
+
+**Fixed (9 files, all eager loads that were already costing a query each):**
+- `BookingService` - 4 booking fetches now take `ride.driver` (was `ride`), so the accept / reject /
+  book / partial-cancel notification paths stop lazy-loading the driver per booking; the
+  passenger-confirm path takes `ride`, and its re-fetch takes `driver`.
+- `RideService` - `cancelRide` takes `driver`; `finishRide` / `driverConfirmCompletion` take `driver`.
+- `CashRideFeeService::canCreateCashRide` - `loadMissing('wallet')` (it read the relation anyway).
+- `ScoreService::recordRideCompleted` - `loadMissing('driver')` (read twice).
+- `RideValidationService::validateDriverCanCreateRide` - `loadMissing('profile')` (also read by the
+  document validator).
+- `WalletController` - the four authenticated-user resolutions now `loadMissing('wallet')`; the user
+  comes from `JwtAuthMiddleware`'s cached hydration, which eager-loads nothing.
+- `AdminDriverService::formatDriver` - `loadMissing('profile')` (called once per driver).
+- `AdminReportService` - `load('ride')` when not already loaded.
+- `BackfillBookingMoneySnapshot` - iterates `with('ride')` instead of a lazy read per row.
+
+**Measured.** With the guard armed the suite went **86 -> 68 failures**; 68 is exactly the
+pre-existing baseline, so every service-layer offender is gone. With the guard OFF (the committed
+state) the suite is **2070 tests / 38 errors / 58 failures**, byte-identical to the pre-task baseline
+- these changes introduce no regression.
+
+**What is STILL unfixed (17 tests, 4 clusters), and why the flag is not armed.**
+1. `Booking::ride` in the booking accept/reject RESPONSE path - the reads are in
+   `app/Http/Controllers/API/RideController.php`, which is an OWNER-OWNED uncommitted file; per
+   sec 43.1 this batch must not commit it, so these reads cannot be fixed here.
+2. The same path in `StaffOperationsController` (bookings listing, line ~339) - also needs the ride
+   eager-loaded at its query, not yet done.
+3. `Complaint::ride` (RV23 complaint context).
+4. `Profile::user` in the search-render path (RideSearchService / driver rating rendering).
+
+Arming the flag today would put 17 tests red - a regression by definition - so **the flag stays off**
+and the remaining work is recorded. The four clusters are small and enumerable (the stack frames name
+each file), so the next pass should finish them and then arm.
+
+**State: PARTIAL - 9 files of service-layer eager loading landed and measured; 4 clusters remain, two
+of them blocked only by the owner-owned controller; the flag is deliberately NOT armed.**

@@ -24,6 +24,10 @@ final class RideValidationService
             throw new \InvalidArgumentException('You must be verified as a driver to create rides');
         }
 
+        // RV-37 / un9: the profile is read on every ride-creation attempt, and the document
+        // validator below reads it too - load it once, explicitly, instead of lazily.
+        $driver->loadMissing('profile');
+
         if (! $driver->profile) {
             throw new \InvalidArgumentException('Driver profile not found. Please complete your profile.');
         }

@@ -40,6 +40,9 @@ final class ScoreService
     public function recordRideCompleted(Ride $ride): void
     {
         DB::transaction(function () use ($ride) {
+            // RV-37 / un9: the driver's score row is read twice below; load the relation once.
+            $ride->loadMissing('driver');
+
             $this->applyAction(
                 user: $ride->driver,
                 action: ScoreAction::RIDE_COMPLETED,

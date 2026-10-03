@@ -33,6 +33,10 @@ class WalletController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
+        // hydration, which does not eager-load relations. Every $user->wallet read below
+        // would be a lazy load (one query each) - load it once, explicitly.
+        $user->loadMissing('wallet');
 
         if ($user->wallet) {
             return response()->json([
@@ -119,6 +123,10 @@ class WalletController extends Controller
 
         /** @var User $user */
         $user = $request->user();
+        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
+        // hydration, which does not eager-load relations. Every $user->wallet read below
+        // would be a lazy load (one query each) - load it once, explicitly.
+        $user->loadMissing('wallet');
 
         if ($user->wallet) {
             return response()->json([
@@ -219,6 +227,10 @@ class WalletController extends Controller
     public function createDirect(Request $request): JsonResponse
     {
         $user = $request->user();
+        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
+        // hydration, which does not eager-load relations. Every $user->wallet read below
+        // would be a lazy load (one query each) - load it once, explicitly.
+        $user->loadMissing('wallet');
 
         if ($user->wallet) {
             return response()->json([
@@ -262,6 +274,10 @@ class WalletController extends Controller
     public function transactions(Request $request)
     {
         $user = $request->user();
+        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
+        // hydration, which does not eager-load relations. Every $user->wallet read below
+        // would be a lazy load (one query each) - load it once, explicitly.
+        $user->loadMissing('wallet');
         $wallet = $user->wallet;
 
         if (! $wallet) {

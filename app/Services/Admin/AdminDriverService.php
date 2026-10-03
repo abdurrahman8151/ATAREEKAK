@@ -167,6 +167,9 @@ final class AdminDriverService
      */
     public function formatDriver(User $driver): array
     {
+        // RV-37 / un9: this is called once per driver in list/format paths; the profile is read
+        // unconditionally below, so load it once explicitly instead of per driver (N+1).
+        $driver->loadMissing('profile');
         $profile = $driver->profile;
 
         $vehicleLabel = null;

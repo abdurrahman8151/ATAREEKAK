@@ -57,7 +57,9 @@ class BackfillBookingMoneySnapshot extends Command
         $cashMarked = 0;
         $skippedNoLedger = 0;
 
-        $unfilled = Booking::where('amount_paid', 0)->cursor();
+        // RV-37 / un9: `ride` is read for every backfilled booking; chunk-eager-load it rather
+        // than paying one query per row (and satisfying the armed lazy guard).
+        $unfilled = Booking::with('ride')->where('amount_paid', 0)->cursor();
 
         foreach ($unfilled as $booking) {
             $ride = $booking->ride;

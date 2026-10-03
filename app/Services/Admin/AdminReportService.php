@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Provides all data needed by the admin dashboard UI.
  *
- * Design pattern — BFF (Backend for Frontend):
+ * Design pattern â€” BFF (Backend for Frontend):
  *   getDashboardData() is the main BFF method. It aggregates every widget
  *   the dashboard page needs into one round-trip. Individual methods
  *   (getStats, getGrowthChart, etc.) are also exposed so specific widgets
@@ -36,7 +36,7 @@ final class AdminReportService
     ) {}
 
     // =========================================================================
-    // BFF — single payload for the dashboard page
+    // BFF â€” single payload for the dashboard page
     // =========================================================================
 
     /**
@@ -44,10 +44,10 @@ final class AdminReportService
      *
      * Frontend receives one response; no waterfall of parallel requests needed.
      * Shape mirrors the UI exactly (see screenshots):
-     *   stats            → top-row stat cards
-     *   growth_chart     → bar chart (Completed Trips vs New Users, last 6 months)
-     *   city_distribution→ horizontal progress bars
-     *   recent_activities→ activity table rows
+     *   stats            â†’ top-row stat cards
+     *   growth_chart     â†’ bar chart (Completed Trips vs New Users, last 6 months)
+     *   city_distributionâ†’ horizontal progress bars
+     *   recent_activitiesâ†’ activity table rows
      */
     public function getDashboardData(?int $adminUserId = null): array
     {
@@ -78,13 +78,13 @@ final class AdminReportService
     public function getStats(): array
     {
         // RV-19 fake number #2 (revenue): this read config('system_admin.phone'), a key
-        // backed by NO file (V8) — the lookup was always null, so the wallet query found
+        // backed by NO file (V8) â€” the lookup was always null, so the wallet query found
         // nothing and the dashboard's "total revenue" card showed 0.00 FOREVER, even with
         // money in escrow. Corrected to the canonical key every money path already uses
         // (WalletTransactionService/CashRideFeeService read admin.system_admin.phone;
-        // SystemWalletSeeder seeds that phone). Value definition unchanged — still "the
+        // SystemWalletSeeder seeds that phone). Value definition unchanged â€” still "the
         // Primary Escrow balance"; the fix only makes the intended lookup resolve. What
-        // that balance MEANS is Wave-3's gated escrow redesign (§26.14) — untouched here.
+        // that balance MEANS is Wave-3's gated escrow redesign (Â§26.14) â€” untouched here.
         $primaryWallet = Wallet::where('phone_number', config('admin.system_admin.phone'))
             ->whereNull('user_id')   // RV-21 boundary: only the platform-owned wallet
             ->first();
@@ -99,7 +99,7 @@ final class AdminReportService
                 'formatted' => Money::from($primaryBalance)->formatted(),
             ],
             // RV-19 fake number #1: pending_complaints was a hardcoded literal 0, so the
-            // dashboard's open-workload card could never rise — support backlog invisible
+            // dashboard's open-workload card could never rise â€” support backlog invisible
             // to admins regardless of queue size. Convention mirrors the sibling KPI
             // directly below it (verification_requests counts exactly 'pending') and
             // StaffAdminController's per-status counts: "pending" = ComplaintStatus::PENDING
@@ -110,7 +110,7 @@ final class AdminReportService
     }
 
     // =========================================================================
-    // GROWTH CHART  (bar chart — Completed Trips vs New Users)
+    // GROWTH CHART  (bar chart â€” Completed Trips vs New Users)
     // =========================================================================
 
     /**
@@ -159,26 +159,26 @@ final class AdminReportService
      * list of Syrian cities at registration, so grouping is clean.
      *
      * Returns:
-     *   [ { city: 'دمشق', city_en: 'Damascus', count: 450, percentage: 45 }, … ]
+     *   [ { city: 'Ø¯Ù…Ø´Ù‚', city_en: 'Damascus', count: 450, percentage: 45 }, â€¦ ]
      */
     public function getCityDistribution(): array
     {
         // English display names mapped from Arabic stored values
         $nameMap = [
-            'دمشق' => 'Damascus',
-            'حلب' => 'Aleppo',
-            'حمص' => 'Homs',
-            'اللاذقية' => 'Latakia',
-            'درعا' => 'Daraa',
-            'حماة' => 'Hama',
-            'ريف دمشق' => 'Rural Damascus',
-            'طرطوس' => 'Tartus',
-            'السويداء' => 'As-Suwayda',
-            'القنيطرة' => 'Quneitra',
-            'ادلب' => 'Idlib',
-            'الحسكة' => 'Al-Hasakah',
-            'الرقة' => 'Ar-Raqqah',
-            'دير الزور' => 'Deir ez-Zor',
+            'Ø¯Ù…Ø´Ù‚' => 'Damascus',
+            'Ø­Ù„Ø¨' => 'Aleppo',
+            'Ø­Ù…Øµ' => 'Homs',
+            'Ø§Ù„Ù„Ø§Ø°Ù‚ÙŠØ©' => 'Latakia',
+            'Ø¯Ø±Ø¹Ø§' => 'Daraa',
+            'Ø­Ù…Ø§Ø©' => 'Hama',
+            'Ø±ÙŠÙ Ø¯Ù…Ø´Ù‚' => 'Rural Damascus',
+            'Ø·Ø±Ø·ÙˆØ³' => 'Tartus',
+            'Ø§Ù„Ø³ÙˆÙŠØ¯Ø§Ø¡' => 'As-Suwayda',
+            'Ø§Ù„Ù‚Ù†ÙŠØ·Ø±Ø©' => 'Quneitra',
+            'Ø§Ø¯Ù„Ø¨' => 'Idlib',
+            'Ø§Ù„Ø­Ø³ÙƒØ©' => 'Al-Hasakah',
+            'Ø§Ù„Ø±Ù‚Ø©' => 'Ar-Raqqah',
+            'Ø¯ÙŠØ± Ø§Ù„Ø²ÙˆØ±' => 'Deir ez-Zor',
         ];
 
         $rows = User::select('address', DB::raw('COUNT(*) as count'))
@@ -208,12 +208,12 @@ final class AdminReportService
      * Latest $limit bookings with their ride, driver, and passenger info.
      *
      * Shape per row:
-     *   user    → { name, number }
-     *   driver  → string (full name)
-     *   route   → 'Pickup ← Destination'   (RTL-friendly arrow)
-     *   date    → human-readable
-     *   status  → 'active' | 'completed' | 'cancelled' | 'pending'
-     *   value   → formatted SYP or '---' for cancelled
+     *   user    â†’ { name, number }
+     *   driver  â†’ string (full name)
+     *   route   â†’ 'Pickup â† Destination'   (RTL-friendly arrow)
+     *   date    â†’ human-readable
+     *   status  â†’ 'active' | 'completed' | 'cancelled' | 'pending'
+     *   value   â†’ formatted SYP or '---' for cancelled
      */
     public function getRecentActivities(int $limit = 10): array
     {
@@ -227,7 +227,7 @@ final class AdminReportService
             ->get();
 
         return $bookings->map(function (Booking $booking) {
-            $ride = $booking->ride;
+            $ride = $booking->relationLoaded('ride') ? $booking->ride : $booking->load('ride')->ride;
             $driver = $ride?->driver;
             $totalValue = $booking->seats * ($ride?->price_per_seat ?? 0);
             $isCancelled = in_array($booking->status, ['cancelled', 'no_show']);
@@ -240,10 +240,10 @@ final class AdminReportService
                 ],
                 'driver' => $driver
                     ? trim("{$driver->first_name} {$driver->last_name}")
-                    : '—',
+                    : 'â€”',
                 'route' => $ride
-                    ? "{$ride->pickup_address} ← {$ride->destination_address}"
-                    : '—',
+                    ? "{$ride->pickup_address} â† {$ride->destination_address}"
+                    : 'â€”',
                 'date' => [
                     'raw' => $booking->created_at->toIso8601String(),
                     'human' => $booking->created_at->isToday()
@@ -286,7 +286,7 @@ final class AdminReportService
     // AFTER (qualified with table name)
     private function getTotalRevenue(): float
     {
-        return (float) Booking::where('bookings.status', 'completed')  // ← add 'bookings.'
+        return (float) Booking::where('bookings.status', 'completed')  // â† add 'bookings.'
             ->join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->selectRaw('SUM(bookings.seats * rides.price_per_seat) as total')
             ->value('total');
@@ -319,11 +319,11 @@ final class AdminReportService
             return ['error' => 'Admin wallets not yet initialised'];
         }
 
-        // ── SyCash: escrow received from passengers ──────────────────────────
+        // â”€â”€ SyCash: escrow received from passengers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         $escrowReceivedQ = WalletTransaction::where('wallet_id', $syCashWallet->id)
-            ->where('type', 'escrow_received');          // ← was 'ride_creation_fee'
+            ->where('type', 'escrow_received');          // â† was 'ride_creation_fee'
 
-        // ── SyCash: total released on completion ─────────────────────────────
+        // â”€â”€ SyCash: total released on completion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // The live payout path writes the singular 'escrow_release' (one row per
         // confirmed booking). The plural 'escrow_released' was only ever written
         // by the legacy ride-wide release, so both are counted to keep any
@@ -331,7 +331,7 @@ final class AdminReportService
         $escrowReleasedQ = WalletTransaction::where('wallet_id', $syCashWallet->id)
             ->whereIn('type', ['escrow_release', 'escrow_released']);
 
-        // ── SyCash: total refunds paid out ───────────────────────────────────
+        // â”€â”€ SyCash: total refunds paid out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         $refundsQ = WalletTransaction::where('wallet_id', $syCashWallet->id)
             ->whereIn('type', [
                 'driver_cancellation_refunds',
@@ -339,9 +339,9 @@ final class AdminReportService
                 'driver_no_show_refund',
             ]);
 
-        // ── Primary: platform fees earned (5% of completions + no-shows) ─────
+        // â”€â”€ Primary: platform fees earned (5% of completions + no-shows) â”€â”€â”€â”€â”€
         $platformFeesQ = WalletTransaction::where('wallet_id', $primaryWallet->id)
-            ->where('type', 'platform_fee');             // ← was 'ride_booking_received'
+            ->where('type', 'platform_fee');             // â† was 'ride_booking_received'
 
         if ($start && $end) {
             $escrowReceivedQ->whereBetween('created_at', [$start, $end]);

@@ -76,6 +76,10 @@ final class CashRideFeeService
      */
     public function canCreateCashRide(User $driver, float $feeAmount): array
     {
+        // RV-37 / un9: explicit load instead of a lazy read. Same single query, but it states
+        // the dependency and survives the armed lazy-loading guard (this runs on every cash-ride
+        // creation, so the query happened anyway).
+        $driver->loadMissing('wallet');
         $wallet = $driver->wallet;
 
         if (! $wallet) {

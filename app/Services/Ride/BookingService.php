@@ -82,8 +82,12 @@ final class BookingService
 
                 return $existing->load(['ride', 'user']);
             }
-            // 3. Load and lock ride row to prevent race conditions on seat count
-            $ride = Ride::lockForUpdate()->findOrFail($dto->rideId);
+            // 3. Load and lock ride row to prevent race conditions on seat count.
+            // RV-37 / un9: eager-load `driver` (and its profile) here rather than lazily at the
+            // notification/cash-fee call sites below — those read `$ride->driver` on a booking that
+            // is about to be notified, which is one query per passenger booking today and an N+1
+            // under the armed lazy-loading guard.
+            $ride = Ride::lockForUpdate()->with(['driver', 'driver.profile'])->findOrFail($dto->rideId);
 
             // 4. Business rule validations
             $this->assertBookingRules($dto, $ride, $passenger);
@@ -148,7 +152,7 @@ final class BookingService
     public function acceptBooking(int $bookingId, User $driver): Booking
     {
         return DB::transaction(function () use ($bookingId, $driver) {
-            $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
+            $booking = Booking::with(['ride.driver', 'user'])->lockForUpdate()->findOrFail($bookingId);
             $ride = $booking->ride;
 
             if ($ride->driver_id !== $driver->id) {
@@ -208,7 +212,7 @@ final class BookingService
     public function rejectBooking(int $bookingId, User $driver): Booking
     {
         return DB::transaction(function () use ($bookingId, $driver) {
-            $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
+            $booking = Booking::with(['ride.driver', 'user'])->lockForUpdate()->findOrFail($bookingId);
             $ride = $booking->ride;
 
             if ($ride->driver_id !== $driver->id) {
@@ -266,7 +270,7 @@ final class BookingService
     public function cancelBooking(int $bookingId, User $passenger): Booking
     {
         return DB::transaction(function () use ($bookingId, $passenger) {
-            $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
+            $booking = Booking::with(['ride.driver', 'user'])->lockForUpdate()->findOrFail($bookingId);
             $ride = $booking->ride;
 
             if ($booking->user_id !== $passenger->id) {
@@ -342,7 +346,7 @@ final class BookingService
     public function cancelPartialSeats(int $bookingId, int $seatsToCancel, User $passenger): array
     {
         return DB::transaction(function () use ($bookingId, $seatsToCancel, $passenger) {
-            $booking = Booking::with(['ride', 'user'])->lockForUpdate()->findOrFail($bookingId);
+            $booking = Booking::with(['ride.driver', 'user'])->lockForUpdate()->findOrFail($bookingId);
             $ride = $booking->ride;
 
             if ($booking->user_id !== $passenger->id) {
@@ -465,7 +469,9 @@ final class BookingService
     {
         return DB::transaction(function () use ($bookingId, $passenger) {
 
-            $booking = Booking::lockForUpdate()->findOrFail($bookingId);
+            // RV-37 / un9: `ride` is read further down (cash-fee + notify paths); eager-load it
+            // rather than taking a second query per confirmation.
+            $booking = Booking::lockForUpdate()->with('ride')->findOrFail($bookingId);
 
             if ((int) $booking->user_id !== (int) $passenger->id) {
                 throw new \InvalidArgumentException('You can only confirm your own bookings.');
@@ -497,7 +503,8 @@ final class BookingService
             }
             // ─────────────────────────────────────────────────────────────────────
 
-            $ride = Ride::lockForUpdate()->findOrFail($booking->ride_id);
+            // RV-37 / un9: this ride's `driver` is read by the completion/score paths below.
+            $ride = Ride::lockForUpdate()->with('driver')->findOrFail($booking->ride_id);
 
             if (now()->lt($ride->departure_time)) {
                 throw new \InvalidArgumentException(
