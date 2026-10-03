@@ -4712,3 +4712,60 @@ and the ordering now carries a comment.
 a deployed environment - only the command itself is tested. Notification delivery is not asserted
 against a real push/SMS provider. The 15-minute cadence means an expiry can land up to 15 minutes
 after departure; that is a deliberate trade and is recorded above.
+
+---
+
+## 54. Decision 13 - DB ENUM columns converted to varchar - **VERIFIED FIX** (second migration-group task)
+
+**Owner ruling (sec 40.1, Option A):** "PHP enums, drop DB ENUMs". Authorization for the batch on record.
+
+**WHY THIS MATTERS, concretely.** The database was enforcing a *second, independent* copy of every
+value list that the PHP enums already own. The audit had already been bitten by exactly this:
+`BookingStatus::tryFrom('no_show')` returned null because the PHP enum never declared a value the DB
+already held. A varchar column removes the duplicate; the PHP enum keeps the type safety.
+
+**SCOPE MEASURED, NOT GUESSED.** `information_schema.COLUMNS` reports **18 live ENUM columns** across
+11 tables - the audit's "17" was stale (it predates this batch's own `bookings.status` `expired`
+addition). Two columns the audit expected are NOT enums and were correctly left alone:
+`complaints.status/type` and `wallet_transactions.type` were already varchar from an earlier
+migration.
+
+**Every definition is preserved per column** - nullability, default and length transcribed from the
+live schema, because a MODIFY that drops a NOT NULL or changes a default is a silent integrity
+regression. Lengths are sized to the longest value each column can hold (plus headroom).
+
+**Verified BOTH directions against real data, on the scratch DB:**
+- up() -> 0 ENUM columns remain, all 18 varchar, nullability/defaults confirmed correct, a user with
+  NULL gender intact.
+- down() -> 18 ENUM columns restored, data unchanged after the full round-trip.
+- up() again -> 0 ENUM columns, `otps.type` survived as `varchar(32)`.
+
+**`down()` REFUSES TO TRUNCATE - tested for real, not asserted.** Widening to varchar is precisely
+what makes an out-of-enum value possible, and a blind rollback would silently coerce it to '' under
+MySQL strict mode. A test wrote `verification_status='quantum_x'`, rolled back, and the migration
+THREW `Refusing to roll back decision 13: ... users.verification_status holds quantum_x`, leaving the
+value intact. Losing rollback capability is better than a rollback that destroys data.
+
+(The first attempt at this test was invalid: the value chosen was 17 chars against a `VARCHAR(16)`
+and MySQL rejected it before the guard was reached. That is a real property of the conversion - the
+varchar still bounds length - and the test was corrected, not the guard.)
+
+**Coupling recorded rather than left to an incident.** If a later migration adds a value to one of
+these enums, this file's `down()` copy must be updated in the SAME commit or `down()` will refuse to
+roll back. That is the intended loud failure.
+
+**No application code touched** - the change is one migration file, so no service, controller or
+boundary edge moved. `BoundaryDependencyTest` unaffected by construction.
+
+**No regression.** Ride + money floor (Bookings, Rides, Wallet, Payment, RideValidationService,
+BookingExpiry) = 184 tests / 8 failures, ALL confirmed in the recorded pre-existing red set (the 4
+long-standing RideControllerFullTest/RideTest baseline, 3 OTP WalletTest, 1 cancel-window). **Zero
+new failures.**
+
+**Genuinely unverified.** The conversion was exercised on the scratch schema only; production is a
+different dataset and the first real `down()` there would be the first test against real volume. A
+varchar column is also no longer self-documenting at the database level - the allowed values now live
+ONLY in the PHP enums, so a raw SQL client can insert a nonsense status and the database will accept
+it. That is the accepted trade of this decision (the PHP enum is the single source of truth), but it
+means validation at the application boundary matters more than before, and it is the strongest
+argument for keeping the enums in PHP rather than relying on the column.
