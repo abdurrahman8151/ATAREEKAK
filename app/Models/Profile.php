@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Profile extends Model
@@ -34,7 +35,7 @@ class Profile extends Model
         'gender',
     ];
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

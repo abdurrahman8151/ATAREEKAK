@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * One leg of a double-entry transfer (decision un3).
@@ -30,12 +31,12 @@ class LedgerEntry extends Model
         'amount' => 'decimal:2',
     ];
 
-    public function wallet()
+    public function wallet(): BelongsTo
     {
         return $this->belongsTo(Wallet::class);
     }
 
-    public function transaction()
+    public function transaction(): BelongsTo
     {
         return $this->belongsTo(WalletTransaction::class, 'wallet_transaction_id');
     }

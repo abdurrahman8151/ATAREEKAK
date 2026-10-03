@@ -8,6 +8,7 @@ use App\Notifications\CustomResetPassword;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -110,22 +111,22 @@ class User extends Authenticatable
     }
 
     // ── Relationships ────────────────────────────────────────────────────────
-    public function profile()
+    public function profile(): HasOne
     {
         return $this->hasOne(Profile::class);
     }
 
-    public function rides()
+    public function rides(): HasMany
     {
         return $this->hasMany(Ride::class, 'driver_id');
     }
 
-    public function photos()
+    public function photos(): HasMany
     {
         return $this->hasMany(Photo::class);
     }
 
-    public function bookings()
+    public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
     }
@@ -142,19 +143,19 @@ class User extends Authenticatable
         return $this->hasMany(Message::class, 'sender_id');
     }
 
-    public function notifications()
+    public function notifications(): BelongsToMany
     {
         return $this->belongsToMany(Notification::class, 'user_notifications')
             ->withPivot('read_at')
             ->withTimestamps();
     }
 
-    public function userNotifications()
+    public function userNotifications(): HasMany
     {
         return $this->hasMany(UserNotification::class);
     }
 
-    public function pushTokens()
+    public function pushTokens(): HasMany
     {
         return $this->hasMany(PushNotificationToken::class);
     }
@@ -164,17 +165,17 @@ class User extends Authenticatable
         return $this->userNotifications()->unread()->with('notification');
     }
 
-    public function givenRatings()
+    public function givenRatings(): HasMany
     {
         return $this->hasMany(UserRating::class, 'rater_id');
     }
 
-    public function receivedRatings()
+    public function receivedRatings(): HasMany
     {
         return $this->hasMany(UserRating::class, 'rated_user_id');
     }
 
-    public function wallet()
+    public function wallet(): HasOne
     {
         return $this->hasOne(Wallet::class);
     }

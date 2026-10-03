@@ -5108,3 +5108,36 @@ DoubleEntryLedgerTest.php` is now 8 tests.
 
 **Why a money check is scheduled rather than only tested:** a money bug found a day later is a money
 bug that has already been paid out.
+
+---
+
+## 58. Triage of the Larastan report (un8 follow-up) - 48 false positives eliminated by ONE mechanical cause - **VERIFIED FIX**
+
+The audit deferred Larastan because level 5 over this codebase "produces noise" (R1 sec 6). That noise
+was measured but never explained. This explains it, and removes a fifth of it.
+
+**THE FINDING.** 54 of the original 283 findings were `rules.relationExistence` - "Relation 'profile'
+is not found in App\Models\User model" - for relations that **all exist**. Larastan resolves relations
+that declare a RETURN TYPE (`public function ride(): BelongsTo`) and cannot resolve ones that do not
+(`public function profile()`). The codebase had 21 untyped relation methods across 8 models; every
+one was a false positive.
+
+**Adding the return types took the report from 283 to 235 findings, and `relationExistence` from 54 to
+5** (48 eliminated). The 5 survivors are relations read off a *generic* `Model` - a join result, where
+the type genuinely is not `User` - so those are honest low-confidence findings, not errors.
+
+This is also a real code-quality improvement, not just analyser appeasement: a typed relation makes a
+misspelled relation a static error instead of a `null` that propagates silently.
+
+**WHAT THE REMAINING 235 ACTUALLY ARE** - the useful part, because now the noise is gone:
+- **120 `property.notFound`** - 36 on a generic `Illuminate\Database\Eloquent\Model` and the rest in API
+  Resources. These are Eloquent's DYNAMIC property access (any column or accessor), which Larastan
+  cannot model without per-model `@property` annotations. Largely inherent, and the honest reason a
+  baseline is still the right end state.
+- **33 `assign.propertyType` + 28 `return.type` + 16 `argument.type`** - TYPE MISMATCHES. In a money
+  application this is the genuinely valuable class, and it is now visible because the false positives
+  no longer bury it. **This is the first triage finding worth acting on, and it is untouched.**
+
+**No regression.** Rides + Bookings + Review + Unit/Models + Profile = 509 tests, 15 red with AND
+without the change - bisected with `git stash` on `app/Models`, **0 new failures**, identical failure
+set. All 8 models lint clean.
