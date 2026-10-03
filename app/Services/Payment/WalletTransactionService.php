@@ -2,6 +2,7 @@
 
 namespace App\Services\Payment;
 
+use App\Enums\WalletKind;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
@@ -776,7 +777,13 @@ class WalletTransactionService
         // wallet. The seeder's own firstOrCreate(['phone_number'=>…]) is the second
         // half of this (it should not adopt a claimed phone); that belongs with the
         // wallets.kind refactor in §26.4, not this boundary fix.
+        //
+        // Decision un3: `kind = system` is now the PRIMARY condition and `user_id IS NULL` is kept
+        // as a second, independent one. Keeping both means this defence no longer rests on a single
+        // column: a `kind = system` row that somehow acquired a user_id would still be refused here
+        // rather than becoming the escrow sink.
         $wallet = Wallet::where('phone_number', $phone)
+            ->where('kind', WalletKind::SYSTEM->value)
             ->whereNull('user_id')
             ->lockForUpdate()
             ->first();
@@ -808,7 +815,8 @@ class WalletTransactionService
      * PLACE IT after chargePassengerForBooking() — they are paired operations.
      *
      * IMPORTS TO ADD at the top of WalletTransactionService if not already there:
-     *   use App\Models\Booking;
+     *   use App\Enums\WalletKind;
+use App\Models\Booking;
      *   use App\Models\Ride;
      *   use App\Models\User;
      *   use App\Models\Wallet;

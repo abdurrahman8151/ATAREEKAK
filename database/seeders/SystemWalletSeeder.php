@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\WalletKind;
 use App\Models\Wallet;
 use Illuminate\Database\Seeder;
 use RuntimeException;
@@ -53,12 +54,21 @@ class SystemWalletSeeder extends Seeder
                 'user_id' => null,   // system wallet — no owner
                 'phone_number' => $phone,
                 'balance' => 0,
+                // decision un3: state the role instead of leaving it to be inferred from user_id.
+                'kind' => WalletKind::SYSTEM->value,
             ]);
 
             return;
         }
 
         if ($wallet->isSystemWallet()) {
+            // A wallet that already holds this phone is a system wallet by `user_id`, but it may
+            // predate the `kind` column. Set the flag so the escrow lookup's primary condition is
+            // satisfied. Safe precisely because `isSystemWallet()` already proved no user owns it.
+            if ($wallet->kind !== WalletKind::SYSTEM) {
+                $wallet->forceFill(['kind' => WalletKind::SYSTEM->value])->save();
+            }
+
             return;     // already seeded — never duplicate and never reset its balance
         }
 

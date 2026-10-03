@@ -2,6 +2,7 @@
 
 namespace Tests\Support\Concerns;
 
+use App\Enums\WalletKind;
 use App\Models\Wallet;
 
 /**
@@ -42,14 +43,26 @@ trait SeedsSystemWallets
      */
     protected function seedSystemWallet(string $phone, float $balance = 0.0): Wallet
     {
-        return Wallet::firstOrCreate(
+        // Decision un3: `kind = system` is now the PRIMARY condition in
+        // `WalletTransactionService::lockWalletByPhone`, so a fixture that seeded only `user_id =>
+        // null` would make every money path fail closed. Both are set.
+        $wallet = Wallet::firstOrCreate(
             ['phone_number' => $phone],
             [
                 'user_id' => null,
                 'wallet_number' => strtoupper(substr(md5($phone), 0, 3)).random_int(1000000000, 9999999999),
                 'balance' => $balance,
+                'kind' => WalletKind::SYSTEM->value,
             ]
         );
+
+        // `firstOrCreate` does not update an existing row, so a wallet seeded before the `kind`
+        // column existed would keep `kind = user` and silently break the escrow lookup.
+        if ($wallet->kind !== WalletKind::SYSTEM) {
+            $wallet->forceFill(['kind' => WalletKind::SYSTEM->value])->save();
+        }
+
+        return $wallet;
     }
 
     /**

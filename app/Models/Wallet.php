@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\WalletKind;
 use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,16 +17,18 @@ class Wallet extends Model
 
     protected $fillable = [
         'name',            // 'Primary Escrow' | 'SyCash' | null for user wallets
-        'user_id',         // nullable — system wallets have no owner
+        'user_id',         // nullable â€” system wallets have no owner
         'wallet_number',
         'balance',
         'cash_ride_debt',  // deferred cash ride creation fees owed to platform
         'phone_number',
+        'kind',            // decision un3: 'user' | 'system'
     ];
 
     protected $casts = [
         'balance' => 'decimal:2',
         'cash_ride_debt' => 'decimal:2',
+        'kind' => WalletKind::class,
     ];
 
     protected static function booted(): void
