@@ -697,6 +697,22 @@ class WalletTransactionService
             ]);
         }
 
+        // ── Decision un3: double-entry legs (SyCash → passenger + driver) ────────
+        // Three parties, one event. Only legs are built if the amounts are non-zero, so a transfer
+        // that (correctly) owes nothing to one side does not post a 0.00 leg - a zero leg is noise,
+        // and `postTransfer` would still balance it, which would be misleading rather than wrong.
+        $legs = [['wallet_id' => $syCashWallet->id, 'amount' => -$totalPaid, 'description' => "booking #{$booking->id}: cancellation out"]];
+
+        if ($refundAmount > 0) {
+            $legs[] = ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger"];
+        }
+
+        if ($driverAmount > 0) {
+            $legs[] = ['wallet_id' => $driverWallet->id, 'amount' => $driverAmount, 'description' => "booking #{$booking->id}: driver compensation"];
+        }
+
+        $this->ledger->postTransfer($legs);
+
         Log::info('Time-based cancellation processed', [
             'booking_id' => $booking->id,
             'seats_cancelled' => $seatsCancelled,
@@ -784,6 +800,13 @@ class WalletTransactionService
             'reference' => "booking:{$booking->id}",
         ]);
 
+        // ── Decision un3: double-entry legs (same 95/5 shape as ride completion) ─
+        $this->ledger->postTransfer([
+            ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: no-show escrow released"],
+            ['wallet_id' => $driverWallet->id, 'amount' => $driverShare, 'description' => "booking #{$booking->id}: driver share 95%"],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $primaryShare, 'description' => "booking #{$booking->id}: platform fee 5%"],
+        ]);
+
         Log::info('Passenger no-show settled', [
             'booking_id' => $booking->id,
             'driver_share' => $driverShare,
@@ -846,6 +869,12 @@ class WalletTransactionService
             'transaction_id' => 'PASS_'.$txId,
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
+        ]);
+
+        // ── Decision un3: double-entry legs (SyCash → passenger, 100%) ───────────
+        $this->ledger->postTransfer([
+            ['wallet_id' => $syCashWallet->id, 'amount' => -$refundAmount, 'description' => "booking #{$booking->id}: driver no-show refund out"],
+            ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger"],
         ]);
 
         Log::info('Driver no-show refund processed', [
@@ -1056,6 +1085,17 @@ use App\Models\Booking;
             'transaction_id' => 'PRIMARY_'.$txId,
             'status' => 'completed',
             'reference' => $txRef,
+        ]);
+
+        // ── Decision un3: double-entry legs (95/5, per booking) ─────────────────
+        // This method derives `$primaryShare` by SUBTRACTING rather than multiplying by 0.05, to
+        // avoid float drift. That care is invisible in the balances, but the ledger is where it
+        // becomes checkable: if the two shares ever stop summing to `$total`, the legs do not
+        // balance and the transfer is refused instead of quietly creating or destroying money.
+        $this->ledger->postTransfer([
+            ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: escrow released"],
+            ['wallet_id' => $driverWallet->id, 'amount' => $driverShare, 'description' => "booking #{$booking->id}: driver share 95%"],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $primaryShare, 'description' => "booking #{$booking->id}: platform fee 5%"],
         ]);
 
         Log::info('Escrow released per passenger confirmation', [

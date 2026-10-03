@@ -4996,3 +4996,34 @@ ledger tests) = 80 tests, only the 3 long-recorded OTP `WalletTest` failures.
 `CashRideFeeService` (fee charge, fee refund, debt auto-clear) plus `AdminWalletService`,
 `AdminWalletRequestController` and `PassengerProfileController`. The ledger is still a PARTIAL witness
 for those flows until each posts legs and each is checked against what the balances did.
+
+### 57.2 WalletTransactionService fully converted (8/8 methods) - **VERIFIED FIX**
+
+Completes the largest money file. All eight methods now post balanced double-entry legs:
+`chargePassengerForBooking`, `releaseEarningsToDriver`, `refundPassengersForDriverCancellation`,
+`refundPassengersForStaffCancellation`, `processTimeBasedCancellation`, `processPassengerNoShow`,
+`processDriverNoShowRefund`, `releaseEscrowToDriver`.
+
+**Two shapes, because the flows genuinely differ:**
+- **Three-party splits** (`releaseEarningsToDriver`, `processPassengerNoShow`, `releaseEscrowToDriver`)
+  - SyCash gives, driver 95%, platform 5%.
+- **Two-party refunds** (`processDriverNoShowRefund`, and the two cancellation fan-outs) - one
+  transfer, N+1 legs.
+- **Conditional three-party** (`processTimeBasedCancellation`) - the passenger refund and the driver
+  compensation are each posted ONLY when non-zero. A 0.00 leg would still balance, so posting one
+  would be misleading rather than wrong; skipping it keeps the ledger readable.
+
+**`releaseEscrowToDriver` is where the ledger earns its keep.** That method computes the platform share
+by SUBTRACTING (`$total - $driverShare`) rather than multiplying by 0.05, specifically to dodge float
+drift. In the balances that care is invisible; in the ledger it becomes checkable - if the shares ever
+stop summing to the total, the legs do not balance and `postTransfer` REFUSES the transfer instead of
+quietly creating or destroying money.
+
+**No regression.** Money floor (Payment, Wallet, RV40 x2, staff-cancel refund, ledger tests, plus
+`tests/Unit/Services/Payment`) = 100 tests, 8 failures, ALL confirmed in the recorded pre-existing
+baseline (3 OTP `WalletTest` + 5 `CashRideFeeServiceTest` refund-tier). `CashRideFeeService` itself is
+untouched by this work.
+
+**Still unconverted.** `CashRideFeeService` (fee charge, fee refund, debt auto-clear),
+`AdminWalletService`, `AdminWalletRequestController`, `PassengerProfileController`. The ledger is a
+partial witness for those flows; they remain listed as the RV-21 blocker.
