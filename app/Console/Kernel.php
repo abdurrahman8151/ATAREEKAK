@@ -62,6 +62,20 @@ class Kernel extends ConsoleKernel
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/scheduled/otps-cleanup.log'));
 
+        // ── BOOKING REQUEST EXPIRY (decision 2) ──────────────────────────────
+        // A booking request the driver never answered now lapses once the ride departs,
+        // instead of being auto-confirmed (the owner ruled against auto-confirm: it would
+        // put a passenger in a car whose driver never agreed, and charge them for it).
+        //
+        // Every 15 minutes matches the existing no-show resolution job. Worst case a request
+        // expires 15 minutes after departure, which is acceptable: the ride has already left,
+        // so nothing user-visible depends on the exact minute.
+        $schedule->command('bookings:expire-stale')   // ← matches ExpireStaleBookingsCommand
+            ->everyFifteenMinutes()
+            ->onOneServer()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/scheduled/booking-expiry.log'));
+
         // ── ADMIN PASSWORD ROTATION ──────────────────────────────────────────
         // Uncomment and adjust frequency to your security policy.
         //

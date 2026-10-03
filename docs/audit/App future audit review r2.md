@@ -4644,3 +4644,71 @@ path-style requirement are all untested against a live server. `photos.path` val
 `DOCUMENTS_DISK=public` remain readable from a private bucket ONLY if the objects are migrated
 (`mc mirror`); this task configures the destination, it does not move existing files. That migration
 is a deploy task with its own rollback, and it is the step that actually closes RV-01.
+
+---
+
+## 53. Decision 2 - unconfirmed bookings EXPIRE (never auto-confirm) - **VERIFIED FIX** (first migration-group task)
+
+**Owner ruling (sec 40.1, Option B):** "expire unconfirmed bookings, do NOT auto-confirm". Marked by
+the owner as "important to be reconsidered"; implemented as ruled. Authorization to proceed unattended
+was given for the whole decision batch (2026-10-02).
+
+**The rejected alternative is the point.** Auto-confirming a request the driver never accepted would
+seat a passenger in a car whose driver never agreed to carry them - and, for e-pay, CHARGE them for
+it. That is why the ruling is expiry.
+
+**THE ESCROW-RELEASE RULE THE DECISION MENTIONS TURNS OUT NOT TO EXIST, and that is a finding, not
+an omission.** Verified in code before designing:
+- `BookingService::bookRide` charges e-pay only for DIRECT bookings that are immediately CONFIRMED;
+- `acceptBooking` charges a REQUEST e-pay booking at the moment the driver accepts;
+- `deductSeats` likewise runs only on accept.
+
+So a booking that is still `pending` has `amount_paid = 0`, never reached the passenger's wallet and
+never entered SyCash escrow. **There is nothing to release and no seat to return.** A test asserts
+this so a later reader does not "helpfully" add a refund path for money that was never taken.
+
+**Delivered.**
+- Migration `2026_10_03_230000_add_expired_to_bookings_status_enum`: adds `expired` to
+  `bookings.status`. **Verified in both directions against real data**: a row written as `expired`
+  was rolled back with `expired -> cancelled` (the closest truthful state) and the column re-narrowed
+  successfully, then re-migrated forward. `up()` uses MODIFY (not change) so existing enum values
+  survive.
+- `BookingStatus::EXPIRED` with `label/colour/isActive/canBeCancelled`. It is deliberately **terminal
+  and not cancellable** - re-cancelling would notify the passenger twice and try to return seats the
+  booking never held.
+- `ExpireStaleBookingsCommand` (`bookings:expire-stale`), scheduled every 15 minutes with
+  `onOneServer`/`withoutOverlapping`. Idempotent: expired rows are no longer `pending`.
+- Each row is expired in its own transaction with an **in-transaction re-check**, because the driver
+  may accept between the seed query and the write. A failed notification is logged, not rolled back -
+  rolling back would leave the row pending and retry it forever.
+
+**Why not reuse `cancelled`:** a driver who never answered is a different event from a passenger who
+changed their mind. Collapsing them makes "how often are requests ignored?" unanswerable and shows an
+expiry in the passenger's history as a self-cancellation.
+
+**`tests/Feature/Review/BookingExpiryTest.php` (new, 6 tests):** expires after departure; NOT before;
+moves no money (wallet, SyCash and ledger-row counts all unchanged); never touches a CONFIRMED
+booking; idempotent; EXPIRED is terminal and not cancellable.
+
+**Needles - and what they actually proved.** My first needle attempt patched only ONE of the command's
+two guards (the seed query) and the suite stayed green. That was not a weak test: the command is
+defended twice, and the in-transaction re-check caught it. Removing BOTH layers makes the suite fail
+(1 failure each for departure-time and for the confirmed-booking rule), and the file restores
+byte-identically. Defence-in-depth working is a better result than a single guard that a one-line
+patch defeats.
+
+**Two bugs the tests caught in my own work.** (1) The command's `lockForUpdate()->find()` re-read
+triggered `LazyLoadingViolationException` under the lazy guard armed in un9 - fixed with
+`->with('ride')`, which is load-bearing precisely because `lockForUpdate` re-reads the row.
+(2) My fixture called `->departureTime()` BEFORE `->withAttributes()`, and `withAttributes` replaces
+the attribute set, so every ride was "departed" and the before-departure assertion was a no-op. Fixed
+and the ordering now carries a comment.
+
+**No regression:** 115 tests / 4 failures, all four the long-recorded pre-existing baseline
+(`RideControllerFullTest` passenger-confirm x3, `RideTest::test_ride_creation_does_not_charge_any_fee`).
+`BoundaryDependencyTest` green.
+
+**Genuinely unverified.** The scheduler wiring (`everyFifteenMinutes`) has not been observed firing in
+a deployed environment - only the command itself is tested. Notification delivery is not asserted
+against a real push/SMS provider. The 15-minute cadence means an expiry can land up to 15 minutes
+after departure; that is a deliberate trade and is recorded above.
