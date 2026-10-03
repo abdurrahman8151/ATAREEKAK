@@ -10,7 +10,7 @@ with each status taken from the newest section that mentions it. The per-task lo
 `docs/audit/App future audit review r2.md`. Feature plan: `docs/audit/ROADMAP.md`.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- (empty - no task is mid-flight. The decision batch has reached its end; see below.)
+- (empty - no task is mid-flight.)
 - OWNER DECISION SLATE 2026-10-02 - ALL 18 DECISIONS DISPATCHED. Branch `Agentic` only, never pushed.
   DONE + committed: decision record `77e9820`, un10 wallet fixtures `bff1d3e`, un2 score policy
   `de61c7b`, un5 delete finish/driver-confirm `1510663` (+`23457eb` near-miss record),
@@ -22,7 +22,10 @@ with each status taken from the newest section that mentions it. The per-task lo
   (18 columns, verified up AND down, fail-loud rollback), un13 account status + BanService `8b939cf`,
   un3 money foundation `ae09981` **PARTIAL - `wallets.kind` shipped, double-entry + thresholds NOT
   built** (measured scope in R2 sec 56: 31 ledger write sites + 27 balance mutations; half a ledger
-  rewrite is worse than none, so it is its own task).
+  rewrite is worse than none, so it is its own task), un3 double-entry ledger `8b8d5ef` **PARTIAL -
+`ledger_entries` + `LedgerService` + the escrow path converted, balancing invariant enforced and
+needle-proven; 30 of 31 ledger write sites remain** (now mechanical: add a `postTransfer` call, but
+each still needs its legs checked against what the balances did).
   OPEN QUESTION for the owner (raised in sec 47, deliberately not actioned): RV-03's ROLE-GATE half -
   both staff-cancel endpoints are callable by ANY authenticated employee, so any of them can move real
   money. Tightening it is an auth change that can lock legitimate staff out, and AGENTS.md requires
