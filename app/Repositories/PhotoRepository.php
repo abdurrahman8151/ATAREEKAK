@@ -29,4 +29,13 @@ class PhotoRepository implements PhotoRepositoryInterface
             ->whereIn('type', $types)
             ->get();
     }
+
+    /**
+     * Decision 1b: single-document lookup for the staff streaming route. Kept here (not in the
+     * controller) so the HTTP layer never imports App\Models\Photo - see the interface note.
+     */
+    public function findById(int $photoId)
+    {
+        return Photo::find($photoId);
+    }
 }

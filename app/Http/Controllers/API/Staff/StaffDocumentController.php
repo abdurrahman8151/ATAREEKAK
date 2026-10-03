@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Models\Photo;
+use App\Interfaces\PhotoRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -32,6 +32,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class StaffDocumentController extends Controller
 {
+    public function __construct(private readonly PhotoRepositoryInterface $photos) {}
+
     /** The document types that are identity documents (face/back ID). */
     private const IDENTITY_TYPES = ['face_id', 'back_id'];
 
@@ -65,7 +67,7 @@ class StaffDocumentController extends Controller
      */
     private function serve(int $photoId, array $allowedTypes): JsonResponse|Response
     {
-        $photo = Photo::find($photoId);
+        $photo = $this->photos->findById($photoId);
 
         // 404 (not 403) for a missing row OR a type this route will not serve: an error must not
         // let a caller map which photo ids exist or what kind of document each one is.
