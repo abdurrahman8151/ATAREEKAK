@@ -4019,3 +4019,81 @@ full-suite checkpoint rather than asserted here.
 
 **Genuinely unverified.** The model-drift family above (6 tests) remains open and is now recorded
 as its own item; it needs either a model change or an owner ruling on which side is correct.
+
+---
+
+## 42. un2 - score policy pinned; the stored-tier write was dead, not just wrong - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1):** start **70**, clamp **0-100**, bands **Gold >= 80 / Silver >= 60 /
+Bronze >= 40**, gates **50** create-ride / **40** book.
+
+**What was already right (so nothing was changed):** `ScoreService::initializeScore` (70),
+`UserScore::applyDelta` (clamp 0-100), `UserScore::getTierAttribute` (the 80/60/40 bands),
+`RideValidationService::MIN_SCORE_CREATE_RIDE` (50) / `MIN_SCORE_BOOK_RIDE` (40). Nothing asserted
+them, so they could drift, and one copy had.
+
+**The real defect, which was worse than a wrong scale.** `ScoreService::applyAction` wrote a stored
+`tier` COLUMN on every score change from a **200/150/100 scale** applied to a 0-100 score - no account
+can reach 200, so it labelled every user `bronze`. But the write was **dead**: `UserScore::
+setTierAttribute()` is a no-op (`// computed from score - never stored`), so the assignment never
+became dirty and never reached the database. A first draft of this fix "corrected" the scale to
+80/60/40 and **still changed nothing**; the falsifiability needle caught it (the test passed with
+the bug present). There were THREE definitions of the bands - the accessor (real), the dead column
+writer (unreachable), and the migration default (`bronze`) - and the one that looked authoritative
+could not run.
+
+**Fix.** The computed accessor `UserScore::getTierAttribute()` is the single source of truth with
+the owner's bands; the dead `resolveTier()` and its write in `applyAction` are **removed**; the legacy
+`tier` column stays inert. Dropping the column is a separate migration decision - recorded, not taken.
+
+**`tests/Feature/Review/RV37ScorePolicyTest.php` (new, 7 tests)** pins start 70, the clamp at both
+ends, all four band boundaries, a real account driven 70 -> 80 reading Gold, and both ride gates
+(the passenger gate behaviourally - 39 refused naming the score, 40 allowed; the driver gate by
+constant, because `validateDriverCanCreateRide` checks KYC documents **before** the score).
+
+**Needles (both fail, both restore MD5-identical):** breaking the accessor scale -> 3 failures;
+changing the starting score 70 -> 55 -> 4 failures.
+
+**No regression.** `AdminDriverServiceTest`'s 10 rating failures and `RideValidationServiceTest`'s 1
+cancellation-window failure are the pre-existing baseline (UserRating cast, cancel window) - not
+score policy.
+
+**Genuinely unverified.** The legacy `tier` column still exists with a `bronze` default and is never
+written; any report reading it with raw SQL would see a constant. No such reader exists in `app/` today
+(verified by grep), but the column is a trap and its removal needs its own migration decision.
+
+---
+
+## 43. un5 - `finish` and `driver-confirm` endpoints DELETED - **VERIFIED FIX**
+
+**Owner ruling (sec 40.1, Option C):** "I don't want someone implementing them or changing
+anything because they don't know the flow." The product has **no driver-driven finish step**: each
+passenger confirms their own booking (`POST /bookings/{id}/passenger-confirm`), that passenger's
+money moves to the driver, and the ride auto-finishes when every booking is confirmed or reaches a
+terminal status (cancelled / no_show) - `BookingService::passengerConfirmCompletion` (lines 527-556).
+
+**What the endpoints actually were.** `RideController::finishRide()` and
+`::driverConfirmCompletion()` returned a **static info message and changed nothing** - their own
+message said so ("No driver action required... the ride finishes automatically"). They were
+vestigial, and leaving them invited exactly the confusion the owner named.
+
+**What was removed.**
+- The two routes (`routes/api.php`).
+- The two controller methods (deleted, with an explanatory comment in their place).
+- The two OpenAPI entries in `app/Docs/RideDocs.php`, so no client is generated against them.
+- The 8 stale test call-sites (6 in `RideControllerFullTest`, 2 in `RideTest`) replaced by tests
+  that pin the **removal** (404), so the endpoints cannot quietly return.
+
+**What was deliberately KEPT.** The `RideService::finishRide()` / `::driverConfirmCompletion()`
+methods still exist and still do real work (empty-ride cash-fee refund, `checkAndCompleteRide`);
+the seeders call them directly. Only the HTTP surface is gone - the service layer is the real flow
+the owner described.
+
+**Measured.** Ride floor after removal: 46 tests, 4 failures - all 4 pre-existing baseline
+(`test_ride_creation_does_not_charge_any_fee` fee-expectation family + 3 `passenger_confirm_*`), none
+caused by the deletion.
+
+**Genuinely unverified.** The full-suite effect (red baseline shifts by ~8) is re-measured at the
+next full-suite checkpoint. If any Flutter client still calls `/finish` or `/driver-confirm` it
+will now get a 404 - which is the owner's intent, but it must be in the frontend-coordination note
+(sec 40.3) so the app team is not surprised.

@@ -201,57 +201,29 @@ class RideControllerFullTest extends TestCase
             ->assertStatus(422);
     }
 
-    // ── finishRide ───────────────────────────────────────────────────────────────
+    // ── finishRide / driverConfirmCompletion: REMOVED (un5, owner ruling 2026-10-02) ──
+    //
+    // These six tests pinned behaviour that never existed as far as the product is concerned: the
+    // two endpoints only ever returned a static info message and changed no state. The real flow
+    // has no driver finish step - each passenger confirms their own booking (see the
+    // passenger-confirm tests) and the ride finishes automatically once every booking is confirmed
+    // or terminal. The endpoints are removed; these tests now pin that removal so nobody
+    // reintroduces a driver-driven finish step.
 
-    public function test_finish_ride_after_departure_succeeds(): void
+    public function test_finish_endpoint_is_gone(): void
     {
         $ride = $this->makeRide(['departure_time' => now()->subMinutes(10)]);
         $this->withToken($this->driverToken)
             ->postJson("/api/rides/{$ride->id}/finish")
-            ->assertSuccessful();
+            ->assertStatus(404);
     }
 
-    public function test_finish_ride_before_departure_fails(): void
-    {
-        $ride = $this->makeRide(['departure_time' => now()->addHours(2)]);
-        $this->withToken($this->driverToken)
-            ->postJson("/api/rides/{$ride->id}/finish")
-            ->assertStatus(400);
-    }
-
-    public function test_finish_ride_by_non_driver_fails(): void
-    {
-        $ride = $this->makeRide(['departure_time' => now()->subMinutes(10)]);
-        $this->withToken($this->passengerToken)
-            ->postJson("/api/rides/{$ride->id}/finish")
-            ->assertStatus(400);
-    }
-
-    // ── driverConfirmCompletion ───────────────────────────────────────────────────
-
-    public function test_driver_confirm_completion_succeeds(): void
+    public function test_driver_confirm_endpoint_is_gone(): void
     {
         $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
         $this->withToken($this->driverToken)
             ->postJson("/api/rides/{$ride->id}/driver-confirm")
-            ->assertStatus(200)
-            ->assertJsonPath('status', 'success');
-    }
-
-    public function test_driver_confirm_fails_for_active_ride(): void
-    {
-        $ride = $this->makeRide(['status' => 'active']);
-        $this->withToken($this->driverToken)
-            ->postJson("/api/rides/{$ride->id}/driver-confirm")
-            ->assertStatus(400);
-    }
-
-    public function test_driver_confirm_fails_for_non_driver(): void
-    {
-        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
-        $this->withToken($this->passengerToken)
-            ->postJson("/api/rides/{$ride->id}/driver-confirm")
-            ->assertStatus(400);
+            ->assertStatus(404);
     }
 
     // ── bookRide ─────────────────────────────────────────────────────────────────

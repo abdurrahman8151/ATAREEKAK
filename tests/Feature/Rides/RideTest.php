@@ -151,16 +151,26 @@ class RideTest extends TestCase
         $this->withToken($this->token)->patchJson("/api/rides/{$ride->id}/cancel")->assertStatus(422);
     }
 
-    public function test_driver_can_finish_active_ride(): void
+    /**
+     * un5 (owner ruling 2026-10-02): there is no driver finish step. Each passenger confirms their
+     * own booking; the ride finishes automatically once every booking is confirmed or terminal.
+     * These two endpoints are removed rather than left as no-ops, so a future developer cannot
+     * "implement" a step the product does not have.
+     */
+    public function the_finish_endpoint_no_longer_exists(): void
     {
         $ride = $this->makeRide(['departure_time' => now()->subMinutes(10)]);
-        $this->withToken($this->token)->postJson("/api/rides/{$ride->id}/finish")->assertSuccessful();
+        $this->withToken($this->token)
+            ->postJson("/api/rides/{$ride->id}/finish")
+            ->assertStatus(404);
     }
 
-    public function test_cannot_finish_ride_before_departure_time(): void
+    public function the_driver_confirm_endpoint_no_longer_exists(): void
     {
-        $ride = $this->makeRide(['departure_time' => now()->addHours(2)]);
-        $this->withToken($this->token)->postJson("/api/rides/{$ride->id}/finish")->assertStatus(400);
+        $ride = $this->makeRide(['departure_time' => now()->subMinutes(10)]);
+        $this->withToken($this->token)
+            ->postJson("/api/rides/{$ride->id}/driver-confirm")
+            ->assertStatus(404);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────

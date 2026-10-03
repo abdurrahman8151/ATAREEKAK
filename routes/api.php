@@ -205,8 +205,14 @@ Route::middleware(['jwt', 'throttle:api'])->group(function () {
         Route::get('/{rideId}/passengers', [RideController::class, 'driverView']);
         Route::patch('/{rideId}/cancel', [RideController::class, 'cancelRide']);
         Route::post('/{rideId}/book', [RideController::class, 'bookRide']);
-        Route::post('/{rideId}/finish', [RideController::class, 'finishRide']);
-        Route::post('/{rideId}/driver-confirm', [RideController::class, 'driverConfirmCompletion']);
+        // un5 (owner ruling 2026-10-02, R2 sec 40.1): `/finish` and `/driver-confirm` are REMOVED.
+        // The product flow has no driver-driven finish step - each passenger confirms their own
+        // booking (POST /bookings/{id}/passenger-confirm), that passenger's money moves to the
+        // driver, and the ride becomes `finished` automatically once every booking is confirmed or
+        // has reached a terminal status (cancelled / no_show) - see BookingService::
+        // passengerConfirmCompletion. These two routes only ever returned an info message and changed
+        // nothing, which invited the belief that a driver had to call them; deleting them means the
+        // next developer cannot "implement" a step the product does not have.
         Route::post('/{rideId}/driver-no-show', [RideController::class, 'reportDriverNoShow']);
 
     });

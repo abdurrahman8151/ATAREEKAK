@@ -698,40 +698,16 @@ class RideController extends Controller
     }
 
     // =========================================================================
-    // FINISH / CONFIRM
     // =========================================================================
-
-    /**
-     * RV-14: the `finish()` alias was removed. It was never routed (the route points
-     * at `finishRide`) and existed only as a dead second name for the same response.
-     */
-    public function finishRide(Request $request, int $rideId): JsonResponse
-    {
-        return response()->json([
-            'status' => 'info',
-            'message' => 'No driver action required. Once the departure time passes, '
-                .'passengers can confirm their completion. The ride finishes '
-                .'automatically when the last passenger confirms.',
-            'data' => [
-                'ride_id' => $rideId,
-                'driver_confirmed' => false,          // nothing happened
-                'ride_status' => 'active',       // unchanged
-            ],
-        ]);
-    }
-
-    public function driverConfirmCompletion(Request $request, int $rideId): JsonResponse
-    {
-        return response()->json([
-            'status' => 'info',
-            'message' => 'Driver confirmation is no longer required. '
-                .'Each passenger confirms individually. '
-                .'The ride completes automatically when all passengers have confirmed.',
-        ]);
-    }
-
+    // FINISH / CONFIRM - REMOVED (un5, owner ruling 2026-10-02, R2 sec 40.1)
     // =========================================================================
-    // PASSENGER CONFIRM COMPLETION
+    //
+    // The `finishRide` / `driverConfirmCompletion` endpoints are gone. There is no
+    // driver finish step in the product: each passenger confirms their own booking,
+    // their money moves to the driver, and the ride finishes automatically when every
+    // booking is confirmed or terminal. The RideService methods of the same names still
+    // exist (seeders use them); only the HTTP surface was removed.
+
     // =========================================================================
 
     /**

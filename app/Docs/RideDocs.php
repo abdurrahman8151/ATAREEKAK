@@ -172,36 +172,11 @@ namespace App\Docs;
  *
  *     @OA\Response(response=201, description="Booking created")
  * )
- *
- * @OA\Post(
- *     path="/api/rides/{rideId}/finish",
- *     operationId="ridesFinish",
- *     tags={"Rides"},
- *     summary="Mark a ride as finished (driver)",
- *     security={{"bearerAuth":{}}},
- *
- *     @OA\Parameter(name="rideId", in="path", required=true,
- *
- *         @OA\Schema(type="integer")
- *     ),
- *
- *     @OA\Response(response=200, description="Ride finished")
- * )
- *
- * @OA\Post(
- *     path="/api/rides/{rideId}/driver-confirm",
- *     operationId="ridesDriverConfirm",
- *     tags={"Rides"},
- *     summary="Driver confirms ride completion",
- *     security={{"bearerAuth":{}}},
- *
- *     @OA\Parameter(name="rideId", in="path", required=true,
- *
- *         @OA\Schema(type="integer")
- *     ),
- *
- *     @OA\Response(response=200, description="Confirmed")
- * )
+ * un5 (owner ruling 2026-10-02): POST /api/rides/{rideId}/finish and
+ * /api/rides/{rideId}/driver-confirm were REMOVED from the API - they only ever returned an info
+ * message and changed nothing. There is no driver finish step: each passenger confirms their own
+ * booking, their money moves to the driver, and the ride finishes automatically once every booking
+ * is confirmed or terminal. Both OpenAPI entries are gone so no client is generated against them.
  *
  * @OA\Post(
  *     path="/api/rides/{rideId}/driver-no-show",
