@@ -5369,3 +5369,45 @@ working tree afterwards.
 decision** (fixtures insert 320.5 and 320500 into columns commented "Meters"/"Seconds"). The columns
 are now `int unsigned` with explicit unit comments, but normalising the fixtures needs the owner's
 ruling on which unit each field is meant to hold.
+
+### 29.3.1 RV-17 - provenance + database-pressure capture (the two remaining spec items) - **PARTIAL (closed as far as it can be here)**
+
+RV-17's recorded remainder had two parts. The `setup()`-login, constant-arrival-rate, 3-run and
+per-endpoint-threshold items were delivered in section 51 (un12). This closes the last two that can be
+built without a running system.
+
+**1. RESULTS TIED TO A COMMIT.** RV-17: "committing result JSON with the git SHA". A performance number
+that cannot be tied to a version of the code is not evidence - and that is exactly how the historical
+A/B/C numbers (518 -> 538 rps, "B to C shows no gain") became unfalsifiable. `perf-3run.js` now takes
+`K6_GIT_SHA` / `K6_GIT_BRANCH`, prints them in the setup banner, and - importantly - prints a loud
+warning in the TEARDOWN when the SHA is absent. The warning repeats at the end on purpose: that is
+where someone copying numbers off the log will actually see it.
+
+**2. DATABASE PRESSURE CAPTURE.** RV-17 asks for `threads_running` / lock-wait alongside the HTTP
+numbers. k6 speaks HTTP only, so this cannot live in the k6 script: `dbwatch.sh` samples
+`SHOW GLOBAL STATUS` on an interval and writes CSV next to the HTTP summary. It reports the DELTA of
+the monotonic counters rather than their totals (cumulative totals look like rising pressure on a long
+run when they are just accumulated), and it prints a pointed warning when `Innodb_row_lock_waits`
+climbs: an HTTP p95 cannot distinguish "the application is slow" from "the database is serialising on
+a lock", and the escrow and 95/5 settlement paths both take row locks, so those are fixed in different
+places.
+
+**A UNIT BUG FOUND IN MY OWN SCRIPT.** The first draft divided `Innodb_row_lock_time` by 1000 while
+labelling the column `row_lock_time_ms`. MySQL already reports that counter in milliseconds, so the
+script was publishing seconds under a millisecond heading. A numbers tool must not disagree with its
+own units; fixed, and the reason is in a comment so it is not "tidied" back.
+
+**Credentials never touch the file** (the RV-18 lesson: a real API key was once committed in
+phpunit.xml, and this reads the production database). `DB_PASSWORD` is required from the environment
+and passed via `MYSQL_PWD`, so it does not appear in `ps`.
+
+**VERIFICATION, and its limit.** `node --check` passes on `perf-3run.js` (exit 0). **`dbwatch.sh` could
+NOT be syntax-checked: bash is unavailable in this environment** (WSL has no installed distro, and
+Git-for-Windows bash is not on PATH). It was reviewed by hand and its braces/parens balance
+(35/35, 33/33) and non-ASCII characters were normalised, but **it has not been executed even once.**
+That is recorded as genuinely unverified rather than glossed.
+
+**Still open in RV-17, and NOT closable here.** "Regenerating README numbers from a corrected run"
+requires running a corrected load test against a production-shaped system, which this environment
+cannot do. The historical `perf-results/{A,B,C}` remain INVALID and must not be cited as capacity
+until a run exists that carries its commit SHA.

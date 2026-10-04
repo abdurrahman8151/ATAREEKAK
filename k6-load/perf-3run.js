@@ -19,6 +19,20 @@
  *
  * RESULTS: --summary-export writes the JSON next to perf-results/ so two dates can be diffed.
  *
+ * PROVENANCE (RV-17, "commit the result JSON with the git SHA"). A performance number without the
+ * commit that produced it is not evidence. Pass the SHA in and it is stamped into the run:
+ *
+ *   k6 run --summary-export "perf-results/run-$(git rev-parse --short HEAD).json" \
+ *          k6-load/perf-3run.js -e K6_GIT_SHA="$(git rev-parse --short HEAD)" -e K6_GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+ *
+ * A run without K6_GIT_SHA is allowed but the teardown says so LOUDLY, because the historical
+ * A/B/C numbers in this repo were exactly the problem: valid-looking figures with nothing tying them
+ * to a version of the code.
+ *
+ * DB PRESSURE (RV-17, "DB threads_running / lock-wait capture"). k6 cannot query MySQL - it speaks
+ * HTTP only - so the database side is sampled by `dbwatch.sh` alongside the run. See that script's
+ * header for how to run the two together.
+ *
  * USAGE
  *   k6 run --summary-export perf-results/run.json k6-load/perf-3run.js \
  *     -e BASE_URL=http://localhost:8080 \
@@ -122,10 +136,15 @@ export function setup() {
   console.log(`  rate     ${RATE}/s for runs 1-2, ${Math.round(RATE * 1.5)}/s for run 3`);
   console.log(`  duration ${DURATION}s each`);
   console.log(`  total    ~${3 * DURATION + 30}s`);
+
+  // RV-17: stamp the provenance. A number that cannot be tied to a commit is not evidence.
+  const sha = __ENV.K6_GIT_SHA || '';
+  const branch = __ENV.K6_GIT_BRANCH || '';
+  console.log(`  commit   ${sha ? sha + (branch ? ` (${branch})` : '') : '*** NOT SUPPLIED - this result is not reproducible ***'}`);
   console.log(`  write-to ${__ENV.K6_OUT_DIR || 'perf-results'}/syride-perf-<timestamp>.json`);
   console.log('='.repeat(72));
 
-  return authSetup();
+  return Object.assign(authSetup(), { sha, branch });
 }
 
 export function run(data) {
@@ -186,6 +205,16 @@ export function teardown(data) {
   console.log('  * syride_auth_rejections must be 0. Non-zero means the harness regressed to');
   console.log('    stale tokens - that is the RV-17 failure mode returning.');
   console.log('-'.repeat(72));
+
+  // RV-17: the provenance warning is repeated at the END, where someone copying the numbers
+  // off the log will actually see it.
+  if (!data.sha) {
+    console.log('  !! K6_GIT_SHA was not supplied.');
+    console.log('  !! This result cannot be tied to a version of the code, which is exactly how the');
+    console.log('  !! old A/B/C numbers became unfalsifiable. Re-run with -e K6_GIT_SHA="$(git rev-parse');
+    console.log('  !! --short HEAD)" and commit the JSON alongside it.');
+  }
+
   console.log(`  JSON summary: ${outDir}/ (pass --summary-export <path> to choose)`);
   console.log('='.repeat(72));
 }
