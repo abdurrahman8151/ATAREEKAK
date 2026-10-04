@@ -624,30 +624,21 @@ class RideController extends Controller
     // CREATE WITH ROUTE
     // =========================================================================
 
-    public function createRideWithRoute(Request $request): JsonResponse
+    public function createRideWithRoute(CreateRideRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'pickup_lat' => 'required|numeric|between:-90,90',
-            'pickup_lng' => 'required|numeric|between:-180,180',
-            'destination_lat' => 'required|numeric|between:-90,90',
-            'destination_lng' => 'required|numeric|between:-180,180',
-            'pickup_address' => 'nullable|string|max:500',
-            'destination_address' => 'nullable|string|max:500',
-            'departure_time' => 'required|date|after:'.now()->addMinutes(5)->toDateTimeString(),
-            'available_seats' => 'required|integer|min:1|max:8',
-            'price_per_seat' => 'required|numeric|min:0',
-            'vehicle_type' => 'required|string|max:100',
-            'payment_method' => 'required|in:cash,e-pay',
-            'booking_type' => 'required|in:direct,request',
-            'communication_number' => 'required|string',
-            'notes' => 'nullable|string|max:1000',
-            'route_geometry' => 'nullable|array',
-            'route_geometry.type' => 'nullable|string|in:LineString',
-            'route_geometry.coordinates' => 'nullable|array|min:2',
-            'route_index' => 'nullable|integer|min:0',
-            'distance' => 'nullable|numeric|min:0',
-            'duration' => 'nullable|numeric|min:0',
-        ]);
+        // RV-14: this endpoint used to carry its OWN inline rule set, and the two sets had DRIFTED
+        // apart in ways that mattered:
+        //   price_per_seat        CreateRideRequest min:100|max:100000   vs  here min:0  (NO bound)
+        //   communication_number  regex:/^09\d{8}$/                     vs  here 'string' (no check)
+        //   notes                 max:500                               vs  here max:1000
+        // So the weaker endpoint was the LIVE one: a ride could be created for a price of 0, or
+        // with "banana" as the contact number. That is RV-14's "lying endpoints" exactly - two
+        // routes for one action answering to different rules.
+        //
+        // The price bound landed first (the column is decimal(15,2)), which is what this item was
+        // waiting on. Both endpoints now validate identically, so a rule can only be changed once.
+        $validated = $request->validated();
+
 
         try {
             if (empty($validated['pickup_address'])) {

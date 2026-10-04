@@ -111,7 +111,15 @@ final class CreateRideDTO
             'communication_number' => $this->communicationNumber->number(),
             'notes' => $this->notes,
             'route_geometry' => $this->routeGeometry,
-            'chosen_route_index' => $this->chosenRouteIndex,
+            // RV-14: `rides.chosen_route_index` is NOT NULL. A client that sends no `route_index`
+            // left this null, and the INSERT failed with a 500 ("Column 'chosen_route_index' cannot be
+            // null") on an otherwise perfectly valid request - verified pre-existing, identical with
+            // and without the validation-parity change in sec 62.
+            //
+            // 0 is the correct value, not a workaround: it is the column's declared DEFAULT and means
+            // "the first (only) route". Passing null instead of the default meant the DEFAULT was
+            // never actually used on this path.
+            'chosen_route_index' => $this->chosenRouteIndex ?? 0,
             'distance' => $this->distance,
             'duration' => $this->duration,
         ];

@@ -5316,3 +5316,56 @@ cleanup. Recorded as the remaining item rather than quietly closed.
 
 **No new failures:** Auth + Staff + Review + Security = 7 red both with and without the `createUser`
 change (git-stash bisect).
+
+---
+
+## 62. RV-14 - `create-with-route` now validates like `create` - **VERIFIED FIX** (one half; `distance`/`duration` units still open)
+
+Closing the PARTIAL backlog surfaced a LIVE defect rather than paperwork.
+
+**THE DEFECT.** `POST /rides/create-with-route` carried its own inline rule set while `POST /rides`
+used `CreateRideRequest`, and the two had **drifted apart in ways that mattered**:
+
+| Field | `CreateRideRequest` | `create-with-route` (inline) |
+|---|---|---|
+| `price_per_seat` | `min:100\|max:100000` | `min:0` - **no bound at all** |
+| `communication_number` | `regex:/^09\d{8}$/` | `string` - **no format check** |
+| `notes` | `max:500` | `max:1000` |
+
+**The weaker endpoint was the live one.** A ride could be created through `create-with-route` for a
+price of **0**, or with **"banana"** as the contact number, while the same request through `POST /rides`
+was correctly rejected. That is RV-14's "lying endpoints" exactly: two routes for one action
+answering to different rules.
+
+**Fix.** `createRideWithRoute` now injects `CreateRideRequest`. The item was explicitly waiting on the
+price bound landing first (`rides.price_per_seat` is now `decimal(15,2)`), and it has.
+
+**A SECOND, PRE-EXISTING 500 found while testing it, and fixed.** A perfectly valid request returned
+`500 Column 'chosen_route_index' cannot be null`: `CreateRideDTO::toArray()` wrote
+`chosen_route_index => $this->chosenRouteIndex`, which is **null** whenever the client sends no
+`route_index` - against a column declared `NOT NULL DEFAULT 0`. Bisected with `git stash` and
+confirmed **identical with and without** the parity change, i.e. it predates this task. Fixed by
+coalescing to `?? 0`, which is the column's declared default rather than a workaround; the DEFAULT
+was simply never reachable on this path.
+
+**`tests/Feature/Review/RideValidationParityTest.php` (new, 5 tests)** pins the parity: a zero price
+rejected, an above-bound price rejected, a malformed contact number rejected, the endpoint still
+routed, and a valid payload accepted.
+
+**Needle:** restoring the weak inline rules fails 4 of the 5, byte-identical restore.
+
+**Two fixture mistakes of my own, both caught by running:** declaring `SeedsSystemWallets` without
+CALLING it (the cash-ride fee then failed with "Primary Admin wallet not found"), and a driver fixture
+with no wallet ("You must create a wallet before creating a cash ride" - a real, separate gate).
+
+**OWNER-FILE HANDLING.** `RideController.php` is owner-owned (two RV-38 eager-load edits). Per the
+section 43.1 rule, the commit was built from a HEAD reconstruction carrying ONLY the parity change
+(verified: my change present, owner's eager-loads absent), and the owner's edits were restored to the
+working tree afterwards.
+
+**No regression:** Rides + the parity tests = 94 tests, 4 red, all the recorded baseline.
+
+**Still open in RV-14:** the `rides.distance` / `rides.duration` unit disagreement is a **units
+decision** (fixtures insert 320.5 and 320500 into columns commented "Meters"/"Seconds"). The columns
+are now `int unsigned` with explicit unit comments, but normalising the fixtures needs the owner's
+ruling on which unit each field is meant to hold.
