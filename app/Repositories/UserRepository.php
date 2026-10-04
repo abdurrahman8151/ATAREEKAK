@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Enums\AccountStatus;
 use App\Interfaces\UserRepositoryInterface;
 use App\Models\User;
 
@@ -35,7 +36,19 @@ class UserRepository implements UserRepositoryInterface
             'address' => $data['address'] ?? null,
             'google_id' => $data['google_id'] ?? null, // Handle missing key
             'avatar' => $data['avatar'] ?? null,       // Handle missing key
-            'status' => 1,
+
+            // RV-12 / un13: honour the caller's status instead of overriding it.
+            //
+            // This used to hardcode `'status' => 1`, which SILENTLY DISCARDED a deliberate
+            // defence: `SignupController` passes `'status' => 0` with the comment "user must
+            // verify email before they can log in... starting at 0 adds a second layer of defence",
+            // and that value was thrown away, so every self-registered account started ACTIVE
+            // regardless. A dead defence is worse than none, because the code reads as though the
+            // gate is closed.
+            //
+            // `AccountStatus::LOGGED_OUT` (0) is the sign-up default when the caller says nothing:
+            // an account should not be usable before it has verified its email.
+            'status' => $data['status'] ?? AccountStatus::LOGGED_OUT->value,
         ]);
     }
 

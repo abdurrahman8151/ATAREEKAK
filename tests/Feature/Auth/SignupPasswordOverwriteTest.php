@@ -170,11 +170,21 @@ class SignupPasswordOverwriteTest extends TestCase
         $user = User::where('email', 'brand-new@test.com')->first();
         $this->assertNotNull($user);
         $this->assertNull($user->email_verified_at, 'Email must remain unverified until the OTP is submitted.');
-        // NOTE: UserRepository::createUser() hardcodes 'status' => 1, silently
-        // discarding the controller's 'status' => 0 (path B). That is a separate
-        // pre-existing defect (recorded as a new finding, not part of T2-4); the
-        // login gate on email_verified_at is what actually blocks entry.
-        $this->assertSame(1, (int) $user->status);
+        // NOTE: this previously asserted `1` and documented WHY as a known defect -
+        // "UserRepository::createUser() hardcodes 'status' => 1, silently discarding the
+        // controller's 'status' => 0 (path B)... recorded as a new finding". That defect is now
+        // FIXED (RV-12 / un13 follow-up): createUser honours the caller's status, so the sign-up
+        // defence-in-depth actually applies instead of being silently thrown away.
+        //
+        // A test that pins a known defect must move with the fix, or it becomes a ratchet that
+        // re-introduces the bug on the next change. The assertion below now states the CORRECT
+        // behaviour; the defence is live rather than decorative.
+        $this->assertSame(
+            0,
+            (int) $user->status,
+            'A new account must start LOGGED_OUT (status 0), not ACTIVE - the sign-up defence '
+            .'must not be silently discarded by the repository.'
+        );
         // The new user's chosen password IS legitimately theirs.
         $this->assertTrue(Hash::check(self::PASSWORD_ATTACKER, $user->password));
     }

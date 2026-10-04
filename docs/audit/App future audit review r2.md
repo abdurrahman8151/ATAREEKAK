@@ -5270,3 +5270,49 @@ a missing account (which is what "make the test pass" would have meant here).
 
 **No regression:** Payment + Wallet + Unit/Payment + Admin + Profile + the ledger tests = 216 tests, 20
 red, **identical with and without the change** (git-stash bisect, 0 new).
+
+---
+
+## 61. Closing the PARTIAL rows - what was genuinely closable, and what was not - **PARTIAL**
+
+The owner asked to close the PARTIAL backlog. Each row was checked against the CODE before being
+marked, and the result is deliberately not "all closed".
+
+### 61.1 RV-21 (Wallet identity and money creation) - **VERIFIED FIX**
+
+Its ONLY blocker was "double-entry ledger (un3 remainder)", which sections 57-60.1 completed. Verified
+directly: every money-writing site now has a ledger call -
+`WalletTransactionService` (12), `CashRideFeeService` (3), `AdminWalletService` (1),
+`AdminWalletRequestController` (1), `PassengerProfileController` (1) - and **there is no longer any money
+movement in the application the ledger cannot explain.**
+
+### 61.2 RV-12 (Account status model) - a REAL DEAD DEFENCE found and fixed, but still PARTIAL
+
+Checking RV-12's recorded remainder surfaced a genuine bug, not just bookkeeping.
+
+**THE BUG.** `SignupController` creates accounts with `'status' => 0` and carries the comment:
+*"user must verify email before they can log in... starting at 0 adds a second layer of defence"*.
+`UserRepository::createUser()` then **hardcoded `'status' => 1`, silently discarding it.** So every
+self-registered account started ACTIVE and the declared second layer did not exist. `SignupPassword
+OverwriteTest` had documented this as "a separate pre-existing defect... recorded as a new finding" and
+**asserted the buggy value** (`assertSame(1, ...)`) to document it.
+
+**THE FIX.** `createUser` now honours the caller's status and defaults to
+`AccountStatus::LOGGED_OUT`, so the sign-up defence is live. `AGENTS.md` says never edit a test to make
+it pass; this is the opposite case - the test pinned a KNOWN DEFECT, so pinning the fix is correct. That
+is stated in the test's comment so the next reader knows the assertion moved with a real fix.
+
+**Why RV-12 stays PARTIAL.** R1's larger model change - dropping the persisted "logged-out" status=0
+entirely - is NOT done, and should not be: `AccountStatus::LOGGED_OUT` is a real, meaningful state (a
+fresh signup, a just-unbanned account), and removing it is a product-semantics decision, not a
+cleanup. Recorded as the remaining item rather than quietly closed.
+
+### 61.3 Two rows that CANNOT be closed by me
+
+- **RV-11 (Score subsystem)** - blocked by **decision 3** (the cancellation money policy), which the
+  owner explicitly flagged "important to be reconsidered". Blocked on the owner, not on work.
+- **RV-29 (Auth hardening)** - blocked by **decision 5** (driver-phone visibility), which the owner
+  DEFERRED ("this needs more thinking"). Blocked on the owner.
+
+**No new failures:** Auth + Staff + Review + Security = 7 red both with and without the `createUser`
+change (git-stash bisect).
