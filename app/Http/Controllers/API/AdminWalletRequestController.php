@@ -8,6 +8,7 @@ use App\Models\WalletRequest;
 use App\Models\WalletTransaction;
 use App\Services\NotificationService;
 use App\Services\Payment\CashRideFeeService;
+use App\Services\Payment\LedgerService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,11 +24,11 @@ use Illuminate\Support\Str;
  * Admin endpoints for reviewing and acting on wallet charge/withdraw requests.
  *
  * Routes (all behind `staff:admin` / `staff:system_admin` middleware):
- *   GET   /api/admin/wallet/requests              → index()
- *   POST  /api/admin/wallet/requests/{id}/approve → approve()
- *   POST  /api/admin/wallet/requests/{id}/reject  → reject()
+ *   GET   /api/admin/wallet/requests              â†’ index()
+ *   POST  /api/admin/wallet/requests/{id}/approve â†’ approve()
+ *   POST  /api/admin/wallet/requests/{id}/reject  â†’ reject()
  *
- * ── Fixes applied ────────────────────────────────────────────────────────────
+ * â”€â”€ Fixes applied â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  *  1. Withdrawal WalletTransaction amount stored as -$amount (outflow convention).
  *  2. reject() now eager-loads user + wallet so formatRequest() has no N+1.
  *  3. autoClearDebt wrapped in its own DB::transaction() so lockForUpdate()
@@ -39,7 +40,7 @@ final class AdminWalletRequestController extends Controller
         private readonly CashRideFeeService $cashRideFeeService,
     ) {}
 
-    // ── GET /api/admin/wallet/requests ──────────────────────────────────────
+    // â”€â”€ GET /api/admin/wallet/requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -99,7 +100,7 @@ final class AdminWalletRequestController extends Controller
         ]);
     }
 
-    // ── POST /api/admin/wallet/requests/{id}/approve ─────────────────────────
+    // â”€â”€ POST /api/admin/wallet/requests/{id}/approve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function approve(int $id, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -133,7 +134,7 @@ final class AdminWalletRequestController extends Controller
                     $previousBalance = (float) $wallet->balance;
                     $newBalance = $previousBalance - $amount;
                     $transactionType = 'withdrawal';
-                    // FIX 1: withdrawal is an outflow — store as negative to match
+                    // FIX 1: withdrawal is an outflow â€” store as negative to match
                     //         the convention used everywhere else in the codebase.
                     $transactionAmount = -$amount;
                     $description = 'Withdrawal processed by admin';
@@ -158,16 +159,62 @@ final class AdminWalletRequestController extends Controller
                     'description' => $description,
                     // T3-1: was 'WR-'.$walletRequest->id.'-'.now()->timestamp.
                     // Honest note: because the request id is itself unique, this
-                    // generator could not actually collide — the real collision
+                    // generator could not actually collide â€” the real collision
                     // was in PassengerProfileController::chargeWallet() where the
                     // id was 'ADM-'.$user->id.'-'.timestamp (same passenger, same
-                    // second, UNIQUE transaction_id → 500 + rollback). Normalised
+                    // second, UNIQUE transaction_id â†’ 500 + rollback). Normalised
                     // to UUID anyway so both money paths share one collision-free
                     // scheme; the readable prefix is kept for ops.
                     'transaction_id' => 'WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
                     'status' => 'completed',
                     'reference' => 'wallet_request:'.$walletRequest->id,
                 ]);
+
+                // â”€â”€ Decision un3 (owner choice (a)): external flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // A top-up is money ARRIVING from outside; a withdrawal is money LEAVING to outside.
+                // Both are recorded against the External Capital account, which is what closes the
+                // ledger. `$transactionAmount`'s sign already encodes the direction, so the inbound
+                // flag is derived from it rather than re-decided here.
+                $external = Wallet::where('phone_number', config('admin.external.phone'))
+                    ->where('kind', 'system')
+                    ->whereNull('user_id')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($external === null) {
+                    throw new \RuntimeException(
+                        'External Capital wallet not found for phone: '.config('admin.external.phone')
+                        .'. Run: php artisan db:seed --class=SystemWalletSeeder'
+                    );
+                }
+
+                $externalPrev = (float) $external->balance;
+                // A positive wallet movement means money arrived, so it LEFT the external account.
+                $externalDelta = -1 * (float) $transactionAmount;
+                $external->balance += $externalDelta;
+                $external->save();
+
+                WalletTransaction::create([
+                    'wallet_id' => $external->id,
+                    'user_id' => null,
+                    'type' => $transactionAmount > 0 ? 'external_inbound' : 'external_outbound',
+                    'amount' => $externalDelta,
+                    'previous_balance' => $externalPrev,
+                    'new_balance' => (float) $external->balance,
+                    'description' => ($transactionAmount > 0 ? 'Injected' : 'Paid out')
+                        ." for wallet request #{$walletRequest->id}",
+                    'transaction_id' => 'EXT-WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
+                    'status' => 'completed',
+                    'reference' => 'wallet_request:'.$walletRequest->id,
+                ]);
+
+                app(LedgerService::class)->postExternalTransfer(
+                    $external,
+                    $wallet,
+                    abs((float) $transactionAmount),
+                    inbound: $transactionAmount > 0,
+                    description: "wallet request #{$walletRequest->id}",
+                );
 
                 $walletRequest->update([
                     'status' => 'approved',
@@ -193,7 +240,7 @@ final class AdminWalletRequestController extends Controller
 
             Cache::forget("wallet.requests.{$walletRequest->user_id}");
 
-            // ── Auto-clear cash ride debt after a top-up ────────────────────
+            // â”€â”€ Auto-clear cash ride debt after a top-up â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // Only for charges; withdrawals reduce the balance so debt clearing
             // would immediately fail the balance >= debt check anyway.
             // FIX 3: wrapped in its own DB::transaction() so that the
@@ -215,7 +262,7 @@ final class AdminWalletRequestController extends Controller
                 }
             }
 
-            // ── Notify user ─────────────────────────────────────────────────
+            // â”€â”€ Notify user â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             try {
                 $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
                 $msg = $walletRequest->isCharge()
@@ -225,7 +272,7 @@ final class AdminWalletRequestController extends Controller
                 app(NotificationService::class)->createNotification(
                     $walletRequest->user,
                     'wallet_request_approved',
-                    $label.' - موافق',
+                    $label.' - Ù…ÙˆØ§ÙÙ‚',
                     $msg,
                     ['wallet_request_id' => $walletRequest->id],
                     'high',
@@ -252,7 +299,7 @@ final class AdminWalletRequestController extends Controller
         }
     }
 
-    // ── POST /api/admin/wallet/requests/{id}/reject ──────────────────────────
+    // â”€â”€ POST /api/admin/wallet/requests/{id}/reject â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function reject(int $id, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -326,7 +373,7 @@ final class AdminWalletRequestController extends Controller
         }
     }
 
-    // ── Private ──────────────────────────────────────────────────────────────
+    // â”€â”€ Private â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private function formatRequest(WalletRequest $r): array
     {
         return [

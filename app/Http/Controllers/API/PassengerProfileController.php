@@ -14,7 +14,8 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\JwtService;
 use App\Services\NotificationService;
-use Illuminate\Database\Eloquent\ModelNotFoundException;      // ← added
+use App\Services\Payment\LedgerService;      // â† added
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -28,24 +29,24 @@ use Illuminate\Support\Str;
  *
  * Provides the admin-facing passenger profile dashboard.
  *
- * ── Routes (all behind staff:* middleware) ──────────────────────────────────
+ * â”€â”€ Routes (all behind staff:* middleware) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  *
  *  BFF (single call, returns full page):
- *    GET  /api/admin/passengers/{userId}/full-profile   → fullProfile()
+ *    GET  /api/admin/passengers/{userId}/full-profile   â†’ fullProfile()
  *
  *  Individual (for partial refreshes):
- *    GET  /api/admin/passengers/{userId}/stats          → stats()
- *    GET  /api/admin/passengers/{userId}/monthly-trips  → monthlyTrips()
- *    GET  /api/admin/passengers/{userId}/recent-trips   → recentTrips()
- *    GET  /api/admin/passengers/{userId}/complaints     → complaints()
- *    GET  /api/admin/passengers/{userId}/wallet-charges → walletCharges()
+ *    GET  /api/admin/passengers/{userId}/stats          â†’ stats()
+ *    GET  /api/admin/passengers/{userId}/monthly-trips  â†’ monthlyTrips()
+ *    GET  /api/admin/passengers/{userId}/recent-trips   â†’ recentTrips()
+ *    GET  /api/admin/passengers/{userId}/complaints     â†’ complaints()
+ *    GET  /api/admin/passengers/{userId}/wallet-charges â†’ walletCharges()
  *
  *  Actions:
- *    POST /api/admin/passengers/{userId}/charge-wallet  → chargeWallet()
- *    POST /api/admin/users/{userId}/ban                 → ban()   (AdminBanController)
- *    POST /api/admin/users/{userId}/unban               → unban() (AdminBanController)
+ *    POST /api/admin/passengers/{userId}/charge-wallet  â†’ chargeWallet()
+ *    POST /api/admin/users/{userId}/ban                 â†’ ban()   (AdminBanController)
+ *    POST /api/admin/users/{userId}/unban               â†’ unban() (AdminBanController)
  *
- * ── Caching summary ─────────────────────────────────────────────────────────
+ * â”€â”€ Caching summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  *
  *  CACHED    fullProfile()    admin.passenger.full-profile.{id}           5 min
  *  CACHED    stats()          admin.passenger.stats.{id}                  5 min
@@ -53,7 +54,7 @@ use Illuminate\Support\Str;
  *  CACHED    recentTrips()    admin.passenger.recent-trips.{id}.{limit}   3 min
  *  NOT CACHED complaints()    paginated + filters + status changes from admin side
  *  NOT CACHED walletCharges() paginated financial data
- *  NOT CACHED chargeWallet()  mutation — busts full-profile + stats + dashboard
+ *  NOT CACHED chargeWallet()  mutation â€” busts full-profile + stats + dashboard
  */
 final class PassengerProfileController extends Controller
 {
@@ -63,13 +64,13 @@ final class PassengerProfileController extends Controller
     ) {}
 
     // =========================================================================
-    // BFF — full page in one call
+    // BFF â€” full page in one call
     // =========================================================================
 
     /**
      * GET /api/admin/passengers/{userId}/full-profile
      *
-     * CACHED — 5 minutes per user.
+     * CACHED â€” 5 minutes per user.
      * The BFF fires many sub-queries (stats, monthly trips, recent trips,
      * complaints summary, wallet charges). Caching is high-value since an
      * admin may refresh the modal several times without anything changing.
@@ -111,8 +112,8 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/stats
      *
-     * CACHED — 5 minutes per user.
-     * Stats include wallet_balance — this is an admin read, not a payment
+     * CACHED â€” 5 minutes per user.
+     * Stats include wallet_balance â€” this is an admin read, not a payment
      * endpoint, so 5-minute staleness is acceptable. Cache is busted
      * immediately by chargeWallet() since the balance changes.
      */
@@ -134,7 +135,7 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/monthly-trips
      *
-     * CACHED — 15 minutes per user + months value.
+     * CACHED â€” 15 minutes per user + months value.
      * Pure historical aggregate (completed bookings grouped by month). A new
      * booking completing mid-session won't shift the chart meaningfully within
      * 15 minutes.
@@ -159,9 +160,9 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/recent-trips
      *
-     * CACHED — 3 minutes per user + limit value.
+     * CACHED â€” 3 minutes per user + limit value.
      * "Recent" implies freshness, so a shorter TTL than the other endpoints.
-     * Three minutes is the minimum worth having — still removes per-request
+     * Three minutes is the minimum worth having â€” still removes per-request
      * DB pressure when an admin paginates or re-opens the modal quickly.
      *
      * Query params:
@@ -188,7 +189,7 @@ final class PassengerProfileController extends Controller
      * Two reasons:
      *   1. Status changes come from the admin side (not this controller), so
      *      invalidation would require cross-controller coordination.
-     *   2. Paginated with status + type + per_page + page filters — unbounded
+     *   2. Paginated with status + type + per_page + page filters â€” unbounded
      *      key combinations.
      *
      * Query params:
@@ -251,7 +252,7 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/wallet-charges
      *
-     * NOT cached — financial data, paginated, and mutated by chargeWallet().
+     * NOT cached â€” financial data, paginated, and mutated by chargeWallet().
      *
      * Query params:
      *   per_page = 1-50 (default 15)
@@ -299,7 +300,7 @@ final class PassengerProfileController extends Controller
     /**
      * POST /api/admin/passengers/{userId}/charge-wallet
      *
-     * Mutation — not cached. Busts the full-profile BFF and the stats
+     * Mutation â€” not cached. Busts the full-profile BFF and the stats
      * endpoint because both embed wallet_balance / wallet_charges data
      * that is now stale. Also busts the main admin dashboard since it may
      * aggregate financial totals.
@@ -358,6 +359,48 @@ final class PassengerProfileController extends Controller
                     'reference' => 'admin_charge:'.$user->id,
                 ]);
 
+                // â”€â”€ Decision un3 (owner choice (a)): external flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // An admin charge is money arriving from OUTSIDE the platform. Recorded against the
+                // External Capital account so the ledger closes - without it this was a balance
+                // change no ledger entry could explain.
+                $external = Wallet::where('phone_number', config('admin.external.phone'))
+                    ->where('kind', 'system')
+                    ->whereNull('user_id')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($external === null) {
+                    throw new \RuntimeException(
+                        'External Capital wallet not found for phone: '.config('admin.external.phone')
+                        .'. Run: php artisan db:seed --class=SystemWalletSeeder'
+                    );
+                }
+
+                $externalPrev = (float) $external->balance;
+                $external->balance -= $amount;
+                $external->save();
+
+                WalletTransaction::create([
+                    'wallet_id' => $external->id,
+                    'user_id' => null,
+                    'type' => 'external_inbound',
+                    'amount' => -$amount,
+                    'previous_balance' => $externalPrev,
+                    'new_balance' => (float) $external->balance,
+                    'description' => 'Injected into wallet #'.$wallet->id.' by admin charge',
+                    'transaction_id' => 'EXT-ADM-'.$user->id.'-'.(string) Str::uuid(),
+                    'status' => 'completed',
+                    'reference' => 'admin_charge:'.$user->id,
+                ]);
+
+                app(LedgerService::class)->postExternalTransfer(
+                    $external,
+                    $wallet,
+                    (float) $amount,
+                    inbound: true,
+                    description: "admin charge to user #{$user->id}",
+                );
+
                 Log::info('Admin charged passenger wallet', [
                     'passenger_id' => $user->id,
                     'admin_id' => $request->user()?->id,
@@ -367,7 +410,7 @@ final class PassengerProfileController extends Controller
                 ]);
             });
 
-            // Bust caches — wallet balance and transaction list are now stale
+            // Bust caches â€” wallet balance and transaction list are now stale
             Cache::forget("admin.passenger.full-profile.{$userId}");
             Cache::forget("admin.passenger.stats.{$userId}");
             Cache::forget('admin.dashboard.data');
@@ -378,9 +421,9 @@ final class PassengerProfileController extends Controller
                 $this->notificationService->createNotification(
                     $user,
                     'wallet_charged',
-                    'تم شحن محفظتك',
-                    "تم إضافة {$amount} ر.س إلى محفظتك بواسطة الإدارة.".
-                    ($request->input('admin_notes') ? ' ملاحظة: '.$request->input('admin_notes') : ''),
+                    'ØªÙ… Ø´Ø­Ù† Ù…Ø­ÙØ¸ØªÙƒ',
+                    "ØªÙ… Ø¥Ø¶Ø§ÙØ© {$amount} Ø±.Ø³ Ø¥Ù„Ù‰ Ù…Ø­ÙØ¸ØªÙƒ Ø¨ÙˆØ§Ø³Ø·Ø© Ø§Ù„Ø¥Ø¯Ø§Ø±Ø©.".
+                    ($request->input('admin_notes') ? ' Ù…Ù„Ø§Ø­Ø¸Ø©: '.$request->input('admin_notes') : ''),
                     ['amount' => $amount],
                     'normal',
                     'system'
@@ -440,7 +483,7 @@ final class PassengerProfileController extends Controller
     }
 
     /**
-     * Monthly trip counts + total cost (seats × price_per_seat) for each month.
+     * Monthly trip counts + total cost (seats Ã— price_per_seat) for each month.
      */
     private function buildMonthlyTrips(int $userId, int $months = 6): array
     {
@@ -475,7 +518,7 @@ final class PassengerProfileController extends Controller
     }
 
     /**
-     * Recent bookings with correct total cost = seats × price_per_seat.
+     * Recent bookings with correct total cost = seats Ã— price_per_seat.
      */
     private function buildRecentTrips(int $userId, int $limit = 10): array
     {
@@ -507,7 +550,7 @@ final class PassengerProfileController extends Controller
 
     /**
      * Complaints for this user.
-     * No ride_id exposed — only complaint ID, type, and status.
+     * No ride_id exposed â€” only complaint ID, type, and status.
      */
     private function buildComplaints(int $userId, string $status = 'all', string $type = 'all'): array
     {
@@ -587,15 +630,15 @@ final class PassengerProfileController extends Controller
     private function formatComplaint(Complaint $c): array
     {
         $typeLabels = [
-            'trip_safety' => 'أمان الرحلة',
-            'driver_behavior' => 'سلوك السائق',
-            'passenger_behavior' => 'سلوك الراكب',
-            'ride_cancellation' => 'إلغاء الرحلة',
-            'financial_issue' => 'مشكلة مالية',
-            'account_issue' => 'مشكلة في الحساب',
-            'technical_issue' => 'عطل تقني',
-            'no_show' => 'تعارض تقارير الغياب',
-            'other' => 'أخرى',
+            'trip_safety' => 'Ø£Ù…Ø§Ù† Ø§Ù„Ø±Ø­Ù„Ø©',
+            'driver_behavior' => 'Ø³Ù„ÙˆÙƒ Ø§Ù„Ø³Ø§Ø¦Ù‚',
+            'passenger_behavior' => 'Ø³Ù„ÙˆÙƒ Ø§Ù„Ø±Ø§ÙƒØ¨',
+            'ride_cancellation' => 'Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø±Ø­Ù„Ø©',
+            'financial_issue' => 'Ù…Ø´ÙƒÙ„Ø© Ù…Ø§Ù„ÙŠØ©',
+            'account_issue' => 'Ù…Ø´ÙƒÙ„Ø© ÙÙŠ Ø§Ù„Ø­Ø³Ø§Ø¨',
+            'technical_issue' => 'Ø¹Ø·Ù„ ØªÙ‚Ù†ÙŠ',
+            'no_show' => 'ØªØ¹Ø§Ø±Ø¶ ØªÙ‚Ø§Ø±ÙŠØ± Ø§Ù„ØºÙŠØ§Ø¨',
+            'other' => 'Ø£Ø®Ø±Ù‰',
         ];
 
         $typeValue = $c->type instanceof ComplaintType

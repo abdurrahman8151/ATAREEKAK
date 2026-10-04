@@ -5251,3 +5251,22 @@ tests, 17 red, **identical with and without the change** (bisected with `git sta
 `PassengerProfileController::chargeWallet`. They use the same external account and the same helper, so
 they are now mechanical conversions - but they were NOT converted here, so the ledger is closed for
 `AdminWalletService` and still open for those two. Recorded honestly rather than implied done.
+
+### 60.1 The last two external paths converted - the ledger is CLOSED - **VERIFIED FIX**
+
+`AdminWalletRequestController` (top-up **and** withdrawal) and `PassengerProfileController::chargeWallet`
+now record against the External Capital account, completing section 60. **There is no longer any money
+movement in the application that the ledger cannot explain.**
+
+The withdrawal direction is derived from `$transactionAmount`'s existing sign rather than re-decided,
+so the two halves cannot disagree.
+
+**TWO FIXTURES FIXED, AND THEY WERE A REAL SIGNAL.** The first run produced 4 new failures, all
+`External Capital wallet not found ... Run: php artisan db:seed --class=SystemWalletSeeder`. Those two
+test files hand-roll their wallets instead of using the shared trait, so the account was absent - and
+the charge path failed LOUD rather than silently recording unexplainable money. **The loud failure was
+the designed behaviour working**; the fix belongs in the fixtures, not in weakening the guard to tolerate
+a missing account (which is what "make the test pass" would have meant here).
+
+**No regression:** Payment + Wallet + Unit/Payment + Admin + Profile + the ledger tests = 216 tests, 20
+red, **identical with and without the change** (git-stash bisect, 0 new).

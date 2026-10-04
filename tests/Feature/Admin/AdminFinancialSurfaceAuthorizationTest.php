@@ -71,6 +71,18 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
             'wallet_number' => 'ADM'.random_int(1000000000, 9999999999),
             'balance' => 0,
         ]);
+
+        // Decision un3 (owner choice (a)): an admin wallet charge is money arriving from OUTSIDE,
+        // recorded against the External Capital account. The charge path FAILS LOUD without it -
+        // correctly, because a ledger that cannot record money entering the platform is not closed -
+        // so a fixture that omits it makes the money endpoint throw for the wrong reason.
+        Wallet::create([
+            'user_id' => null,
+            'phone_number' => config('admin.external.phone'),
+            'wallet_number' => 'EXT'.random_int(1000000000, 9999999999),
+            'balance' => 0,
+            'kind' => 'system',
+        ]);
     }
 
     private function userWithWallet(): User

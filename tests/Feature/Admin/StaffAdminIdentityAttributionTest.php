@@ -36,6 +36,27 @@ class StaffAdminIdentityAttributionTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Decision un3 (owner choice (a)): the admin money endpoints record an EXTERNAL inflow against
+     * the External Capital account, and FAIL LOUD if it is missing - correctly, since a ledger that
+     * cannot record money entering the platform is not a closed ledger. These tests hand-roll their
+     * wallets rather than using the shared trait, so the account is seeded here.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Wallet::firstOrCreate(
+            ['phone_number' => config('admin.external.phone')],
+            [
+                'user_id' => null,
+                'wallet_number' => 'EXT'.random_int(1000000000, 9999999999),
+                'balance' => 0,
+                'kind' => 'system',
+            ],
+        );
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
