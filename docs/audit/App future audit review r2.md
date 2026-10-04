@@ -5411,3 +5411,33 @@ That is recorded as genuinely unverified rather than glossed.
 requires running a corrected load test against a production-shaped system, which this environment
 cannot do. The historical `perf-results/{A,B,C}` remain INVALID and must not be cited as capacity
 until a run exists that carries its commit SHA.
+
+---
+
+## 63. RV-23 (Complaints) - **VERIFIED FIX** - the three recorded remainders were already satisfied
+
+The last item this batch could close honestly. RV-23's remainder listed three things. Each was
+CHECKED AGAINST THE CODE rather than assumed, and all three hold:
+
+**(a) `GET /staff/complaints/{id}` mutates state (auto-transition + assignment).** This is **not a
+defect** - the owner ruled it intended (un6, 2026-10-02): *"auto transition is true i want when the
+employee sees it that the user know that it has been seen this is a part of the transparency for the
+public"*. Recorded as a decision, not left as an open finding.
+
+**(b) "double notification" on a no-show conflict.** Checked: there is exactly **one**
+`createNotification` for the passenger and **one** for the driver - each party is notified once. Both
+receive the same text, which is correct for a conflict they are both party to. R1's "one notification"
+concern does not describe a defect here. **No change needed.**
+
+**(c) `no_show` rejected at the public store endpoint.** Confirmed in `ComplaintController`'s
+validation `in:` list, and it is **already pinned** by
+`ComplaintControllerTest::test_store_rejects_the_internal_no_show_type`, whose own docblock cites the
+owner's 2026-10-02 decision (R2 sec 40.3) and explains that `no_show` is an internal auto-generated
+type. **No change needed.**
+
+So all three were either an owner decision already taken, or a reading of the code that does not
+reproduce. **No code was changed for this row** - the deliverable is the verification, recorded so the
+next session does not re-open it.
+
+**Verification:** `tests/Feature/Complaints` + `tests/Feature/Staff/StaffComplaintControllerTest` =
+**73 tests, 180 assertions, OK.**
