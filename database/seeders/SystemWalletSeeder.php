@@ -36,9 +36,15 @@ class SystemWalletSeeder extends Seeder
         $this->ensureSystemWallet(config('admin.system_admin.phone'), 'Primary Escrow');
         $this->ensureSystemWallet(config('admin.sycash.phone'), 'SyCash');
 
+        // Decision un3 (owner choice (a)): the EXTERNAL capital account - the boundary with the
+        // world. Money injected into or paid out of the platform is debited/credited here, which is
+        // what closes the ledger. Deliberately separate from Primary Escrow: that one is platform
+        // REVENUE, this one is the outside world's counterparty.
+        $this->ensureSystemWallet(config('admin.external.phone'), 'External Capital');
+
         // `$this->command` is only set when the seeder runs through the Artisan
         // command, so null-safe here lets the same code run (and be tested) elsewhere.
-        $this->command?->info('✅  System wallets ready (Primary Escrow + SyCash).');
+        $this->command?->info('✅  System wallets ready (Primary Escrow + SyCash + External Capital).');
     }
 
     /**

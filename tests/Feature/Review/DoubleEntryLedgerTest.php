@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Review;
 
+use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Services\Admin\AdminWalletService;
 use App\Services\Payment\LedgerService;
 use App\Services\Payment\WalletTransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -315,6 +317,7 @@ class DoubleEntryLedgerTest extends TestCase
         // And the whole system conserves: across every wallet, legs sum to zero.
         $this->assertSame(0.0, round((float) LedgerEntry::sum('amount'), 2));
     }
+
     /**
      * `ledger:reconcile` must run on REAL data, not merely parse. This exercises it end-to-end inside
      * a transaction with actual legs present, and asserts the command's own guard - the system-level
@@ -338,5 +341,53 @@ class DoubleEntryLedgerTest extends TestCase
             round((float) LedgerEntry::where('wallet_id', $syCash->id)->sum('amount'), 2),
             'the reconcile command compares exactly this, so it must hold'
         );
+    }
+
+    /**
+     * Decision un3 (owner choice (a), 2026-10-03): money entering or LEAVING the platform from
+     * outside is recorded against an EXTERNAL capital account.
+     *
+     * This is the piece that makes the ledger CLOSED rather than mostly-right. Before it, an admin
+     * wallet credit moved a balance with no ledger entry, so reconciliation had a permanent hole
+     * exactly where money enters the system - and there was no honest way to say "the ledger
+     * explains the money".
+     *
+     * The external account is NOT the platform's earnings wallet: money the platform EARNED and money
+     * that ARRIVED are different things, and conflating them would make the revenue figure wrong.
+     *
+     * @test
+     */
+    public function an_admin_credit_is_recorded_as_an_external_inflow_and_closes_the_ledger(): void
+    {
+        $external = Wallet::where('phone_number', config('admin.external.phone'))->firstOrFail();
+
+        $userWallet = Wallet::create([
+            'user_id' => $this->passenger->id,
+            'phone_number' => '094'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.substr(bin2hex(random_bytes(5)), 0, 12),
+            'balance' => 0,
+        ]);
+        $this->passenger->update(['wallet_id' => $userWallet->id]);
+
+        $externalBefore = (float) $external->balance;
+        $userBefore = (float) $userWallet->balance;
+
+        app(AdminWalletService::class)->chargeWallet(
+            $userWallet->phone_number,
+            Money::from(7_500.0),
+            ['type' => 'primary'],
+        );
+
+        $this->assertSame($userBefore + 7_500.0, (float) $userWallet->fresh()->balance);
+        $this->assertSame($externalBefore - 7_500.0, (float) $external->fresh()->balance,
+            'an injection leaves the external account and enters the user wallet');
+
+        $this->assertSame(0.0, round((float) LedgerEntry::sum('amount'), 2),
+            'THE INVARIANT: an external flow closes the ledger too');
+
+        // And the two legs name the two halves.
+        $this->assertSame(2, LedgerEntry::count());
+        $this->assertSame(-7_500.0, (float) LedgerEntry::where('wallet_id', $external->id)->value('amount'));
+        $this->assertSame(7_500.0, (float) LedgerEntry::where('wallet_id', $userWallet->id)->value('amount'));
     }
 }

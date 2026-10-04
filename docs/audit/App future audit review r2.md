@@ -5210,3 +5210,44 @@ byte-identical restore. An earlier needle attempt replaced the middleware call w
 which produced invalid PHP - that failure proved nothing and was discarded rather than reported.
 
 **82 tests, 203 assertions, OK.**
+
+---
+
+## 60. External capital account - the ledger is now CLOSED, not mostly-right (owner choice (a)) - **VERIFIED FIX**
+
+Closes the ledger boundary question recorded in sections 56-57. **Owner choice (a), 2026-10-03: "Add
+an EXTERNAL capital account"**, over (b) keeping admin flows excluded and (c) balancing them against
+the Primary Admin wallet.
+
+**WHAT IT CLOSES.** Money entering or leaving the platform from outside it - an admin wallet credit
+funded by a real cash deposit, a withdrawal paid to a bank account - has no internal counterparty.
+Before this it moved a balance with NO ledger entry, so reconciliation had a permanent hole exactly
+where money enters the system, and there was no honest way to assert "the ledger explains the money".
+
+**MODELLED AS A THIRD SYSTEM WALLET, deliberately not the Primary Admin wallet.** Money the platform
+EARNED and money that ARRIVED are different things; conflating them would make the revenue figure
+wrong. `config/admin.php` gains an `external` entry, the seeder creates it, and the shared test trait
+seeds it (because `chargeWallet` fails loudly without it).
+
+**An injection DEBITS the external account and credits the user wallet; a withdrawal is the mirror.**
+`LedgerService::postExternalTransfer()` derives the signs from a single `$inbound` flag, so the most
+common way to write a wrong-sign pair by hand (which earlier in this batch cost me a needle) is
+structurally impossible.
+
+**FAILS LOUD if the external account is missing**, rather than silently recording money the ledger
+cannot explain - the same principle as `lockWalletByPhone` refusing a user-owned wallet.
+
+**`DoubleEntryLedgerTest` is now 9 tests**, adding
+`an_admin_credit_is_recorded_as_an_external_inflow_and_closes_the_ledger`: the user's wallet and the
+external account move by exactly opposite amounts, the two legs name the two halves, and all legs sum
+to zero.
+
+**Needle:** flipping the sign so the legs stop mirroring fails it, byte-identical restore.
+
+**No regression:** Payment + Wallet + Unit/Payment + Admin + the two ledger/refund review tests = 210
+tests, 17 red, **identical with and without the change** (bisected with `git stash`, 0 new failures).
+
+**Still unconverted:** `AdminWalletRequestController` (top-up AND withdrawal) and
+`PassengerProfileController::chargeWallet`. They use the same external account and the same helper, so
+they are now mechanical conversions - but they were NOT converted here, so the ledger is closed for
+`AdminWalletService` and still open for those two. Recorded honestly rather than implied done.

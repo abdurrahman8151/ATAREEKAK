@@ -114,6 +114,49 @@ class LedgerService
     }
 
     /**
+     * Convenience for the EXTERNAL flows (owner choice (a), 2026-10-03): money entering or leaving
+     * the platform from outside it.
+     *
+     * An injection (an admin wallet credit funded by a real deposit) DEBITS the external account and
+     * credits the user wallet; a withdrawal is the mirror image. That is what makes the ledger CLOSED
+     * rather than mostly-right - every movement now has both halves, so "the ledger explains the
+     * money" is a statement that can be checked instead of one with a permanent hole in it.
+     *
+     * The external account is NOT the platform's earnings wallet. Conflating them would make the
+     * revenue figure wrong: money the platform EARNED and money that ARRIVED are different things.
+     */
+    public function postExternalTransfer(
+        Wallet $external,
+        Wallet $target,
+        float $amount,
+        bool $inbound,
+        ?WalletTransaction $transaction = null,
+        ?string $description = null,
+    ): array {
+        $amount = round($amount, 2);
+
+        // $inbound: money ARRIVES at $target, so it leaves the external account.
+        // !$inbound: a withdrawal leaves $target for the outside world.
+        $externalLeg = $inbound ? -$amount : $amount;
+        $targetLeg = -$externalLeg;
+
+        $direction = $inbound ? 'inbound' : 'outbound';
+
+        return $this->postTransfer([
+            [
+                'wallet_id' => $external->id,
+                'amount' => $externalLeg,
+                'description' => $description ? "{$direction} external: {$description}" : "{$direction} external",
+            ],
+            [
+                'wallet_id' => $target->id,
+                'amount' => $targetLeg,
+                'description' => $description ? "{$direction} wallet: {$description}" : "{$direction} wallet",
+            ],
+        ], $transaction);
+    }
+
+    /**
      * Does the ledger agree with itself for one transfer? Used by tests and by the reporting path.
      *
      * Returns the signed sum in 2dp; 0.00 means balanced.

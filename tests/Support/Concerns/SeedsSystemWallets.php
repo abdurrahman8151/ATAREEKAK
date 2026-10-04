@@ -28,13 +28,18 @@ trait SeedsSystemWallets
     /**
      * Ensure the Primary (system_admin) and SyCash system wallets exist.
      *
-     * @return array{primary: Wallet, sycash: Wallet}
+     * @return array{primary: Wallet, sycash: Wallet, external: Wallet}
      */
     protected function seedSystemWallets(float $balance = 0.0): array
     {
         return [
             'primary' => $this->seedSystemWallet(config('admin.system_admin.phone'), $balance),
             'sycash' => $this->seedSystemWallet(config('admin.sycash.phone'), $balance),
+            // Decision un3 (owner choice (a)): the EXTERNAL capital account. Seeded here because
+            // `AdminWalletService::chargeWallet` FAILS LOUDLY without it - a ledger that cannot
+            // record money entering the platform is not a closed ledger, so a fixture that omits it
+            // would make the money path throw for the wrong reason.
+            'external' => $this->seedSystemWallet(config('admin.external.phone'), 0.0),
         ];
     }
 
