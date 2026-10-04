@@ -5171,3 +5171,42 @@ also freeze the three classes a careful reviewer might still want, so the honest
 **read the report once more specifically for `assign.propertyType` in `app/Services/Payment`, where a
 type mismatch WOULD be a real money bug, and baseline the rest.** The owner's ruling was report-only
 until cleanup, and this is the cleanup evidence.
+
+---
+
+## 59. RV-03 role gate - staff-cancel restricted to admin/system_admin (owner choice (a)) - **VERIFIED FIX**
+
+Closes the second half of RV-03, which section 47 raised and deliberately left open. **Owner choice (a),
+2026-10-03: "Restrict to admin + system_admin"**, over (b) accept the risk and (c) four-eyes
+approval.
+
+**THE FINDING IT CLOSES.** The two staff-cancel endpoints MOVE REAL MONEY - decision 6 made them
+issue full passenger refunds out of SyCash escrow - yet they sat in the blanket
+`['staff','throttle:staff']` group, so **ANY authenticated employee, including the least-privileged
+`support_agent`, could refund a customer's money.** That is the "no role gate" half of RV-03, named in
+the original audit and untouched until now.
+
+**The gate matches every other money-affecting admin route in `routes/api.php`**
+(`staff:admin,system_admin`), so this is consistency rather than a new policy. Changing it is an
+auth/permission change, which `AGENTS.md` reserves for the owner - hence the explicit attribution.
+
+**Test strategy - the important part.** `StaffOperationsControllerTest` runs as a **SUPPORT_AGENT on
+purpose**, so it proves the ~54 read endpoints stay open to the least-privileged role. The 26 cancel
+call sites were moved to a new `$this->adminToken` (an ADMIN employee), and TWO NEW tests pin the
+decision itself:
+- `a_support_agent_cannot_use_the_money_endpoints` - 403 on both endpoints, AND the ride and booking
+  are asserted untouched, so the denial is shown to have moved no money.
+- `the_role_check_runs_before_the_state_check` - an unprivileged caller gets 403 rather than the 422
+  "cannot cancel a ride with status: ...", so the gate leaks no information about a ride's existence
+  or state.
+
+**A REAL BEHAVIOURAL CHANGE, stated plainly:** the two `..._returns_404_for_nonexistent_*` tests
+previously used the support agent and expected 404. They now use the admin token, because a 404 for a
+nonexistent ride is only a meaningful answer for an AUTHORISED caller - an unprivileged one is (and
+should be) stopped at 403 first.
+
+**Needle:** widening the gate to `staff` (i.e. removing the restriction) fails both new tests,
+byte-identical restore. An earlier needle attempt replaced the middleware call with `if (true) {`,
+which produced invalid PHP - that failure proved nothing and was discarded rather than reported.
+
+**82 tests, 203 assertions, OK.**

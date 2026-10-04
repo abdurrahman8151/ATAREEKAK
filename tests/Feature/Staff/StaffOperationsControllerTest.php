@@ -36,6 +36,17 @@ class StaffOperationsControllerTest extends TestCase
 
     private string $agentToken;
 
+    /**
+     * RV-03 (owner choice (a), 2026-10-03): the two staff-cancel endpoints MOVE REAL MONEY - decision 6
+     * made them issue full passenger refunds out of SyCash escrow - so they are gated to
+     * `staff:admin,system_admin`. They used to be reachable by ANY staff member.
+     *
+     * The main actor in this file stays a SUPPORT_AGENT on purpose: it proves the read endpoints stay
+     * open to the least-privileged role. The cancel tests use `$this->adminToken`, and
+     * `a_support_agent_cannot_use_the_money_endpoints` pins the denial itself.
+     */
+    private string $adminToken;
+
     private User $driver;
 
     private User $passenger;
@@ -58,6 +69,10 @@ class StaffOperationsControllerTest extends TestCase
             'ops_agent_1'
         );
         $this->agentToken = $this->getStaffToken('ops_agent@test.test', 'password123');
+
+        // RV-03: a privileged actor, used only by the money endpoints.
+        $this->makeEmployee(StaffRole::ADMIN, 'ops_admin@test.test', 'ops_admin_1');
+        $this->adminToken = $this->getStaffToken('ops_admin@test.test', 'password123');
 
         $this->driver = User::factory()->create([
             'is_verified_driver' => true,
@@ -645,7 +660,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'active']);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Trip cancelled by support for safety reasons.',
             ])
@@ -663,7 +678,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Trip cancelled — all passengers will be notified.',
             ])
@@ -680,7 +695,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'pending');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Trip cancelled before driver approval.',
             ])
@@ -696,7 +711,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'full']);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Full ride cancelled by staff for operational reasons.',
             ])
@@ -709,7 +724,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Awaiting-confirmation ride cancelled by support.',
             ])
@@ -722,7 +737,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'active']);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['reason']]);
@@ -732,7 +747,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'active']);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Too short',   // 9 chars
             ])
@@ -741,7 +756,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_trip_returns_404_for_nonexistent_ride(): void
     {
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson('/api/staff/trips/999999/cancel', [
                 'reason' => 'Valid cancellation reason for this ride.',
             ])
@@ -752,7 +767,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'cancelled']);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Attempting to cancel an already cancelled ride.',
             ])
@@ -763,7 +778,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'finished']);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Attempting to cancel a finished ride.',
             ])
@@ -785,7 +800,7 @@ class StaffOperationsControllerTest extends TestCase
         $this->makeBooking($ride, 'confirmed');
         $this->makeBooking($ride, 'confirmed');
 
-        $response = $this->withToken($this->agentToken)
+        $response = $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Trip cancelled with two active bookings on board.',
             ]);
@@ -798,7 +813,7 @@ class StaffOperationsControllerTest extends TestCase
     {
         $ride = $this->makeRide(['status' => 'active']);
 
-        $response = $this->withToken($this->agentToken)
+        $response = $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Trip cancelled — valid reason supplied here.',
             ]);
@@ -812,7 +827,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'cancelled');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/trips/{$ride->id}/cancel", [
                 'reason' => 'Cancelling an active trip that has a pre-cancelled booking.',
             ])
@@ -834,7 +849,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Booking cancelled by staff at passenger request.',
             ])
@@ -852,7 +867,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active', 'available_seats' => 3]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Staff cancelling booking and restoring seats to ride.',
             ])
@@ -870,7 +885,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'full', 'available_seats' => 0]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Cancelling booking on a full ride to free up seats.',
             ])
@@ -887,7 +902,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'pending');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Pending booking cancelled before driver approval.',
             ])
@@ -901,7 +916,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['reason']]);
@@ -912,7 +927,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'confirmed');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Too short',   // 9 chars
             ])
@@ -921,7 +936,7 @@ class StaffOperationsControllerTest extends TestCase
 
     public function test_cancel_booking_returns_404_for_nonexistent_booking(): void
     {
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson('/api/staff/bookings/999999/cancel', [
                 'reason' => 'Valid cancellation reason here.',
             ])
@@ -933,7 +948,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'cancelled');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Attempting to cancel an already cancelled booking.',
             ])
@@ -945,7 +960,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide();
         $booking = $this->makeBooking($ride, 'completed');
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Attempting to cancel a completed booking.',
             ])
@@ -967,7 +982,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 2);
 
-        $response = $this->withToken($this->agentToken)
+        $response = $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Booking cancelled — seats will be restored to ride.',
             ]);
@@ -983,7 +998,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
-        $response = $this->withToken($this->agentToken)
+        $response = $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Valid cancellation reason supplied to endpoint.',
             ]);
@@ -997,7 +1012,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'active']);
         $booking = $this->makeBooking($ride, 'confirmed');
 
-        $response = $this->withToken($this->agentToken)
+        $response = $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Cancellation with booking ID check in response body.',
             ]);
@@ -1011,7 +1026,7 @@ class StaffOperationsControllerTest extends TestCase
         $ride = $this->makeRide(['status' => 'awaiting_confirmation', 'available_seats' => 2]);
         $booking = $this->makeBooking($ride, 'confirmed', seats: 1);
 
-        $this->withToken($this->agentToken)
+        $this->withToken($this->adminToken)
             ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
                 'reason' => 'Cancelling one booking on an awaiting-confirmation ride.',
             ])
@@ -1086,5 +1101,53 @@ class StaffOperationsControllerTest extends TestCase
             'identifier' => $identifier,
             'password' => $password,
         ])->json('tokens.access_token');
+    }
+
+    /**
+     * RV-03 (owner choice (a), 2026-10-03): the staff-cancel endpoints MOVE REAL MONEY - decision 6
+     * made them issue full passenger refunds out of SyCash escrow - so they are gated to
+     * `staff:admin,system_admin`. Before this, ANY authenticated employee could refund a customer's
+     * money, including the least-privileged role.
+     *
+     * This is the pinned denial. The rest of this file still runs as a SUPPORT_AGENT, which proves
+     * the read endpoints stay open to the least-privileged role while the money ones do not.
+     *
+     * @test
+     */
+    public function a_support_agent_cannot_use_the_money_endpoints(): void
+    {
+        $ride = $this->makeRide(['status' => 'active']);
+        $booking = $this->makeBooking($ride, 'confirmed');
+
+        $this->withToken($this->agentToken)
+            ->postJson("/api/staff/trips/{$ride->id}/cancel", [
+                'reason' => 'A support agent must not be able to cancel a trip.',
+            ])->assertStatus(403);
+
+        $this->withToken($this->agentToken)
+            ->postJson("/api/staff/bookings/{$booking->id}/cancel", [
+                'reason' => 'A support agent must not be able to cancel a booking.',
+            ])->assertStatus(403);
+
+        // Nothing moved: the ride and the booking are untouched.
+        $this->assertDatabaseHas('rides', ['id' => $ride->id, 'status' => 'active']);
+        $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => 'confirmed']);
+    }
+
+    /**
+     * The role gate runs BEFORE the state check, so an unprivileged caller learns nothing about the
+     * ride's state - a support agent gets 403, not the 422 "cannot cancel a ride with status: ..."
+     * that would confirm the ride exists and what state it is in.
+     *
+     * @test
+     */
+    public function the_role_check_runs_before_the_state_check(): void
+    {
+        $ride = $this->makeRide(['status' => 'cancelled']);
+
+        $this->withToken($this->agentToken)
+            ->postJson("/api/staff/trips/{$ride->id}/cancel", [
+                'reason' => 'Checking that authorisation precedes validation.',
+            ])->assertStatus(403);
     }
 }

@@ -444,8 +444,20 @@ Route::prefix('staff')->name('staff.')->group(function () {
             Route::patch('/{id}/escalate', [StaffComplaintController::class, 'escalate'])->name('escalate');
         });
 
-        Route::post('trips/{rideId}/cancel', [StaffOperationsController::class, 'cancelTrip'])->name('trips.cancel');
-        Route::post('bookings/{bookingId}/cancel', [StaffOperationsController::class, 'cancelBooking'])->name('bookings.cancel');
+        // ── Money-affecting cancellations (admin, system_admin) ───────────────────
+        // RV-03 (owner choice (a), 2026-10-03): these two MOVE REAL MONEY — decision 6 made them
+        // issue full passenger refunds from SyCash escrow. They used to sit in the blanket
+        // `['staff','throttle:staff']` group, so ANY authenticated employee — including a
+        // `support_agent` — could refund a customer's money.
+        //
+        // The gate matches every other money-affecting admin route in this file
+        // (`staff:admin,system_admin`), so this is consistent rather than a new policy. Changing it is
+        // an auth/permission change, which AGENTS.md reserves for the owner — hence the explicit
+        // attribution rather than a silent tightening.
+        Route::middleware('staff:admin,system_admin')->group(function () {
+            Route::post('trips/{rideId}/cancel', [StaffOperationsController::class, 'cancelTrip'])->name('trips.cancel');
+            Route::post('bookings/{bookingId}/cancel', [StaffOperationsController::class, 'cancelBooking'])->name('bookings.cancel');
+        });
 
         // ── Support Chat (support_agent, admin, system_admin) ─────────────
         // All active staff roles can read and reply to support conversations.
