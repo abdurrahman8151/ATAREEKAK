@@ -5441,3 +5441,52 @@ next session does not re-open it.
 
 **Verification:** `tests/Feature/Complaints` + `tests/Feature/Staff/StaffComplaintControllerTest` =
 **73 tests, 180 assertions, OK.**
+
+---
+
+## 64. RV-13 foundation - domain rule violations stop answering 500 - **VERIFIED FIX**
+
+The first unblocked half of RV-13's error model.
+
+**THE DEFECT (R2 sec 20.1, measured): 61 services throw `\InvalidArgumentException`**, and `Handler`'s
+catch-all has no branch for it, so every one that reached the handler was answered **500**. A passenger
+confirming someone else's booking, or a driver creating a ride they are not verified to create, is a
+rejected REQUEST - the server did not fail. Reporting it as 500 is wrong three times over: the client
+cannot distinguish a refusal from a fault, error monitoring drowns real 500s in rule rejections, and
+retry-on-5xx logic hammers an endpoint that will never succeed.
+
+**Delivered.**
+- `App\Exceptions\Domain\*`: an abstract `DomainException` carrying a machine-readable `errorCode` and
+  its own `httpStatus`, plus `BusinessRuleViolation` (422), `AuthorizationViolation` (403) and
+  `ConflictViolation` (409). The status is NOT uniform - "you may not touch that" is 403,
+  "there is not enough money" is 409, "that field is unacceptable" is 422 - and carrying it on the
+  exception lets each rule state its own answer instead of the handler guessing one for all of them,
+  which is exactly the guessing that produced the blanket 500.
+- `Handler`: two renderables registered **before** the catch-all. The bare
+  `\InvalidArgumentException` is mapped too, deliberately - migrating 61 throw sites is a large sweep,
+  and mapping the base class removes the worst symptom today rather than after a refactor.
+
+**A GENUINE BUG IS STILL A 500.** `a_genuine_bug_is_still_500` pins this. Mapping rule violations
+correctly is only safe if real faults are not swept into the same bucket; otherwise this change would
+have hidden actual failures.
+
+**`tests/Feature/Review/DomainExceptionMappingTest.php` (new, 6 tests)** pins the mapping through a
+throwaway `api/`-prefixed route, so the assertion is about the EXCEPTION MAPPING and cannot be
+disturbed by whatever a real endpoint does with an exception.
+
+**Needle:** deleting the `DomainException` renderable fails 3 of the 6, byte-identical restore.
+
+**Measured effect: the Auth + Bookings + Rides + Unit/Http + this file floor went from 9 red to 4.**
+**Zero new failures** (git-stash bisect), and **five pre-existing failures FIXED** - endpoints that
+were returning 500 for a domain rule violation and now answer 422. That is the defect closing.
+
+**Still open in RV-13, and deliberately not done here.** (a) The 96 `catch` blocks returning raw
+`getMessage()` - which leaks SQL text and table names to clients - depend on this foundation landing
+first, and are a separate sweep. (b) The `{success,data,error{...}}` envelope is a **PRODUCT
+decision**: it changes the response shape the Flutter client parses, and `AGENTS.md` reserves that.
+(c) The `assertNotEquals` ratchet stays deferred for the reason R2 sec 20.2 gave - until the wrong
+statuses are gone, pinning "the exact status" would enshrine them as correct.
+
+**Genuinely unverified.** No production endpoint was migrated to the new subclasses yet - the 61
+`InvalidArgumentException` throw sites still rely on the base-class mapping, which returns a generic
+`DOMAIN_RULE_VIOLATION` code rather than a specific one per rule.

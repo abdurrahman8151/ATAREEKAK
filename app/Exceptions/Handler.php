@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Exceptions\Domain\DomainException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
@@ -63,6 +64,38 @@ class Handler extends ExceptionHandler
                 'message' => $e->getMessage(),
                 'errors' => $e->errors(),
             ], $e->status);
+        });
+
+        // RV-13: domain rule violations are CLIENT errors.
+        //
+        // Registered before the catch-all below, and before anything else, because the catch-all
+        // matches `Throwable` and would otherwise answer every one of these with 500.
+        //
+        // A bare `\InvalidArgumentException` is mapped too, on purpose: R2 sec 20.1 measured 61
+        // services throwing it, and migrating them all to the new subclasses in one pass would be a
+        // 61-site sweep. Until they are migrated, mapping the base class means the worst symptom -
+        // a refused request reported as a server fault - is gone TODAY rather than after a large
+        // refactor. It is deliberately conservative: 422 with a generic code, never the raw message
+        // in production.
+        $this->renderable(function (DomainException $e, $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json($e->toArray(), $e->httpStatus);
+        });
+
+        $this->renderable(function (\InvalidArgumentException $e, $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => config('app.debug') ? $e->getMessage() : 'The request could not be processed.',
+                'code' => 'DOMAIN_RULE_VIOLATION',
+                'status_code' => 422,
+            ], 422);
         });
 
         // Catch-all for API routes — returns JSON instead of an HTML error page.
