@@ -31,8 +31,8 @@ use Tests\TestCase;
  */
 class ExceptionMessageLeakRatchetTest extends TestCase
 {
-    /** Measured 2026-10-04. May only decrease - never raise. */
-    private const BASELINE = 47;
+    /** Measured 2026-10-04: 47, then 42 after the ChatController sweep. May only decrease. */
+    private const BASELINE = 42;
 
     /** @return array<string, array<int, int>> file => line numbers that leak a message to a client */
     private function leaks(): array
@@ -75,7 +75,7 @@ class ExceptionMessageLeakRatchetTest extends TestCase
             }
 
             if ($hits !== []) {
-                $found[str_replace(app_path() . DIRECTORY_SEPARATOR, '', $file->getPathname())] = $hits;
+                $found[str_replace(app_path().DIRECTORY_SEPARATOR, '', $file->getPathname())] = $hits;
             }
         }
 
@@ -91,7 +91,7 @@ class ExceptionMessageLeakRatchetTest extends TestCase
             self::BASELINE,
             $total,
             "A controller now echoes an exception message to a client. {$total} such sites exist; the "
-            ."baseline is ".self::BASELINE." and may only fall. Log::error(\$e->getMessage()) is FINE - the "
+            .'baseline is '.self::BASELINE.' and may only fall. Log::error($e->getMessage()) is FINE - the '
             ."message belongs in the log. Only the client's response body is the leak."
         );
     }

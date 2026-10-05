@@ -8,6 +8,7 @@ use App\Interfaces\ChatRepositoryInterface;
 use App\Models\User;
 use App\Services\Chat\ChatMessageHandler;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -43,9 +44,17 @@ class ChatController extends Controller
                 }),
             ]);
         } catch (\Exception $e) {
+            // RV-13: the message goes to the LOG, not to the client. A QueryException carries the
+            // SQL and the table names; concatenating it into the response hands an attacker the
+            // shape of the database. The client gets a stable, actionable sentence instead.
+            Log::error('Chat: fetch conversations failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch conversations: '.$e->getMessage(),
+                'message' => 'Failed to fetch conversations. Please try again.',
             ], 500);
         }
     }
@@ -100,9 +109,15 @@ class ChatController extends Controller
                 ],
             ], 201);
         } catch (\Exception $e) {
+            // RV-13: message to the log, not the client (see the note on fetchConversations).
+            Log::error('Chat: create conversation failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create conversation: '.$e->getMessage(),
+                'message' => 'Failed to create the conversation. Please try again.',
             ], 500);
         }
     }
@@ -137,9 +152,16 @@ class ChatController extends Controller
                 'data' => $formattedMessages,
             ]);
         } catch (\Exception $e) {
+            // RV-13: message to the log, not the client.
+            Log::error('Chat: fetch messages failed', [
+                'user_id' => $request->user()?->id,
+                'conversation_id' => $conversationId,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch messages: '.$e->getMessage(),
+                'message' => 'Failed to fetch messages. Please try again.',
             ], 500);
         }
     }
@@ -168,14 +190,23 @@ class ChatController extends Controller
                 'data' => $this->messageHandler->formatMessage($message),
             ], 201);
         } catch (HttpException $e) {
+            // KEPT INTENTIONALLY. This is the application's OWN abort() message ("You can only
+            // delete your own messages"), written for the client. Sanitising it would remove real,
+            // actionable feedback - it is not a leaked internal detail.
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], $e->getStatusCode());
         } catch (\Exception $e) {
+            // RV-13: this one IS a broad catch, so its message is whatever went wrong internally.
+            Log::error('Chat: send message failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send message: '.$e->getMessage(),
+                'message' => 'Failed to send the message. Please try again.',
             ], 500);
         }
     }
@@ -203,9 +234,16 @@ class ChatController extends Controller
                 'message' => 'Message deleted successfully',
             ]);
         } catch (\Exception $e) {
+            // RV-13: message to the log, not the client.
+            Log::error('Chat: delete message failed', [
+                'user_id' => $request->user()?->id,
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete message: '.$e->getMessage(),
+                'message' => 'Failed to delete the message. Please try again.',
             ], 500);
         }
     }

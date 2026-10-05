@@ -5531,3 +5531,40 @@ per controller, replacing each with either an explicit `DomainException` code (s
 generic message plus a `Log::error` - and the baseline lowered in the SAME commit as each slice, so the
 ratchet and the debt move together. The `{success,data,error{…}}` envelope remains a PRODUCT decision
 (AGENTS.md; it changes what the Flutter client parses).
+
+### 64.2 RV-13 sweep slice 1 - ChatController (47 -> 42) - **VERIFIED FIX**
+
+The first slice of the 47-site sweep, one controller at a time, with the ratchet baseline lowered in
+the SAME commit so the debt and its measurement move together.
+
+**ChatController: 5 of 6 sites fixed.** Each broad `catch (\Exception $e)` now writes the exception
+message to `Log::error()` - with `user_id` / `conversation_id` / `message_id` for diagnosis - and
+returns a stable sentence to the client. The information is MOVED from the response to the log, not
+destroyed: `Failed to fetch conversations: SQLSTATE[42000]...Table 'bookings'` becomes
+`Failed to fetch conversations. Please try again.` in the response, and the full SQL is still in the
+log where it belongs.
+
+**The 6th site was deliberately NOT changed**, and that judgement is the point of doing this one
+controller at a time: it is `catch (HttpException $e) => 'message' => $e->getMessage()`, which is the
+application's OWN `abort()` message ("You can only delete your own messages") - written deliberately
+for the client. A blind sweep would have sanitised it and removed real, actionable feedback. The
+comment added there says so, so the next sweep does not "finish the job" by breaking it.
+
+**Infrastructure note, recorded because it nearly became a wrong conclusion.** The first verification
+run reported **17 chat test errors**. Those were NOT the change: the scratch MySQL had stopped
+(`mysqld` gone, port 3399 not listening) and every test failed with "No connection could be made".
+Per AGENTS.md that is infrastructure and must not be answered with a code change, and per
+AGENTS.local.md the agent must not start the database inside its own shell - so the work was left
+UNCOMMITTED and reported rather than committed unverified. After the restart the same suite is
+**17 tests / 1 failure**, and that single failure
+(`ContactControllerTest::test_returns_503_when_agent_employee_exists_but_has_no_user_account`) was
+proven **pre-existing** by `git stash` - it fails identically at HEAD and exercises `ContactController`,
+not `ChatController`.
+
+**Ratchet:** baseline lowered 47 -> 42 in this commit; `ExceptionMessageLeakRatchetTest` OK (3 tests)
+at the new value, which is what proves the sweep actually removed five sites rather than the ratchet
+merely being loosened.
+
+**Still open:** 42 sites (RideController 18, EmployeeManagement 7, WalletRequest 4, Profile 3, Staff
+Admin 2, StaffComplaint 2, and one each in Verification, AdminDashboard, AdminWalletRequest,
+Complaint, StaffChat). Same slice-at-a-time pattern.
