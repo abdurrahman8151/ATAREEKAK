@@ -518,9 +518,15 @@ final class AdminDashboardController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            // RV-13: message to the log, not the client.
+            Log::error('AdminDashboard: verification decision failed', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage(),
+                'message' => 'Failed to record the verification decision. Please try again.',
             ], 422);
         }
     }

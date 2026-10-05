@@ -289,9 +289,16 @@ class VerificationController extends Controller
 
             return response()->json($data);
         } catch (\Exception $e) {
+            // RV-13: message to the log, not the client - a QueryException here would carry the SQL
+            // and the table names of the verification tables.
+            Log::error('Verification: status retrieval failed', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve verification status: '.$e->getMessage(),
+                'message' => 'Failed to retrieve verification status. Please try again.',
             ], 500);
         }
     }

@@ -5617,3 +5617,46 @@ remaining 6 across four non-owner controllers are straightforward slices.
 
 **This correction roughly halved the reported debt (42 -> 21) and, more importantly, stopped a
 sweep from damaging 21 working error messages.**
+
+### 64.4 RV-13 sweep slices 2-5 - all non-owner controllers swept (21 -> 15) - **VERIFIED FIX**
+
+Every remaining broad-catch leak outside the owner-owned `RideController`:
+
+| File | Fixed |
+|---|---|
+| `ProfileController` | 3 |
+| `StaffAdminController` | 1 |
+| `VerificationController` | 1 |
+| `AdminDashboardController` | 1 |
+
+`StaffAdminController`'s OTHER site (line 343) is `catch (\DomainException $e)` and was deliberately
+left alone for the reason sec 64.3 established.
+
+**A SECOND DEFECT FOUND ALONGSIDE THE LEAK, in the same three lines.** All three ProfileController
+blocks answered `$e->getCode() ?: 500`. **An exception's code is not an HTTP status.** A `PDOException`
+carries `23000` (integrity constraint) or `42S02`, and `response()->json($body, 23000)` is not a valid
+response - so the old line could turn a caught database error into a hard failure INSIDE the error
+handler, which is the worst place to fail. Replaced with a fixed 500: at that point we genuinely do
+not know why it failed. (The same pattern appears elsewhere in the codebase and is recorded below as
+still open.)
+
+**Recorded but NOT changed: broad catches that answer 422.** `StaffAdminController` and
+`AdminDashboardController` return 422 from a `catch (\Exception $e)`. A 422 tells the client "fix your
+request"; a broad catch means we do not know what failed, so the honest status is 500. This is the
+mirror image of section 64's defect (a domain violation answering 500). **The status was left alone
+deliberately** - changing a client-visible status in a message-leak sweep is a separate, contract-
+affecting decision, and `AGENTS.md` reserves public response-shape changes to the owner.
+
+**Ratchet baseline 21 -> 15** in this commit. `ExceptionMessageLeakRatchetTest` OK (5 tests).
+
+**All 15 remaining broad leaks are now in `RideController.php`** - the owner-owned file with the two
+uncommitted RV-38 eager-load edits. Sweeping it needs the HEAD-reconstruction treatment used in
+section 62, or the owner's edits committed first.
+
+**No regression.** Profile + Verification + Admin = 148 tests, 13 red **identical with and without the
+change** (git-stash bisect, 0 new).
+
+**Still open for RV-13:** (a) the 15 `RideController` sites; (b) the `$e->getCode() ?: 500` pattern
+elsewhere; (c) the broad-catch-returns-422 status question (owner); (d) the `{success,data,error}`
+envelope (owner, changes what the Flutter client parses); (e) migrating the 61
+`\InvalidArgumentException` throw sites to the typed `Domain\` subclasses (section 64).

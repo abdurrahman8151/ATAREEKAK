@@ -31,8 +31,8 @@ use Tests\TestCase;
  */
 class ExceptionMessageLeakRatchetTest extends TestCase
 {
-    /** Measured 2026-10-04: 47, then 42 (ChatController sweep), then 21 once specific catches were correctly EXCLUDED. May only decrease. */
-    private const BASELINE = 21;
+    /** 2026-10-04: 47 -> 42 (Chat) -> 21 (specific catches excluded) -> 15 (Profile/StaffAdmin/Verification/AdminDashboard swept). All 15 remaining are in RideController, an owner-owned file. May only decrease. */
+    private const BASELINE = 15;
 
     /** @return array<string, array<int, int>> file => line numbers that leak a message to a client */
     private function leaks(): array
@@ -71,7 +71,7 @@ class ExceptionMessageLeakRatchetTest extends TestCase
                     continue;
                 }
 
-                // â”€â”€ THE DISTINCTION THAT MATTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // Ã¢â€â‚¬Ã¢â€â‚¬ THE DISTINCTION THAT MATTERS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
                 // Only a BROAD catch leaks.
                 //
                 // `catch (\Throwable $e)` means the code does NOT know what failed, so the message

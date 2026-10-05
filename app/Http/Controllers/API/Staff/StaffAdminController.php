@@ -23,16 +23,16 @@ use Illuminate\Support\Facades\Validator;
  * Admin + System Admin only routes.
  * Protected by: middleware('staff:admin,system_admin')
  *
- * ── UC-ADM-10 : Review Verification Requests ──────────────────────────────
- *   GET   /api/staff/verifications/pending       → pendingVerifications()
+ * â”€â”€ UC-ADM-10 : Review Verification Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ *   GET   /api/staff/verifications/pending       â†’ pendingVerifications()
  *
- * ── UC-ADM-11 : Approve / Reject Verification ─────────────────────────────
- *   POST  /api/staff/verifications/{userId}/approve  → approveVerification()
- *   POST  /api/staff/verifications/{userId}/reject   → rejectVerification()
+ * â”€â”€ UC-ADM-11 : Approve / Reject Verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ *   POST  /api/staff/verifications/{userId}/approve  â†’ approveVerification()
+ *   POST  /api/staff/verifications/{userId}/reject   â†’ rejectVerification()
  *
- * ── Escalated Complaints ──────────────────────────────────────────────────
- *   GET   /api/staff/escalated-complaints            → escalatedComplaints()
- *   PATCH /api/staff/escalated-complaints/{id}/resolve → resolveEscalated()
+ * â”€â”€ Escalated Complaints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ *   GET   /api/staff/escalated-complaints            â†’ escalatedComplaints()
+ *   PATCH /api/staff/escalated-complaints/{id}/resolve â†’ resolveEscalated()
  */
 final class StaffAdminController extends Controller
 {
@@ -42,7 +42,7 @@ final class StaffAdminController extends Controller
     ) {}
 
     // =========================================================================
-    // UC-ADM-10 – PENDING VERIFICATIONS LIST
+    // UC-ADM-10 â€“ PENDING VERIFICATIONS LIST
     // =========================================================================
 
     public function pendingVerifications(): JsonResponse
@@ -96,7 +96,7 @@ final class StaffAdminController extends Controller
     }
 
     // =========================================================================
-    // UC-ADM-11 – APPROVE VERIFICATION
+    // UC-ADM-11 â€“ APPROVE VERIFICATION
     // =========================================================================
 
     /**
@@ -150,7 +150,7 @@ final class StaffAdminController extends Controller
                 ? $this->verificationRepo->verifyDriver($userId)
                 : $this->verificationRepo->verifyPassenger($userId);
 
-            // Save national ID — cannot be changed through normal flows after this point
+            // Save national ID â€” cannot be changed through normal flows after this point
             $verified->national_id = $nationalId;
             $verified->save();
 
@@ -184,12 +184,13 @@ final class StaffAdminController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
+            // RV-13: message to the log, not the client (already logged just above).
+            return response()->json(['status' => 'error', 'message' => 'Failed to approve the verification. Please try again.'], 422);
         }
     }
 
     // =========================================================================
-    // UC-ADM-11 – REJECT VERIFICATION
+    // UC-ADM-11 â€“ REJECT VERIFICATION
     // =========================================================================
 
     public function rejectVerification(int $userId, Request $request): JsonResponse
@@ -222,9 +223,9 @@ final class StaffAdminController extends Controller
                 app(NotificationService::class)->createNotification(
                     $user,
                     'verification_rejected',
-                    'طلب التوثيق مرفوض',
-                    'تم رفض طلب توثيق حسابك.'
-                    .($request->input('reason') ? ' السبب: '.$request->input('reason') : ' يمكنك إعادة التقديم بعد تصحيح البيانات.'),
+                    'Ø·Ù„Ø¨ Ø§Ù„ØªÙˆØ«ÙŠÙ‚ Ù…Ø±ÙÙˆØ¶',
+                    'ØªÙ… Ø±ÙØ¶ Ø·Ù„Ø¨ ØªÙˆØ«ÙŠÙ‚ Ø­Ø³Ø§Ø¨Ùƒ.'
+                    .($request->input('reason') ? ' Ø§Ù„Ø³Ø¨Ø¨: '.$request->input('reason') : ' ÙŠÙ…ÙƒÙ†Ùƒ Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„ØªÙ‚Ø¯ÙŠÙ… Ø¨Ø¹Ø¯ ØªØµØ­ÙŠØ­ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª.'),
                     ['user_id' => $user->id],
                     'high',
                     'system'
@@ -259,7 +260,7 @@ final class StaffAdminController extends Controller
     }
 
     // =========================================================================
-    // ESCALATED COMPLAINTS – LIST
+    // ESCALATED COMPLAINTS â€“ LIST
     // =========================================================================
 
     public function escalatedComplaints(Request $request): JsonResponse
@@ -300,7 +301,7 @@ final class StaffAdminController extends Controller
     }
 
     // =========================================================================
-    // ESCALATED COMPLAINTS – RESOLVE
+    // ESCALATED COMPLAINTS â€“ RESOLVE
     // =========================================================================
 
     public function resolveEscalated(int $complaintId, Request $request): JsonResponse
