@@ -86,7 +86,7 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'The request could not be completed. Please try again.',
             ], 500);
         }
     }
@@ -148,7 +148,7 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to get route options: '.$e->getMessage(),
+                'message' => 'Failed to get route options.',
             ], 500);
         }
     }
@@ -173,9 +173,15 @@ class RideController extends Controller
             ], 201);
 
         } catch (\Throwable $e) {
+            // RV-13: the exception text goes to the LOG, not to the client - a
+            // QueryException carries the SQL and the table names.
+            Log::error('RideController: request failed', [
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'The request could not be completed. Please try again.',
             ], 422);
         }
     }
@@ -355,7 +361,7 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch rides: '.$e->getMessage(),
+                'message' => 'Failed to fetch rides.',
             ], 500);
         }
     }
@@ -405,7 +411,7 @@ class RideController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Search failed: '.$e->getMessage(),
+                'message' => 'Search failed.',
             ], 500);
         }
     }
@@ -437,9 +443,15 @@ class RideController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            // RV-13: the exception text goes to the LOG, not to the client - a
+            // QueryException carries the SQL and the table names.
+            Log::error('RideController: request failed', [
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'The request could not be completed. Please try again.',
             ], 500);
         }
     }
@@ -504,7 +516,7 @@ class RideController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 500);
         }
     }
 
@@ -537,9 +549,15 @@ class RideController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            // RV-13: the exception text goes to the LOG, not to the client - a
+            // QueryException carries the SQL and the table names.
+            Log::error('RideController: request failed', [
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'The request could not be completed. Please try again.',
             ], 422);
         }
     }
@@ -577,9 +595,15 @@ class RideController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            // RV-13: the exception text goes to the LOG, not to the client - a
+            // QueryException carries the SQL and the table names.
+            Log::error('RideController: request failed', [
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'The request could not be completed. Please try again.',
             ], 422);
         }
     }
@@ -613,9 +637,15 @@ class RideController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            // RV-13: the exception text goes to the LOG, not to the client - a
+            // QueryException carries the SQL and the table names.
+            Log::error('RideController: request failed', [
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'The request could not be completed. Please try again.',
             ], 422);
         }
     }
@@ -684,7 +714,7 @@ class RideController extends Controller
                 'class' => get_class($e),
             ]);
 
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 500);
         }
     }
 
@@ -780,7 +810,7 @@ class RideController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage(),
+                'message' => 'The request could not be completed. Please try again.',
             ], 500);
         }
     }
@@ -835,7 +865,7 @@ class RideController extends Controller
                 'class' => get_class($e),
             ]);
 
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 400);
+            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 400);
         }
     }
 
@@ -868,7 +898,13 @@ class RideController extends Controller
             return response()->json(['status' => 'success', 'message' => $result['message']]);
 
         } catch (\Throwable $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
+            // RV-13: the exception text goes to the LOG, not to the client - a
+            // QueryException carries the SQL and the table names.
+            Log::error('RideController: request failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 422);
         }
     }
 
@@ -897,7 +933,13 @@ class RideController extends Controller
             return response()->json(['status' => 'success', 'message' => $result['message']]);
 
         } catch (\Throwable $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
+            // RV-13: the exception text goes to the LOG, not to the client - a
+            // QueryException carries the SQL and the table names.
+            Log::error('RideController: request failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 422);
         }
     }
 }

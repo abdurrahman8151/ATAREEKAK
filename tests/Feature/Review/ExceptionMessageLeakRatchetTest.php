@@ -31,8 +31,8 @@ use Tests\TestCase;
  */
 class ExceptionMessageLeakRatchetTest extends TestCase
 {
-    /** 2026-10-04: 47 -> 42 (Chat) -> 21 (specific catches excluded) -> 15 (Profile/StaffAdmin/Verification/AdminDashboard swept). All 15 remaining are in RideController, an owner-owned file. May only decrease. */
-    private const BASELINE = 15;
+    /** 2026-10-04: 47 -> 42 (Chat) -> 21 (specific catches excluded) -> 15 (four controllers) -> 0 (RideController swept). ZERO. Kept as a permanent gate. */
+    private const BASELINE = 0;
 
     /** @return array<string, array<int, int>> file => line numbers that leak a message to a client */
     private function leaks(): array
@@ -71,7 +71,7 @@ class ExceptionMessageLeakRatchetTest extends TestCase
                     continue;
                 }
 
-                // Ã¢â€â‚¬Ã¢â€â‚¬ THE DISTINCTION THAT MATTERS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+                // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ THE DISTINCTION THAT MATTERS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
                 // Only a BROAD catch leaks.
                 //
                 // `catch (\Throwable $e)` means the code does NOT know what failed, so the message
@@ -142,19 +142,25 @@ class ExceptionMessageLeakRatchetTest extends TestCase
     }
 
     /**
-     * The floor: there must always BE leaks to sweep. If this passes with zero, the ratchet above
-     * has gone slack and the budget it enforces is fictional.
+     * THE SWEEP IS COMPLETE, so this is no longer a budget - it is a permanent gate.
+     *
+     * When the count reached zero this test used to fail on purpose ("retire the ratchet rather
+     * than enforce a fictional budget"). That was the right instinct then; the follow-through is
+     * here: the budget is now 0 and any controller that reintroduces an exception message into a
+     * client response fails CI.
      *
      * @test
      */
-    public function the_baseline_is_still_relevant(): void
+    public function no_controller_returns_a_raw_exception_message_to_a_client(): void
     {
         $total = array_sum(array_map('count', $this->leaks()));
 
-        $this->assertGreaterThan(
+        $this->assertSame(
             0,
             $total,
-            'No leaks remain, so the ratchet baseline should be lowered to 0 and this ratchet retired.'
+            'A controller is echoing an exception message to a client again. A QueryException'
+            .' carries the SQL and the table names. Log::error($e->getMessage()) is FINE - the'
+            .' message belongs in the log; only the response body is the leak.'
         );
     }
 
