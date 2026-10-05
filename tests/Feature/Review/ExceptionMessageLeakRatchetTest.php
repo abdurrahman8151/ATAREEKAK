@@ -31,8 +31,8 @@ use Tests\TestCase;
  */
 class ExceptionMessageLeakRatchetTest extends TestCase
 {
-    /** Measured 2026-10-04: 47, then 42 after the ChatController sweep. May only decrease. */
-    private const BASELINE = 42;
+    /** Measured 2026-10-04: 47, then 42 (ChatController sweep), then 21 once specific catches were correctly EXCLUDED. May only decrease. */
+    private const BASELINE = 21;
 
     /** @return array<string, array<int, int>> file => line numbers that leak a message to a client */
     private function leaks(): array
@@ -71,6 +71,25 @@ class ExceptionMessageLeakRatchetTest extends TestCase
                     continue;
                 }
 
+                // â”€â”€ THE DISTINCTION THAT MATTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // Only a BROAD catch leaks.
+                //
+                // `catch (\Throwable $e)` means the code does NOT know what failed, so the message
+                // can be a QueryException (SQL + table names) or a third-party client's message
+                // (internal URL). That is a leak.
+                //
+                // `catch (\DomainException $e)` means the code KNOWS what failed and chose that
+                // message; it is written for the client ("An employee with this email already
+                // exists"). Sanitising it removes real, actionable feedback and protects nothing -
+                // the exact mistake a blind sweep makes. Sec 64.2 left one such site in
+                // ChatController alone for exactly this reason.
+                //
+                // Re-baselined from 42 to 21 once this distinction was applied: 21 of the original 42
+                // were specific catches, not leaks.
+                if (! $this->enclosingCatchIsBroad($lines, $i)) {
+                    continue;
+                }
+
                 $hits[] = $i + 1;
             }
 
@@ -80,6 +99,32 @@ class ExceptionMessageLeakRatchetTest extends TestCase
         }
 
         return $found;
+    }
+
+    /**
+     * Is the `catch` governing line $i a BROAD type?
+     *
+     * Walks back to the nearest preceding `catch (...)`, stopping at the next method boundary. Only
+     * Throwable / Exception / Error (or an unqualified catch) count; any NAMED type is specific by
+     * construction and therefore not a leak. No enclosing catch is treated as broad - failing safe.
+     */
+    private function enclosingCatchIsBroad(array $lines, int $i): bool
+    {
+        for ($j = $i - 1; $j >= 0; $j--) {
+            if (preg_match('/catch\s*\(\s*([^)]*?)\s*\$[a-zA-Z_]/', $lines[$j], $m)) {
+                return in_array(strtolower(trim($m[1])), [
+                    '\throwable', 'throwable',
+                    '\exception', 'exception',
+                    '\error', 'error',
+                ], true);
+            }
+
+            if (preg_match('/^\s{4,}(public|private|protected) function/', $lines[$j])) {
+                return true; // no enclosing catch found - fail safe
+            }
+        }
+
+        return true;
     }
 
     /** @test */
@@ -132,5 +177,55 @@ class ExceptionMessageLeakRatchetTest extends TestCase
         $this->assertGreaterThan(0, $logged,
             'The controllers log exception messages server-side. If this is ever zero, the ratchet is '
             .'over-broad and should be re-scoped before it blocks legitimate logging.');
+    }
+
+    /**
+     * The classification itself must be provable, or "21" is just a number I asserted.
+     *
+     * Two real shapes from this codebase, one of each kind:
+     *   - `EmployeeManagementController`: `catch (\DomainException $e) => 'message' =>
+     *     $e->getMessage()` - app-authored, for the client, NOT a leak;
+     *   - `ChatController` before the sec 64.2 sweep: `catch (\Exception $e) => 'message' =>
+     *     'Failed to send message: '.$e->getMessage()` - broad, WAS a leak.
+     *
+     * @test
+     */
+    public function the_ratchet_is_scoped_to_broad_catches_only(): void
+    {
+        $broad = [
+            '        } catch (\Exception $e) {',
+            "            return response()->json(['message' => 'Failed: '.\$e->getMessage()], 500);",
+        ];
+        $specific = [
+            '        } catch (\DomainException $e) {',
+            "            return response()->json(['message' => \$e->getMessage()], 403);",
+        ];
+
+        $this->assertTrue(
+            $this->enclosingCatchIsBroad($broad, 1),
+            'a broad catch must be counted - that IS the leak'
+        );
+        $this->assertFalse(
+            $this->enclosingCatchIsBroad($specific, 1),
+            'a NAMED catch is app-authored and must not be counted - sanitising it removes real feedback'
+        );
+    }
+
+    /**
+     * A named catch on an exception type this application defines is not a leak either.
+     *
+     * @test
+     */
+    public function a_catch_on_our_own_domain_exception_is_not_a_leak(): void
+    {
+        $lines = [
+            '        } catch (\App\Exceptions\Domain\ConflictViolation $e) {',
+            "            return response()->json(['message' => \$e->getMessage()], 409);",
+        ];
+
+        $this->assertFalse(
+            $this->enclosingCatchIsBroad($lines, 1),
+            'section 64 DomainException messages are written for the client; they are not leaks'
+        );
     }
 }

@@ -5568,3 +5568,52 @@ merely being loosened.
 **Still open:** 42 sites (RideController 18, EmployeeManagement 7, WalletRequest 4, Profile 3, Staff
 Admin 2, StaffComplaint 2, and one each in Verification, AdminDashboard, AdminWalletRequest,
 Complaint, StaffChat). Same slice-at-a-time pattern.
+
+### 64.3 The ratchet was OVER-BROAD - it was counting app-authored messages as leaks - **VERIFIED FIX**
+
+Before sweeping the next controller I checked what the remaining sites actually were, and the
+classification changed the picture materially.
+
+**All 7 `EmployeeManagementController` sites are `catch (\DomainException $e)` or
+`catch (\RuntimeException $e)`** - specific catches around app-authored messages ("An employee with
+this email already exists"), returned deliberately to the client. Sanitising them would have removed
+real, actionable feedback and protected nothing. **So that controller was NOT swept, and the
+correct response was to fix the RATCHET, not the code.**
+
+**The measured split of the 42:**
+
+| Enclosing catch | Count | Verdict |
+|---|---|---|
+| `\Throwable` (15) + `\Exception` (6) | **21** | genuine leaks - the code does not know what failed |
+| `\DomainException` (14), `\InvalidArgumentException` (3), `\RuntimeException` (2), `HttpException` (2) | 21 | **not leaks** - app-authored, written for the client |
+
+**The rule now encoded:** only a BROAD catch (`\Throwable`, `\Exception`, `\Error`, or unqualified)
+counts. A **named** catch means the code knows what failed and chose that message. This is the same
+judgement already applied by hand in sec 64.2 (leaving ChatController's `HttpException` site alone) -
+it is now applied mechanically and consistently instead of per-slice.
+
+**Baseline re-cut 42 -> 21, and the classification is PROVED rather than asserted.** Two new tests
+feed real code shapes into the classifier: a broad catch MUST be counted; a `\DomainException` catch
+and a `\App\Exceptions\Domain\ConflictViolation` catch must NOT. Without those, "21" would just be a
+number I chose.
+
+**Needle:** adding one more broad leak to `ProfileController` (a syntactically valid insertion - an
+earlier attempt targeted a catch that did not exist and proved nothing) fails the ratchet; the file
+restores byte-identically.
+
+**Where the real 21 actually are - and this is the useful finding:**
+
+| File | Broad leaks |
+|---|---|
+| `RideController` | **15** |
+| `ProfileController` | 3 |
+| `StaffAdminController` | 1 |
+| `VerificationController` | 1 |
+| `AdminDashboardController` | 1 |
+
+**15 of 21 are in `RideController.php`, which is an OWNER-OWNED file** (two uncommitted RV-38
+eager-load edits). Sweeping it needs the same HEAD-reconstruction treatment used in sec 62. The
+remaining 6 across four non-owner controllers are straightforward slices.
+
+**This correction roughly halved the reported debt (42 -> 21) and, more importantly, stopped a
+sweep from damaging 21 working error messages.**
