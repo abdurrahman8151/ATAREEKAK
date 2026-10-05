@@ -5490,3 +5490,44 @@ statuses are gone, pinning "the exact status" would enshrine them as correct.
 **Genuinely unverified.** No production endpoint was migrated to the new subclasses yet - the 61
 `InvalidArgumentException` throw sites still rely on the base-class mapping, which returns a generic
 `DOMAIN_RULE_VIOLATION` code rather than a specific one per rule.
+
+### 64.1 RV-13 second half - the exception-message leak is now MEASURED and shrink-only - **VERIFIED FIX (ratchet), sweep recorded**
+
+**THE LEAK, measured rather than estimated.** **47 controller sites** do
+`'message' => $e->getMessage()` inside a JSON **response** (RideController 18, EmployeeManagement 7,
+Chat 6, WalletRequest 4, Profile 3, StaffAdmin 2, StaffComplaint 2, and one each in Complaint,
+AdminWalletRequest, StaffChat, AdminDashboard, Verification). An exception message is not written for a
+client: a `QueryException` carries the SQL and the table names, a `ModelNotFoundException` names
+internal identifiers, a third-party HTTP client's message can carry an internal URL. Returning it tells
+an attacker the shape of the database.
+
+**WHAT IS DELIBERATELY NOT COUNTED**, and why this matters more than the number:
+- `Log::error(… $e->getMessage())` - server-side, where the message BELONGS. There are ~120
+  `getMessage()` calls in the controllers and most are these; counting them would produce a ratchet
+  that only ever says "do not log", which is useless.
+- `config('app.debug') ? $e->getMessage() : '…'` - already gated (one site).
+- `'message'` built from a DOMAIN message the controller wrote itself ("Only pending bookings can be
+  accepted") - that is a client-facing rule, not a leak; section 64's `DomainException` work is how
+  those earn an explicit code.
+
+**WHY A RATCHET RATHER THAN A 47-SITE SWEEP.** 47 sites across 12 controllers, changed blind in one
+commit, is how a real error gets replaced by a generic string and the client loses its only signal.
+The ratchet makes the debt MEASURED and shrink-only, so the sweep can happen in reviewable slices and
+the count can never grow back - the same pattern `BoundaryDependencyTest` already uses in this repo.
+
+**`tests/Feature/Review/ExceptionMessageLeakRatchetTest.php` (new, 3 tests):**
+- no controller may EXCEED 47 (adding one fails CI);
+- the baseline must still be relevant (if it ever hits zero, the ratchet is slack and should be
+  retired rather than left enforcing a fictional budget);
+- server-side `Log::…getMessage()` is still counted as present - if that ever reaches zero the ratchet
+  is over-broad and must be re-scoped before it blocks legitimate logging.
+
+**Needle:** duplicating one existing leak line (a SYNTACTICALLY VALID change - an earlier attempt
+inserted a line mid-expression, produced a parse error, and would have "proved" anything) fails the
+ratchet; the controller restores byte-identically.
+
+**Still open, and correctly so.** The actual 47-site sweep is not done. It should be done in slices
+per controller, replacing each with either an explicit `DomainException` code (section 64) or a
+generic message plus a `Log::error` - and the baseline lowered in the SAME commit as each slice, so the
+ratchet and the debt move together. The `{success,data,error{…}}` envelope remains a PRODUCT decision
+(AGENTS.md; it changes what the Flutter client parses).
