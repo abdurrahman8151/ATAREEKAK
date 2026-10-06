@@ -87,7 +87,13 @@ final class AdminDriverService
             ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->count();
 
-        $suspendedDrivers = 0; // not implemented yet
+        // RV-19 item 5: this was `$suspendedDrivers = 0; // not implemented yet`, so the dashboard
+        // card reported zero suspended drivers no matter how many there were - while the driver
+        // TABLE on the same screen could list them, because its `suspended` filter is
+        // `where('status', 0)` and `resolveDriverStatus()` maps `status == 0` to 'suspended'.
+        // The two halves of one screen contradicted each other. Counted the same way the filter
+        // counts, so the card and the table can no longer disagree.
+        $suspendedDrivers = User::where('status', 0)->count();
 
         $avgRating = UserRating::whereHas(
             'ratedUser',
@@ -214,11 +220,20 @@ final class AdminDriverService
         $driver = User::with([
             'profile',
             'photos',
+            // Only the RECENT rides are limited, for the `recent_rides` list below. `total_rides`
+            // used to be `$driver->rides->count()` off THIS relation, so it counted the capped
+            // collection: any driver with more than 5 rides reported exactly 5, and one with fewer
+            // reported a number that looked like a total but was a page size.
             'rides' => fn ($q) => $q
                 ->withCount('bookings')
                 ->orderByDesc('created_at')
                 ->limit(5),
-        ])->findOrFail($driverId);
+            // RV-19 item 5: an uncapped scalar count, so the total is a total. Kept separate from
+            // the limited relation on purpose - sharing one relation cannot serve both a page of
+            // recent rows and a lifetime count.
+        ])
+            ->withCount('rides')
+            ->findOrFail($driverId);
 
         $ratingStats = UserRating::where('rated_user_id', $driverId)
             ->selectRaw('COUNT(*) as total, AVG(rating) as average')
@@ -266,7 +281,8 @@ final class AdminDriverService
             ],
             'stats' => [
                 'completed_rides' => $completedRides,
-                'total_rides' => $driver->rides->count(),
+                // RV-19 item 5: the uncapped count, not the 5-row recent collection.
+                'total_rides' => (int) $driver->rides_count,
             ],
             'recent_rides' => $driver->rides->map(fn ($r) => [
                 'id' => $r->id,
@@ -531,7 +547,15 @@ final class AdminDriverService
         };
 
         return [
-            'period' => $period,
+            // RV-19 item 5: `resolvePeriodBounds()` has a `default =>` arm, so an unknown
+            // `?period=` fell through to WEEK. The response then echoed the REQUESTED value in
+            // `period` while `period_label` carried the resolved one - so `?period=quarter`
+            // answered `period: "quarter", period_label: "Week"` and the caller had no way to tell
+            // the numbers were for a different window than the one it asked for. The resolved
+            // label is now echoed, so the response is self-consistent. Same keys, same shape - only
+            // the value stops lying. Rejecting the unknown value outright instead would be an API
+            // change, so it is left to the caller's validation layer.
+            'period' => $label,
             'period_label' => ucfirst($label),
             'current' => [
                 'start' => $currentStart->toDateTimeString(),

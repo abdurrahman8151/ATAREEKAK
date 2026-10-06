@@ -11,6 +11,9 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- Done recently: **RV-19 item 5 VERIFIED FIX (`R2 sec 76`)** - three admin derived numbers fixed and the
+  bug-pinning tests flipped. Item 4 proven but OWNER-GATED: `config/system_admin.php` is absent, so the
+  new-driver rating seed silently never runs.
 - Done recently: **RV-04 audience separation PROVEN (`R2 sec 75`)** - the staff->user guard was real but
   untested; neutralising it returns 200 instead of 401, so the test is proven non-vacuous. Found and
   recorded, NOT closed: `users.token_version` defaults to 1 in the migration vs 0 in `UserFactory`.

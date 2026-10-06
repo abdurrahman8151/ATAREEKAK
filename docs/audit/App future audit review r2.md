@@ -6481,3 +6481,87 @@ exploit.
 **RV-02 is the gate for three rows at once** (RV-09, RV-20 and AF-6's acceptance alias), and it
 cannot start without a schema change and a money-semantics decision. That single owner call unlocks
 the largest remaining cluster in the backlog.
+
+## 76. RV-19 item 5 - three admin "derived numbers" fixed, and the tests that PINNED them flipped - **VERIFIED FIX**
+
+Selected by the owner ("continue") as the runnable remainder of RV-19. **Item 4 turned out NOT to be
+runnable** - see the end of this section, where it is reported as owner-gated rather than skipped.
+
+### THE THREE DEFECTS, ALL IN `AdminDriverService`
+
+**1. `total_rides` was a page size, not a total.** `getDriverProfile()` eager-loads
+`'rides' => fn ($q) => ...->orderByDesc('created_at')->limit(5)` for the `recent_rides` list, and then
+reported `'total_rides' => $driver->rides->count()` - counting the **capped collection**. A driver with
+7 rides reported **5**; a driver with 3 reported a number that looked like a total but was a truncated
+list. Fixed by adding an uncapped `->withCount('rides')` and reading `$driver->rides_count`, kept
+deliberately separate from the limited relation: one relation cannot serve both a page of recent rows
+and a lifetime count, which is exactly how the two got confused.
+
+**2. `suspended_drivers` was hard-coded zero.** `$suspendedDrivers = 0; // not implemented yet` - while
+the driver TABLE on the same screen used the filter `'suspended' => $query->where('status', 0)` and
+`resolveDriverStatus()` maps `status == 0` to `'suspended'`. **One screen contradicted itself**: the
+card said zero, the table listed them. Now counted with the same predicate as the filter, and a new
+test asserts the card and the filter agree rather than merely asserting the card's number.
+
+**3. An unknown `period` made the response lie.** `resolvePeriodBounds()` has a `default =>` arm, so
+`?period=year` silently got a **week**-length window - while the response echoed
+`'period' => $period` (the requested value) next to `'period_label' => ucfirst($label)` (the resolved
+one). `?period=quarter` answered `period: "quarter", period_label: "Week"` and the caller had no way to
+tell the numbers described a different window than the one it asked for. Now echoes the **resolved**
+label. Same keys, same shape - only the value stops lying. Rejecting the unknown value outright would
+be a public API change, so that is left to the caller's validation layer, and recorded.
+
+### THE FLIPPED TESTS
+
+`tests/Unit/Services/Admin/AdminDriverServiceTest.php` pinned all three **by name**, so the defects
+were load-bearing documentation of themselves. Each was flipped to assert the corrected behaviour -
+none weakened, each now pins something true:
+
+- `test_get_stats_suspended_drivers_is_always_zero` -> `..._counts_users_with_status_zero`, plus a new
+  `..._agrees_with_the_suspended_table_filter`.
+- `test_get_driver_profile_total_rides_is_capped_by_the_five_ride_eager_load_limit` ->
+  `..._is_the_uncapped_lifetime_count`, plus a new `recent_rides_is_still_capped_at_five` so the fix
+  cannot be misread as "remove the limit everywhere".
+- `test_get_verification_efficiency_unrecognized_period_falls_back_to_week_bounds` ->
+  `..._echoes_the_window_it_actually_used`, plus a new `..._a_known_period_is_echoed_unchanged` so the
+  fix cannot make a legitimate request report the wrong window.
+
+### VERIFICATION
+
+- **Three needles, all load-bearing, all restored byte-identical (SHA256).** Re-hard-coding
+  `suspended = 0`, reverting `total_rides` to the capped count, and reverting `period` to the
+  requested value each fail exactly one test.
+- **Controlled bisect**, this file alone: HEAD `135 tests / 10 failures` vs AFTER `138 / 10`.
+  Failure NAME SETS via `Compare-Object`: **zero new**.
+- **Admin floor** (`Unit/Services/Admin`, `Feature/Admin`, `RV19AdminStatsTest`): HEAD
+  `270 / 4E / 19F` vs AFTER `273 / 4E / 19F`. Failure-name-set diff **empty**.
+- The 10 failures in this file are all `average_rating` assertions, untouched by this task and part
+  of the known pre-existing red set.
+- `pint` clean on both files.
+
+### ITEM 4 IS OWNER-GATED - VERIFIED IN CODE, NOT ASSUMED
+
+I classified it as runnable. **That was wrong**, and checking it in code is what caught it.
+
+`config/system_admin.php` **does not exist**, and `VerificationRepository.php:69` reads
+`config('system_admin.email')`:
+
+```php
+$adminUser = User::where('email', config('system_admin.email'))->first();
+```
+
+A missing config file returns **null**, and `email = NULL` matches nothing - so `$adminUser` is always
+null and the "seed initial 3-star rating for new drivers" block **never runs**. Every approved driver
+silently gets no seed rating. That part is proven.
+
+But every available fix decides a product question, so it is not an agent call:
+
+- **Create `config/system_admin.php`** with an email - but `UserObserver:26` says "No longer depends on
+  a system_admin User row", so the config would name a user who may not exist, moving the silent
+  failure rather than fixing it.
+- **Delete the read site** - then approved drivers get no seed rating at all. A behaviour change.
+- **Choose a different rater** - a product decision about who rates a new driver.
+
+So RV-19 stays PARTIAL on item 2 (admin earnings derived vs read from the ledger - a report-semantics
+question) and item 4 (this). Both need one owner answer. `UserRatingTest::test_rating_is_cast_to_float`
+is a **separate** pre-existing red (a missing `rating` cast), not this defect.

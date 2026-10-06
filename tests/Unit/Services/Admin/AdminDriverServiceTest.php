@@ -213,11 +213,33 @@ class AdminDriverServiceTest extends TestCase
         $this->assertEquals(1, $stats['total_drivers']); // rejected still counts as "total"
     }
 
-    public function test_get_stats_suspended_drivers_is_always_zero(): void
+    public function test_get_stats_suspended_drivers_counts_users_with_status_zero(): void
     {
+        // RV-19 item 5: FLIPPED. This asserted 0 and was named for the defect. The card was
+        // hard-coded `$suspendedDrivers = 0; // not implemented yet` while the driver TABLE on the
+        // same screen could list suspended drivers (`'suspended' => where('status', 0)`), so one
+        // screen contradicted itself. It now counts, using the same predicate as the filter.
         $this->makeUser(['status' => 0, 'is_verified_driver' => true]);
+        $this->makeUser(['status' => 0, 'is_verified_driver' => true]);
+        $this->makeUser(['status' => 1, 'is_verified_driver' => true]);
 
-        $this->assertEquals(0, $this->service->getStats()['suspended_drivers']);
+        $this->assertEquals(2, $this->service->getStats()['suspended_drivers']);
+    }
+
+    public function test_get_stats_suspended_drivers_agrees_with_the_suspended_table_filter(): void
+    {
+        // The two halves of one screen must not disagree. This is the property the defect broke.
+        for ($i = 0; $i < 3; $i++) {
+            $this->makeUser(['status' => 0, 'is_verified_driver' => true]);
+        }
+
+        $suspended = $this->service->getDrivers('suspended');
+
+        $this->assertEquals(
+            $this->service->getStats()['suspended_drivers'],
+            $suspended->total(),
+            'the stat card and the suspended filter count the same thing and must agree'
+        );
     }
 
     public function test_get_stats_average_rating_only_includes_verified_drivers(): void
@@ -745,15 +767,34 @@ class AdminDriverServiceTest extends TestCase
         $this->assertEquals(2, $this->service->getDriverProfile($driver->id)['stats']['total_rides']);
     }
 
-    public function test_get_driver_profile_total_rides_is_capped_by_the_five_ride_eager_load_limit(): void
+    public function test_get_driver_profile_total_rides_is_the_uncapped_lifetime_count(): void
     {
-        // Documented behavior, not fixed here: see class docblock.
+        // RV-19 item 5: FLIPPED. This asserted 5 and was named for the defect. `total_rides` read
+        // `$driver->rides->count()` off a relation eager-loaded with `->limit(5)` for the RECENT-rides
+        // list, so it reported a page size as a lifetime total: a driver with 7 rides reported 5, and
+        // one with 3 reported a number that looked like a total but was a truncated list.
+        // The count is now an uncapped `withCount('rides')`, separate from the limited collection.
         $driver = $this->makeUser();
         for ($i = 0; $i < 7; $i++) {
             $this->makeRide($driver->id, ['created_at' => now()->subMinutes($i)]);
         }
 
-        $this->assertEquals(5, $this->service->getDriverProfile($driver->id)['stats']['total_rides']);
+        $this->assertEquals(7, $this->service->getDriverProfile($driver->id)['stats']['total_rides']);
+    }
+
+    public function test_get_driver_profile_recent_rides_is_still_capped_at_five(): void
+    {
+        // The limit the defect borrowed is still correct FOR THE LIST it was written for - only the
+        // total was wrong. Pinned so the fix cannot be taken as "remove the limit everywhere".
+        $driver = $this->makeUser();
+        for ($i = 0; $i < 7; $i++) {
+            $this->makeRide($driver->id, ['created_at' => now()->subMinutes($i)]);
+        }
+
+        $profile = $this->service->getDriverProfile($driver->id);
+
+        $this->assertCount(5, $profile['recent_rides'], 'recent_rides is a page of five');
+        $this->assertEquals(7, $profile['stats']['total_rides'], 'while total_rides is the real total');
     }
 
     public function test_get_driver_profile_recent_rides_limited_to_five(): void
@@ -1439,15 +1480,31 @@ class AdminDriverServiceTest extends TestCase
         $this->assertEquals('Month', $result['period_label']);
     }
 
-    public function test_get_verification_efficiency_unrecognized_period_falls_back_to_week_bounds(): void
+    public function test_get_verification_efficiency_unrecognized_period_echoes_the_window_it_actually_used(): void
     {
+        // RV-19 item 5: FLIPPED. This asserted `period: 'year'` alongside `period_label: 'Week'` -
+        // i.e. it pinned a response that told the caller it had a year and had given it a week.
+        // `resolvePeriodBounds()` still falls back to week for an unknown value (rejecting it would
+        // be an API change), but the response now echoes the RESOLVED label, so the two keys agree
+        // and the caller can see which window the numbers describe.
         $result = $this->service->getVerificationEfficiency('year');
 
-        // 'period' echoes back whatever the caller passed...
-        $this->assertEquals('year', $result['period']);
-        // ...but resolvePeriodBounds() silently treats anything that isn't
-        // 'day' or 'month' as a week-length window.
+        // `period` now carries the RESOLVED value, lowercase, exactly as the known-period case
+        // echoes it; `period_label` is its title-cased form. The pair is self-consistent, which is
+        // the whole point - the caller can no longer be told 'year' and handed a week.
+        $this->assertEquals('week', $result['period']);
         $this->assertEquals('Week', $result['period_label']);
+    }
+
+    public function test_get_verification_efficiency_a_known_period_is_echoed_unchanged(): void
+    {
+        // The counterpart: the fix must not make a legitimate request report the wrong window.
+        foreach (['day', 'month', 'week'] as $period) {
+            $result = $this->service->getVerificationEfficiency($period);
+
+            $this->assertEquals($period, $result['period']);
+            $this->assertEquals(ucfirst($period), $result['period_label']);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════

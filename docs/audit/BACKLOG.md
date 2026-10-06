@@ -516,7 +516,7 @@ acceptance conditions, not implementation instructions.
   legs sum to 0.01` verbatim; byte-identical restore; bisect 614/1613/16F at HEAD vs 642/1657/16F after with an
   EMPTY failure-set diff. Boundary baseline untouched (`models_to_enums` fails only on the known
   Complaint/Employee/Wallet trio, row 106).
-  **Still open here:** item 2 (admin earnings still derived, not read from the ledger) and item 5
+  **R2 sec 76: item 5 DONE** - 	otal_rides counted a relation eager-loaded ->limit(5) (a driver with 7 rides reported 5); suspended_drivers was hard-coded 0 while the same screen's table filter listed them; an unknown period got a week window but echoed the REQUESTED value, so period and period_label contradicted each other. All three needles fire; the three bug-pinning tests FLIPPED to corrected behaviour, none weakened. **Still open here:** item 2 (admin earnings still derived, not read from the ledger - report-semantics question) and item 4 (config/system_admin.php is ABSENT, so VerificationRepository:69's config('system_admin.email') is null and the new-driver rating seed NEVER runs - proven, but every fix is a product decision)
   (`AdminDriverServiceTest` still pins the bugs).
 - `config/system_admin.php` exists (the `V8` finding) or the read sites are deleted, so revenue is not silently 0.
 - `AdminDriverServiceTest` stops pinning the bugs (`total_rides` capped by an eager-load limit, `suspended_drivers`
