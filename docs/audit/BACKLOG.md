@@ -190,7 +190,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 46 | RV-26 | Staff/admin authorization matrix | P2 | GATED | 1a - ANSWERED (A); row stays GATED on purpose: do not "fix" a refuted premise | **headline refuted by T2-2's own fix text** | R2 sec 28.1 GATED; no commit |
 | 47 | RV-27 | Push pipeline cannot deliver | P1 | VERIFIED FIX | n/a | T3-14, T2-8 | R2 sec 28.2, sec 28.5 VF (decision-free core); 364c3db - FCM keys = ops, sec 5 |
 | 48 | RV-29 | Auth hardening batch | P2 | PARTIAL | 5 - DEFERRED by the owner, deliberately | **T4-5** item 4, AF-4b | R2 sec 28.6 slice1 VF, sec 28.9 slice2 proven/gated, sec 29.10 item3 VF, sec 34 VF (ratchet); bc6acaa + 4185af3 + 1d68c07; R2 sec 48 (un11: auth cache DTO - password hash no longer reaches the cache backend, auto-lift hazard closed) `8732a0e`. Remaining item is decision 5 (driver phone visibility), deferred to the owner. |
-| 49 | RV-19 | Fake or derived numbers in admin | P2 | PARTIAL | 10, un7 - ANSWERED; remainder decision-free | V8 | R2 sec 28.4, sec 28.7 VF (slice 1), sec 30 item 6; bc49fc6 |
+| 49 | RV-19 | Fake or derived numbers in admin | P2 | PARTIAL | 10, un7 - ANSWERED; item 3 DONE, items 2/4/5 open | V8 | R2 sec 28.4, sec 28.7 VF (slice 1), sec 30 item 6; **`R2 sec 71`** (95/5 split unified; ride-level settlement no longer throws on odd-tenth prices) |
 | 50 | RV-23 | Complaints (context, routing, notifications) | P2 | VERIFIED FIX | n/a | RV-31 | R2 sec 28.3 slice1 VF, sec 28.8 slice2 VF; c59fed6 + bfc6fd6; **R2 sec 63 - the three recorded remainders verified satisfied: (a) the `GET` auto-transition is the owner's INTENDED transparency feature (un6), (b) each party is notified exactly once (no duplicate), (c) public `no_show` rejection is already pinned by `test_store_rejects_the_internal_no_show_type` citing the owner decision. No code change needed; 73 tests OK** |
 | 51 | RV-28 | Infrastructure hardening | P2 | VERIFIED FIX | n/a | V7 (never run); RV-05 | R2 sec 31 VF (app/config core); 8ece5af - infra halves are deploy-surface, sec 5 |
 | 52 | RV-30 | Data model hygiene | P3 | VERIFIED FIX | n/a | V9 | R2 sec 32 VF (index + `down()` correctness); c785f73 - recorded items sec 5 |
@@ -477,6 +477,21 @@ acceptance conditions, not implementation instructions.
   from the ledger rather than derived as `seats x price x 0.95`, so cash rides and cancellation payouts report truthfully.
 - The 5% platform fee lives in `config/fees.php` and one money helper, replacing the four hard-codings
   (`WalletTransactionService`, `AdminDriverService`, `SyrideSeeder`, docs).
+  **DONE (`R2 sec 71`)**, and it uncovered a live crash on the way. Two of the sites rounded each share
+  independently - `round($total*0.95,2)` and `round($total*0.05,2)` - which do NOT always sum to `$total`; they
+  diverge by a cent for every total ending in an odd tenth (0.10, 99.90, 1000.50...). `postTransfer` refuses
+  unbalanced legs, so `releaseEarningsToDriver` and `processPassengerNoShow` **threw**, and because
+  `checkAndCompleteRide` is one transaction the ride could never finish and every later confirm threw again -
+  a concrete instance of RV-10's escrow-liveness criterion. Every fixture and the seeder use whole numbers,
+  which is why it survived. Owner ruled: driver gets `round(total x 0.95)`, platform gets the remainder (the form
+  `releaseEscrowToDriver` already used). Now `config/fees.php` + `App\Support\FeeSplit`, whose subtraction is
+  exact in integer minor units via the existing `Money` value object; the `AdminDriverService` SQL literal is now
+  a bound parameter. Needle both ways - the old form reproduces `Refusing to post an unbalanced ledger transfer:
+  legs sum to 0.01` verbatim; byte-identical restore; bisect 614/1613/16F at HEAD vs 642/1657/16F after with an
+  EMPTY failure-set diff. Boundary baseline untouched (`models_to_enums` fails only on the known
+  Complaint/Employee/Wallet trio, row 106).
+  **Still open here:** item 2 (admin earnings still derived, not read from the ledger) and item 5
+  (`AdminDriverServiceTest` still pins the bugs).
 - `config/system_admin.php` exists (the `V8` finding) or the read sites are deleted, so revenue is not silently 0.
 - `AdminDriverServiceTest` stops pinning the bugs (`total_rides` capped by an eager-load limit, `suspended_drivers`
   always 0, unknown `period` silently treated as week) and is flipped to assert the corrected behavior.

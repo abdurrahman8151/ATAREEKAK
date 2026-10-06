@@ -313,11 +313,13 @@ final class AdminDriverService
             ? round(($cancelledRides / $totalRides) * 100, 1)
             : 0.0;
 
-        // Earnings = SUM(seats × price_per_seat × 0.95) across completed bookings
+        // Earnings = SUM(seats × price_per_seat × driver share) across completed bookings.
+        // RV-19: the rate is bound from config instead of written into the SQL, so the platform's
+        // cut is defined in exactly one place. The arithmetic is unchanged.
         $totalEarnings = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->where('rides.driver_id', $driverId)
             ->where('bookings.status', 'completed')
-            ->selectRaw('SUM(bookings.seats * rides.price_per_seat * 0.95) as total')
+            ->selectRaw('SUM(bookings.seats * rides.price_per_seat * ?) as total', [(float) config('fees.driver_share_rate', 0.95)])
             ->value('total') ?? 0.0;
 
         // ── Recent rides ──────────────────────────────────────────────────────

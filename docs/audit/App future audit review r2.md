@@ -6095,3 +6095,87 @@ escrow with its age and amount, moving no money, so the policy can be chosen fro
 decision-free and was deliberately NOT built here only because it was not asked for - say the word and it is a
 small, contained command.
 
+## 71. RV-19 item 3 - one 95/5 split, and the ride-level settlement could THROW - **VERIFIED FIX**
+
+Working the last decision-free remainder. Item 3 said the 5% platform fee should live in
+`config/fees.php` and one helper, replacing four hard-codings. Reading those four sites to do it turned up a
+**live crash**, which is the reason this section is longer than a config refactor.
+
+**THE DEFECT.** Two of the four sites computed the split as two INDEPENDENT roundings:
+
+```php
+$driverShare  = round($total * 0.95, 2);
+$primaryShare = round($total * 0.05, 2);
+```
+
+**Those two lines do not always sum to `$total`.** Swept over every 2-decimal total from 0.01 to 2000.00:
+the first divergence is `total = 0.10`, and they recur every 0.20 - every total ending in an odd tenth
+(0.10, 0.30, 0.50, 99.10, 99.90, 250.70, 500.30, 1000.50, 1234.50). Whole-cent totals (5000.00, 1500.00) balance
+exactly, which is why this survived: **every fixture and the seeder use whole numbers** (`SyrideSeeder` draws
+`rand(3000, 25000)`), so the whole-cent case is the only one that was ever exercised.
+
+At 1000.50 the exact split is driver 950.475 / platform 50.025. Independent rounding yields 950.48 + 50.03 =
+**1000.51** - one cent more than was debited from escrow.
+
+**WHAT THAT DID WAS NOT A SILENT CENT LEAK, AND THAT IS THE INTERESTING PART.**
+`LedgerService::postTransfer` validates that legs sum to zero and throws rather than record an unbalanced
+entry ("Money is only conserved if every credit has a matching debit... recording it would make the ledger
+lie"). So the third site - the one that already subtracted, with the comment "subtract to avoid float drift" -
+was the only one that worked, and the other two made `releaseEarningsToDriver` and `processPassengerNoShow`
+**throw**. Because `checkAndCompleteRide` wraps completion in one transaction, the ride could never reach
+FINISHED, bookings never became `completed`, no scores were recorded, and **every later confirmation threw
+again** - permanently. This is a concrete, non-speculative instance of RV-10's escrow-liveness criterion
+(§70): escrow that never moves because a confirmation can never complete.
+
+**THE OWNER WAS ASKED, because this is money and the two formulations differ by a cent in a real direction.**
+Ruling: **driver gets `round(total x 0.95)`, platform gets the remainder.** That is what `releaseEscrowToDriver`
+had already chosen, so this makes the paths consistent rather than inventing a policy.
+
+**DELIVERED.**
+- `config/fees.php` (new) - the single home for `driver_share_rate` / `platform_fee_rate`, with the arithmetic
+  trap documented where the next reader will hit it.
+- `app/Support/FeeSplit.php` (new) - one `driverAndPlatform(float): array{driver, platform}`. The subtraction
+  is done in **integer minor units** via the existing `App\Domain\ValueObjects\Money` (integer fils), so it is
+  exact by construction rather than by careful rounding. Reusing the project's own value object also avoids
+  introducing a float-based helper when one already exists.
+- `WalletTransactionService` - all three sites now call it (two were broken, one was already correct and is now
+  consistent). `releaseLegs()` is provided so a caller posting a transfer cannot rebuild the arithmetic and lose
+  the balance guarantee.
+- `AdminDriverService:320` - the SQL literal `* 0.95` is now a **bound parameter** from config. Arithmetic
+  unchanged. NOTE: this file is one of the owner's pre-existing modified files; only that one expression was
+  touched, and it is staged explicitly so nothing else of the owner's rides along.
+- `SyrideSeeder:633` - reads `fees.platform_fee_rate`.
+
+**NEEDLE, BOTH DIRECTIONS.** Restoring the independent rounding at all three sites makes
+`the_95_5_settlement_completes_for_a_price_that_used_to_refuse_the_transfer` fail with the **production
+error verbatim** - `RuntimeException: Refusing to post an unbalanced ledger transfer: legs sum to 0.01` - and the
+structural guard `no_money_path_carries_its_own_copy_of_the_rates` fail too. Service restored byte-identically
+(SHA256) and both pass again.
+
+**THE TEST SET IS DELIBERATELY NOT VACUOUS.** `RV19FeeSplitTest` includes a guard that recomputes the old form
+and asserts it really did produce the 0.01 imbalance, so the "shares must sum" assertions cannot pass by
+accident. The behavioural proof is in `DoubleEntryLedgerTest` - a real charge and a real
+`releaseEarningsToDriver` at `price_per_seat = 1000.50`, asserting driver 950.48 / platform **50.02, not 50.03**.
+That test is the one that matters: it exercises the actual affected code path, not just the helper.
+
+**NO REGRESSION - controlled bisect.** Payment + Wallet + Unit/Domain + Admin + Config + Unit/Providers +
+Review, with the two services and the ledger test swapped to their HEAD blobs and the new test moved aside:
+**HEAD 614 tests / 1613 assertions / 16 failures** versus **642 / 1657 / 16** after. **The failure name sets are
+identical and the diff is EMPTY.** All 16 are pre-existing (`AdminDashboardControllerTest` x9,
+`RV39SeederHygieneTest` x2, `WalletTest` OTP x3, `KycActionGateTest`, `SharedTestSupportTest`). `pint --test`
+PASS on all changed files.
+
+**BOUNDARY GATE.** A file was added under `app/`, so the gate was run. `models_to_enums` fails on
+`Models/Complaint.php`, `Employee.php`, `Wallet.php` - the **known pre-existing** trio recorded as BACKLOG row
+106 (RV-11-B). The new file is `app/Support/`, which the rule does not cover, and it imports
+`Domain\ValueObjects\Money`, not an enum. **Baseline untouched.** `Services -> Domain` is not a ruled edge
+(only `Domain -> Services/Models/Http` is), so reusing `Money` there is allowed.
+
+**STILL OPEN IN RV-19 - the other items were not touched.** Item 2 (admin "earnings" derived as
+`seats x price x 0.95` instead of read from the ledger, so cash rides and cancellation payouts misreport) is
+**still unfixed** and is a genuine report-semantics question - reading from the ledger makes drivers who take
+cash rides show 0 wallet earnings, which is truthful about wallet money but may not be what "total earnings"
+should mean to an admin. Item 4 (`config/system_admin.php`, the V8 finding) and item 5 (the
+`AdminDriverServiceTest` tests that pin `total_rides`, `suspended_drivers` and the silent `period` default) are
+untouched. Row stays **PARTIAL**.
+

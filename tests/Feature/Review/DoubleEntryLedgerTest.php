@@ -250,6 +250,70 @@ class DoubleEntryLedgerTest extends TestCase
     }
 
     /**
+     * RV-19: the same settlement at a price the old arithmetic could not handle.
+     *
+     * The tests around this one use whole numbers, which is precisely why the defect survived: with
+     * a whole-cent total, rounding each share independently still happens to sum back to the total.
+     * At 1000.50 it does not - it over-credits by a cent - and `postTransfer` REFUSES the transfer,
+     * so the ride could never reach FINISHED and every later confirmation threw again.
+     *
+     * @test
+     */
+    public function the_95_5_settlement_completes_for_a_price_that_used_to_refuse_the_transfer(): void
+    {
+        $ride = RideBuilder::forUserId($this->driver->id)
+            ->withAttributes([
+                'pickup_address' => 'Damascus', 'destination_address' => 'Aleppo',
+                'available_seats' => 4, 'price_per_seat' => 1000.50,
+                'payment_method' => 'e-pay', 'booking_type' => 'direct',
+                'status' => 'active', 'communication_number' => '0911000001',
+            ])
+            ->departureTime(now()->subHour())
+            ->create();
+
+        $booking = Booking::create([
+            'user_id' => $this->passenger->id, 'ride_id' => $ride->id,
+            'seats' => 1, 'status' => 'confirmed',
+            'communication_number' => '0912345679',
+            'unit_price' => 1000.50, 'amount_paid' => 1000.50, 'payment_method' => 'e-pay',
+        ]);
+
+        $this->service->chargePassengerForBooking($booking, $ride, $this->passenger);
+        LedgerEntry::query()->delete();   // isolate: measure the settlement's own legs
+
+        $driverWallet = Wallet::create([
+            'user_id' => $this->driver->id,
+            'phone_number' => '095'.rand(100000, 999999),
+            'wallet_number' => 'WLT-'.substr(bin2hex(random_bytes(5)), 0, 12),
+            'balance' => 0,
+        ]);
+        $this->driver->update(['wallet_id' => $driverWallet->id]);
+
+        // THE REGRESSION: this call used to throw "Refusing to post an unbalanced ledger transfer".
+        $this->service->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
+
+        $legs = LedgerEntry::orderBy('id')->get();
+        $this->assertCount(3, $legs, 'the 95/5 split is one transfer with three legs');
+        $this->assertSame(0.0, round((float) $legs->sum('amount'), 2),
+            'THE INVARIANT: the shares must sum to the escrow debit exactly, or postTransfer() refuses');
+
+        $this->assertSame(-1000.50, (float) $legs->firstWhere('wallet_id', $this->syCashWallet()->id)->amount);
+        $this->assertSame(
+            950.48,
+            (float) $legs->firstWhere('wallet_id', $driverWallet->id)->amount,
+            'driver keeps round(total x 0.95)'
+        );
+        $this->assertSame(
+            50.02,
+            (float) $legs->firstWhere(
+                'wallet_id',
+                Wallet::where('phone_number', config('admin.system_admin.phone'))->value('id')
+            )->amount,
+            'the platform takes the remainder (owner ruling), NOT round(total x 0.05) = 50.03'
+        );
+    }
+
+    /**
      * THE INVARIANT THAT MAKES THE LEDGER TRUSTWORTHY, not merely balanced.
      *
      * `postTransfer` checks that a transfer's own legs sum to zero. That is necessary but NOT

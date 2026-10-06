@@ -8,6 +8,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Support\FeeSplit;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -205,8 +206,11 @@ class WalletTransactionService
             return;
         }
 
-        $driverShare = round($total * 0.95, 2);
-        $primaryShare = round($total * 0.05, 2);
+        // RV-19: one definition of the 95/5 split. This used to round each share independently,
+        // which produced legs summing to one cent MORE than the escrow debit for any total ending
+        // in an odd tenth (1000.50 -> 950.48 + 50.03 = 1000.51), so postTransfer() refused the
+        // transfer and the ride could never complete. See App\Support\FeeSplit.
+        ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);
 
         $syCashWallet = $this->lockWalletByPhone(config('admin.sycash.phone'));
         $primaryWallet = $this->lockWalletByPhone(config('admin.system_admin.phone'));
@@ -734,8 +738,11 @@ class WalletTransactionService
     public function processPassengerNoShow(Booking $booking, Ride $ride, User $passenger): void
     {
         $total = $booking->seats * $ride->price_per_seat;
-        $driverShare = round($total * 0.95, 2);
-        $primaryShare = round($total * 0.05, 2);
+        // RV-19: one definition of the 95/5 split. This used to round each share independently,
+        // which produced legs summing to one cent MORE than the escrow debit for any total ending
+        // in an odd tenth (1000.50 -> 950.48 + 50.03 = 1000.51), so postTransfer() refused the
+        // transfer and the ride could never complete. See App\Support\FeeSplit.
+        ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);
 
         $syCashWallet = $this->lockWalletByPhone(config('admin.sycash.phone'));
         $driverWallet = $this->lockWalletByUserId($ride->driver_id);
@@ -1010,8 +1017,9 @@ use App\Models\Booking;
     public function releaseEscrowToDriver(Booking $booking, Ride $ride, User $driver): void
     {
         $total = round((float) ($booking->seats * $ride->price_per_seat), 2);
-        $driverShare = round($total * 0.95, 2);
-        $primaryShare = round($total - $driverShare, 2); // subtract to avoid float drift
+        // RV-19: routed through the same helper as the other two sites. This one already
+        // subtracted, which is why it was the only path that worked for the affected totals.
+        ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);
 
         // ── Lock all three wallets (same order as everywhere else to prevent deadlock) ──
         $syCashWallet = $this->lockWalletByPhone(config('admin.sycash.phone'));

@@ -630,7 +630,10 @@ class SyrideSeeder extends Seeder
         $seats = rand(1, 4);
         $pricePerSeat = rand(3000, 25000);
 
-        $feeAmount = (int) round($pricePerSeat * $seats * 0.05);
+        // RV-19: the platform rate comes from config/fees.php - the same value the real money paths
+        // use, so seeded data cannot disagree with what the app would actually charge. Note the
+        // seeded price is a whole number, which is why seeding never surfaced the split bug.
+        $feeAmount = (int) round($pricePerSeat * $seats * (float) config('fees.platform_fee_rate', 0.05));
         $payment = rand(0, 2) === 0 ? 'e-pay' : 'cash';
 
         if ($payment === 'e-pay') {
