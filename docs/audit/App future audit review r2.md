@@ -5660,3 +5660,106 @@ change** (git-stash bisect, 0 new).
 elsewhere; (c) the broad-catch-returns-422 status question (owner); (d) the `{success,data,error}`
 envelope (owner, changes what the Flutter client parses); (e) migrating the 61
 `\InvalidArgumentException` throw sites to the typed `Domain\` subclasses (section 64).
+
+### 64.5 RV-13 sweep slice 6 - `RideController`, the owner-owned file (15 -> 0) - **VERIFIED FIX**
+
+**THE HEAD-RECONSTRUCTION, AND THE RESTORE PROOF.** `RideController` carries uncommitted owner edits
+(the RV-38 eager-loads), so the sweep could not be committed straight from the working tree. `5fb1a4b`
+was built as `git show HEAD:<file>` + the sweep applied, committed on its own, and the owner's edits
+restored afterwards. The restore was verified **byte-for-byte**: SHA256 `15F020DE...` before and after.
+`git diff HEAD -- RideController.php` shows only the owner's own eager-load hunks, so the sweep really is
+in the commit and not silently left in the working tree.
+
+**THE SWEEP.** All 15 remaining broad-catch leaks were replaced: the exception text moved to
+`Log::error(...)` carrying `user_id` / `booking_id` / `class` / `file` / `line`, and the client receives a
+stable sentence. **The sweep changed MESSAGE TEXT ONLY - not one HTTP status literal moved.** That is
+measured, not assumed: the multiset of status literals in the file is `201x3 400x1 403x1 404x2 422x9 500x8`
+(24 total) both before and after, and is identical as a multiset. That is what makes the bisect below exact
+rather than approximate.
+
+The 3 `catch (\InvalidArgumentException $e)` sites still returning `$e->getMessage()` are **named** catches
+and are correctly NOT counted by section 64.3's rule - they return app-authored rule messages.
+
+**Ratchet baseline 15 -> 0.** `ExceptionMessageLeakRatchetTest` OK (5 tests, 7 assertions) at 0.
+
+**Needle, both directions.** Reintroducing one leak at a `\Throwable` catch
+(`'message' => 'Ride creation failed: '.$e->getMessage()`) - a syntactically VALID insertion, `php -l`
+clean, which matters because an earlier attempt in this audit inserted a line mid-expression and proved
+nothing - fails the ratchet with 2 failures and the message "the baseline is 0 and may only fall". The
+controller then restores **byte-identically** (SHA256 verified equal) and the ratchet passes again.
+
+**REGRESSION BISECT - identical selection, identical result.** `tests/Feature/Rides`,
+`tests/Feature/Bookings`, `tests/Unit/Domain`, run twice with only the controller swapped:
+
+| Controller under test | Result |
+|---|---|
+| swept (HEAD `5fb1a4b`) | Tests: 211, Assertions: 321, Failures: 4, Skipped: 2 |
+| pre-sweep (`5fb1a4b^`) | Tests: 211, Assertions: 321, Failures: 4, Skipped: 2 |
+
+Identical totals AND identical failure names: `test_passenger_can_confirm_completion`,
+`test_passenger_confirm_fails_for_active_ride`, `test_non_passenger_cannot_confirm_completion`,
+`test_ride_creation_does_not_charge_any_fee`. **Zero regressions** from the sweep. (These 4 are
+pre-existing and belong to the `passenger-confirm` flow, not to the leak sweep.)
+
+**A REAL COMMITTED DEFECT FOUND HERE - AND A FALSE ALARM CORRECTED.** `pint --test` failed on both RV-13
+test files. Only ONE of them was real:
+- **REAL:** `DomainExceptionMappingTest.php` was committed with **no newline at end of file**
+  (`\ No newline at end of file`), failing `single_blank_line_at_eof`. This would have turned the
+  `pint.yml` CI gate red on the branch. Fixed (that single byte is the whole change).
+- **NOT REAL:** `ExceptionMessageLeakRatchetTest.php` reported CRLF, but the **committed blob is pure
+  LF** - `.gitattributes` sets `* text=auto eol=lf`, and `git hash-object` of the working tree equals the
+  HEAD blob exactly. The CRLF was a local artifact of how the file happened to be written, invisible to
+  CI. Pint normalised it locally and the file is byte-identical to HEAD. Recorded so the next session
+  does not chase a CI failure that never existed, and does not "fix" it a second time.
+
+**Verified after both changes:** `DomainExceptionMappingTest` + `ExceptionMessageLeakRatchetTest`
+= 11 tests, 28 assertions, OK (exit 0); `pint --test` PASS on both.
+
+**Still open for RV-13, unchanged by this slice:** (a) migrating the 61 `\InvalidArgumentException` throw
+sites to the typed `Domain\` subclasses - they still rely on the base-class mapping, so the code is a
+generic `DOMAIN_RULE_VIOLATION` rather than one per rule; (b) the `$e->getCode() ?: 500` pattern elsewhere
+in the codebase, where an exception CODE is answered as an HTTP status (section 64.4); (c) broad catches
+that still answer 422 - a client-visible contract question reserved to the owner; (d) the
+`{success,data,error}` envelope (un4 - it changes what the Flutter client parses); (e) the
+`assertNotEquals` ratchet, still deferred for the reason R2 sec 20.2 gave.
+
+## 65. `BACKLOG.md` itself was corrupt - the status authority had 3 unreadable commit hashes - **VERIFIED FIX**
+
+Found while closing sec 64.5, because the file could not be edited: the edit tool refused it as a **binary** file.
+That was not a tooling quirk - it was the defect.
+
+**THE DEFECT.** `docs/audit/BACKLOG.md` - the file `STATE.md` points to as the single source of truth for status -
+contained **3 NUL bytes and 1 backspace (0x08)** committed inside its Evidence column:
+
+| Row | Committed bytes | Meant | Resolves in git to |
+|---|---|---|---|
+| RV-01 | `\0` `66b1dd` / `0x08` `4885d8` | `066b1dd` / `b4885d8` | "Decision 1b: staff-authenticated KYC document streaming" / "keep the boundary baseline at 21" |
+| RV-01 | `\0` `c6a1f6` | `0c6a1f6` | "Decision 11: pin the KYC action gate" |
+| RV-38 | `\0` `0f7b9d` | `00f7b9d` | "un9: fix the service-layer lazy-loading N+1 sites" |
+
+So the leading `0`/`b` of three commit hashes was replaced by a control byte. Every hash was still **provably the right
+one** (all five resolve in git, with subjects that match their surrounding sentence exactly, and `STATE.md` records the
+same three independently), which is why it went unnoticed - but the token was unreadable to any tool, including
+`BACKLOG.md`'s own section-3 self-verification command, which regex-matches `\b[0-9a-f]{7,40}\b`.
+
+**A SECOND, LATENT DEFECT THE NUL BYTES WERE HIDING.** `.gitattributes` sets `* text=auto eol=lf`, so every file in
+this repo is stored with LF. `text=auto` means *detect*: a file containing NUL is classified **binary**, and git does
+not normalise line endings for binary content. The NUL bytes therefore silently disabled the repo's own line-ending
+policy for this one file - its committed blob is **667 CRLF, 0 LF** (measured on the raw blob, not on a re-joined
+copy). Removing the corruption makes git classify the file as text again, so the next commit stores it as LF, as
+`.gitattributes` always intended. **The diff for this file is therefore whole-file (667 lines) even though only 4
+bytes of content changed** - that is the line-ending normalisation, not an edit, and it is the correct end state.
+
+**THE FIX.** The 4 control bytes were replaced with the intended `0`/`0`/`0`/`b` characters. Verified three ways:
+(1) the file no longer contains any NUL or control byte; (2) all 5 restored hashes resolve with matching subjects;
+(3) a direct content comparison against `HEAD` shows the ONLY differences are those 4 bytes plus the two intentional
+RV-13 row/acceptance edits - nothing else in the 667-line file moved.
+
+**Why it mattered rather than being cosmetic.** The BACKLOG is the file the next-task rule reads. A status authority
+that cannot be edited, and whose commit references cannot be verified by its own self-check command, is a place where
+a later session silently loses work or re-verifies nothing.
+
+**Genuinely unverified.** How the control bytes entered the file is not established - the corruption is committed, so
+it predates this session, but no introducing commit was bisected. It is consistent with a PowerShell/console write
+that mangled a non-ASCII character, but that is an inference, not a finding, and it is recorded as such.
+

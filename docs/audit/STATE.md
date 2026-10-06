@@ -51,6 +51,19 @@ with each status taken from the newest section that mentions it. The per-task lo
   - verify later), 12 (moot), un6 (no change).
 
 ## Done recently (newest first; detail is in the audit record)
+- RV-13 leakage half CLOSED + `BACKLOG.md` corruption fixed - VERIFIED FIX (`App future audit review r2.md` sec 64.5
+  and sec 65). The previous session committed the `RideController` sweep (`5fb1a4b`, ratchet 15 -> 0) but died
+  before writing the record, so it was verified rather than trusted: ratchet OK at 0; needle proven in BOTH
+  directions (one leak reintroduced -> 2 failures; restore byte-identical by SHA256); and the scoped regression run
+  is identical swept vs pre-sweep (211 tests / 321 assertions / 4 failures, same 4 names) - **zero regressions**.
+  Measured, not assumed: the sweep moved no HTTP status literal (24 status literals, same multiset both ways).
+  Also fixed a REAL CI-breaking defect it had committed - `DomainExceptionMappingTest.php` had no final newline, which
+  fails `pint --test`. A second Pint complaint was investigated and found to be a **local artifact, not a CI failure**
+  (the committed blob is LF; `git hash-object` equals the HEAD blob). Separately, `BACKLOG.md` - this file's status
+  authority - had 3 NUL bytes + 1 backspace committed inside commit hashes, which made it binary to every tool; the 4
+  bytes were restored (all 5 hashes resolve, subjects match, and the line numbers above corroborate two of them).
+  Removing the NULs also lets `.gitattributes`' `eol=lf` apply again, so that file's next commit is whole-file in the
+  diff - that is normalisation, not an edit.
 - RV-37 CLOSED as VERIFIED FIX (owner instruction) - `App future audit review r2.md` sec 39 / 39.1 /
   39.2 / 39.3; commits c45e05e (order), a087342 (hermeticity), eaa7f14 (tracked-file ratchet + CI
   double-run), plus this record. CI then ran for the first time on `Agentic` (owner authorised the

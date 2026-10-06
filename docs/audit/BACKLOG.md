@@ -154,7 +154,7 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 | 16 | V16 | All-seats cancel vs `cancelBooking` | P1 | RECORDED | n/a | feeds RV-02 L1 (refuted), RV-09, decision 14 | R2 sec 4, sec 9; c1bb4c7 - ledger+score equivalent; whole-booking route absent |
 | 17 | RV-07 | Committed secrets and stale credentials | P0 | VERIFIED FIX | n/a | RV-37 (V13 leaks), T1-3/T2-8 (same class) | R2 sec 10, sec 12; 0c0ea3c - agent-side only; rotation+history purge recorded sec 5 |
 | 18 | RV-06 | Horizon dashboard unauthenticated; nginx upstream leak | P0 | VERIFIED FIX | n/a | - | R2 sec 11, sec 12; 896c331 |
-| 19 | RV-01 | KYC documents exposed (IDOR + public storage + unsafe names) | P0 | PARTIAL | private-disk move | supersedes AF-5's scope; feeds RV-31 | R2 sec 13, sec 1.1; 95ad30d - authz+names fixed; R2 sec 46 (1b: staff streaming route + CacheStatusHeader binary fix)  66b1dd/4885d8; R2 sec 45 (11: action gate pinned)  c6a1f6 - old public URLs still resolve until the files move |
+| 19 | RV-01 | KYC documents exposed (IDOR + public storage + unsafe names) | P0 | PARTIAL | private-disk move | supersedes AF-5's scope; feeds RV-31 | R2 sec 13, sec 1.1; 95ad30d - authz+names fixed; R2 sec 46 (1b: staff streaming route + CacheStatusHeader binary fix) 066b1dd/b4885d8; R2 sec 45 (11: action gate pinned) 0c6a1f6 - old public URLs still resolve until the files move |
 | 20 | RV-04 | JWT integrity (staff->user replay, empty secret, TTL) | P0 | PARTIAL | 9 | AF-4b (Sanctum already gone) | R2 sec 14, sec 12; d5043b5 - replay+boot guard fixed |
 | 21 | RV-05 | Client IP wrong behind nginx | P0 | VERIFIED FIX | n/a | V4 | R2 sec 15, sec 12; 09e86c5 - both halves; `TRUSTED_PROXIES` value is ops (sec 31) |
 | 22 | RV-02 | No-show settlement can pay twice / mispay (L1 + L2) | P0 | PARTIAL | 2, 3 (L2) | L1 refuted by V16; L2 = AF-6/Wave 3; consumes `void` enum (RV-40) | R2 sec 16 (L1 VF), sec 26.14 item 3 (L2 0%, Wave 3 PAUSED); ba45e4b |
@@ -162,12 +162,12 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 | 24 | RV-34 | Shared test-support layer (both red root causes) | P1 | VERIFIED FIX | n/a | V15; T4-1 harness | R2 sec 17, sec 17.4; 5414344 - 443 -> 71 errors |
 | 25 | RV-37 | Test determinism and hermeticity | P2 | VERIFIED FIX | n/a | V13, V14; RV-18 (CI order) | R2 sec 23, sec 23.6 correction, sec 39 VF (order) + 39.1 VF (hermeticity) + 39.2 (tracked-file ratchet + CI double-run) + 39.3 (CI executed; pre-existing CI install breaks fixed); cd6a49a + c45e05e + a087342 + eaa7f14 + the closure commit. Closed by owner instruction 2026-10-03 |
 | 26 | RV-18 | CI signal (V6 driver leak, migration guards) | P1 | VERIFIED FIX | n/a | V6, AF-2' | R2 sec 24, sec 24.2 VF; 51b6ca7 - whole-suite red is separate debt (sec 24.1) |
-| 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 (halves 1-2 are unblocked) | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3 PARTIAL; 980741c |
+| 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 (envelope only); remainders (a)+(b) are decision-free | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3; `980741c` - **LEAKAGE HALF CLOSED, ratchet at ZERO**: R2 sec 64 `f9f536a` (Domain exceptions, domain violation 500 -> 422/403/409), sec 64.1 `a1c072c` (leak measured 47, shrink-only ratchet), sec 64.2 `3bfdaa4` (Chat 47->42), sec 64.3 `8d92b60` (ratchet was OVER-BROAD, 42->21), sec 64.4 `7a01fa5` (all non-owner controllers 21->15), sec 64.5 `5fb1a4b` (owner-owned RideController 15->0); needle proven both ways, 211 tests / 321 assertions / 4 failures IDENTICAL to pre-sweep |
 | 28 | RV-14 | Route/controller mismatches, lying endpoints | P1 | PARTIAL | distance/duration units (owner) | V10, V8; RV-40 did the price width | R2 sec 21, sec 21.1, sec 21.2 PARTIAL; 1c18c07 | R2 sec 62 (`create-with-route` now uses `CreateRideRequest` — the live endpoint had `min:0` price and no phone-format check, `3616636`; plus a pre-existing 500 `chosen_route_index` NOT NULL fixed) `3616636`; |
 | 29 | RV-16 | OTP and mail flows | P1 | PARTIAL | 4, 8 | RV-31 (mailers), T2-3/T2-4 | R2 sec 22, sec 22.4, sec 22.5, sec 29 (plaintext -> HMAC); cac4084 + d776c1f |
 | 30 | RV-22 | TLS and log hygiene leftovers | P1 | VERIFIED FIX | n/a | AF-1 (2/3 landed); V13 | R2 sec 26.15, sec 26.16 VF; 4239087 + b34df62 - slice 3 is deploy-surface (sec 30 item 2) |
 | 31 | RV-36 | Notification endpoints no-ops under JWT | P1 | VERIFIED FIX | n/a | V12 refuted the premise | R2 sec 25 VF; 2d6a55e - real defect was existence-oracle + silent no-op |
-| 32 | RV-38 | Eloquent strictness outside production | P2 | VERIFIED FIX | n/a | RV-24 (arming), T4-1 | R2 sec 29.2 VF (2 flags), sec 29.5 ROLLBACK, sec 35 ROLLBACK (premise), sec 36 VF (arming), sec 37 OFF; R2 sec 44 + 44.1 - sites fixed, flag ARMED, red set identical to flag-off baseline (87 entries both ways);  0f7b9d + 5bbadad |
+| 32 | RV-38 | Eloquent strictness outside production | P2 | VERIFIED FIX | n/a | RV-24 (arming), T4-1 | R2 sec 29.2 VF (2 flags), sec 29.5 ROLLBACK, sec 35 ROLLBACK (premise), sec 36 VF (arming), sec 37 OFF; R2 sec 44 + 44.1 - sites fixed, flag ARMED, red set identical to flag-off baseline (87 entries both ways); 00f7b9d + 5bbadad |
 | 33 | RV-35 | Stale and bug-pinning tests (inventory) | P2 | VERIFIED FIX | n/a | decision 12, sec 19.3 schema question | R2 sec 19, sec 19.5 VF; d381a7a - 71 -> 52 errors; inventory is the deliverable |
 | 34 | RV-08 | Deploy pipeline is broken | P1 | OPEN | 7 + placement (conflict 13) | V10 | R1 sec 4 RV-08, sec 7 Wave 2; R2 sec 6 omits it, sec 18.3 "placement: unconfirmed" |
 | 35 | RV-40 | Money schema additions (prereq for RV-02 L2, RV-09, RV-15) | P1 | VERIFIED FIX | n/a | AF-6 | R2 sec 26.1 VF, sec 26.12 VF (price width), sec 26.13 VF (one report/booking); caebbfa + f4d1df8 + 53fe8d1 | R2 sec 54 (decision 13: 18 DB ENUM columns -> varchar, `e93f3c5`, verified up+down, fail-loud rollback) `e93f3c5`; |
@@ -379,11 +379,19 @@ acceptance conditions, not implementation instructions.
 **RV-13 - error model** *(envelope = un4; halves 1-2 are decision-free and unblocked)*
 - `App\Exceptions\Domain\*` exists with a code + HTTP status per rule violation, and the 61 services currently throwing
   `InvalidArgumentException` throw domain exceptions instead, so a domain rule violation is no longer a 500.
+  **HALF DONE (`R2 sec 64`, `f9f536a`):** the hierarchy + `Handler` mapping ship and a domain violation answers
+  422/403/409 instead of 500. The 61 call sites still throw the base `InvalidArgumentException`, so they get one generic
+  `DOMAIN_RULE_VIOLATION` code rather than a per-rule one - that migration is the remaining decision-free work.
 - Controllers stop catching `Throwable` and stop returning `getMessage()`: 96 catch blocks and 121 `getMessage()`
   returns drop to the ratchet ceiling, so SQL text and table names stop reaching clients.
+  **DONE (`R2 sec 64.1`-`64.5`):** measured 47, ratcheted shrink-only, swept to **ZERO**. The ratchet counts only BROAD
+  catches, because 21 of the original 47 were app-authored messages under a NAMED catch (`sec 64.3`); the 3 remaining
+  `InvalidArgumentException` sites are correctly not counted.
 - `Handler::report`/`render` stop stripping the validation `errors` bag (the `V5` defect, fixed in `980741c`) -
   regression-pinned.
-- Only after those two halves: one envelope `{success,data,error{...}}` and the `assertNotEquals` ratchet over the 13
+- The `$e->getCode() ?: 500` pattern elsewhere: an exception CODE is not an HTTP status, so a caught database error can
+  currently become a hard failure inside the error handler. Decision-free, still open (`R2 sec 64.4`).
+- Only after those halves: one envelope `{success,data,error{...}}` and the `assertNotEquals` ratchet over the 13
   surveyed occurrences (`ProfileTest` 4, `NotificationTest` 3, `BookingTest` 3, `StaffComplaintControllerTest` 2,
   `ChatTest` 1) rewritten to exact statuses. Correction: writing "the exact status" today would enshrine 500s (`R2 sec 20.2`).
 
