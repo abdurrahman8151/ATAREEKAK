@@ -46,7 +46,19 @@ class BoundaryDependencyTest extends TestCase
         'request_in_services' => 1,
         'async_to_http' => 0,
         'controllers_to_models' => 21,
-        'models_to_enums' => 2,
+        // RV-11-B, owner decision D10 = A (2026-10-04): 2 -> 3. Raised ONCE, on instruction, with
+        // the edges named rather than a bare number - a bare raise is indistinguishable from drift.
+        //
+        // CORRECTION WORTH KEEPING: this edge is counted PER FILE that references `App\Enums`, not
+        // per enum, so the owner's list of four model/enum PAIRS maps to THREE counted edges. The
+        // three files are exactly:
+        //     Complaint  -> ComplaintStatus AND ComplaintType   (two enums, one edge)
+        //     Employee   -> StaffRole
+        //     Wallet     -> WalletKind
+        // The old budget was 2 "because Complaint, Employee" (see the R7 note above); `Wallet` arrived
+        // later. All three are genuine domain enums, not violations - the baseline predates them.
+        // Still a CEILING, not a target: a fourth file referencing Enums fails again.
+        'models_to_enums' => 3,
         'domain_to_models' => 10,
         'domain_to_http' => 0,
     ];
