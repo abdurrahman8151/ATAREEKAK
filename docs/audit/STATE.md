@@ -11,6 +11,16 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- OWNER DECISION NEEDED (RV-13a) - "R2 sec 69.1": should a domain rule violation's MESSAGE be visible in
+  production? `Handler:88` masks `\InvalidArgumentException` messages; `DomainException::toArray()` does not.
+  Migrating the 61+ sites would unmask them. Mask all / mask only non-app-authored / always show.
+- Done recently: RV-16 signup mail leaves the DB transaction - VERIFIED FIX (`R2 sec 69`).
+- IN PROGRESS RV-16 - mail must leave the signup DB transaction. Expect to change:
+  `app/Http/Controllers/API/SignupController.php` (PATH B: commit the user BEFORE sending the OTP),
+  NEW `tests/Feature/Review/RV16SignupMailAfterCommitTest.php`. No probe/backup left behind.
+  `AdminWalletRequestController`, `ProfileController`, `VerificationController` deliberately NOT touched.
+  NOTE: the mail-failure MESSAGE changes (the account now exists, so "Registration failed" would be a lie);
+  the JSON keys and the 500 status do not. Flagged as a copy change, not a shape change.
 - Done recently: RV-13(b) exception-code-as-status - VERIFIED FIX (`R2 sec 68`). Statuses and response
   shape deliberately UNCHANGED; zero-baseline ratchet added; regression proved by controlled bisect.
 - OWNER DECISION SLATE 2026-10-02 - ALL 18 DECISIONS DISPATCHED. Branch `Agentic` only, never pushed.

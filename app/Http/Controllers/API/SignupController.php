@@ -113,8 +113,24 @@ class SignupController extends Controller
         }
 
         // ── PATH B: new user ──────────────────────────────────────────────────
-        DB::beginTransaction();
+        // RV-16 (R2 sec 69): the account is committed BEFORE the mail is sent. The mail used to go
+        // out from inside this transaction, with a rollBack whenever the send failed.
+        //
+        // Rolling back is wrong in the one case that actually happens: SMTP can DELIVER the message
+        // and then time out before the response arrives. The user holds a real verification code for
+        // an account that was just deleted. They enter it, it fails, there is no account to verify,
+        // and the only way forward is a brand-new email address - while the address they just used
+        // now has no account at all.
+        //
+        // Committing first makes a mail failure recoverable instead. The resend branch above (PATH
+        // A) already handles exactly this state: the same signup POST finds the UNVERIFIED user and
+        // re-sends the code, deliberately without touching the password. So the account is the thing
+        // that must survive, and the message is something the user can ask for again.
+        //
+        // A mail failure can no longer roll back an account.
         try {
+            DB::beginTransaction();
+
             $user = $this->userRepository->createUser([
                 'first_name' => $request->first_name,
                 'last_name' => $request->last_name,
@@ -122,41 +138,13 @@ class SignupController extends Controller
                 'password' => Hash::make($request->password),
                 'gender' => $request->gender,
                 'address' => $request->address,
-                // FIX: was 1 (active) — user must verify email before they can
-                // log in. LoginController now enforces email_verified_at, but
-                // starting at 0 adds a second layer of defence.
+                // FIX: was 1 (active). The user must verify email before they can log in;
+                // LoginController enforces email_verified_at, and starting at 0 adds a
+                // second layer of defence.
                 'status' => 0,
             ]);
 
-            $dto = SendEmailOtpDTO::fromUser($user);
-            $otpResult = $this->emailOtpService->sendOtp($dto);
-
-            if (! $otpResult['success']) {
-                DB::rollBack();
-
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Registration failed: could not send verification email.',
-                ], 500);
-            }
-
             DB::commit();
-
-            // NOTE: the response intentionally does NOT include otp_code.
-            // Echoing the verification code in an API response turns any
-            // EMAIL_OTP_MODE misconfiguration (or a non-production default) into
-            // an instant account takeover. The code is delivered by email only;
-            // the dev affordance is the Log::info in EmailOtpService::sendOtp().
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Registration successful. Check your email for a verification code.',
-                'user' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'email' => $user->email,
-                ],
-            ], 201);
-
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Registration failed (Path B)', [
@@ -169,6 +157,42 @@ class SignupController extends Controller
 
             return $this->serverError($e);
         }
+
+        // Past this point the account EXISTS. Nothing below may roll it back.
+        $dto = SendEmailOtpDTO::fromUser($user);
+        $otpResult = $this->emailOtpService->sendOtp($dto);
+
+        if (! $otpResult['success']) {
+            // The wording changed with the behaviour: telling the user "Registration failed" when the
+            // row is already committed would push them to pick a DIFFERENT email address and orphan
+            // the one they just used. The status is still 500 - the request did not fully succeed -
+            // and the JSON keys are unchanged; only the sentence is now true.
+            Log::warning('Signup: account created but the verification email could not be sent', [
+                'user_id' => $user->id,
+                'email' => $request->email,
+                'reason' => $otpResult['message'] ?? null,
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your account was created, but we could not send the verification email. Please submit this form again to resend it.',
+            ], 500);
+        }
+
+        // NOTE: the response intentionally does NOT include otp_code.
+        // Echoing the verification code in an API response turns any
+        // EMAIL_OTP_MODE misconfiguration (or a non-production default) into an
+        // instant account takeover. The code is delivered by email only;
+        // the dev affordance is the Log::info in EmailOtpService::sendOtp().
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Registration successful. Check your email for a verification code.',
+            'user' => [
+                'id' => $user->id,
+                'first_name' => $user->first_name,
+                'email' => $user->email,
+            ],
+        ], 201);
     }
 
     private function serverError(\Throwable $e): JsonResponse

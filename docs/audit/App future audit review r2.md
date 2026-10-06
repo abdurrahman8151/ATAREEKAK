@@ -5977,3 +5977,72 @@ catch SPL `\DomainException` and would have to migrate together or the exception
 `InvalidArgumentException` sites remain untouched; `DomainExceptionMappingTest` still answers them 422 via the
 generic `DOMAIN_RULE_VIOLATION` code, which is correct and is the part already shipped.
 
+## 69. RV-16 - the signup verification mail leaves the DB transaction - **VERIFIED FIX**
+
+Next decision-free remainder by Order (RV-16, 29). **RV-13(a), the nominal next item, turned out NOT to be
+decision-free, and the reason is recorded below rather than discovered later.**
+
+**THE DEFECT.** `SignupController::register` PATH B opened `DB::beginTransaction()`, created the user,
+**sent the verification email from inside the transaction**, and `DB::rollBack()` whenever the send reported
+failure. Rolling back is wrong in the one case that actually happens: **SMTP can deliver the message and then
+time out before the response arrives.** The user then holds a real verification code for an account that was
+rolled back and no longer exists. They enter it, it fails, there is nothing to verify, and the only way on is a
+different email address - while the address they just used has no account at all. The mail succeeded; the
+database disagreed.
+
+**THE FIX.** The transaction now covers only the `users` row and commits first. The OTP send happens after the
+commit, where nothing may roll the account back. This makes the failure **recoverable**, because PATH A already
+handles exactly this state: the same signup POST finds the UNVERIFIED user and re-sends the code, deliberately
+without touching the password. So the account is the thing that must survive, and the message is something the
+user can simply ask for again.
+
+**A MESSAGE CHANGE, DECLARED.** On mail failure the response was `'Registration failed: could not send
+verification email.'`. That sentence is now false - the row is committed - and a user who believes registration
+failed will pick a DIFFERENT email and orphan the one they just used. It now says the account was created and to
+submit again to resend. **The status is still 500 and the JSON keys are unchanged** (`status`, `message`); only
+the sentence differs. This is copy, not shape, but it is called out because the behaviour changed with it.
+
+**NOTHING ELSE WAS TOUCHED.** `VerificationController` and `ProfileController` also open transactions, but they
+send no mail inside them, so there was nothing to move. `EmailOtpService` writes the OTP row in its own
+transaction (`OtpRepository`), which is correct now that it runs after the user is committed.
+
+**NEEDLE, BOTH DIRECTIONS.** Moving the `sendOtp` call back inside the transaction - with its `DB::rollBack()`
+and the old message - fails **4 of the 5** tests, including the two structural guards. The controller was then
+restored **byte-identically** (SHA256) and all 5 pass again.
+
+**NO REGRESSION - controlled bisect.** `tests/Feature/Auth` + `tests/Feature/Otp` + `tests/Unit/Http/Requests` +
+`OtpDisclosureTest` + `ExceptionMessageLeakRatchetTest`, run with `SignupController` swapped back to its HEAD
+blob and the new test moved aside: **HEAD 178 tests / 412 assertions, OK** versus **183 / 429, OK** after (the 5
+extra are the new test). Zero failures on both sides, so there is nothing to diff - the whole Auth/Otp surface
+is green either way. `pint --test` PASS on both files.
+
+**TWO OF MY OWN TEST BUGS, RECORDED BECAUSE BOTH WOULD HAVE SHIPPED A FALSE PASS.** (1) The first draft rebound
+the container to flip the fake mailer; the container's instance cache swallowed the swap and the "resend works"
+test silently exercised the FAILING fake, which returned 500 and the test failed for the wrong reason. Fixed by
+binding ONE mutable instance and flipping a flag. (2) The first draft asserted "no `DB::rollBack()` after
+`DB::commit()`" - but the commit's own `catch` block legitimately contains a rollback and sits textually after
+the commit, so **the guard failed on correct code**. It now measures from the `sendOtp(` call, which is the
+invariant that actually matters.
+
+**WHAT REMAINS IN RV-16, AND WHY IT IS NOT DONE HERE.** Decision 4 (keep phone-OTP) and decision 8 (uniform
+enumeration answer) are settled; the phone-OTP endpoints and the TextMeBot `sleep(5)` were checked for the
+half-removed-flow condition and are both still present, so decision 4's "keep both" already holds. The
+`.env` with `APP_ENV=production` that trips the OTP-disclosure guard is a **deploy action on the owner's
+machine**, not code, and is listed under owner actions. No test was weakened to accommodate any of this.
+
+## 69.1 RV-13(a) is NOT decision-free - a decision is now needed before it can proceed
+
+Found while scoping RV-13, and it changes that row's classification. `BACKLOG.md` marks remainder (a) - migrating
+the 61+ `\InvalidArgumentException` sites to the typed hierarchy - as decision-free. **It is not**, because of an
+asymmetry between two adjacent renderables in `Handler` (`:88` and `:80`):
+
+- `\InvalidArgumentException` answers **422 with the message MASKED** in production:
+  `config('app.debug') ? $e->getMessage() : 'The request could not be processed.'`
+- `App\Exceptions\Domain\DomainException::toArray()` **always** returns `$this->getMessage()`.
+
+So migrating those sites would not only change codes - it would **unmask 61+ domain messages in production**,
+directly against the direction of the leakage work. Deciding which behaviour is right (mask everything, mask
+only non-app-authored messages, or always show domain messages) is a **product and security decision**, and it
+determines whether the migration can be status- and body-preserving at all. It is therefore parked here as a
+question rather than guessed at, and `BACKLOG.md` RV-13's `Blocked by` cell is corrected accordingly.
+
