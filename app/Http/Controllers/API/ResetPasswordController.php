@@ -68,13 +68,16 @@ class ResetPasswordController extends Controller
         $user = User::where('email', $email)->first();
 
         if (! $user) {
-            // Defensive: should not happen if cache key is intact
+            // Decision 8 (owner ruling A - uniform errors, no account enumeration): "Account not
+            // found." was a third, distinct way of saying the same thing, and a distinct response is
+            // exactly what makes a difference readable. Answer with the SAME 400 the
+            // expired-or-used branch above already returns.
             Cache::forget($cacheKey);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Account not found.',
-            ], 404);
+                'message' => 'This reset link has expired or has already been used. Please request a new code.',
+            ], 400);
         }
 
         // Update password

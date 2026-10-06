@@ -6179,3 +6179,76 @@ should mean to an admin. Item 4 (`config/system_admin.php`, the V8 finding) and 
 `AdminDriverServiceTest` tests that pin `total_rides`, `suspended_drivers` and the silent `period` default) are
 untouched. Row stays **PARTIAL**.
 
+## 72. RV-16 - decision 8 was ANSWERED but never APPLIED - four enumeration oracles - **VERIFIED FIX**
+
+The next-task rule derives nothing (every `OPEN` row carries a gate), so this came from RV-16's own
+remaining acceptance text: *"the account enumeration answer (decision 8) is applied uniformly to
+forgot/signup"*. **Decision 8 is "A - uniform errors, no account enumeration", and the decisions table
+recorded it as "already-correct". That was wrong.** Four unauthenticated endpoints said, in four
+different ways, whether an address had an account:
+
+| Endpoint | Old answer for an unknown address |
+|---|---|
+| `POST /api/auth/password/forgot` | **404** "No account found with this email address." |
+| `POST /api/auth/password/verify-otp` | **422** "No account found with this email." (a validator `exists` rule) |
+| `POST /api/auth/password/reset` | **404** "Account not found." |
+| `POST /api/email-verification/resend` | **404** "No account found" / **409** "This email is already verified." |
+
+POST a list of candidate addresses, keep the ones that do not answer identically, and you have a
+reliable register of who holds an account here. That is personal data and a targeting list for
+credential stuffing and phishing. The `verify-otp` one was the easiest to miss, because it was not a
+branch in the controller at all - it was the message on an `exists:users,email` validation rule.
+
+**`resend` NEEDED TWO EDITS, NOT ONE.** It had three distinguishable states. Removing only the 404
+would have left 200-versus-409 separating "exists and unverified" from "exists and verified" - the same
+information by another route, so the oracle would have survived the obvious fix. All three now answer
+identically. That deliberately **gives up the "This email is already verified." hint**: a genuine
+convenience that was also an existence oracle. Decision 8 rules it out; flagging it in case that trade
+is unwanted.
+
+**THE PROPERTY PINNED IS NOT "no endpoint says not-found".** It is that **status, `success` and
+`message` are identical between a registered and an unregistered address.** Anything less still leaks,
+which is the whole reason `resend` needed its 409 closed. A structural guard additionally fails if any
+of the four controllers regains an existence-revealing message. Scope was put to the owner first
+(public response shape, and two existing tests pin the leak); ruling: apply A to all four, and no
+client depends on the 404.
+
+**TWO REAL DEFECTS FOUND BY MY OWN TESTS DURING THIS TASK, both recorded rather than quietly fixed.**
+1. **My first fix still leaked.** The unknown-account branch returned `'Invalid or expired code.'` while
+   the genuine failed-code branch passed `$result['message']` through - which for this service is
+   *'Invalid or expired **verification** code.'* Two phrasings of the same failure is still an oracle.
+   The uniformity test caught it on the first run. Both branches now return one `invalidCodeResponse()`,
+   and the real reason is logged instead of returned.
+2. **I broke the endpoint's own tooling.** Making `resend` uniform dropped the dev-only `otp_code`, so
+   `test_resend_new_otp_can_be_used_to_verify` got 422 and `test_resend_exposes_otp_in_testing_mode`
+   failed. That was a regression, not an intended consequence: `otp_code` is not an enumeration channel
+   (`OtpDisclosure` allows it in local/testing only, and only on the branch that actually sent), so it
+   is passed through exactly as every other send endpoint does. **Had I only run the new test and not
+   the whole Auth floor, this would have shipped.**
+
+**ONE MORE THING THE TESTS GOT WRONG FIRST.** The first fingerprint compared messages verbatim and
+flagged the *echoed email address* as a leak. It is the caller's own input, identical by construction,
+so that comparison reports a leak that does not exist. The address is now normalised out - the
+assertion got sharper, not weaker.
+
+**A BOUNDARY EDGE I CREATED AND THEN REMOVED.** Checking `User::where(...)->exists()` in
+`VerifyPasswordOtpController` needed `use App\Models\User;`, which pushed `controllers_to_models` from
+**21 to 22** and failed the gate. The baseline was **not** raised. The lookup moved to the already-
+injected `UserRepositoryInterface`, so no new controller->model edge exists and the count is back to 21.
+The gate now fails only on the known `models_to_enums` trio (row 106).
+
+**NEEDLE.** Restoring the 404 oracle in `ForgotPasswordController` fails 5 tests across both files,
+including the structural guard and the flipped existing test; restored byte-identically.
+
+**NO REGRESSION - controlled bisect.** Auth + Security + Review + Unit/Http/Requests, with all four
+controllers and both test files swapped to HEAD and the new test moved aside: **HEAD 458 tests / 1658
+assertions / 4 failures** versus **466 / 1674 / 4** after. **Failure name sets identical, diff EMPTY.**
+
+**FOUR TESTS WERE FLIPPED, NOT WEAKENED.** Each pinned the leak by name and now asserts the corrected
+behaviour, with the reason in the comment: `test_forgot_password_fails_for_nonexistent_email`,
+`test_verify_otp_fails_for_unknown_email`, `test_resend_returns_404_for_nonexistent_email`,
+`test_resend_returns_409_if_email_already_verified`.
+
+**WHAT REMAINS IN RV-16.** Only the `APP_ENV=production` `.env` deploy action on the owner's machine,
+which is not code. RV-16's acceptance criteria are now fully discharged on the agent's side.
+

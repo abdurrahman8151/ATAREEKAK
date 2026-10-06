@@ -5,9 +5,11 @@ namespace App\Http\Controllers\API;
 use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Http\Controllers\Controller;
 use App\Interfaces\EmailOtpServiceInterface;
+use App\Interfaces\UserRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -39,15 +41,20 @@ class VerifyPasswordOtpController extends Controller
 
     public function __construct(
         private readonly EmailOtpServiceInterface $emailOtpService,
+        private readonly UserRepositoryInterface $userRepository,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'email' => ['required', 'string', 'email', 'exists:users,email'],
+            // Decision 8 (owner ruling A - uniform errors, no account enumeration): the
+            // `exists:users,email` rule used to sit here, so an unknown address answered
+            // 422 with "No account found with this email." while a known address with a wrong code
+            // answered 400 "Invalid or expired code." Two shapes, one bit of truth about who has
+            // an account. The lookup is done below instead, and both outcomes answer identically.
+            'email' => ['required', 'string', 'email', 'max:255'],
             'otp_code' => ['required', 'string', 'size:6', 'regex:/^[0-9]{6}$/'],
         ], [
-            'email.exists' => 'No account found with this email.',
             'otp_code.size' => 'The code must be exactly 6 digits.',
             'otp_code.regex' => 'The code must contain numbers only.',
         ]);
@@ -59,15 +66,30 @@ class VerifyPasswordOtpController extends Controller
             ], 422);
         }
 
+        $knownAccount = $this->userRepository->findByEmail($request->input('email')) !== null;
+
+        if (! $knownAccount) {
+            // Deliberately the same 400 the failed-code branch below returns.
+            return $this->invalidCodeResponse();
+        }
+
         // Reuse the same DTO + service as the email verification flow
         $dto = VerifyEmailOtpDTO::fromRequest($validator->validated());
         $result = $this->emailOtpService->verifyOtp($dto);
 
         if (! $result['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['message'] ?? 'Invalid or expired code.',
-            ], 400);
+            // The reason is recorded, never returned. Passing `$result['message']` straight
+            // through is what made the unknown-account branch distinguishable when it used its
+            // own wording: two different phrasings of "that code did not work" is still an
+            // oracle. The first draft of this fix used 'Invalid or expired code.' against the
+            // service's 'Invalid or expired verification code.' and leaked anyway - which the
+            // uniformity test caught.
+            Log::warning('Password OTP verification failed', [
+                'email' => $request->input('email'),
+                'reason' => $result['message'] ?? null,
+            ]);
+
+            return $this->invalidCodeResponse();
         }
 
         /*
@@ -98,5 +120,19 @@ class VerifyPasswordOtpController extends Controller
     public static function cacheKey(string $token): string
     {
         return self::CACHE_PREFIX.$token;
+    }
+
+    /**
+     * The one answer a rejected code gets, whatever the real reason (decision 8).
+     *
+     * "Unknown account" and "wrong code" must be the same bytes on the wire. The reason is logged
+     * by the caller instead, so nothing is lost operationally.
+     */
+    private function invalidCodeResponse(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid or expired code.',
+        ], 400);
     }
 }

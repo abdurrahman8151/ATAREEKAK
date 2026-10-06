@@ -170,7 +170,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 26 | RV-18 | CI signal (V6 driver leak, migration guards) | P1 | VERIFIED FIX | n/a | V6, AF-2' | R2 sec 24, sec 24.2 VF; 51b6ca7 - whole-suite red is separate debt (sec 24.1) |
 | 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 = ANSWERED (C: later); remainder (b) DONE; **remainder (a) NOW BLOCKED on a masking decision** - see sec 69.1 | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3; `980741c` - **LEAKAGE HALF CLOSED, ratchet at ZERO**: R2 sec 64 `f9f536a` (Domain exceptions, domain violation 500 -> 422/403/409), sec 64.1 `a1c072c` (leak measured 47, shrink-only ratchet), sec 64.2 `3bfdaa4` (Chat 47->42), sec 64.3 `8d92b60` (ratchet was OVER-BROAD, 42->21), sec 64.4 `7a01fa5` (all non-owner controllers 21->15), sec 64.5 `5fb1a4b` (owner-owned RideController 15->0); needle proven both ways, 211 tests / 321 assertions / 4 failures IDENTICAL to pre-sweep - **`R2 sec 68` remainder (b) CLOSED**: the `$e->getCode() ?: 422` code-as-status channel is gone from `WalletRequestController` (4 sites), `WalletRequestService` now throws the typed hierarchy with **statuses UNCHANGED (422/409)** and shape UNCHANGED; new zero-baseline ratchet `RV13ExceptionCodeAsStatusTest` that self-tests its own detector; needle both ways + byte-identical restore; regression by controlled bisect 576/39E/27F at HEAD vs 583/39E/27F after, failure-name-set diff EMPTY both ways |
 | 28 | RV-14 | Route/controller mismatches, lying endpoints | P1 | PARTIAL | distance/duration units (owner) | V10, V8; RV-40 did the price width | R2 sec 21, sec 21.1, sec 21.2 PARTIAL; 1c18c07 | R2 sec 62 (`create-with-route` now uses `CreateRideRequest` — the live endpoint had `min:0` price and no phone-format check, `3616636`; plus a pre-existing 500 `chosen_route_index` NOT NULL fixed) `3616636`; |
-| 29 | RV-16 | OTP and mail flows | P1 | PARTIAL | 4, 8 - ANSWERED; remainder decision-free | RV-31 (mailers), T2-3/T2-4 | R2 sec 22, sec 22.4, sec 22.5, sec 29 (plaintext -> HMAC); cac4084 + d776c1f |
+| 29 | RV-16 | OTP and mail flows | P1 | **VERIFIED FIX** | 4, 8 - ANSWERED; **all acceptance criteria discharged** (only a deploy action remains) | RV-31 (mailers), T2-3/T2-4 | R2 sec 22, sec 22.4, sec 22.5, sec 29 (plaintext -> HMAC); cac4084 + d776c1f; **`R2 sec 69`** (signup mail leaves the DB txn); **`R2 sec 72`** (decision 8 APPLIED: 4 enumeration oracles closed, resend needed 2 edits) |
 | 30 | RV-22 | TLS and log hygiene leftovers | P1 | VERIFIED FIX | n/a | AF-1 (2/3 landed); V13 | R2 sec 26.15, sec 26.16 VF; 4239087 + b34df62 - slice 3 is deploy-surface (sec 30 item 2) |
 | 31 | RV-36 | Notification endpoints no-ops under JWT | P1 | VERIFIED FIX | n/a | V12 refuted the premise | R2 sec 25 VF; 2d6a55e - real defect was existence-oracle + silent no-op |
 | 32 | RV-38 | Eloquent strictness outside production | P2 | VERIFIED FIX | n/a | RV-24 (arming), T4-1 | R2 sec 29.2 VF (2 flags), sec 29.5 ROLLBACK, sec 35 ROLLBACK (premise), sec 36 VF (arming), sec 37 OFF; R2 sec 44 + 44.1 - sites fixed, flag ARMED, red set identical to flag-off baseline (87 entries both ways); 00f7b9d + 5bbadad |
@@ -455,7 +455,23 @@ acceptance conditions, not implementation instructions.
   the password, so the failure is now recoverable. **The mail-failure MESSAGE changed** (the old "Registration
   failed" is now false); status is still 500 and the JSON keys are unchanged. Needle both ways, byte-identical
   restore; bisect 178 tests / 412 assertions OK at HEAD vs 183 / 429 OK after - zero failures either side.
-  **Still open here:** the decision-8 uniformity check across forgot/signup is not yet verified.
+  **DONE (`R2 sec 72`)** - it was NOT verified, and decision 8's "already-correct" note was wrong.
+  Four unauthenticated endpoints told an attacker whether an address had an account: `password/forgot`
+  404 "No account found", `password/verify-otp` 422 (a validator `exists` rule, so not even a branch),
+  `password/reset` 404 "Account not found.", and `email-verification/resend` 404 **and 409**. The `resend`
+  endpoint needed TWO edits - removing only the 404 left 200-vs-409 separating "exists and unverified"
+  from "exists and verified", so the oracle survived the obvious fix; all three states now answer
+  identically, giving up the "already verified" hint (decision 8 rules it out as an oracle). The pinned
+  property is byte-identical status/success/message for registered vs unregistered, not "no not-found
+  string". **Two defects were caught by the new tests during the task:** (1) my first fix still leaked,
+  because the unknown-account branch said 'Invalid or expired code.' while the real failed-code branch
+  passed through 'Invalid or expired **verification** code.'; (2) making resend uniform dropped the
+  dev-only `otp_code` and broke the verify-after-resend flow - caught only because the whole Auth floor
+  was run. A boundary edge I created (`use App\Models\User` in a controller, 21 -> 22) was removed by
+  moving the lookup to the injected `UserRepositoryInterface`; **baseline not raised**. Needle both ways;
+  controlled bisect 458/1658/4F at HEAD vs 466/1674/4F after, failure-set diff EMPTY. Four tests flipped
+  (each pinned the leak by name), none weakened.
+  **Still open:** only the `APP_ENV=production` `.env` deploy action, which is the owner's machine, not code.
 - No path returns `otp_code` outside local/testing regardless of provider state (shipped: `OtpDisclosure::sanitize()`
   on all three services including the send-failure path), and OTP storage stays keyed-HMAC (`d776c1f`).
 - The `APP_ENV=production` `.env` that tripped the guard is fixed as a deploy action; no test may weaken the guard.

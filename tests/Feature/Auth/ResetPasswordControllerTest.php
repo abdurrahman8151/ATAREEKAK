@@ -36,7 +36,8 @@ class ResetPasswordControllerTest extends TestCase
     public function test_forgot_password_fails_for_nonexistent_email(): void
     {
         $this->postJson('/api/auth/password/forgot', ['email' => 'nobody@test.com'])
-            ->assertStatus(404);
+            ->assertStatus(200)
+            ->assertJsonPath('success', true); // decision 8: uniform, no enumeration
     }
 
     public function test_forgot_password_requires_valid_email_format(): void
@@ -73,7 +74,8 @@ class ResetPasswordControllerTest extends TestCase
     public function test_verify_otp_fails_for_unknown_email(): void
     {
         $this->postJson('/api/auth/password/verify-otp', ['email' => 'nobody@test.com', 'otp_code' => '123456'])
-            ->assertStatus(422);
+            ->assertStatus(400)
+            ->assertJsonPath('message', 'Invalid or expired code.'); // decision 8: same as a wrong code
     }
 
     // ─── Step 3: reset ──────────────────────────────────────────────────

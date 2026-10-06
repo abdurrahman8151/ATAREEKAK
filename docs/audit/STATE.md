@@ -11,6 +11,9 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- Done recently: **RV-16 is now VERIFIED FIX** - decision 8 was ANSWERED but never applied; four
+  unauthenticated account-enumeration oracles closed (`R2 sec 72`), incl. the `resend` endpoint which
+  needed a second edit because 200-vs-409 enumerated on its own.
 - Done recently: RV-19 item 3 - the 95/5 split is now defined once, and the ride-level settlement
   that could THROW on any odd-tenth price is a VERIFIED FIX (`R2 sec 71`). Also: RV-16 signup mail leaves the
   DB transaction (`R2 sec 69`); RV-10 escrow liveness BLOCKED (`R2 sec 70`); RV-13(a) masking question raised

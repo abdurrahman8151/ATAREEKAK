@@ -46,11 +46,23 @@ class ForgotPasswordController extends Controller
         $email = $request->input('email');
         $user = $this->userRepository->findByEmail($email);
 
+        // Decision 8 (owner ruling A - "uniform errors, no account enumeration").
+        //
+        // This used to answer 404 "No account found with this email address." for an unknown
+        // address and 200 for a known one. Two different statuses and two different messages is
+        // a perfect oracle: POST a list of candidate addresses and keep the ones that do not 404.
+        // That tells an attacker which addresses are registered here - personal data, and a
+        // reliable list to aim credential stuffing or phishing at.
+        //
+        // So the response is IDENTICAL either way and only the send is conditional. The remaining
+        // difference - whether an email actually arrives - is inherent to the feature and is not
+        // observable from the HTTP response. A real account must still get its code, so the
+        // success branch is left exactly as it was.
         if (! $user) {
             return response()->json([
-                'success' => false,
-                'message' => 'No account found with this email address.',
-            ], 404);
+                'success' => true,
+                'message' => 'A 6-digit verification code has been sent to '.$email.'. It expires in 10 minutes.',
+            ]);
         }
 
         $dto = new SendEmailOtpDTO(

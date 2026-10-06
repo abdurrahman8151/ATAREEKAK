@@ -168,13 +168,21 @@ class EmailVerificationControllerTest extends TestCase
         $this->assertNotNull($response->json('otp_code'));
     }
 
-    public function test_resend_returns_404_for_nonexistent_email(): void
+    // RV-16 (decision 8 - uniform errors, no account enumeration): this test used to assert 404
+    // "No account found", which was a working oracle - POST a list of addresses and keep the ones
+    // that do not 404 to learn who is registered here. Flipped to assert the corrected behaviour.
+    public function test_resend_does_not_reveal_a_nonexistent_email(): void
     {
         $this->postJson('/api/email-verification/resend', ['email' => 'nobody@test.com'])
-            ->assertStatus(404);
+            ->assertStatus(200)
+            ->assertJsonPath('success', true);
     }
 
-    public function test_resend_returns_409_if_email_already_verified(): void
+    // The same oracle by another route: with the 404 gone, 409-versus-200 still separated
+    // "exists and verified" from "exists and unverified", which is the same information. So the
+    // verified case answers identically too - and loses the "already verified" hint, which decision
+    // 8 rules out as an existence oracle.
+    public function test_resend_does_not_reveal_that_an_email_is_already_verified(): void
     {
         User::factory()->create([
             'email' => 'user@test.com',
@@ -182,7 +190,8 @@ class EmailVerificationControllerTest extends TestCase
         ]);
 
         $this->postJson('/api/email-verification/resend', ['email' => 'user@test.com'])
-            ->assertStatus(409);
+            ->assertStatus(200)
+            ->assertJsonPath('success', true);
     }
 
     public function test_resend_fails_with_invalid_email_format(): void
