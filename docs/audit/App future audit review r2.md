@@ -6565,3 +6565,98 @@ But every available fix decides a product question, so it is not an agent call:
 So RV-19 stays PARTIAL on item 2 (admin earnings derived vs read from the ledger - a report-semantics
 question) and item 4 (this). Both need one owner answer. `UserRatingTest::test_rating_is_cast_to_float`
 is a **separate** pre-existing red (a missing `rating` cast), not this defect.
+
+## 77. D1 answered (A) - the escrow work fully mapped, NOT started
+
+Owner answered all twelve decisions on 2026-10-04 (`STATE.md`, "Owner decisions 2026-10-04"; BACKLOG
+gate cells updated; commit `65ace56`). **D1 = A**, with a hard constraint stated by the owner:
+*keep the 95/5 split and ALL cancellation refund tiers exactly as they are today - bookkeeping only,
+no percentage changes.*
+
+**This section is the execution map for D1, written from a completed read of the code. The build
+itself is not started, deliberately - see "WHY THIS IS NOT STARTED" at the end.**
+
+### THE 11 MONEY MOVEMENTS THAT MUST BE INSTRUMENTED
+
+`escrow_held` is already present and correct in intent: `bookings.escrow_held decimal(15,2)`, added by
+`2026_10_01_000001_add_money_snapshot_to_bookings.php:23`, whose own comment calls it "the settlement
+source of truth; RV-02 L2 drives idempotency off it". It is in `Booking::$fillable` and cast
+`decimal:2`. **No settlement path reads or writes it** - only `BackfillBookingMoneySnapshot` sets 0.
+
+`wallet_transactions.posting_key` **does not exist** in any migration or in `app/`.
+
+One CREDIT site - escrow in:
+
+| # | Site | Line | Movement |
+|---|---|---|---|
+| C1 | `chargePassengerForBooking()` | `WalletTransactionService:107` | `SyCash.balance += $amount` |
+
+Seven DEBIT sites - escrow out, all currently `balance -= X` after `lockWalletByPhone()`:
+
+| # | Method | Line | Debit | Tier (MUST NOT CHANGE) |
+|---|---|---|---|---|
+| D1 | `releaseEarningsToDriver()` | `:229` | `$total` | **95 / 5** |
+| D2 | driver cancels ride | `:341` | `$totalRefund` | **100% to each passenger** |
+| D3 | staff-initiated cancellation | `:481` | `$totalRefund` | **100% full refund** |
+| D4 | time-based passenger cancel | `:630` | `$totalPaid` | **refund% + non-refundable%** |
+| D5 | passenger no-show | `:761` | `$total` | **95 / 5** |
+| D6 | driver no-show | `:847` | `$refundAmount` | **100% to passenger** |
+| D7 | `releaseEscrowToDriver()` (per booking) | `:1043` | `$total` | **95 / 5** |
+
+Three more in `CashRideFeeService` (the `lockForUpdate` list shows `:163`, `:281`, `:457`, `:569`),
+which is why the change cannot be scoped to one file.
+
+### THE INVARIANT IS NOT THE ONE THE CRITERION LITERALLY STATES
+
+BACKLOG says `SyCash balance == SUM(bookings.escrow_held)`. **That is false for this schema**, and
+pinning it would be pinning a lie:
+
+- `BackfillBookingMoneySnapshot:95` sets `escrow_held = 0` for **cash** bookings ("cash never holds
+  SyCash") while SyCash's balance is unaffected by them.
+- So the true invariant is **`SyCash.balance - SUM(escrow_held over cash bookings) ==
+  SUM(escrow_held)`**, i.e. `SyCash == SUM(escrow_held WHERE payment_method = e-pay)`.
+
+The test must pin the e-pay form. Recorded here because writing the literal criterion would have
+produced a test that fails for the right reason and then been "fixed" by weakening.
+
+### WHAT THE BUILD IS
+
+1. **NEW** migration: nullable `wallet_transactions.posting_key` + **unique** index. Nullable is
+   deliberate - MySQL permits many NULLs, so every existing row and every non-posting transaction is
+   unaffected. Must be verified `up` **and** `down` (the `T3-11` loud-failure discipline).
+2. **NEW** migration: backfill `escrow_held` for existing e-pay bookings whose escrow has not been
+   released. Cash rows stay 0, matching the backfill command's existing meaning.
+3. A `posting_key` per movement, derived from the booking + action so it is **deterministic** - the
+   same logical movement recomputes the same key, which is what makes the unique index an idempotency
+   guard rather than just a constraint.
+4. Every debit becomes a **guarded decrement**: `UPDATE bookings SET escrow_held = escrow_held - :amount
+   WHERE id = :id AND escrow_held >= :amount`, and the transaction **aborts unless exactly 1 row
+   changed**. A second settlement with the same `posting_key` therefore moves nothing.
+5. `SyCash` becomes derived/reconciled rather than authoritative.
+6. **NEW** `tests/Feature/Review/RV02EscrowDerivationTest.php`: (a) a replayed settlement with the same
+   `posting_key` moves no money; (b) the e-pay form of the invariant above; (c) `escrow_held` cannot go
+   negative.
+
+### VERIFICATION REQUIRED BEFORE IT CAN BE CALLED FIXED
+
+- **Needle both directions**: remove the guarded decrement's `escrow_held >= :amount` guard -> the
+  double-release test must fail; remove the `posting_key` uniqueness -> the idempotency test must fail.
+  Restore byte-identical (SHA256).
+- **Controlled bisect** on the money floor (`Feature/Wallet`, `Feature/Payment`, `Unit/Domain`,
+  `Feature/Rides`, `Feature/Bookings`) with an empty failure-name-set diff. Money floors are never
+  reduced.
+- **Migrations verified up and down**, never `migrate` unchecked.
+- The **95/5 split and all six refund tiers unchanged** - provable by needle: the old percentages are
+  restored and every money test must still pass.
+
+### WHY THIS IS NOT STARTED HERE
+
+`booking.escrow_held` is the settlement source of truth for **real money**. The change is 11 movement
+sites across two services, two migrations, and a new invariant, each of which must be
+needle-proven and bisect-verified. A half-instrumented escrow is strictly worse than an uninstrumented
+one, because it looks guarded while some paths are not - that is precisely the failure this task exists
+to remove. The session is already well past the 25-turn guidance, and the correct terminal state for
+this turn is the complete, verified execution map above plus the decision record - not a partially
+bookkept ledger.
+
+**The map is the deliverable. D1 is the next task to execute, and it is unblocked.**
