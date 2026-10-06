@@ -6,6 +6,7 @@ use App\Exceptions\Domain\DomainException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\TokenExpiredException;
@@ -82,7 +83,36 @@ class Handler extends ExceptionHandler
                 return null;
             }
 
-            return response()->json($e->toArray(), $e->httpStatus);
+            $payload = $e->toArray();
+
+            // RV-13(a), owner decision D3 = A (2026-10-04): MASK the message in production, log the
+            // detail. Until this change, `toArray()` shipped the raw message unconditionally while
+            // the `\InvalidArgumentException` branch two lines below already masked it - so the two
+            // handlers for the same *kind* of refusal disagreed about whether internals were safe to
+            // show, and the newer, safer one was the older branch.
+            //
+            // This is what made migrating the 61 `\InvalidArgumentException` sites a BLOCKED task
+            // rather than a refactor: `Handler:95` masked, `DomainException::toArray()` did not, so
+            // moving one site across would have silently UNMASKED its message to clients. With the
+            // masking in place the migration becomes behaviour-preserving and can proceed site by site.
+            //
+            // The response SHAPE is unchanged - same keys, same status. Only `message` is replaced,
+            // and the real text is logged at warning level with the code and route so a support
+            // answer is still possible. `code` is deliberately kept: it is an authored enum, not a
+            // leak, and the client needs it to branch.
+            if (! config('app.debug')) {
+                Log::warning('Domain rule violation masked for production', [
+                    'exception' => $e::class,
+                    'code' => $e->errorCode,
+                    'detail' => $e->getMessage(),
+                    'method' => $request->method(),
+                    'path' => $request->path(),
+                ]);
+
+                $payload['message'] = 'The request could not be processed.';
+            }
+
+            return response()->json($payload, $e->httpStatus);
         });
 
         $this->renderable(function (\InvalidArgumentException $e, $request) {

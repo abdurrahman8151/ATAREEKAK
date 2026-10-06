@@ -6724,3 +6724,57 @@ D5/RV-19 item 2 (two earnings fields), D6/RV-14 (metres/seconds), D7/RV-12 (drop
 D8/T3-4 (processed_by_employee_id), D9/T3-10 (deploy hygiene). D11 stays deferred, D12 is owner-only.
 
 Nothing pushed.
+
+RV-13(a) / D3: a domain rule's message is masked in production and logged instead
+
+Owner decision D3 = A (2026-10-04). This closes the RV-13 masking question, which had been BLOCKED
+rather than merely large, and it unblocks the 61-site \InvalidArgumentException migration.
+
+THE DEFECT. Handler.php had two renderables for the same KIND of refusal, and they disagreed:
+
+  \InvalidArgumentException -> config('app.debug') ? $e->getMessage() : 'The request could not be
+                                processed.'                                  (masked in production)
+  DomainException           -> response()->json($e->toArray(), ...)          (ALWAYS the raw message)
+
+DomainException::toArray() ships $this->getMessage() unconditionally, so every BusinessRuleViolation,
+AuthorizationViolation and ConflictViolation leaked its message to clients in production - while the
+base exception they were built to replace masked correctly. The newer, purpose-built exception was the
+LEAKIER of the two.
+
+That is exactly why migrating the 61 sites was blocked. Moving one site from the base class to a
+DomainException subclass would have silently UNMASKED its message - so the migration could not be
+behaviour-preserving and was therefore not an agent call. With the mask in place it becomes
+behaviour-preserving and can proceed site by site.
+
+THE FIX. The DomainException renderable now masks `message` when app.debug is false, using the same
+string as the branch below it, and logs the real detail at warning level with the exception class,
+error code, HTTP method and route.
+
+WHAT DELIBERATELY DID NOT CHANGE:
+  - the response SHAPE: same keys, same status
+  - `code` is KEPT. It is an authored enum the client branches on, not a leak - dropping it would have
+    broken clients to no security benefit
+  - `context` is untouched
+  - debug mode still shows the real message; masking is a production control, not a blanket
+
+VERIFICATION - 8 tests, 16 assertions, all passing.
+  - all THREE subclasses masked, each keeping its OWN status (422/403/409), so masking did not
+    flatten them into one response
+  - the masked detail is asserted to be LOGGED with code and route, or masking would be destruction
+    rather than concealment
+  - NEEDLE 1, removing the mask (the exact pre-fix state) fails, and the failure output is the leak
+    itself: {"message":"INTERNAL: wallet row 41 is locked by transaction 9002",...}
+  - NEEDLE 2, hardcoding the mask as unconditional (if (true)), fails the debug test AND the
+    is-conditional-on-debug structural guard - so the mask cannot be made permanent by accident
+  - a structural guard requires the two handlers to mask to the SAME string, because their divergence
+    is what made the migration unsafe
+  - restored byte-identical (SHA256) after both needles
+  - floor bisect (Review): HEAD 329 tests / 4 failures vs AFTER 337 / 4. Failure NAME SETS via
+    Compare-Object: zero new. NOTE a first bisect attempt reported "zero new" off two EMPTY logs
+    because the selection included tests/Unit/Exceptions, which does not exist - the vacuous result
+    was discarded and the run repeated with a valid selection.
+  - pint clean.
+
+RV-13 -> VERIFIED FIX. The 61-site migration is now unblocked as behaviour-preserving work.
+
+Nothing pushed.
