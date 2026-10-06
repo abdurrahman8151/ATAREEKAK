@@ -179,7 +179,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 35 | RV-40 | Money schema additions (prereq for RV-02 L2, RV-09, RV-15) | P1 | VERIFIED FIX | n/a | AF-6 | R2 sec 26.1 VF, sec 26.12 VF (price width), sec 26.13 VF (one report/booking); caebbfa + f4d1df8 + 53fe8d1 | R2 sec 54 (decision 13: 18 DB ENUM columns -> varchar, `e93f3c5`, verified up+down, fail-loud rollback) `e93f3c5`; |
 | 36 | RV-09 | Money concurrency and side-effect ordering | P1 | PARTIAL | 3 - ANSWERED; remainder coupled to RV-02 L2 | V16; RV-02 L2; T1-1 lock precedent | R2 sec 26.3 "VERIFIED FIX (safe subset); throughput redesign separate", sec 26.14; caebbfa |
 | 37 | RV-10 | Ride lifecycle and escrow liveness | P1 | PARTIAL | 2 - ANSWERED (B, shipped 5926230); remainder decision-free | AF-4e (config windows); T1-1 | R2 sec 26.7 (search guard VF, rest owner-gated), sec 26.14; caebbfa |
-| 38 | RV-11 | Score subsystem internally inconsistent | P1 | PARTIAL | un2 ANSWERED + APPLIED (de61c7b); 4 LIVE defects re-verified in sec 66.1 - see its 4 open questions | T1-1 state machine | R2 sec 26.9 PARTIAL ~35% (dead `applyScore` deleted), sec 26.14; caebbfa |
+| 38 | RV-11 | Score subsystem internally inconsistent | P1 | PARTIAL | **none** - the 4 defects are FIXED; what remains is consolidation, not correctness | T1-1 state machine | R2 sec 26.9 PARTIAL ~35% (dead `applyScore` deleted), sec 26.14; `caebbfa`, `de61c7b` (un2 policy) - **R2 sec 67: the ride double-count and the 3 policy defects are FIXED** (owner 2026-10-03: a ride counts ONCE). Before the fix: `applyAction:277` + `recordRideCompleted:52` counted every completed ride TWICE (inflating `cancel_rate`, so the 50% high-cancel gate under-fired); `firstOrCreate` used 100 not the pinned 70; no ceiling; a dead `cancel_rate` write. Verified: needle both directions, 12 new tests pin the GATE not just the arithmetic, 275 tests / 451 assertions / 4 failures = the same 4 as sec 64.5, zero new |
 | 39 | RV-15 | Booking idempotency | P1 | VERIFIED FIX | n/a | RV-02 L2 `posting_key` | R2 sec 26.2 VF; caebbfa |
 | 40 | RV-21 | Wallet identity and money creation | P1 | VERIFIED FIX | n/a | RV-39 (seeder half), AF-6 | R2 sec 26.5 PARTIAL, sec 26.11 VF (seeder half); un10 fixtures `bff1d3e`; R2 sec 56 (`wallets.kind` + DB triggers, `ae09981`); R2 sec 57-60.1 (double-entry: `ledger_entries` + `LedgerService`, every money path converted, External Capital account closes the external flows, `ledger:reconcile` scheduled daily) `3be510a`; R2 sec 61.1 closes the row - no money movement remains that the ledger cannot explain |
 | 41 | RV-20 | Payment strategy one-third wired | P2 | PARTIAL | 2, 3 - ANSWERED; coupled to RV-02 L2 | AF-6; T2-1 | R2 sec 26.4 "grounded but NOT changed"; sec 26.14 item 4 (~20% done, credited to the RV-09/RV-15 work in caebbfa) - nothing committed under this ID |
@@ -247,6 +247,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 103 | T4-5 | `User::$fillable` includes every privileged column | P3 | BLOCKED | owner: rolled back twice | **RV-29 item**, sec 30 item 5 | S P2 sec T4-5 `ROLLED BACK (owner instruction)`; 1d68c07 = ratchet instead (sec 34) - privileged keys still in `$fillable` (re-checked) |
 | 104 | T4-6 | Dead/duplicate artifacts in the repository root | P3 | VERIFIED FIX | n/a | RV-31, RV-32 | S P2 sec T4-6 VF; 3443979 |
 | 105 | T4-7 | No-op/stub implementations reporting success | P3 | VERIFIED FIX | n/a | RV-31, AF-4c | S P2 sec T4-7 VF; 3443979 |
+| 106 | RV-11-B | Boundary edge `models_to_enums` exceeds its baseline | P2 | OPEN | **owner - a `BASELINES` decision**; the defect itself needs none | V5 | Found 2026-10-03 running `BoundaryDependencyTest` for RV-11 (a `use` line was added). **PRE-EXISTING, proved by controlled bisect**: identical failure with `ScoreService.php` + `UserScore.php` reverted to their HEAD blobs (9 tests / 36 assertions / 1 failure both times), files restored byte-identically. `models_to_enums` max 2 vs `Models/Complaint.php`, `Models/Employee.php`, `Models/Wallet.php`; none is a model RV-11 touched. Baseline deliberately NOT raised. Decision: break the edge in those 3 models, or accept it and set the baseline to the true value with a written reason |
 
 ## 3. Commit verification (every Evidence commit was checked in git)
 
@@ -364,24 +365,21 @@ acceptance conditions, not implementation instructions.
   that deliberately book past-departure rides are moved to a supported test path instead of relying on the hole.
 - Closed already, do not redo: the decision-free search guard (departed rides no longer returned) is `VERIFIED FIX`.
 
-**RV-11 - score subsystem** *(un2 ANSWERED + APPLIED `de61c7b`; decisions 3 and un2 were the stated gates and both are answered)*
-- One mutation path (`ScoreLedger::apply()`) writes the score, one clamp, one tier table, one start score, all read
-  from `config/score.php` (no config exists today).
-- The double-count defect is gone: a completed ride increments `total_rides` exactly once (the `applyAction` +
-  `incrementRides()` overlap), so `cancel_rate`, whose thresholds gate penalties, is right.
-  **STILL LIVE - re-verified in `R2 sec 66.1`: `ScoreService:277` increments `total_rides` and
-  `recordRideCompleted:52` increments it again.** Doubling inflates the accessor's denominator, so `cancel_rate`
-  falls and the 50% high-cancel gate stops firing when it should - penalties UNDER-apply, no user is over-charged.
-- **DONE:** the tier bands are now single-source (`UserScore::getTierAttribute`, owner-pinned by `RV37ScorePolicyTest`);
-  `ScoreService::resolveTier` and the legacy stored `tier` write are deleted. The `200/150/100` vs `80/60/40`
-  contradiction recorded in `R2 sec 26.14` no longer exists.
-- **STILL LIVE:** `applyAction`'s `firstOrCreate` (`:262`) creates `score = 100` where every other path uses 70, and
-  `applyAction:274` clamps at 0 only with no ceiling. Both contradict un2 (start 70, max 100) - so these are
-  enforcement of a decision already taken, not a new policy.
-- Tier boundaries are asserted by tests at the exact edge values, not sampled in the middle.
-- **The 4 open questions are listed in full in `R2 sec 66.1`** - (1) does a completed ride count once, (2) is the
-  ceiling enforced at 100, (3) does the `firstOrCreate` fallback create 70, (4) is the dead `cancel_rate` assignment
-  at `ScoreService:280` safe to delete. Each one changes a value that gates penalties, which `AGENTS.md` reserves.
+**RV-11 - score subsystem** *(the 4 defects are FIXED - `R2 sec 67`; what remains below is consolidation)*
+- **DONE - the double-count.** A completed ride increments `total_rides` exactly once, so `cancel_rate`, whose
+  thresholds gate penalties, is right. Previously `ScoreService:277` and `recordRideCompleted:52` both incremented it.
+  Pinned by `RV11RideCountTest` at 1 ride and at 3, for the driver and for every passenger.
+- **DONE - the consequence, which is the part that matters.** Three of the new tests assert whether the **50%
+  high-cancel gate actually fires**, including two users given the same cancellations and different ride counts
+  where the gate must fire for one and not the other. Penalties previously under-applied; no user was over-charged.
+- **DONE - the policy.** `START_SCORE` 70 / `MIN_SCORE` 0 / `MAX_SCORE` 100 are now constants on `ScoreService` used
+  by all four creation paths and by both mutation paths, instead of four separate literals of which one said 100.
+  The `applyDelta` docblock that claimed a `[0, 200]` ceiling - the scale the owner rejected in un2 - is corrected,
+  and so is an orphaned comment that still described the pre-sec-42 tier arrangement.
+- Remaining, and none of it causes a wrong score today:
+- One mutation path (`ScoreLedger::apply()`) writes the score; the service still has several. No `config/score.php`
+  exists yet - the constants close the drift, not the design question.
+- Tier boundaries are asserted by tests at the exact edge values, not sampled in the middle. **DONE** - `RV37ScorePolicyTest`.
 
 **RV-12 - account status model** *(blocked by un13)*
 - The `status = 0` "logged out" and "banned" overloading is separated: a temporary ban that has expired can never lock

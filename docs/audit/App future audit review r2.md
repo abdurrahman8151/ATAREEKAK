@@ -5834,3 +5834,81 @@ answered, but their percentages and their code were NOT re-checked in this pass.
 corrected from "decision X" to "decision X - answered, see 66"; that is a statement about the gate, not a claim that
 the remaining work is now verified. Each still needs its own verified pass before its status moves.
 
+## 67. RV-11 - the ride double-count is fixed, and the owner's score policy is now enforced - **VERIFIED FIX**
+
+Owner instruction 2026-10-03: *"ok then fix them"*, answering the four questions section 66.1 asked for. The
+answer recorded is **a completed ride counts ONCE**.
+
+**1. THE DOUBLE-COUNT - the real defect, and the one that mattered.** `recordRideCompleted` called
+`applyAction(RIDE_COMPLETED)` and then `incrementRides()`. `applyAction` already counts the ride, so **every
+completed ride was counted twice**, for the driver and for every passenger on it. Both extra calls are gone, and
+the now-dead `private function incrementRides()` was deleted with them.
+
+The increment inside `applyAction` was also re-gated. It read `if ($result->isPositive())`, which happens to be
+true only for `RIDE_COMPLETED` today, but it said the wrong thing: a future positive bonus would have inflated a
+**ride** count, which is exactly the number `cancel_rate` divides by. It is now `if ($action ===
+ScoreAction::RIDE_COMPLETED)` - behaviour-preserving today, and honest tomorrow.
+
+**2. ONE SOURCE FOR THE THREE NUMBERS.** The start score, floor and ceiling were four separate literals, and one
+of them said 100. They are now `ScoreService::START_SCORE` (70), `MIN_SCORE` (0) and `MAX_SCORE` (100), used by all
+four creation paths and by the clamp. `R2 sec 26.14`'s "no `config/score.php` exists" remains true - a config file
+was NOT added here, because that is a larger design step and this fix only needed the drift to stop.
+
+**3. THE CEILING.** `applyAction` clamped the floor at 0 and had no ceiling, while `applyDelta` clamped both ends.
+Both paths now clamp to `[MIN_SCORE, MAX_SCORE]`, so the two mutation paths agree.
+
+**4. THE DEAD `cancel_rate` WRITE.** Deleted. `setCancelRateAttribute` discards assignments, so the assignment was
+never stored, and it used a different formula (`total_rides`) from the accessor the policies actually read
+(`total_rides + total_cancellations`). Deleting it changes no behaviour - `RV11RideCountTest` proves the mutator
+still discards a write, so if the column ever starts being written the test fails loudly.
+
+**A CORRECTION TO SECTION 66.1, made while fixing it.** Section 66.1 reported the `firstOrCreate` 100 as a defect
+that "silently contradicted the owner's decision whenever `applyAction` happened to be the first thing to touch a
+score row". That overstated it, and the test found why: **`UserObserver` calls `initializeScore` on `created`**, so
+in normal operation a score row always exists first and the 100 default is **never reached**. It was a **latent**
+inconsistency - it would still bite for any row predating the observer, or if the observer's own `initializeScore`
+failed - not one that had been handing users a wrong score. The fix stands and is worth having; the claim about its
+reach was wrong. The test now reproduces the legacy case deliberately (delete the row, then act) and says so,
+rather than pretending it fires on every signup. This is recorded because the correction changes how urgent the
+defect was, not because it changes the fix.
+
+**NEEDLE, BOTH DIRECTIONS.** Reintroducing the second increment (as `getScore($driver)->incrementRides()`, which is
+what the deleted helper did) fails **2 of the 12** with `a completed ride must count ONCE for the driver, not
+twice`. The file was then restored **byte-identically** (SHA256 verified equal) and all 12 pass again. A first
+attempt at this needle called the deleted `incrementRides()` and produced a `BadMethodCallException` instead - which
+would have "proven" the test catches the bug for the wrong reason, so it was redone faithfully.
+
+**MEASURED.** `tests/Feature/Review/RV11RideCountTest.php` (new, 12 tests, 25 assertions) pins the count at 1 and
+at 3, that a cancellation is not a ride, the start score from every creation path, both ceilings on both mutation
+paths, and the discarded `cancel_rate` write. **Crucially it pins the CONSEQUENCE, not just the arithmetic**: three
+tests assert whether the 50% high-cancel gate actually fires, including one that gives two users the same
+cancellations and a different ride count and requires the gate to fire for one and not the other. A fix that
+merely deleted the second increment without restoring correct rates could not pass.
+
+**NO REGRESSION.** Area floor (`tests/Feature/Rides`, `tests/Feature/Bookings`, `tests/Unit/Domain`) plus every test
+that references `ScoreService` / `UserScore` / `Score` (`RV37ScorePolicyTest`, `DriverNoShowPolicyTest`,
+`ScoreTransactionTest`, `StaffCancellationRefundTest`, `CancelSeatsEquivalenceCheck`) plus this file:
+**275 tests, 451 assertions, 4 failures, 2 skipped.** The 4 are byte-identical to the pre-existing set recorded in
+section 64.5 and reproduced there against the pre-sweep controller - `test_passenger_can_confirm_completion`,
+`test_passenger_confirm_fails_for_active_ride`, `test_non_passenger_cannot_confirm_completion`,
+`test_ride_creation_does_not_charge_any_fee`. **Zero new failures.** `pint --test` PASS on all three changed files.
+
+**`BoundaryDependencyTest` - a PRE-EXISTING failure found while running the gate, not caused by RV-11.** Required
+because a `use` line was added. It fails `models_to_enums` (max 2) against `Models/Complaint.php`,
+`Models/Employee.php`, `Models/Wallet.php`. **Proved pre-existing by controlled bisect**: with only
+`ScoreService.php` and `UserScore.php` swapped back to their HEAD blobs, the identical failure occurs
+(9 tests, 36 assertions, 1 failure both times), and the files were restored byte-identically. None of the three
+flagged models is one this task touched. The `R6` baseline was **not** raised. It is recorded here so the finding is
+not lost, and it is left for the owner because fixing a boundary edge touches the `BASELINES` values `AGENTS.md`
+reserves - see the BACKLOG row opened for it.
+
+**Two dead docblocks fixed while in the file.** `UserScore::applyDelta` documented itself as clamping to `[0, 200]`
+- the ceiling the owner *rejected* in un2, quoted as if it were the rule. And an orphaned comment above it still
+described the pre-sec-42 arrangement ("a REAL COLUMN written by `resolveTier` ... the accessor is gone"), which
+contradicted the code thirty lines below it. A wrong ceiling in a comment is how the rejected 200/150/100 scale
+kept being quoted; a comment that contradicts its own file is how it survived this long.
+
+**STILL OPEN in RV-11** (consolidation, not correctness): one mutation path (`ScoreLedger::apply()`) does not exist,
+there is still no `config/score.php`, and the vestigial `tier` column is still in the schema. None of those cause a
+wrong score today.
+

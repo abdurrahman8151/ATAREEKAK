@@ -17,6 +17,21 @@ use Illuminate\Support\Facades\Log;
 
 final class ScoreService
 {
+    /**
+     * The owner's score policy (un2, 2026-10-02, R2 sec 40.1) as ONE source of truth.
+     *
+     * RV-11 (R2 sec 67): these three numbers were previously written as four separate literals
+     * across the creation paths, and one of them said 100 while the other three said 70 - so a
+     * user could start at 70 or 100 depending on which method touched them first. The bands
+     * themselves live in `UserScore::getTierAttribute` and are pinned by `RV37ScorePolicyTest`;
+     * `R2 sec 26.14` notes there is still no `config/score.php`, which remains open.
+     */
+    public const START_SCORE = 70;
+
+    public const MIN_SCORE = 0;
+
+    public const MAX_SCORE = 100;
+
     public function __construct(
         private readonly ScorePolicyFactory $policyFactory,
     ) {}
@@ -29,7 +44,7 @@ final class ScoreService
     {
         return UserScore::firstOrCreate(
             ['user_id' => $user->id],
-            ['score' => 70, 'total_rides' => 0, 'total_cancellations' => 0]
+            ['score' => self::START_SCORE, 'total_rides' => 0, 'total_cancellations' => 0]
         );
     }
 
@@ -43,13 +58,17 @@ final class ScoreService
             // RV-37 / un9: the driver's score row is read twice below; load the relation once.
             $ride->loadMissing('driver');
 
+            // RV-11 (R2 sec 67): `applyAction` already counts the ride - RIDE_COMPLETED is the only
+            // action that increments `total_rides`. The `incrementRides()` that used to follow each
+            // call counted EVERY completed ride TWICE, which inflated the denominator behind
+            // `cancel_rate` (total_cancellations / (total_rides + total_cancellations)) so the 50%
+            // high-cancel gate stopped firing when it should. One ride, one increment.
             $this->applyAction(
                 user: $ride->driver,
                 action: ScoreAction::RIDE_COMPLETED,
                 reference: $ride,
                 context: [],
             );
-            $this->incrementRides($ride->driver);
 
             $ride->bookings()
                 ->where('status', 'completed')
@@ -62,7 +81,6 @@ final class ScoreService
                         reference: $ride,
                         context: [],
                     );
-                    $this->incrementRides($booking->user);
                 });
         });
     }
@@ -200,7 +218,7 @@ final class ScoreService
     {
         return UserScore::firstOrCreate(
             ['user_id' => $user->id],
-            ['score' => 70, 'total_rides' => 0, 'total_cancellations' => 0],
+            ['score' => self::START_SCORE, 'total_rides' => 0, 'total_cancellations' => 0],
         );
     }
 
@@ -238,7 +256,7 @@ final class ScoreService
         return UserScore::firstOrCreate(
             ['user_id' => $user->id],
             [
-                'score' => 70,
+                'score' => self::START_SCORE,
                 'total_rides' => 0,
                 'total_cancellations' => 0,
                 'total_no_shows' => 0,
@@ -256,14 +274,20 @@ final class ScoreService
     ): void {
         DB::transaction(function () use ($user, $action, $reference, $context) {
 
+            // RV-11 (R2 sec 67): this was the ONLY one of the four creation sites that started a user
+            // at 100, while `initializeScore`, `getScore` and `getOrCreateScore` all started at 70.
+            // un2 pinned the start score at 70, so this path silently contradicted the owner's own
+            // decision whenever `applyAction` happened to be the first thing to touch a score row.
+            // `tier` and `cancel_rate` are dropped: both are COMPUTED (`setTierAttribute` and
+            // `setCancelRateAttribute` discard assignments), so listing them here implied they were
+            // stored - which is what made the dead `cancel_rate` write below look load-bearing.
             $userScore = UserScore::firstOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'score' => 100,
-                    'tier' => 'bronze',
+                    'score' => self::START_SCORE,
                     'total_rides' => 0,
                     'total_cancellations' => 0,
-                    'cancel_rate' => 0.0,
+                    'total_no_shows' => 0,
                 ]
             );
 
@@ -271,17 +295,27 @@ final class ScoreService
             $result = $policy->calculate($action, $userScore, $context);
 
             $previousScore = (int) $userScore->score;
-            $newScore = max(0, $previousScore + $result->points);
 
-            if ($result->isPositive()) {
+            // RV-11 (R2 sec 67): this clamped the FLOOR only. un2 pinned the ceiling at 100 and
+            // `UserScore::applyDelta` already clamps both ends, so the two mutation paths disagreed
+            // and a run of positive actions could push a user above their maximum score.
+            $newScore = max(
+                self::MIN_SCORE,
+                min(self::MAX_SCORE, $previousScore + $result->points)
+            );
+
+            // RV-11 (R2 sec 67): was `if ($result->isPositive())`. RIDE_COMPLETED is the only positive
+            // action in the enum, so this is behaviour-preserving today - but it said the wrong
+            // thing. A future positive bonus would have inflated the ride count, and the ride count
+            // is what `cancel_rate` divides by. Gate it on the action, which is what it means.
+            //
+            // The `cancel_rate` recomputation that used to live here was DEAD CODE: the column has a
+            // computed accessor (`UserScore::getCancelRateAttribute`) and a mutator that discards
+            // writes, so the assignment was silently thrown away - and it used a different formula
+            // from the accessor anyway. The policies read the accessor, so deleting it changes no
+            // behaviour; keeping it only made the model look like it stored something it does not.
+            if ($action === ScoreAction::RIDE_COMPLETED) {
                 $userScore->total_rides = (int) $userScore->total_rides + 1;
-
-                if ($userScore->total_rides > 0) {
-                    $userScore->cancel_rate = round(
-                        ((int) $userScore->total_cancellations / $userScore->total_rides) * 100,
-                        2
-                    );
-                }
             }
 
             $userScore->score = $newScore;
@@ -328,11 +362,6 @@ final class ScoreService
                 'new_score' => $newScore,
             ]);
         });
-    }
-
-    private function incrementRides(User $user): void
-    {
-        $this->getScore($user)->incrementRides();
     }
 
     private function incrementCancellations(User $user): void

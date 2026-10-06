@@ -76,17 +76,13 @@ class UserScore extends Model
     // ── Mutators ─────────────────────────────────────────────────────────────
 
     /**
-     * The `tier` band is a REAL COLUMN written by `ScoreService::resolveTier` on every score
-     * change, and it used to ALSO have a computed accessor here with identical bands. The accessor
-     * shadowed the column: reading `->tier` returned the computed value, so the stored value could
-     * silently disagree (it did - see R2 sec 42). The column is now the single source of truth,
-     * written correctly by resolveTier (Gold>=80 / Silver>=60 / Bronze>=40, Restricted below), and
-     * RV37ScorePolicyTest pins the raw column so the two can never drift again. The accessor is
-     * gone.
-    //
-
-    /**
-     * Apply a delta to the score, clamping to [0, 200].
+     * Apply a delta to the score, clamping to [0, 100].
+     *
+     * RV-11 (R2 sec 67): this docblock claimed "[0, 200]" - the ceiling the owner rejected when
+     * they refused the 200/150/100 tier scale in un2. The code always clamped at 100; only the
+     * comment disagreed, and a wrong ceiling in a comment is how the rejected scale kept being
+     * quoted. ScoreService::MIN_SCORE / MAX_SCORE carry the same bounds on the other mutation
+     * path, which until this pass had no ceiling at all.
      */
     public function applyDelta(int $delta): void
     {

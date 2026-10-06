@@ -12,6 +12,8 @@ with each status taken from the newest section that mentions it. The per-task lo
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
 - OWNER DECISION SLATE 2026-10-02 - ALL 18 DECISIONS DISPATCHED. Branch `Agentic` only, never pushed.
+- OWNER DECISION 2026-10-03 - "a completed ride counts ONCE" (RV-11). Applied, `R2 sec 67`.
+- Done recently: RV-11 ride double-count + 3 score-policy defects - VERIFIED FIX (`R2 sec 67`).
   DONE + committed: decision record `77e9820`, un10 wallet fixtures `bff1d3e`, un2 score policy
   `de61c7b`, un5 delete finish/driver-confirm `1510663` (+`23457eb` near-miss record),
   un9 lazy loading + flag ARMED `00f7b9d`/`5bbadad`, decision 11 KYC action gate `0c6a1f6`,
