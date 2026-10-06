@@ -191,6 +191,37 @@ because their Status is not `OPEN`. No answer to this rule is cached here on pur
   (rotation + history purge), T3-3 and T3-17 deferred, T3-4 and T3-10 not started, T4-5 rolled back.
 - AF series (APP_FUTURE_AUDIT.md section J): AF-5 needs an infra decision, AF-7 not started.
 
+## Owner decisions 2026-10-04 - ALL 12 ANSWERED (D1-D12). Settled, do not re-litigate.
+- **D1 = A** (RV-02 L2). Unique `wallet_transactions.posting_key` + per-booking `escrow_held` with
+  GUARDED decrements (`WHERE escrow_held >= :amount`, abort unless exactly 1 row changed); SyCash
+  becomes derived/reconciled. **HARD CONSTRAINT from the owner: keep the 95/5 split and ALL
+  cancellation refund tiers EXACTLY as they are today - bookkeeping only, no percentage changes.**
+- **D2 = D + C** (RV-10). Build the READ-ONLY stuck-escrow reporter first (age + amount, moves no
+  money), then the staff-queue escalation. Window W still unnamed - take it from the reporter's data.
+- **D3 = A** (RV-13a). Mask `DomainException` messages in production; log the detail.
+- **D4 = B** (RV-19 item 4). Remove the new-driver rating seed so it stops pretending. **Owner intent:
+  the user should have rating 3 at SIGNUP - implement at signup, not in verification approval.**
+- **D5 = C** (RV-19 item 2). Add TWO clearly-named fields (ledger earnings + estimated gross) and keep
+  `total_earnings` as an ALIAS so the admin front-end does not break.
+- **D6 = B** (RV-14). `distance` in METRES, `duration` in SECONDS. Fix the `320.5` / `12345` /
+  `320500` fixtures to match. One documented unit each.
+- **D7 = A** (RV-12). Stop persisting `status = 0`; migrate existing `0` rows to `1`. Keep numeric
+  status in API responses (1 active, -1 banned). Admin "suspended" must mean BANNED.
+- **D8 = A** (T3-4 + RV-21). Add nullable `processed_by_employee_id` with an FK to `employees`; keep
+  `processed_by` for history. KEEP `wallet_requests.wallet_id NOT NULL` and fix the 26 test fixtures
+  to supply `wallet_id` - do NOT change the schema for it.
+- **D9 = C** (T3-10 + RV-08). Target-agnostic hygiene ONLY for now: no token in the remote URL, no
+  hard `reset --hard` to a feature branch. The deploy target is chosen later.
+- **D10 = A** (RV-11-B), conditional on the edge list being published first. **That list, measured:
+  `models_to_enums` baseline is 2 and the ACTUAL edges are exactly 4 -** `Complaint` -> `ComplaintStatus`
+  and -> `ComplaintType`, `Employee` -> `StaffRole`, `Wallet` -> `WalletKind`. All four are legitimate
+  domain enums, not violations; the baseline predates them. Raise 2 -> 4 with these four named.
+- **D11 = A** (RV-29 item 5). `communication_number` gating stays DEFERRED.
+- **D12** acknowledged as owner-only actions, not scheduled for the agent: T1-3 (rotate
+  firebase-credentials + `dump.sql`, purge history), T2-8 (rotate Pusher), RV-16
+  (`APP_ENV=production` in the deployed `.env`), RV-27 / RV-28 (prod FCM keys, real delivery,
+  least-privilege DB user, `TRUSTED_PROXIES`), RV-17 (production-shaped k6 run).
+
 ## Owner decisions (settled - do not re-litigate)
 - The Aiven test database password and the OpenRouteService key are BURNED and testing-only.
   Owner decision: do NOT rotate them and do NOT flag them. No credential-rotation or
