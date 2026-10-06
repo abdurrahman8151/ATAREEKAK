@@ -11,6 +11,12 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- **D1 (RV-02 L2) IS THE NEXT TASK AND IS UNBLOCKED - execute from `R2 sec 77`, which carries the
+  complete execution map.** Do not re-derive it. 11 movement sites (1 credit + 7 debits in
+  `WalletTransactionService`, 3 in `CashRideFeeService`), 2 migrations, 1 new invariant. Owner
+  constraint: the 95/5 split and ALL six refund tiers stay byte-identical - bookkeeping only.
+  NOTE the literal BACKLOG invariant `SyCash == SUM(escrow_held)` is FALSE (cash rows are backfilled
+  to 0 by design); the true form is e-pay only. Pin the true one.
 - Done recently: **RV-19 item 5 VERIFIED FIX (`R2 sec 76`)** - three admin derived numbers fixed and the
   bug-pinning tests flipped. Item 4 proven but OWNER-GATED: `config/system_admin.php` is absent, so the
   new-driver rating seed silently never runs.
