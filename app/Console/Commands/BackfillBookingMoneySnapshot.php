@@ -28,6 +28,19 @@ use Illuminate\Support\Facades\DB;
  *     amount_paid at 0 with the cash-settled meaning. Inventing an amount from the mutable
  *     ride is exactly the lie this command exists to stop.
  *   - Reports counts it changed, so a deployer sees the effect before/after.
+ *
+ * RV-02 L2 - escrow_held IS SET FROM THE ESCROW LEDGER, NOT BLANKED
+ *
+ * This used to write `escrow_held => 0` unconditionally, with the comment "historical; the
+ * balance is already settled". That was true while nothing read the column. It stopped being true
+ * the moment RV-02 L2 made `escrow_held` the guard every settlement path checks: a booking that
+ * is still CONFIRMED and holding real money in SyCash would have had its escrow re-zeroed, and its
+ * own legitimate settlement would then abort with "does not hold ... in escrow".
+ *
+ * So the escrow figure is now derived from the SAME ledger rows this command already reads
+ * (`escrow_received` for the booking), which is the authoritative record of what the passenger
+ * actually put into SyCash. A booking with no escrow row still gets 0 - that is the cash case, and
+ * it stays honest rather than guessed.
  */
 class BackfillBookingMoneySnapshot extends Command
 {
@@ -83,7 +96,12 @@ class BackfillBookingMoneySnapshot extends Command
                         'unit_price' => $unitPrice,
                         'amount_paid' => $paid,
                         'payment_method' => 'e-pay',
-                        'escrow_held' => 0, // historical; the balance is already settled
+                        // RV-02 L2: what this booking has in SyCash RIGHT NOW, taken from the
+                        // escrow ledger row this command already located (`$paid`). Writing 0
+                        // here would strip a live, unreleased escrow of the only record that
+                        // makes its settlement safe to run. Clamped at 0 because this command
+                        // reads only money IN, never money already paid back out.
+                        'escrow_held' => max(0.0, (float) $paid),
                     ])->save();
                 }
                 $ePayUpdated++;

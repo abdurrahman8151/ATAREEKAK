@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Support\FeeSplit;
+use App\Support\PostingKey;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,20 @@ class WalletTransactionService
     {
         $amount = $booking->seats * $ride->price_per_seat;
 
+        // ── RV-02 L2 (D1): the replay guard, FIRST — before any wallet is locked or
+        // any balance is written.
+        //
+        // Every caller wraps this in DB::transaction, so a guard placed after the balance
+        // updates would still roll back. Placing it here means the method aborts having moved
+        // NOTHING on its own account: the guarantee belongs to the money service, not to every
+        // call site remembering to open a transaction. It is also the cheapest possible ordering
+        // — a duplicate is rejected by one indexed read instead of after two wallet writes.
+        //
+        // Deterministic (`booking:{id}:escrow-in`), so a re-charge of the same booking collides
+        // here rather than putting the passenger's money into SyCash twice.
+        $escrowInKey = $this->postingKey('booking:'.$booking->id, 'escrow-in');
+        $this->assertPostingKeyUnused($escrowInKey);
+
         // RV-09: acquire the GLOBAL serialization lock (SyCash) FIRST, then the
         // passenger's own wallet. Every other money path (release/refund/no-show) already
         // locks SyCash before any user wallet; charge was the lone exception, locking
@@ -118,13 +133,18 @@ class WalletTransactionService
         //   amount_paid    the total actually moved off the passenger now
         //   payment_method snapshot so flipping the ride's method cannot change refunds
         // These three never change after the charge, so they are always truthful here.
-        // (escrow_held — "what is still sitting in SyCash" — is written AND cleared
-        // together in RV-02 L2, where the settlement paths are made idempotent off it;
-        // writing it here without clearing it everywhere else would leave it stale.)
+        //   escrow_held    RV-02 L2: what this booking now has IN SyCash. Written here and
+        //                  cleared by the guarded decrement on every settlement, so the column
+        //                  answers "what does this booking still have sitting in escrow" — the
+        //                  fact the settlement guards are built on. It is the whole amount
+        //                  charged: this method runs only for e-pay (BookingService and
+        //                  EPayPaymentStrategy both gate on it), so a cash booking never reaches
+        //                  here and never needs a 0 written for it.
         $booking->forceFill([
             'unit_price' => $ride->price_per_seat,
             'amount_paid' => $amount,
             'payment_method' => $ride->payment_method,
+            'escrow_held' => $amount,
         ])->save();
 
         $txId = 'RB_'.time().'_'.Str::random(8);
@@ -153,6 +173,7 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
+            'posting_key' => $escrowInKey,
         ]);
 
         // ── Decision un3: double-entry legs ────────────────────────────────────
@@ -222,6 +243,19 @@ class WalletTransactionService
             "Insufficient SyCash balance for payout. Required: {$total}"
         );
 
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        // One wallet debit here, but the escrow is PER BOOKING, so each confirmed booking is
+        // decremented on its own row for exactly the share of `$total` it contributed
+        // (`$total` is the sum of those same per-booking amounts). The posting key names the ride
+        // AND the settled set, so re-running this same completion cannot pay again, while
+        // cancelling a different subset of the same ride is still a distinct movement.
+        $escrowOutKey = PostingKey::buildForSet($ride->id, 'ride-complete', $confirmedBookings);
+        $this->assertPostingKeyUnused($escrowOutKey);
+        $this->debitEscrowForSet(
+            $confirmedBookings,
+            fn (Booking $b) => (float) $b->seats * (float) $ride->price_per_seat
+        );
+
         $syCashPrev = $syCashWallet->balance;
         $driverPrev = $driverWallet->balance;
         $primaryPrev = $primaryWallet->balance;
@@ -248,6 +282,7 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "ride:{$ride->id}",
+            'posting_key' => $escrowOutKey,
         ]);
 
         // Driver receives 95%
@@ -335,6 +370,16 @@ class WalletTransactionService
             "Insufficient SyCash balance for passenger refunds. Required: {$totalRefund}"
         );
 
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        // 100% of each booking's escrow goes back, so every booking's row is cleared to zero by
+        // this call. The refund TIER is untouched — this only decides whether it may happen once.
+        $escrowOutKey = PostingKey::buildForSet($ride->id, 'driver-cancel', $bookings);
+        $this->assertPostingKeyUnused($escrowOutKey);
+        $this->debitEscrowForSet(
+            $bookings,
+            fn (Booking $b) => (float) $b->seats * (float) $ride->price_per_seat
+        );
+
         $txId = 'DRIVER_CANCEL_'.time().'_'.Str::random(6);
 
         $syCashPrev = $syCashWallet->balance;
@@ -352,6 +397,7 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "ride:{$ride->id}",
+            'posting_key' => $escrowOutKey,
         ]);
 
         foreach ($bookings as $booking) {
@@ -475,6 +521,18 @@ class WalletTransactionService
             "Insufficient SyCash balance for staff-cancellation refunds. Required: {$totalRefund}"
         );
 
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        // Debited against the SAME `amount_paid` snapshot this method already refunds from, so
+        // the escrow row can never disagree with the money about how much this booking held.
+        // Only `$refundable` is touched: the needs-review rows were never charged, so they hold
+        // no escrow, and this is deliberately not a second place to guess an amount at them.
+        $escrowOutKey = PostingKey::buildForSet($ride->id, 'staff-cancel', $refundable);
+        $this->assertPostingKeyUnused($escrowOutKey);
+        $this->debitEscrowForSet(
+            $refundable,
+            fn (Booking $b) => (float) $b->amount_paid
+        );
+
         $txId = 'STAFF_CANCEL_'.time().'_'.Str::random(6);
 
         $syCashPrev = $syCashWallet->balance;
@@ -492,6 +550,7 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "ride:{$ride->id}",
+            'posting_key' => $escrowOutKey,
         ]);
 
         foreach ($refundable as $booking) {
@@ -623,6 +682,23 @@ class WalletTransactionService
             "Insufficient SyCash balance for cancellation refund. Required: {$totalPaid}"
         );
 
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        // The refund TIER is untouched — this guards whether the movement may happen, not what
+        // it pays. `$totalPaid` is debited, not the full booking: the seats that stay booked keep
+        // their escrow, and `BookingService` reduces `$booking->seats` immediately afterwards, so
+        // a later completion of the same booking releases exactly what is left here.
+        //
+        // THE KEY MUST DISTINGUISH A PARTIAL CANCEL FROM THE FULL SETTLEMENT — and successive
+        // partial cancels from each other, which is why it names the REMAINING seat count rather
+        // than the cancelled one or the amount. Cancelling one of two seats then the other is two
+        // movements (`:cancel:1`, then `:cancel:0`); a single full cancel of two seats is the same
+        // end state and correctly shares the final key. The caller still holds the PRE-cancel
+        // `$booking->seats` at this point, so the arithmetic is exact and deterministic.
+        $seatsRemaining = max(0, (int) $booking->seats - $seatsCancelled);
+        $escrowOutKey = $this->postingKey('booking:'.$booking->id, 'escrow-out', 'cancel:'.$seatsRemaining);
+        $this->assertPostingKeyUnused($escrowOutKey);
+        $this->debitEscrow($booking, (float) $totalPaid);
+
         $syCashPrev = $syCashWallet->balance;
         $passengerPrev = $passengerWallet->balance;
         $driverPrev = $driverWallet->balance;
@@ -653,6 +729,7 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
+            'posting_key' => $escrowOutKey,
         ]);
 
         // Passenger refund
@@ -754,6 +831,11 @@ class WalletTransactionService
             "Insufficient SyCash balance for no-show settlement. Required: {$total}"
         );
 
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        $escrowOutKey = $this->postingKey('booking:'.$booking->id, 'escrow-out', 'passenger-no-show');
+        $this->assertPostingKeyUnused($escrowOutKey);
+        $this->debitEscrow($booking, (float) $total);
+
         $syCashPrev = $syCashWallet->balance;
         $driverPrev = $driverWallet->balance;
         $primaryPrev = $primaryWallet->balance;
@@ -779,6 +861,7 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
+            'posting_key' => $escrowOutKey,
         ]);
 
         WalletTransaction::create([
@@ -841,6 +924,11 @@ class WalletTransactionService
             "Insufficient SyCash balance for driver no-show refund. Required: {$refundAmount}"
         );
 
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        $escrowOutKey = $this->postingKey('booking:'.$booking->id, 'escrow-out', 'driver-no-show');
+        $this->assertPostingKeyUnused($escrowOutKey);
+        $this->debitEscrow($booking, (float) $refundAmount);
+
         $syCashPrev = $syCashWallet->balance;
         $passengerPrev = $passengerWallet->balance;
 
@@ -863,6 +951,7 @@ class WalletTransactionService
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
+            'posting_key' => $escrowOutKey,
         ]);
 
         WalletTransaction::create([
@@ -894,6 +983,127 @@ class WalletTransactionService
     // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================
+
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * RV-02 L2 (owner decision D1 = A) — escrow guards
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * TWO GUARDS, AND WHY BOTH.
+     *
+     * `wallet_transactions.transaction_id` was never an idempotency key: it is minted from
+     * `time()` plus randomness, so a replay produced a brand-new, ordinary-looking row and
+     * nothing in the schema could tell it from the original. Every escrow movement therefore ran
+     * again on a replay and paid again. Two independent, deterministic guards close that:
+     *
+     *   1. POSTING KEY — is this exact movement already recorded? The key is derived from the
+     *      booking/ride and the action, never from a clock, so the same logical movement
+     *      recomputes the same key. The unique index added by
+     *      `2026_10_08_000001_add_posting_key_to_wallet_transactions` is the database backstop;
+     *      `assertPostingKeyUnused` is the explicit early check that fails BEFORE any balance is
+     *      touched, so a replay never gets as far as writing money and then unwinding.
+     *
+     *   2. ESCROW HELD — is the booking still holding enough? `escrow_held` is what the booking
+     *      has actually put into SyCash and not yet taken out. The decrement is CONDITIONAL
+     *      (`WHERE escrow_held >= :amount`) and the caller aborts unless exactly one row changed,
+     *      so a booking that has already given up its escrow cannot give it up again.
+     *
+     * Either guard alone would be sufficient against a literal replay, but they fail differently:
+     * the posting key catches "the same movement ran twice", while the escrow guard catches "this
+     * booking's escrow is already spent" even when the movements differ (a full completion after a
+     * partial cancel, say). Together a settlement can neither repeat nor overdraw.
+     *
+     * FAIL LOUD, DO NOT SILENTLY SKIP. Every one of these throws \RuntimeException, the type this
+     * service already uses for `assertSufficientBalance`, so the surrounding transaction unwinds
+     * with nothing half-written and no HTTP status changes. A settlement that cannot be proven
+     * safe must not quietly succeed.
+     *
+     * WHAT THIS DOES NOT CHANGE. Not one amount. The 95/5 split, all six refund tiers, and every
+     * `seats * ride.price_per_seat` derivation stay exactly as they were; this is bookkeeping
+     * (the owner's word) over money that already moved the same way.
+     */
+
+    /**
+     * Format an amount for safe interpolation into raw SQL.
+     *
+     * Two decimals, no thousands separator, no locale, no exponent: `escrow_held` is
+     * decimal(15,2), so anything else could round differently from the stored value or arrive as
+     * `1.0E+3` — which is valid PHP string output and invalid arithmetic here.
+     */
+    private function money(float $amount): string
+    {
+        return number_format($amount, 2, '.', '');
+    }
+
+    /**
+     * Build the deterministic posting key for one movement.
+     *
+     * A thin delegate to {@see PostingKey} rather than a second implementation: a guard that
+     * exists twice is a guard that drifts, and this one is the difference between paying once and
+     * paying twice.
+     */
+    private function postingKey(string ...$segments): string
+    {
+        return PostingKey::build(...$segments);
+    }
+
+    /**
+     * Guard 1 — refuse a movement whose posting key is already recorded.
+     *
+     * Runs before any balance is written, so a replay aborts having moved nothing.
+     */
+    private function assertPostingKeyUnused(string $postingKey): void
+    {
+        PostingKey::assertUnused($postingKey);
+    }
+
+    /**
+     * Guard 2 — take `amount` out of a booking's escrow, conditionally.
+     *
+     * The guard is in the WHERE clause, not a read-then-write: `escrow_held >= :amount` is
+     * evaluated by the database as part of the UPDATE, so two concurrent settlements cannot both
+     * see the pre-decrement value and both proceed. Exactly one row changed, or the caller aborts.
+     *
+     * @throws \RuntimeException when the booking does not hold that much (already settled, or
+     *                           never charged at all — both are reasons not to pay).
+     */
+    private function debitEscrow(Booking $booking, float $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        $affected = DB::table('bookings')
+            ->where('id', $booking->id)
+            ->where('escrow_held', '>=', $this->money($amount))
+            ->update([
+                'escrow_held' => DB::raw('escrow_held - '.$this->money($amount)),
+            ]);
+
+        if ($affected !== 1) {
+            $held = (float) (DB::table('bookings')->where('id', $booking->id)->value('escrow_held') ?? 0);
+
+            throw new \RuntimeException(
+                "RV-02 L2: booking #{$booking->id} does not hold {$this->money($amount)} in escrow "
+                ."(holds {$this->money($held)}). Refusing to settle: this booking's escrow has "
+                .'already been spent, or it was never charged.'
+            );
+        }
+    }
+
+    /**
+     * Guard 2 over a set of bookings, for a ride-level settlement.
+     *
+     * Each booking is decremented on its OWN row: one ride-level wallet movement can still cover
+     * several bookings, and the escrow is per booking. Any booking short of its share aborts the
+     * whole operation — a partial settlement is exactly the half-applied state this task removes.
+     */
+    private function debitEscrowForSet(Collection $bookings, callable $amountFor): void
+    {
+        foreach ($bookings as $booking) {
+            $this->debitEscrow($booking, (float) $amountFor($booking));
+        }
+    }
 
     private function lockWalletByUserId(int $userId): Wallet
     {
@@ -1034,6 +1244,16 @@ use App\Models\Booking;
             ."Required: {$total} SYP. Available: {$syCashWallet->balance} SYP."
         );
 
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        // This is the per-passenger counterpart of releaseEarningsToDriver(). The two cannot both
+        // pay for the same booking — `passengerConfirmCompletion` marks the booking COMPLETED
+        // before calling here, and `checkAndCompleteRide` only settles bookings still CONFIRMED —
+        // but that exclusion lives in the CALLER. These guards make the guarantee hold at the
+        // money layer itself, so a caller that gets that filter wrong can no longer pay twice.
+        $escrowOutKey = $this->postingKey('booking:'.$booking->id, 'escrow-out', 'release');
+        $this->assertPostingKeyUnused($escrowOutKey);
+        $this->debitEscrow($booking, $total);
+
         // ── Snapshot previous balances ────────────────────────────────────────────
         $syCashPrev = (float) $syCashWallet->balance;
         $driverPrev = (float) $driverWallet->balance;
@@ -1065,6 +1285,7 @@ use App\Models\Booking;
             'transaction_id' => 'SYCASH_'.$txId,
             'status' => 'completed',
             'reference' => $txRef,
+            'posting_key' => $escrowOutKey,
         ]);
 
         // ── 2. Driver credit (95%) ────────────────────────────────────────────────

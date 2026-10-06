@@ -24,6 +24,11 @@ class WalletTransaction extends Model
         'transaction_id',
         'status',
         'reference',
+        // RV-02 L2 / D1: deterministic idempotency key for ONCE-ONLY postings. Nullable and
+        // unique by migration, so a row that is not one of the instrumented postings simply
+        // omits it. Never mint this from a clock or a random string - its whole purpose is that
+        // the same logical movement recomputes the SAME key and collides on replay.
+        'posting_key',
     ];
 
     protected $casts = [

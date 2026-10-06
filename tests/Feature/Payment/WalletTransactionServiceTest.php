@@ -155,7 +155,7 @@ class WalletTransactionServiceTest extends TestCase
     {
         // Driver gets 95%, not the full amount — the remaining 5% is the
         // platform fee that goes to the primary admin wallet instead.
-        $booking = $this->makeBooking(2, 'confirmed');
+        $booking = $this->makeChargedBooking(2, 'confirmed');
         $total = $booking->seats * $this->ride->price_per_seat;
         $expectedShare = round($total * 0.95, 2);
         $before = (float) $this->driverWallet->fresh()->balance;
@@ -168,7 +168,7 @@ class WalletTransactionServiceTest extends TestCase
     public function test_release_earnings_adds_to_primary_wallet(): void
     {
         // The 5% platform fee counterpart to the driver's 95% share above.
-        $booking = $this->makeBooking(2, 'confirmed');
+        $booking = $this->makeChargedBooking(2, 'confirmed');
         $total = $booking->seats * $this->ride->price_per_seat;
         $expectedShare = round($total * 0.05, 2);
         $before = (float) $this->primaryAdminWallet->fresh()->balance;
@@ -182,7 +182,7 @@ class WalletTransactionServiceTest extends TestCase
     {
         // SyCash releases the FULL amount — it's the source that gets split
         // 95/5 between driver and primary, not the primary wallet itself.
-        $booking = $this->makeBooking(2, 'confirmed');
+        $booking = $this->makeChargedBooking(2, 'confirmed');
         $total = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->syCashWallet->fresh()->balance;
 
@@ -203,7 +203,7 @@ class WalletTransactionServiceTest extends TestCase
     public function test_release_earnings_creates_three_transactions(): void
     {
         // sycash debit + driver credit (95%) + primary credit (5%) = 3
-        $booking = $this->makeBooking(1, 'confirmed');
+        $booking = $this->makeChargedBooking(1, 'confirmed');
         $before = WalletTransaction::count();
 
         $this->service->releaseEarningsToDriver($this->ride, new Collection([$booking]));
@@ -226,7 +226,7 @@ class WalletTransactionServiceTest extends TestCase
 
     public function test_refund_passengers_adds_money_back_to_passenger_wallet(): void
     {
-        $booking = $this->makeBooking(2, 'confirmed');
+        $booking = $this->makeChargedBooking(2, 'confirmed');
         $refund = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->passengerWallet->fresh()->balance;
 
@@ -240,7 +240,7 @@ class WalletTransactionServiceTest extends TestCase
         // Driver-cancellation refunds are paid out of escrow (SyCash), not
         // the primary admin wallet, since the primary only ever moves at
         // ride completion or no-show settlement.
-        $booking = $this->makeBooking(1, 'confirmed');
+        $booking = $this->makeChargedBooking(1, 'confirmed');
         $refund = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->syCashWallet->fresh()->balance;
 
@@ -251,8 +251,8 @@ class WalletTransactionServiceTest extends TestCase
 
     public function test_refund_passengers_creates_correct_number_of_transactions(): void
     {
-        $b1 = $this->makeBooking(1, 'confirmed');
-        $b2 = $this->makeBooking(1, 'confirmed');
+        $b1 = $this->makeChargedBooking(1, 'confirmed');
+        $b2 = $this->makeChargedBooking(1, 'confirmed');
         $before = WalletTransaction::count();
 
         $this->service->refundPassengersForDriverCancellation(
@@ -279,7 +279,7 @@ class WalletTransactionServiceTest extends TestCase
     public function test_process_cancellation_100_percent_refund_refunds_passenger_fully(): void
     {
         $policy = ['refund_percentage' => 100, 'time_elapsed_percentage' => 10, 'policy_tier' => 'Full refund'];
-        $booking = $this->makeBooking(1, 'confirmed');
+        $booking = $this->makeChargedBooking(1, 'confirmed');
         $amount = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->passengerWallet->fresh()->balance;
 
@@ -291,7 +291,7 @@ class WalletTransactionServiceTest extends TestCase
     public function test_process_cancellation_100_percent_refund_driver_gets_nothing(): void
     {
         $policy = ['refund_percentage' => 100, 'time_elapsed_percentage' => 10, 'policy_tier' => 'Full refund'];
-        $booking = $this->makeBooking(1, 'confirmed');
+        $booking = $this->makeChargedBooking(1, 'confirmed');
         $before = (float) $this->driverWallet->fresh()->balance;
 
         $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
@@ -302,7 +302,7 @@ class WalletTransactionServiceTest extends TestCase
     public function test_process_cancellation_70_percent_refund_splits_correctly(): void
     {
         $policy = ['refund_percentage' => 70, 'time_elapsed_percentage' => 40, 'policy_tier' => '30-50%'];
-        $booking = $this->makeBooking(1, 'confirmed');
+        $booking = $this->makeChargedBooking(1, 'confirmed');
         $totalPaid = $booking->seats * $this->ride->price_per_seat;
         $refundAmount = $totalPaid * 0.70;
         $driverAmount = $totalPaid - $refundAmount;
@@ -319,7 +319,7 @@ class WalletTransactionServiceTest extends TestCase
     public function test_process_cancellation_0_percent_refund_all_goes_to_driver(): void
     {
         $policy = ['refund_percentage' => 0, 'time_elapsed_percentage' => 80, 'policy_tier' => '70-100%'];
-        $booking = $this->makeBooking(1, 'confirmed');
+        $booking = $this->makeChargedBooking(1, 'confirmed');
         $totalPaid = $booking->seats * $this->ride->price_per_seat;
         $driverBefore = (float) $this->driverWallet->fresh()->balance;
 
@@ -331,7 +331,7 @@ class WalletTransactionServiceTest extends TestCase
     public function test_process_cancellation_0_percent_creates_no_refund_audit_record(): void
     {
         $policy = ['refund_percentage' => 0, 'time_elapsed_percentage' => 80, 'policy_tier' => '70-100%'];
-        $booking = $this->makeBooking(1, 'confirmed');
+        $booking = $this->makeChargedBooking(1, 'confirmed');
 
         $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
 
@@ -450,5 +450,30 @@ class WalletTransactionServiceTest extends TestCase
             'status' => $status,
             'communication_number' => '0911111111',
         ]);
+    }
+
+    /**
+     * A booking that has actually been PAID for, for tests that go on to SETTLE it.
+     *
+     * RV-02 L2. Since escrow instrumentation, `releaseEarningsToDriver`,
+     * `refundPassengersForDriverCancellation` and `processTimeBasedCancellation` all refuse to
+     * move money out of a booking that does not hold it in escrow — and `escrow_held` is written
+     * by exactly one place, the charge. These tests previously built a bare `makeBooking()` row,
+     * put no money in escrow, and then asked the service to pay out of it: a state the product
+     * cannot produce, because the only path that creates a confirmed e-pay booking charges it.
+     *
+     * So the fixture now performs that charge. NOT ONE ASSERTION CHANGED — `$before` is captured
+     * after this call in every test that uses it, and the charge moves the passenger wallet down
+     * and SyCash up by the same amount, so every balance delta, transaction count and refund
+     * split asserted below is the one the test asserted before. What changed is that the test now
+     * exercises the real path instead of a shortcut around it.
+     */
+    private function makeChargedBooking(int $seats = 1, string $status = 'confirmed'): Booking
+    {
+        $booking = $this->makeBooking($seats, $status);
+
+        $this->service->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+
+        return $booking->fresh();
     }
 }

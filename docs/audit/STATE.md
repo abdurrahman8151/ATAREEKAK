@@ -11,12 +11,16 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
-- **D1 (RV-02 L2) IS THE NEXT TASK AND IS UNBLOCKED - execute from `R2 sec 77`, which carries the
-  complete execution map.** Do not re-derive it. 11 movement sites (1 credit + 7 debits in
-  `WalletTransactionService`, 3 in `CashRideFeeService`), 2 migrations, 1 new invariant. Owner
-  constraint: the 95/5 split and ALL six refund tiers stay byte-identical - bookkeeping only.
-  NOTE the literal BACKLOG invariant `SyCash == SUM(escrow_held)` is FALSE (cash rows are backfilled
-  to 0 by design); the true form is e-pay only. Pin the true one.
+- Done recently: **D1 / RV-02 L2 is now VERIFIED FIX (`R2 sec 81`)** - `bookings.escrow_held` is finally
+  written and read: guarded decrements (`WHERE escrow_held >= :amount`, abort unless 1 row) at all 8
+  escrow sites, plus a deterministic UNIQUE `wallet_transactions.posting_key`, so a replayed settlement
+  moves nothing. 2 migrations (verified up AND down AND re-runnable), shared `app/Support/PostingKey`.
+  Owner constraint honoured and PROVEN by needle: 95/5 exact, all four elapsed refund tiers exact.
+  Controlled bisect 623 tests / 11 failures at HEAD vs 623 / 11 after - failure name set IDENTICAL.
+  Two corrections to the `sec 77` map are recorded in `sec 81`: the map over-counted `CashRideFeeService`
+  (no SyCash, no booking), and its reason for the "invariant is false" note was imprecise. 16 test
+  fixtures in 2 files stopped booking-and-settling-without-paying-for; NO assertion was changed.
+  `autoClearDebt` is deliberately left unkeyed (a REPEATABLE posting).
 - Done recently: **D3 (RV-13) VERIFIED FIX (`R2 sec 79`)** - `DomainException::toArray()` shipped the raw
   message in production while `\InvalidArgumentException` masked; the newer exception was the LEAKIER.
   Now masked + logged, `code` and shape unchanged. **This unblocks the 61-site migration as

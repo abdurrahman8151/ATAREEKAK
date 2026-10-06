@@ -6,6 +6,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Support\PostingKey;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -60,6 +61,38 @@ final class CashRideFeeService
 {
     /** Cash rides before immediate fee enforcement kicks in. */
     private const DEFERRED_RIDES_ALLOWED = 2;
+
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * RV-02 L2 (owner decision D1 = A) — scope note, read this before assuming
+     * every method here is covered.
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * THIS SERVICE IS NOT ESCROW. Every movement in it is driver ↔ platform: the 5% cash-ride
+     * creation fee, its refund, and the deferred-fee debt. None of them touches SyCash and none
+     * of them has a booking, so none of them participates in `bookings.escrow_held` — cash
+     * bookings deliberately hold 0 there ("cash never holds SyCash"). The audit's execution map
+     * listed this service among the escrow sites; that came from grepping `lockForUpdate`, and it
+     * over-counted. Nothing below is instrumented against escrow, and nothing needed to be.
+     *
+     * WHAT IS INSTRUMENTED, AND WHY ONLY PART OF IT
+     *
+     * `posting_key` is for ONCE-ONLY postings, and only two of this service's movements are:
+     *
+     *   chargeCashRideCreationFee  once per ride — a ride is created once
+     *   refundCashRideCreationFee  once per cancellation — a ride is cancelled once
+     *
+     * `autoClearDebt` is deliberately NOT keyed. It runs after every approved wallet top-up and
+     * is a REPEABLE movement: a driver can top up, clear, top up more and clear again. Giving it
+     * a per-wallet key would make the second legitimate debt clear collide with the first and throw
+     * — a regression introduced by the fix itself, on the one path that has no escrow to protect.
+     * There is no counter in the schema that would make such a key both unique and meaningful, and
+     * inventing one (the amount cleared) still collides whenever the same amount recurs. Leaving
+     * it unkeyed is the honest choice, and it is recorded rather than silently skipped.
+     *
+     * NO AMOUNT CHANGES. The fee, the tiers and the debt arithmetic are untouched — this is the
+     * same bookkeeping-only constraint the owner set for the escrow half.
+     */
 
     // =========================================================================
     // ELIGIBILITY CHECK
@@ -163,7 +196,14 @@ final class CashRideFeeService
             ->lockForUpdate()
             ->firstOrFail();
 
+        // RV-02 L2: a ride is created once, so its creation fee is a once-only posting. Keyed
+        // per ride AND per branch, because a ride's fee is EITHER deferred or charged, never both.
+        $deferredKey = PostingKey::build('ride:'.$ride->id, 'cash-fee', 'deferred');
+        $chargeKey = PostingKey::build('ride:'.$ride->id, 'cash-fee', 'charge');
+
         if ($ride->cash_fee_deferred) {
+            PostingKey::assertUnused($deferredKey);
+
             // ── Deferred: add to debt, no balance change ──────────────────────
             $prevDebt = (float) $driverWallet->cash_ride_debt;
             $driverWallet->cash_ride_debt = $prevDebt + $feeAmount;
@@ -181,6 +221,7 @@ final class CashRideFeeService
                 'transaction_id' => 'CASH_DEFER_'.time().'_'.Str::random(6),
                 'status' => 'completed',
                 'reference' => "ride:{$ride->id}",
+                'posting_key' => $deferredKey,
             ]);
 
             Log::info('Cash ride fee deferred', [
@@ -194,6 +235,8 @@ final class CashRideFeeService
         }
 
         // ── Immediate: Driver wallet → Primary Admin wallet ──────────────────
+        PostingKey::assertUnused($chargeKey);
+
         $primaryWallet = $this->lockPrimaryWallet();
         $txId = 'CASH_FEE_'.time().'_'.Str::random(6);
         $driverPrev = (float) $driverWallet->balance;
@@ -217,6 +260,7 @@ final class CashRideFeeService
             'transaction_id' => $txId,
             'status' => 'completed',
             'reference' => "ride:{$ride->id}",
+            'posting_key' => $chargeKey,
         ]);
 
         WalletTransaction::create([
@@ -298,8 +342,16 @@ final class CashRideFeeService
         $refundPct = ($elapsedPct < 30.0 || ! $hadActiveBookings) ? 100 : 0;
         $refundAmount = round($feeAmount * $refundPct / 100, 2);
 
+        // RV-02 L2: a ride is cancelled once, so each of the three outcomes below is a once-only
+        // posting. Distinct keys, because a ride takes exactly one of them.
+        $debtCancelKey = PostingKey::build('ride:'.$ride->id, 'cash-fee', 'debt-cancel');
+        $noRefundKey = PostingKey::build('ride:'.$ride->id, 'cash-fee', 'no-refund');
+        $refundKey = PostingKey::build('ride:'.$ride->id, 'cash-fee', 'refund');
+
         // ── Deferred fee: adjust debt only, no money moves ───────────────────
         if ($ride->cash_fee_deferred) {
+            PostingKey::assertUnused($debtCancelKey);
+
             $prevDebt = (float) $driverWallet->cash_ride_debt;
             $driverWallet->cash_ride_debt = max(0.0, $prevDebt - $refundAmount);
             $driverWallet->save();
@@ -316,6 +368,7 @@ final class CashRideFeeService
                 'transaction_id' => 'DEBT_CANCEL_'.time().'_'.Str::random(6),
                 'status' => 'completed',
                 'reference' => "ride:{$ride->id}",
+                'posting_key' => $debtCancelKey,
             ]);
 
             Log::info('Deferred cash ride fee cancelled', [
@@ -336,6 +389,8 @@ final class CashRideFeeService
 
         if ($refundAmount <= 0) {
             // Audit record only — no money movement
+            PostingKey::assertUnused($noRefundKey);
+
             WalletTransaction::create([
                 'wallet_id' => $driverWallet->id,
                 'user_id' => $driver->id,
@@ -348,6 +403,7 @@ final class CashRideFeeService
                 'transaction_id' => 'CASH_NO_REFUND_'.time().'_'.Str::random(6),
                 'status' => 'completed',
                 'reference' => "ride:{$ride->id}",
+                'posting_key' => $noRefundKey,
             ]);
 
             Log::info('Cash ride fee — no refund (late cancellation with passengers)', [
@@ -362,6 +418,8 @@ final class CashRideFeeService
         }
 
         // Partial or full refund: Primary Admin → Driver wallet
+        PostingKey::assertUnused($refundKey);
+
         $primaryWallet = $this->lockPrimaryWallet();
 
         if ((float) $primaryWallet->balance < $refundAmount) {
@@ -397,6 +455,7 @@ final class CashRideFeeService
             'transaction_id' => $txId,
             'status' => 'completed',
             'reference' => "ride:{$ride->id}",
+            'posting_key' => $refundKey,
         ]);
 
         WalletTransaction::create([

@@ -126,6 +126,12 @@ class StaffCancellationRefundTest extends TestCase
             'unit_price' => $paid / $seats,
             'amount_paid' => $paid,
             'payment_method' => 'e-pay',
+            // RV-02 L2: escrow_held is the FOURTH column of the same "money was charged"
+            // snapshot, and this fixture writes the other three. Without it the row claims to
+            // be paid while holding nothing in SyCash, and the staff refund correctly refuses to
+            // pay out of an empty escrow. The refund debits `amount_paid`, so the escrow this
+            // booking is entitled to hold is exactly that figure — no assertion below changes.
+            'escrow_held' => $paid,
         ]);
 
         return [$ride, $booking];

@@ -6816,3 +6816,194 @@ what shipped on the VPS before this change was still `samer` - this stops the NE
 repeating it, it does not retroactively fix what is currently deployed.
 
 Nothing pushed.
+
+## 81. D1 built - the escrow is the source of truth and a settlement cannot be applied twice - **VERIFIED FIX**
+
+Owner decision **D1 = A**, recorded in `sec 77` with the execution map. That section is the map; this
+one is what was actually built and how it was proven.
+
+### THE DEFECT, PRECISELY
+
+`wallet_transactions.transaction_id` LOOKS like an idempotency key and is not one. It is minted from
+`time()` plus randomness (`'RB_'.time().'_'.Str::random(8)`), so re-running a settlement produced a
+brand-new, entirely ordinary-looking row and paid again. Nothing enforced its uniqueness and nothing
+could recompute it, so the database could not answer "has this already been paid?" at all.
+
+Meanwhile `bookings.escrow_held` had existed since RV-40 and **nothing read or wrote it**. Not one
+settlement path consulted it; only `BackfillBookingMoneySnapshot` touched it, and only to stamp 0.
+The column's own migration comment already said "RV-02 L2 drives idempotency off it" - it was waiting
+for this.
+
+### THE BUILD
+
+**NEW** `app/Support/PostingKey.php` - the guard, shared, so it cannot drift between the two money
+services. `build()` / `buildForSet()` / `assertUnused()`.
+
+**NEW** `2026_10_08_000001_add_posting_key_to_wallet_transactions.php` - nullable `posting_key
+string(191)` + UNIQUE index. Nullable is deliberate (MySQL permits many NULLs, so every existing row
+is untouched); 191 chars keeps utf8mb4 under the 767-byte InnoDB prefix limit. Fails LOUD rather than
+skipping the index when duplicates exist, because a silently-skipped unique index leaves the task
+looking done while enforcing nothing.
+
+**NEW** `2026_10_08_000002_backfill_escrow_held_from_ledger.php` - derives
+`escrow_held = GREATEST(0, received - released)` from `wallet_transactions`, never from
+`seats * ride.price_per_seat` (that IS the RV-40 sin). Cash bookings need no special case: they never
+produced an `escrow_received` row, so they derive to 0, which is exactly what the backfill command
+documents. Only the FOUR booking-referenced escrow-out types count as "released"; the two ride-aggregate
+types (`driver_cancellation_refunds`, `staff_cancellation_refunds`) are deliberately excluded because
+their per-passenger siblings already carry the same money and counting both would double every
+driver- and staff-cancelled booking. `down()` zeroes the column, which is the EXACT pre-state (nothing
+ever wrote it before this task).
+
+**`WalletTransactionService`** - two guards at all 8 escrow sites, both BEFORE any balance is written:
+
+| Site | Method | Debit per booking | Posting key |
+|---|---|---|---|
+| C1 | `chargePassengerForBooking` | (credits `escrow_held = $amount`) | `booking:{b}:escrow-in` |
+| D1 | `releaseEarningsToDriver` | `seats x price` | `ride:{r}:escrow-out:ride-complete:{ids}` |
+| D2 | `refundPassengersForDriverCancellation` | `seats x price` | `ride:{r}:escrow-out:driver-cancel:{ids}` |
+| D3 | `refundPassengersForStaffCancellation` | `amount_paid` | `ride:{r}:escrow-out:staff-cancel:{ids}` |
+| D4 | `processTimeBasedCancellation` | `seats x price` | `booking:{b}:escrow-out:cancel:{seatsAfter}` |
+| D5 | `processPassengerNoShow` | `seats x price` | `booking:{b}:escrow-out:passenger-no-show` |
+| D6 | `processDriverNoShowRefund` | `seats x price` | `booking:{b}:escrow-out:driver-no-show` |
+| D7 | `releaseEscrowToDriver` | `seats x price` | `booking:{b}:escrow-out:release` |
+
+Guard 1 (`assertPostingKeyUnused`) refuses a movement already recorded. Guard 2 (`debitEscrow`) is
+`UPDATE bookings SET escrow_held = escrow_held - :amt WHERE id = :id AND escrow_held >= :amt`,
+aborting unless exactly 1 row changed. The `>=` is in the WHERE clause, not a read-then-write, so two
+concurrent settlements cannot both see the pre-decrement value. Throws `\RuntimeException` - the type
+this service already uses for `assertSufficientBalance` - so no HTTP status changes.
+
+Three key-design decisions, all deliberate:
+
+- **D4 keys on REMAINING seats, not cancelled seats or amount.** A partial seat cancel is not a
+  once-only movement: cancelling 1 of 2 seats then the other is two movements, and keying on the
+  amount or the cancelled count would collide and silently refuse the second. `cancel:{seatsAfter}`
+  gives `:cancel:1` then `:cancel:0`, and a single full cancel of 2 correctly shares the final key.
+- **D1/D2/D3 keys name the SET of booking ids (sorted).** Two staff-cancellation endpoints cancel
+  booking #5 alone and then #5 + #7 on the same ride; keying on the ride alone would collide and
+  break the second one.
+- **The charge's guard moved to the very top of the method**, before any wallet lock. Every caller
+  wraps it in `DB::transaction` so a later placement would still roll back, but putting it first means
+  the method aborts having moved NOTHING on its own account. This was found by a failing test, not by
+  inspection.
+
+**`CashRideFeeService`** - only the two ONCE-ONLY postings get keys (`ride:{r}:cash-fee:{deferred|
+charge|refund|debt-cancel|no-refund}`). `autoClearDebt` is deliberately NOT keyed: it runs after every
+approved top-up and is a REPEABLE movement, so a per-wallet key would make the second legitimate debt
+clear throw - a regression introduced by the fix itself. Recorded, not silently skipped.
+
+**`BackfillBookingMoneySnapshot`** - its hardcoded `escrow_held => 0` ("historical; the balance is
+already settled") was TRUE while nothing read the column and became FALSE the moment escrow became
+guarded: it would have re-zeroed live, unreleased escrow and broken that booking's own settlement.
+Now derived from the same `escrow_received` rows the command already reads.
+
+### CORRECTIONS TO THE EXECUTION MAP (`sec 77`)
+
+1. **It over-counted the cash service.** `sec 77` listed `CashRideFeeService` among "11 money movements
+   that must be instrumented" on the strength of a `lockForUpdate` grep. It has no SyCash involvement
+   and no booking at all: every movement in it is driver <-> platform. Escrow instrumentation does not
+   apply to it. Only its once-only postings got `posting_key`s.
+2. **Its reason for the "invariant is false" note was imprecise.** `sec 77` argues the literal
+   `SyCash == SUM(escrow_held)` is false because cash rows are backfilled to 0. Cash rows contribute 0,
+   so they do not by themselves break the literal sum. The e-pay form is still what the test pins - it
+   is a statement about ESCROW rather than about a wallet balance - but BACKLOG's literal wording is
+   left uncorrected there, and the test says so rather than pretending the cash row proves it.
+
+### FIXTURES THAT HAD TO BECOME REAL - AND WHY THAT IS NOT "EDITING A TEST TO PASS"
+
+Instrumenting escrow made 16 tests fail, every one with `does not hold ... in escrow (holds 0.00)`.
+They were all the same thing: a booking built directly, never charged, then settled. That is a state
+the product cannot produce - the only path that creates a confirmed e-pay booking charges it. 16 fixture
+call sites changed, in two files:
+
+- `tests/Feature/Payment/WalletTransactionServiceTest.php` (12 sites) - added `makeChargedBooking()`,
+  which performs the charge.
+- `tests/Feature/Review/StaffCancellationRefundTest.php` (1 helper) - the hand-written "money was
+  charged" fixture wrote `unit_price` / `amount_paid` / `payment_method` but not the FOURTH column of
+  that same snapshot. Added `escrow_held`.
+
+**No assertion was changed, relaxed or removed in any of them.** Every balance delta, transaction
+count, refund split and status code asserted is the one asserted before.
+
+### VERIFICATION - 12 new tests, 48 assertions
+
+- escrow written at charge; decremented once on settle; **never negative** (asserted both as the throw
+  and as a whole-table `escrow_held < 0` count of 0)
+- **replay moves no money**: escrow, driver balance and transaction count all unchanged after the
+  second call
+- posting_key deterministic, populated, and unique across the table
+- re-charge of the same booking refused AND leaves SyCash untouched
+- **the invariant**, in the e-pay form, after charges, after a settlement and after a cancellation
+- cash booking holds 0 escrow and does not break the invariant
+- successive partial cancels get distinct keys and both refunds land
+- **95/5 split exact** (4750 / 250 on 5000)
+- **all four elapsed refund tiers exact** (100/70/50/0). The fifth outcome (departure passed -> 0%) is
+  policy resolution and stays pinned by `tests/Unit/Services/WalletTransactionServiceRefundPolicyTest`
+  (8 tests, green).
+
+Two guards are proven independently, because they fail differently: the posting key catches "the same
+movement ran twice"; the escrow guard catches "this booking's escrow is already spent" even when the
+movement DIFFERS. `escrow_held_cannot_go_negative` therefore spends the escrow via the per-passenger
+release and then attacks it via the ride-level completion - a different posting key, so only the
+escrow guard can stop it. Likewise `replaying_a_settlement_moves_no_money` funds SyCash with a SECOND
+booking of the same size, so the pre-existing `assertSufficientBalance` wallet guard cannot be what
+produces the refusal.
+
+**NEEDLES, all three in the same direction that matters, every file restored byte-identical (SHA256):**
+
+| Needle | Effect |
+|---|---|
+| escrow guard disabled | **5 tests fail**, incl. the negative-escrow guard and the invariant |
+| `posting_key` made time-derived | **the determinism test fails** - this is what proves determinism IS the mechanism |
+| 95/5 split changed to 90/10 | **the split test fails** - the owner's constraint is genuinely pinned |
+
+**CONTROLLED BISECT, and an earlier one that was WRONG and was discarded.** Same selection both times
+(`tests/Feature/{Wallet,Payment,Rides,Bookings,Review}`, `tests/Unit/Domain`,
+`tests/Feature/AppFuture/BoundaryDependencyTest.php`); only `app/` varies:
+
+- **BEFORE (HEAD app code): 623 tests, 1630 assertions, 11 failures**
+- **AFTER (D1 app code, new test held out): 623 tests, 1630 assertions, 11 failures**
+- failure NAME SETS compared with `Compare-Object`: **ZERO new, ZERO fixed - identical**
+
+Final run including the new file: **635 tests, 1669 assertions, 11 failures, identical set.**
+
+An earlier bisect appeared to show 17 new failures. It was invalid: that run had the FIXTURES stashed
+to HEAD alongside the code, so it was comparing two different things. Discarded and redone.
+
+**`SharedTestSupportTest::test_system_wallets_are_seeded_by_phone_and_are_idempotent` fails in
+isolation on HEAD too** - it only goes green in a batched run because another test happens to have
+created a wallet first. Pre-existing, not D1's. Recorded so nobody re-investigates it.
+
+**MIGRATIONS verified up AND down AND re-runnable on the scratch DB**, with `posting_key` column,
+unique index, and `escrow_held >= 0` checked after each step.
+
+**A DEFECT IN MY OWN TEST, caught and removed.** The suite initially carried a test of migration A's
+fail-loud duplicate branch. It dropped the unique index, and **`ALTER TABLE` on MySQL performs an
+IMPLICIT COMMIT**, which destroyed `RefreshDatabase`'s per-test transaction and leaked into every later
+test - turning four unrelated wallet-phone uniqueness failures red in files that have nothing to do with
+escrow. Shipping it would have reopened RV-37 (test hermeticity). The test was removed and the branch
+verified out of band instead (index dropped, duplicate keys inserted, migration re-run: it THREW and
+named `dup:probe:key`; with the index present MySQL refused both the duplicate INSERT and the duplicate
+`ADD UNIQUE INDEX` on its own). That is defence-in-depth that MySQL normally makes unreachable.
+
+**pint clean** on all 10 changed files. **BoundaryDependencyTest: 9 tests green** (a file was ADDED
+under `app/` and `use` lines changed, so it is required). Scratch DB `127.0.0.1:3399` confirmed before
+every command; the scratch `DUPCHECK` wallet and probe rows the out-of-band checks left behind were
+deleted before the final run.
+
+### WHAT IS DELIBERATELY NOT DONE
+
+- `bookings.escrow_held` is still seeded to 0 for rows that were never charged, because there is no
+  evidence any money was held. Those bookings are the `needs_review` class the staff endpoint already
+  reports; inventing an amount is what RV-40 exists to prevent.
+- `autoClearDebt` remains unkeyed, for the repeatability reason above.
+- No ride-update route exists, so `price_per_seat` cannot change between charge and settlement and the
+  guard cannot fail for a price reason. That is checked fact, not assumption - but it is a property of
+  the CURRENT route table, not an invariant this task installed.
+
+RV-02 -> **L2 VERIFIED FIX**. L1 was already closed (`ba45e4b`). BACKLOG's acceptance text still says
+`SyCash balance == SUM(bookings.escrow_held)`; the e-pay form is what the test pins and `sec 77` /
+this section record why.
+
+Nothing pushed.
