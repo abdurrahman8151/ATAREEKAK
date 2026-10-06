@@ -133,6 +133,12 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 
 ## 2. The backlog
 
+**GATES RE-DERIVED (`R2 sec 66`, 2026-10-03).** Every `Blocked by` cell below was stale: it was written before the
+owner answered the 27 decisions, so **17 of the 21 unfinished rows were waiting on questions you had already
+answered** and only 4 were genuinely waiting on you. Each cell now says which. Cells marked `ANSWERED` mean the gate
+is cleared - they do **not** claim the remaining work was verified, and no row's `Status` was changed by this pass.
+Cells marked `NOT re-verified` mean the gate moved but the code was not re-checked and still needs its own pass.
+
 
 | Order | ID | Title | Pri | Status | Blocked by (owner decision #) | Aliases | Evidence (file section / commit) |
 |---|---|---|---|---|---|---|---|
@@ -155,36 +161,36 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 | 17 | RV-07 | Committed secrets and stale credentials | P0 | VERIFIED FIX | n/a | RV-37 (V13 leaks), T1-3/T2-8 (same class) | R2 sec 10, sec 12; 0c0ea3c - agent-side only; rotation+history purge recorded sec 5 |
 | 18 | RV-06 | Horizon dashboard unauthenticated; nginx upstream leak | P0 | VERIFIED FIX | n/a | - | R2 sec 11, sec 12; 896c331 |
 | 19 | RV-01 | KYC documents exposed (IDOR + public storage + unsafe names) | P0 | PARTIAL | private-disk move | supersedes AF-5's scope; feeds RV-31 | R2 sec 13, sec 1.1; 95ad30d - authz+names fixed; R2 sec 46 (1b: staff streaming route + CacheStatusHeader binary fix) 066b1dd/b4885d8; R2 sec 45 (11: action gate pinned) 0c6a1f6 - old public URLs still resolve until the files move |
-| 20 | RV-04 | JWT integrity (staff->user replay, empty secret, TTL) | P0 | PARTIAL | 9 | AF-4b (Sanctum already gone) | R2 sec 14, sec 12; d5043b5 - replay+boot guard fixed |
+| 20 | RV-04 | JWT integrity (staff->user replay, empty secret, TTL) | P0 | PARTIAL | 9 - ANSWERED (B: keep the 600-min TTL); remainder = staff-token parity | AF-4b (Sanctum already gone) | R2 sec 14, sec 12; d5043b5 - replay+boot guard fixed |
 | 21 | RV-05 | Client IP wrong behind nginx | P0 | VERIFIED FIX | n/a | V4 | R2 sec 15, sec 12; 09e86c5 - both halves; `TRUSTED_PROXIES` value is ops (sec 31) |
-| 22 | RV-02 | No-show settlement can pay twice / mispay (L1 + L2) | P0 | PARTIAL | 2, 3 (L2) | L1 refuted by V16; L2 = AF-6/Wave 3; consumes `void` enum (RV-40) | R2 sec 16 (L1 VF), sec 26.14 item 3 (L2 0%, Wave 3 PAUSED); ba45e4b |
+| 22 | RV-02 | No-show settlement can pay twice / mispay (L1 + L2) | P0 | PARTIAL | 2, 3 - ANSWERED; derived-balance design is fixed by section 4; NOT re-verified in code (sec 66) | L1 refuted by V16; L2 = AF-6/Wave 3; consumes `void` enum (RV-40) | R2 sec 16 (L1 VF), sec 26.14 item 3 (L2 0%, Wave 3 PAUSED); ba45e4b |
 | 23 | RV-03 | Staff cancel endpoints strand money, no role gate | P0 | VERIFIED FIX | n/a | RV-02, RV-09 | R1 sec 4 RV-03; R2 sec 12; **R2 sec 47 (decision 6: full refund + no driver score penalty, `364cc0c`)**; **R2 sec 59 (owner choice (a): money endpoints gated to `staff:admin,system_admin`, `b64ef96`; 82 tests, denial pinned incl. role-check-before-state)** - both halves CLOSED |
 | 24 | RV-34 | Shared test-support layer (both red root causes) | P1 | VERIFIED FIX | n/a | V15; T4-1 harness | R2 sec 17, sec 17.4; 5414344 - 443 -> 71 errors |
 | 25 | RV-37 | Test determinism and hermeticity | P2 | VERIFIED FIX | n/a | V13, V14; RV-18 (CI order) | R2 sec 23, sec 23.6 correction, sec 39 VF (order) + 39.1 VF (hermeticity) + 39.2 (tracked-file ratchet + CI double-run) + 39.3 (CI executed; pre-existing CI install breaks fixed); cd6a49a + c45e05e + a087342 + eaa7f14 + the closure commit. Closed by owner instruction 2026-10-03 |
 | 26 | RV-18 | CI signal (V6 driver leak, migration guards) | P1 | VERIFIED FIX | n/a | V6, AF-2' | R2 sec 24, sec 24.2 VF; 51b6ca7 - whole-suite red is separate debt (sec 24.1) |
-| 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 (envelope only); remainders (a)+(b) are decision-free | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3; `980741c` - **LEAKAGE HALF CLOSED, ratchet at ZERO**: R2 sec 64 `f9f536a` (Domain exceptions, domain violation 500 -> 422/403/409), sec 64.1 `a1c072c` (leak measured 47, shrink-only ratchet), sec 64.2 `3bfdaa4` (Chat 47->42), sec 64.3 `8d92b60` (ratchet was OVER-BROAD, 42->21), sec 64.4 `7a01fa5` (all non-owner controllers 21->15), sec 64.5 `5fb1a4b` (owner-owned RideController 15->0); needle proven both ways, 211 tests / 321 assertions / 4 failures IDENTICAL to pre-sweep |
+| 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 = ANSWERED (C: later); remainders (a)+(b) are DECISION-FREE | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3; `980741c` - **LEAKAGE HALF CLOSED, ratchet at ZERO**: R2 sec 64 `f9f536a` (Domain exceptions, domain violation 500 -> 422/403/409), sec 64.1 `a1c072c` (leak measured 47, shrink-only ratchet), sec 64.2 `3bfdaa4` (Chat 47->42), sec 64.3 `8d92b60` (ratchet was OVER-BROAD, 42->21), sec 64.4 `7a01fa5` (all non-owner controllers 21->15), sec 64.5 `5fb1a4b` (owner-owned RideController 15->0); needle proven both ways, 211 tests / 321 assertions / 4 failures IDENTICAL to pre-sweep |
 | 28 | RV-14 | Route/controller mismatches, lying endpoints | P1 | PARTIAL | distance/duration units (owner) | V10, V8; RV-40 did the price width | R2 sec 21, sec 21.1, sec 21.2 PARTIAL; 1c18c07 | R2 sec 62 (`create-with-route` now uses `CreateRideRequest` — the live endpoint had `min:0` price and no phone-format check, `3616636`; plus a pre-existing 500 `chosen_route_index` NOT NULL fixed) `3616636`; |
-| 29 | RV-16 | OTP and mail flows | P1 | PARTIAL | 4, 8 | RV-31 (mailers), T2-3/T2-4 | R2 sec 22, sec 22.4, sec 22.5, sec 29 (plaintext -> HMAC); cac4084 + d776c1f |
+| 29 | RV-16 | OTP and mail flows | P1 | PARTIAL | 4, 8 - ANSWERED; remainder decision-free | RV-31 (mailers), T2-3/T2-4 | R2 sec 22, sec 22.4, sec 22.5, sec 29 (plaintext -> HMAC); cac4084 + d776c1f |
 | 30 | RV-22 | TLS and log hygiene leftovers | P1 | VERIFIED FIX | n/a | AF-1 (2/3 landed); V13 | R2 sec 26.15, sec 26.16 VF; 4239087 + b34df62 - slice 3 is deploy-surface (sec 30 item 2) |
 | 31 | RV-36 | Notification endpoints no-ops under JWT | P1 | VERIFIED FIX | n/a | V12 refuted the premise | R2 sec 25 VF; 2d6a55e - real defect was existence-oracle + silent no-op |
 | 32 | RV-38 | Eloquent strictness outside production | P2 | VERIFIED FIX | n/a | RV-24 (arming), T4-1 | R2 sec 29.2 VF (2 flags), sec 29.5 ROLLBACK, sec 35 ROLLBACK (premise), sec 36 VF (arming), sec 37 OFF; R2 sec 44 + 44.1 - sites fixed, flag ARMED, red set identical to flag-off baseline (87 entries both ways); 00f7b9d + 5bbadad |
 | 33 | RV-35 | Stale and bug-pinning tests (inventory) | P2 | VERIFIED FIX | n/a | decision 12, sec 19.3 schema question | R2 sec 19, sec 19.5 VF; d381a7a - 71 -> 52 errors; inventory is the deliverable |
-| 34 | RV-08 | Deploy pipeline is broken | P1 | OPEN | 7 + placement (conflict 13) | V10 | R1 sec 4 RV-08, sec 7 Wave 2; R2 sec 6 omits it, sec 18.3 "placement: unconfirmed" |
+| 34 | RV-08 | Deploy pipeline is broken | P1 | OPEN | 7 - ANSWERED (B: Render, shipped 2114308); placement still unconfirmed (conflict 13) | V10 | R1 sec 4 RV-08, sec 7 Wave 2; R2 sec 6 omits it, sec 18.3 "placement: unconfirmed" |
 | 35 | RV-40 | Money schema additions (prereq for RV-02 L2, RV-09, RV-15) | P1 | VERIFIED FIX | n/a | AF-6 | R2 sec 26.1 VF, sec 26.12 VF (price width), sec 26.13 VF (one report/booking); caebbfa + f4d1df8 + 53fe8d1 | R2 sec 54 (decision 13: 18 DB ENUM columns -> varchar, `e93f3c5`, verified up+down, fail-loud rollback) `e93f3c5`; |
-| 36 | RV-09 | Money concurrency and side-effect ordering | P1 | PARTIAL | 3 (Wave 3 PAUSED) | V16; RV-02 L2; T1-1 lock precedent | R2 sec 26.3 "VERIFIED FIX (safe subset); throughput redesign separate", sec 26.14; caebbfa |
-| 37 | RV-10 | Ride lifecycle and escrow liveness | P1 | PARTIAL | 2 | AF-4e (config windows); T1-1 | R2 sec 26.7 (search guard VF, rest owner-gated), sec 26.14; caebbfa |
-| 38 | RV-11 | Score subsystem internally inconsistent | P1 | PARTIAL | decision 3 (owner) | T1-1 state machine | R2 sec 26.9 PARTIAL ~35% (dead `applyScore` deleted), sec 26.14; caebbfa |
+| 36 | RV-09 | Money concurrency and side-effect ordering | P1 | PARTIAL | 3 - ANSWERED; remainder coupled to RV-02 L2 | V16; RV-02 L2; T1-1 lock precedent | R2 sec 26.3 "VERIFIED FIX (safe subset); throughput redesign separate", sec 26.14; caebbfa |
+| 37 | RV-10 | Ride lifecycle and escrow liveness | P1 | PARTIAL | 2 - ANSWERED (B, shipped 5926230); remainder decision-free | AF-4e (config windows); T1-1 | R2 sec 26.7 (search guard VF, rest owner-gated), sec 26.14; caebbfa |
+| 38 | RV-11 | Score subsystem internally inconsistent | P1 | PARTIAL | un2 ANSWERED + APPLIED (de61c7b); 4 LIVE defects re-verified in sec 66.1 - see its 4 open questions | T1-1 state machine | R2 sec 26.9 PARTIAL ~35% (dead `applyScore` deleted), sec 26.14; caebbfa |
 | 39 | RV-15 | Booking idempotency | P1 | VERIFIED FIX | n/a | RV-02 L2 `posting_key` | R2 sec 26.2 VF; caebbfa |
 | 40 | RV-21 | Wallet identity and money creation | P1 | VERIFIED FIX | n/a | RV-39 (seeder half), AF-6 | R2 sec 26.5 PARTIAL, sec 26.11 VF (seeder half); un10 fixtures `bff1d3e`; R2 sec 56 (`wallets.kind` + DB triggers, `ae09981`); R2 sec 57-60.1 (double-entry: `ledger_entries` + `LedgerService`, every money path converted, External Capital account closes the external flows, `ledger:reconcile` scheduled daily) `3be510a`; R2 sec 61.1 closes the row - no money movement remains that the ledger cannot explain |
-| 41 | RV-20 | Payment strategy one-third wired | P2 | PARTIAL | 2, 3 (coupled to RV-02 L2) | AF-6; T2-1 | R2 sec 26.4 "grounded but NOT changed"; sec 26.14 item 4 (~20% done, credited to the RV-09/RV-15 work in caebbfa) - nothing committed under this ID |
+| 41 | RV-20 | Payment strategy one-third wired | P2 | PARTIAL | 2, 3 - ANSWERED; coupled to RV-02 L2 | AF-6; T2-1 | R2 sec 26.4 "grounded but NOT changed"; sec 26.14 item 4 (~20% done, credited to the RV-09/RV-15 work in caebbfa) - nothing committed under this ID |
 | 42 | RV-25 | Search correctness and cost (geometry axis order) | P1 | VERIFIED FIX | n/a | **AF-4a**; V1, V2, V3 | R2 sec 29.6, sec 29.7 VF, sec 29.8 VF (GeoPoint), sec 29.9 VF; 52108b7 + 69c032f + 1af0440 |
 | 43 | RV-24 | Ride payload and N+1 (coordinate reads) | P1 | VERIFIED FIX | n/a | RV-38 arming; V2 | R2 sec 29.4 VF; b84cea0 |
-| 44 | RV-17 | Load-test validity | P1 | PARTIAL | needs a corrected run on a production-shaped target | V11; RV-18 (CI) | R2 sec 1.2(1) correction, sec 29.3 "VERIFIED FIX (contract half)"; 56c989a | R2 sec 51 (un12: setup() login, constant-arrival-rate, 3 runs, per-endpoint thresholds) `ff8e6f0`; R2 sec 29.3.1 (commit-SHA provenance + `dbwatch.sh` DB-pressure capture) `747358f`; |
+| 44 | RV-17 | Load-test validity | P1 | PARTIAL | un12 ANSWERED + APPLIED (ff8e6f0); needs a corrected run on a production-shaped target | V11; RV-18 (CI) | R2 sec 1.2(1) correction, sec 29.3 "VERIFIED FIX (contract half)"; 56c989a | R2 sec 51 (un12: setup() login, constant-arrival-rate, 3 runs, per-endpoint thresholds) `ff8e6f0`; R2 sec 29.3.1 (commit-SHA provenance + `dbwatch.sh` DB-pressure capture) `747358f`; |
 | 45 | RV-12 | Account status model (temporary ban lock-out) | P1 | PARTIAL | drop persisted status=0 (product decision) | RV-31, RV-29 | R2 sec 27 "VERIFIED FIX (decision-free core); R1's model refactor stays PARTIAL"; 1173a69 | R2 sec 55 (`BanService` merges the 3 divergent un-ban copies); R2 sec 61.2 (found and fixed a DEAD DEFENCE: `createUser` hardcoded `status => 1`, silently discarding SignupController's deliberate `status => 0` sign-up defence, `7ab1eff`) `7ab1eff`; |
-| 46 | RV-26 | Staff/admin authorization matrix | P2 | GATED | 1a | **headline refuted by T2-2's own fix text** | R2 sec 28.1 GATED; no commit |
+| 46 | RV-26 | Staff/admin authorization matrix | P2 | GATED | 1a - ANSWERED (A); row stays GATED on purpose: do not "fix" a refuted premise | **headline refuted by T2-2's own fix text** | R2 sec 28.1 GATED; no commit |
 | 47 | RV-27 | Push pipeline cannot deliver | P1 | VERIFIED FIX | n/a | T3-14, T2-8 | R2 sec 28.2, sec 28.5 VF (decision-free core); 364c3db - FCM keys = ops, sec 5 |
-| 48 | RV-29 | Auth hardening batch | P2 | PARTIAL | decision 5 (owner, deferred) | **T4-5** item 4, AF-4b | R2 sec 28.6 slice1 VF, sec 28.9 slice2 proven/gated, sec 29.10 item3 VF, sec 34 VF (ratchet); bc6acaa + 4185af3 + 1d68c07; R2 sec 48 (un11: auth cache DTO - password hash no longer reaches the cache backend, auto-lift hazard closed) `8732a0e`. Remaining item is decision 5 (driver phone visibility), deferred to the owner. |
-| 49 | RV-19 | Fake or derived numbers in admin | P2 | PARTIAL | 10, un7 | V8 | R2 sec 28.4, sec 28.7 VF (slice 1), sec 30 item 6; bc49fc6 |
+| 48 | RV-29 | Auth hardening batch | P2 | PARTIAL | 5 - DEFERRED by the owner, deliberately | **T4-5** item 4, AF-4b | R2 sec 28.6 slice1 VF, sec 28.9 slice2 proven/gated, sec 29.10 item3 VF, sec 34 VF (ratchet); bc6acaa + 4185af3 + 1d68c07; R2 sec 48 (un11: auth cache DTO - password hash no longer reaches the cache backend, auto-lift hazard closed) `8732a0e`. Remaining item is decision 5 (driver phone visibility), deferred to the owner. |
+| 49 | RV-19 | Fake or derived numbers in admin | P2 | PARTIAL | 10, un7 - ANSWERED; remainder decision-free | V8 | R2 sec 28.4, sec 28.7 VF (slice 1), sec 30 item 6; bc49fc6 |
 | 50 | RV-23 | Complaints (context, routing, notifications) | P2 | VERIFIED FIX | n/a | RV-31 | R2 sec 28.3 slice1 VF, sec 28.8 slice2 VF; c59fed6 + bfc6fd6; **R2 sec 63 - the three recorded remainders verified satisfied: (a) the `GET` auto-transition is the owner's INTENDED transparency feature (un6), (b) each party is notified exactly once (no duplicate), (c) public `no_show` rejection is already pinned by `test_store_rejects_the_internal_no_show_type` citing the owner decision. No code change needed; 73 tests OK** |
 | 51 | RV-28 | Infrastructure hardening | P2 | VERIFIED FIX | n/a | V7 (never run); RV-05 | R2 sec 31 VF (app/config core); 8ece5af - infra halves are deploy-surface, sec 5 |
 | 52 | RV-30 | Data model hygiene | P3 | VERIFIED FIX | n/a | V9 | R2 sec 32 VF (index + `down()` correctness); c785f73 - recorded items sec 5 |
@@ -199,9 +205,9 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 | 61 | AF-4 | Un-tangle the dead-but-wired set | P1 | VERIFIED FIX | n/a | parent of AF-4a..AF-4f | A sec J AF-4 VF (both owner decisions applied); 2687872 |
 | 62 | AF-4a | Search swap + the three bugs it exposed | P1 | VERIFIED FIX | n/a | **<-> RV-25**; V1/V2/V3 | A sec J 4a; 2687872 - its "397 km" proof was axis-order-agnostic (R2 sec 1.2(2)); V1 decided |
 | 63 | AF-4f | Production-guard trait on state-forging commands | P2 | VERIFIED FIX | n/a | **= AF-3**; owed onward to RV-39 | A sec J 4f (5 commands); 2687872 |
-| 64 | AF-5 | Shared object storage (`FILESYSTEM_DISK=s3`) | P0 | OPEN | un1 | **re-scoped by RV-01**; ROADMAP sec F.1, A sec I truth 1 | A sec J snapshot line 693; R1 sec 2 A3.1 + R2 sec 1.1 - the fix as written is WRONG (disk is hard-coded `'public'`) |
-| 65 | AF-6 | Money module (`Money` VO, one `LedgerEvent`, `ledger:reconcile`) | P1 | OPEN | 2, 3, 6 (= Wave 3 pause) | **= Wave 3**: RV-02 L2, RV-09, RV-10, RV-11, RV-15, RV-20, RV-21 | A sec J snapshot line 694 "not started - next", sec F.7-8; R1 sec 7 Wave 3; R2 sec 6 |
-| 66 | AF-7 | Controller extraction / Larastan | P1 | OPEN | AF-6, un8 | RV-33 (baseline ratchet), RV-24 (reads) | A sec J snapshot line 695; `ARCHITECTURE_MAP.md` sec 4 (Larastan deferred); R2 sec 1.3 RV-33 (do it in CI) |
+| 64 | AF-5 | Shared object storage (`FILESYSTEM_DISK=s3`) | P0 | OPEN | un1 - ANSWERED (A: MinIO, shipped 3e9a304); remainder = the call-site move, decision-free | **re-scoped by RV-01**; ROADMAP sec F.1, A sec I truth 1 | A sec J snapshot line 693; R1 sec 2 A3.1 + R2 sec 1.1 - the fix as written is WRONG (disk is hard-coded `'public'`) |
+| 65 | AF-6 | Money module (`Money` VO, one `LedgerEvent`, `ledger:reconcile`) | P1 | OPEN | 2, 3, 6 - ANSWERED; the 26.14 Wave-3 PAUSE is STALE, see sec 66 | **= Wave 3**: RV-02 L2, RV-09, RV-10, RV-11, RV-15, RV-20, RV-21 | A sec J snapshot line 694 "not started - next", sec F.7-8; R1 sec 7 Wave 3; R2 sec 6 |
+| 66 | AF-7 | Controller extraction / Larastan | P1 | OPEN | AF-6; un8 ANSWERED (A, shipped 67f0113) | RV-33 (baseline ratchet), RV-24 (reads) | A sec J snapshot line 695; `ARCHITECTURE_MAP.md` sec 4 (Larastan deferred); R2 sec 1.3 RV-33 (do it in CI) |
 | 67 | T1-1 | Ride-completion state machine self-contradictory; E-PAY escrow never released | P0 | VERIFIED FIX | n/a | RV-02, RV-10, RV-11 | S P1 T1-1; S P2 sec T1-1 VF; 3443979 - re-checked: `BookingService.php:510-516` uses `RideStatus::tryFrom` |
 | 68 | T1-2 | Ledger writes use a `type` value absent from the DB enum (fatal in strict mode) | P0 | VERIFIED FIX | n/a | RV-40, AF-6 (LedgerEvent) | S P2 sec T1-2 VF; 3443979 |
 | 69 | T1-3 | Secrets committed in git history, still recoverable | P0 | BLOCKED | owner action (rotation + `filter-repo`) | RV-07, T2-8 | S P1 T1-3; S P2 sec T1-3 BLOCKED; `gitleaks.yml` + boot guards only |
@@ -220,13 +226,13 @@ record with the owner's reasons is `App future audit review r2.md` sec 40; the s
 | 82 | T3-1 | `chargeWallet` mints txn id from a timestamp (same-second collision) | P2 | VERIFIED FIX | n/a | RV-15 | S P2 table row T3-1 VF; 3443979 |
 | 83 | T3-2 | Financial columns use three precisions for one currency | P2 | VERIFIED FIX | n/a | RV-40, RV-14 | S P2 table VF; 3443979 |
 | 84 | T3-3 | Wallet-creation OTP optional; unaudited create-direct route | P2 | DEFERRED | owner: deferred | RV-21, T3-4 | S P2 table `DEFERRED (owner: leave for later)` |
-| 85 | T3-4 | `wallet_requests.processed_by` references users; admin actors are employees | P2 | OPEN | the T2-1 decision (un10 SETTLED 2026-10-02 = wallet required before top-up, schema stays NOT NULL - R2 sec 41) | T2-1 | S P2 table `NOT STARTED`; R2 sec 41 (un10 done) |
+| 85 | T3-4 | `wallet_requests.processed_by` references users; admin actors are employees | P2 | OPEN | needs the T2-1 decision REVERSED (un10 settled the other way) | T2-1 | S P2 table `NOT STARTED`; R2 sec 41 (un10 done) |
 | 86 | T3-5 | Conflicting/duplicated indexes; `down()` drops unconditionally | P2 | VERIFIED FIX | n/a | RV-30 | S P2 table VF; 3443979 |
 | 87 | T3-6 | MySQL-only raw SQL contradicts the SQLite test config | P2 | VERIFIED FIX | n/a | RV-18, V6 | S P2 table VF (7 migrations guarded); 3443979 |
 | 88 | T3-7 | `VerifyOtpMiddleware` a no-op; a test asserts it works | P2 | VERIFIED FIX | n/a | RV-16 | S P2 sec T3-7 VF (stub + misleading test deleted); 3443979 - file absent (re-checked) |
 | 89 | T3-8 | `AdminUserSeeder` reads deleted config keys; makes a null-email user | P2 | VERIFIED FIX | n/a | V8, RV-19, RV-26 | S P2 sec T3-8 VF (seeder deleted); 3443979 |
 | 90 | T3-9 | Hardcoded credentials in seeders and load-test scripts | P2 | VERIFIED FIX | n/a | RV-39 (`ResolvesSeedCredentials` precedent), RV-07 | S P2 sec T3-9 VF; 3443979 - trait present on disk (re-checked) |
-| 91 | T3-10 | Deploy resets the server to a feature branch; token persisted in remote URL | P2 | OPEN | T1-3, 7 | T1-3, RV-08, decision 7 | S P2 table `NOT STARTED (deploy automation)`; no commit |
+| 91 | T3-10 | Deploy resets the server to a feature branch; token persisted in remote URL | P2 | OPEN | T1-3 (owner action); 7 ANSWERED (Render) | T1-3, RV-08, decision 7 | S P2 table `NOT STARTED (deploy automation)`; no commit |
 | 92 | T3-11 | CI never fails on test failures; writes a plaintext JWT secret | P2 | VERIFIED FIX | n/a | RV-18, the "always-true" guard class | S P2 table VF (Sonar pinned to SHA); 3443979 - the always-true escape hatch is gone except at `gitleaks.yml:40` (re-checked) |
 | 93 | T3-12 | Unauthenticated API docs; generated spec committed | P2 | VERIFIED FIX | n/a | RV-06 (same exposure class) | S P2 table VF; 3443979 - `DOCS_ALLOWED_IPS` gate re-checked |
 | 94 | T3-13 | Silent `catch (Throwable) {}` suppresses failures | P2 | VERIFIED FIX | n/a | RV-13 (the sweep continues it), RV-33 ratchet | S P2 table VF (27 sites -> `Log::warning`); 3443979 |
@@ -358,14 +364,24 @@ acceptance conditions, not implementation instructions.
   that deliberately book past-departure rides are moved to a supported test path instead of relying on the hole.
 - Closed already, do not redo: the decision-free search guard (departed rides no longer returned) is `VERIFIED FIX`.
 
-**RV-11 - score subsystem** *(blocked by 3 and un2)*
+**RV-11 - score subsystem** *(un2 ANSWERED + APPLIED `de61c7b`; decisions 3 and un2 were the stated gates and both are answered)*
 - One mutation path (`ScoreLedger::apply()`) writes the score, one clamp, one tier table, one start score, all read
   from `config/score.php` (no config exists today).
 - The double-count defect is gone: a completed ride increments `total_rides` exactly once (the `applyAction` +
   `incrementRides()` overlap), so `cancel_rate`, whose thresholds gate penalties, is right.
+  **STILL LIVE - re-verified in `R2 sec 66.1`: `ScoreService:277` increments `total_rides` and
+  `recordRideCompleted:52` increments it again.** Doubling inflates the accessor's denominator, so `cancel_rate`
+  falls and the 50% high-cancel gate stops firing when it should - penalties UNDER-apply, no user is over-charged.
+- **DONE:** the tier bands are now single-source (`UserScore::getTierAttribute`, owner-pinned by `RV37ScorePolicyTest`);
+  `ScoreService::resolveTier` and the legacy stored `tier` write are deleted. The `200/150/100` vs `80/60/40`
+  contradiction recorded in `R2 sec 26.14` no longer exists.
+- **STILL LIVE:** `applyAction`'s `firstOrCreate` (`:262`) creates `score = 100` where every other path uses 70, and
+  `applyAction:274` clamps at 0 only with no ceiling. Both contradict un2 (start 70, max 100) - so these are
+  enforcement of a decision already taken, not a new policy.
 - Tier boundaries are asserted by tests at the exact edge values, not sampled in the middle.
-- Correction: the third path is already deleted (97 lines, zero callers) - the ~35% remaining is consolidation,
-  and it needs the owner's bands/clamp/start-score numbers first.
+- **The 4 open questions are listed in full in `R2 sec 66.1`** - (1) does a completed ride count once, (2) is the
+  ceiling enforced at 100, (3) does the `firstOrCreate` fallback create 70, (4) is the dead `cancel_rate` assignment
+  at `ScoreService:280` safe to delete. Each one changes a value that gates penalties, which `AGENTS.md` reserves.
 
 **RV-12 - account status model** *(blocked by un13)*
 - The `status = 0` "logged out" and "banned" overloading is separated: a temporary ban that has expired can never lock

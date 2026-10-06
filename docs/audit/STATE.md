@@ -51,6 +51,21 @@ with each status taken from the newest section that mentions it. The per-task lo
   - verify later), 12 (moot), un6 (no change).
 
 ## Done recently (newest first; detail is in the audit record)
+- **The `Blocked by` column was stale, and that is WHY the queue looked empty** - VERIFIED FIX (the column);
+  RV-11 defects FOUND (`App future audit review r2.md` sec 66). All 27 decisions were answered on 2026-10-02, but
+  the gate column predates them, so **17 of the 21 unfinished rows sat behind a question you had already answered**
+  and only 4 were really waiting on you (RV-01, RV-14, RV-17, RV-12). The next-task rule asks for `Blocked by = none`,
+  so it selected nothing - the queue was blocked by stale text, not by work. All 19 affected cells now record whether
+  the gate is cleared. **No row's Status was changed** - a cleared gate is not a verified task.
+- **RV-11: four live score defects, re-verified in code** (sec 66.1). RESOLVED since 26.14 was written: the tier
+  bands are single-source and owner-pinned, and the dead `resolveTier` / stored `tier` write are gone. STILL LIVE:
+  (1) a completed ride increments `total_rides` **twice** - `ScoreService:277` plus `recordRideCompleted:52` - which
+  inflates `cancel_rate`'s denominator so the 50% high-cancel gate stops firing when it should (penalties
+  UNDER-apply; nobody is over-charged); (2) `applyAction`'s `firstOrCreate` creates `score = 100` where every other
+  path uses the 70 you pinned; (3) `applyAction` clamps at 0 with no ceiling, against the max 100 you pinned;
+  (4) the `cancel_rate` assignment at `:280` is dead code. Fixes 2-4 only enforce decisions already taken; 1 re-rates
+  every existing user's cancel rate, so all four are listed as open questions for the owner rather than assumed.
+  `26.14`'s "the owner has no answers yet" now carries a correction banner.
 - RV-13 leakage half CLOSED + `BACKLOG.md` corruption fixed - VERIFIED FIX (`App future audit review r2.md` sec 64.5
   and sec 65). The previous session committed the `RideController` sweep (`5fb1a4b`, ratchet 15 -> 0) but died
   before writing the record, so it was verified rather than trusted: ratchet OK at 0; needle proven in BOTH

@@ -2232,6 +2232,14 @@ deliberately, not overlooked — `failed` terminal state has no writer until RV-
 converting statuses away from DB ENUMs is owner decision 13.
 ### 26.14 Wave 3 — **PAUSED BY OWNER (2026-10-02). These items are UNFINISHED and IMPORTANT — do not treat Wave 3 as done**
 
+> **SUPERSEDED IN PART — read section 66 first.** This section was written BEFORE the owner answered the
+> decision slate, and it says so ("the owner has no answers yet"). That was true when written and stopped
+> being true the same day: all 27 decisions were answered and dispatched, and 16 of them committed (see
+> `STATE.md`'s decision-slate block). Of the six items below, item 1 (RV-11) has **partly landed on its own
+> and partly not** - the tier-band half is finished, while the double-count, the start-score and the clamp
+> are still live defects, re-verified in code in section 66. Items 2-6 have had their **gates** answered but
+> have **not** been re-verified since, so do not read their percentages here as current.
+
 The owner has no answers yet and asked to pause Wave 3 and work on unrelated items. Wave 3
 resumes the moment any answer below arrives. **Nothing here was forgotten, and nothing here is
 "won't fix": each item stopped because the next value would silently change who is penalised or
@@ -5762,4 +5770,67 @@ a later session silently loses work or re-verifies nothing.
 **Genuinely unverified.** How the control bytes entered the file is not established - the corruption is committed, so
 it predates this session, but no introducing commit was bisected. It is consistent with a PowerShell/console write
 that mangled a non-ASCII character, but that is an inference, not a finding, and it is recorded as such.
+
+## 66. The `Blocked by` column was STALE - 17 of 21 unfinished rows waited on decisions already answered - **VERIFIED FIX (the column); RV-11 defects FOUND**
+
+The next-task rule selects "the first `OPEN` row whose `Blocked by` is `none`". Applied mechanically it selected
+**nothing** - and that is not because the work is finished or because every remaining task is genuinely waiting on
+you. It is because the gate column was written **before** your decision slate came back and was never re-derived.
+
+**THE FINDING.** All 27 decisions were answered on 2026-10-02. Of the 21 unfinished rows (14 `PARTIAL` + 6 `OPEN` +
+1 `GATED`), **17 cite an already-answered decision as their blocker** - RV-02 behind "2, 3", RV-04 behind "9",
+AF-5 behind "un1", AF-06 behind "2, 3, 6", T3-10 behind "7", and so on. Only **4** have a blocker that is still
+really open: RV-01 (the storage move), RV-14 (the units question), RV-17 (needs a production-shaped run) and RV-12
+(a product decision). Every one of the other 17 is queued behind a sentence that stopped being true on 2026-10-02.
+
+**WHY THIS IS WORTH A SECTION.** A queue whose gates are stale cannot be worked: the rule reads `Blocked by = none`,
+almost nothing says `none`, so every session ends the same way - a full-looking backlog and no selectable task. The
+items were not forgotten and they were not refused; they were recorded against a question that has since been
+answered, and nothing ever went back and cleared the gate.
+
+### 66.1 RV-11 - what actually moved, and what is still a LIVE DEFECT (re-verified in code)
+
+Section 26.14 item 1 is the clearest case, because part of it landed on its own and part of it did not. Checked
+against the code, not the prose:
+
+| 26.14 claim | State today | Evidence |
+|---|---|---|
+| Two contradictory tier-band schemes (`>=80/60/40` vs `>=200/150/100`) | **RESOLVED** | `UserScore::getTierAttribute` is the only definition (Gold>=80, Silver>=60, Bronze>=40, Restricted); `ScoreService::resolveTier` was deleted, `setTierAttribute` no longer writes |
+| A third copy of the bands written to a legacy `tier` column | **RESOLVED** | the write is gone (R2 sec 42); the bands are owner-pinned by `RV37ScorePolicyTest` |
+| Start score 70 vs 100 | **STILL TRUE, and now a direct violation of your own answer** | `ScoreService.php:32` and `:203` create **70**; `applyAction`'s `firstOrCreate` (`:262`) still creates **100**. un2 pinned start = 70 |
+| `applyAction` clamps only at 0, uncapped top | **STILL TRUE** | `:274` is `max(0, $previousScore + $result->points)` - no ceiling, against a pinned max of 100 |
+| Every completed ride counts twice | **STILL LIVE** | `applyAction:277` does `total_rides + 1` on a positive action, and `recordRideCompleted:46-52` calls `applyAction(RIDE_COMPLETED)` **and then** `incrementRides()` |
+
+**THE IMPACT, STATED PRECISELY (and corrected from 26.14).** 26.14 says the double-count "inflates the
+`cancel_rate` denominator". The mechanism is more specific than that, and worth recording because it changes who is
+affected:
+- `cancel_rate` is **not a stored column**. `UserScore::setCancelRateAttribute` discards every write
+  ("computed from total_cancellations / total_rides - never stored"), so `ScoreService:280`'s assignment is
+  **dead code** - and it computes a *different formula* (`total_cancellations / total_rides`) than the accessor
+  actually uses (`total_cancellations / max(1, total_rides + total_cancellations)`).
+- The penalty gates read the accessor, not the column: `PassengerCancelPolicy:53` and `DriverCancelRidePolicy:53`
+  both test `$userScore->cancel_rate >= 50`.
+- So doubling `total_rides` inflates the accessor's denominator, `cancel_rate` **falls**, and the 50% high-cancel
+  gate **stops firing when it should**.
+
+**This under-penalises; it does not over-penalise anyone.** No user is charged more than they should be. The failure
+is silent: repeated cancellations stop being flagged, and the safeguard simply never engages.
+
+**NOT FIXED IN THIS SECTION, DELIBERATELY.** Three of these four are *enforcing a decision you have already made*
+(start 70, max 100) rather than inventing a policy, so they are decision-free in principle. But they change score
+values that gate cancellation penalties, and `AGENTS.md` reserves score semantics for you. The double-count is a
+genuine bug rather than a policy choice, yet removing it lowers `total_rides` for every completed ride, which
+retroactively re-rates every user's cancel rate. That is a decision about whose history gets re-rated, so it is
+yours to make, not mine to assume.
+
+**The four open questions, stated so they can be answered in one go:**
+1. **Should a completed ride count once?** (removes the double-count; re-rates existing `cancel_rate` values)
+2. **Should the ceiling be enforced at 100** in `applyAction`, matching the max that un2 already pinned?
+3. **Should the `firstOrCreate` fallback in `applyAction` create 70** like every other path?
+4. **Is the dead `cancel_rate` assignment at `ScoreService:280` safe to delete**, given the mutator discards it?
+
+**Genuinely unverified.** Items 2-6 of section 26.14 (RV-10, RV-02 L2, RV-20, RV-09, RV-21) have had their **gates**
+answered, but their percentages and their code were NOT re-checked in this pass. Their `Blocked by` cells were
+corrected from "decision X" to "decision X - answered, see 66"; that is a statement about the gate, not a claim that
+the remaining work is now verified. Each still needs its own verified pass before its status moves.
 
