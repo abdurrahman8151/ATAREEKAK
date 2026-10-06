@@ -55,12 +55,30 @@ jobs:
             cd "$DEPLOY_PATH"
             git config --global --add safe.directory "$DEPLOY_PATH"
 
-            # Authenticate Git using the GITHUB_TOKEN
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+            # D9 = C (2026-10-04): target-agnostic hygiene only.
+            #
+            # 1) NO TOKEN IN THE REMOTE URL. This previously rewrote `origin` to an authenticated
+            #    HTTPS URL, which PERSISTED the deploy token into the clone's .git/config on the
+            #    VPS, where it outlived the job and stayed readable to anything that could read that
+            #    file. `git -c` is command-scoped instead: the header exists for the fetch and is
+            #    never written anywhere. (The old URL is deliberately not reproduced here - a
+            #    literal token pattern in a comment is what secret scanners look for.)
+            #
+            # 2) NO HARD RESET TO A FEATURE BRANCH. This deployed `origin/samer`, a personal branch,
+            #    regardless of which ref triggered the run - so what shipped was not what was
+            #    reviewed. It now deploys the ref the workflow actually ran on.
+            AUTH="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+            DEPLOY_REF="${{ github.ref_name }}"
 
-            git fetch origin samer
-            git reset --hard origin/samer
+            git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --no-tags origin "$DEPLOY_REF"
+            git reset --hard FETCH_HEAD
             git clean -fd
+
+            # Prove the token cannot have reached a config file.
+            if grep -rlE 'x-access-token|AUTHORIZATION: basic' "$DEPLOY_PATH/.git/config" 2>/dev/null; then
+              echo "::error::A credential was persisted into .git/config on the deploy host."
+              exit 1
+            fi
 
             echo "Checking Docker..."
             if ! command -v docker >/dev/null 2>&1; then

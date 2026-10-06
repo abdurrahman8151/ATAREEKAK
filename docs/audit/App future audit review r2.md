@@ -6778,3 +6778,41 @@ VERIFICATION - 8 tests, 16 assertions, all passing.
 RV-13 -> VERIFIED FIX. The 61-site migration is now unblocked as behaviour-preserving work.
 
 Nothing pushed.
+## 80. T3-10 / D9: deploy hygiene - the token was being written to disk on the VPS
+
+Owner decision D9 = C: target-agnostic hygiene only; the deploy target stays unchosen. Reading the
+workflow rather than trusting the row's label found the token issue is NOT in a local git remote but
+in `.github/workflows/deploy-to-vps.yml`, and the feature-branch issue was worse than described.
+
+DEFECT 1 - the credential was persisted on the deploy host. The workflow ran
+`git remote set-url origin "https://<token>@github.com/..."`, which WRITES that token into the
+deploy clone's `.git/config` on the VPS. It outlives the job and stays readable to anything that can
+read that file. Fixed with `git -c http.extraheader=...`, which is command-scoped: the header exists
+for the fetch and is written nowhere. A post-fetch `grep` now FAILS THE JOB if a credential did land
+in `.git/config` - so the fix is checked on the real host, not just asserted in review.
+
+DEFECT 2 - it deployed a personal feature branch. The workflow ran `git fetch origin samer` and
+`git reset --hard origin/samer`, so what shipped was `samer` regardless of which ref triggered the
+run - what shipped was not necessarily what was reviewed. It now fetches `github.ref_name` and
+resets to `FETCH_HEAD`. Target-agnostic: it works whatever the deploy target turns out to be, which
+is exactly what D9 = C asked for.
+
+A NOTE ON THE COMMENT: the first draft quoted the old URL in an explanatory comment. That would have
+put an interpolated-token pattern into a repo with gitleaks enabled, where a scanner is entitled to
+flag it. The comment now describes the old shape without reproducing it.
+
+VERIFICATION - 5 tests, 14 assertions. CI files have no behavioural coverage, which is why a
+structural test is the only thing that can hold them; and because the deploy is paused pending the
+target choice, a regression here would sit unnoticed indefinitely.
+  - needle: restoring `remote set-url` + `origin/samer` fails ALL FIVE; restored byte-identical (SHA256)
+  - the "no literal remote branch" guard uses a regex over the SHAPE of the bug, not just the one
+    instance, so renaming the branch does not satisfy it
+  - a positional guard requires the .git/config check to come AFTER the authenticated fetch
+  - YAML parses; job set unchanged (`deploy`)
+  - pint clean
+
+RV-08 and T3-10 remain OPEN as deploy tasks: the target is still the owner's to choose (D9 = C), and
+what shipped on the VPS before this change was still `samer` - this stops the NEXT deploy from
+repeating it, it does not retroactively fix what is currently deployed.
+
+Nothing pushed.
