@@ -6252,3 +6252,49 @@ behaviour, with the reason in the comment: `test_forgot_password_fails_for_nonex
 **WHAT REMAINS IN RV-16.** Only the `APP_ENV=production` `.env` deploy action on the owner's machine,
 which is not code. RV-16's acceptance criteria are now fully discharged on the agent's side.
 
+## 73. The BACKLOG contradicted the code about `ScoreLedger` - corrected, not built
+
+Record-only. No code change. Found while checking what RV-11's remaining "consolidation" item actually is,
+which the next-task rule cannot select because RV-11 is `PARTIAL` rather than `OPEN`.
+
+**THE CONTRADICTION.** `BACKLOG.md` §4 said, of RV-11:
+
+> "One mutation path (`ScoreLedger::apply()`) writes the score; the service still has several."
+
+That sentence is **false**, and a future session acting on it would have gone looking for a class that is
+not there. Verified three ways:
+
+- `app/**/ScoreLedger*.php` - **no such file exists**.
+- `grep ScoreLedger` across `app/` - **zero matches**, so there are no callers either.
+- No `score_ledger` table in `database/migrations/` (only the four `user_scores` migrations).
+
+`R2 sec 67` had already recorded the truth - *"one mutation path (`ScoreLedger::apply()`) **does not
+exist**"* - thirty lines above where the criteria were written from. **The status authority and the audit
+record disagreed, and the audit record was right.**
+
+**SO WHAT IS THE REMAINING WORK, REALLY?** Not "migrate the call sites to the single write path" - there is
+no single write path to migrate to. It is: **build** `ScoreLedger::apply()` and route the mutations
+through it. That is a different and larger job than the criteria text implies.
+
+**IS IT NOW UNBLOCKED? Yes - and this is the part worth recording.** `R2 sec 1923` says building it
+"requires the OWNER to pick the canonical clamp ceiling, tier bands, and starting score". **That question
+has since been answered**: un2 (`de61c7b`) settled the scale, `R2 sec 67` turned it into
+`START_SCORE`/`MIN_SCORE`/`MAX_SCORE` constants on `ScoreService`, and `RV37ScorePolicyTest` pins the tier
+boundaries. So RV-11's `Blocked by = none` is now *correct* for the first time - it was written when the
+policy was still open, and stayed right by accident afterwards.
+
+**ALSO CONFIRMED ON THE WAY THROUGH:** `config/score.php` does not exist, and the vestigial `tier`
+column is genuinely dead. The only two references to `tier` in `app/` are `$userScore->tier` in
+`ScoreController:157` and `StaffOperationsController:183` - and that is the **computed accessor**
+`UserScore::getTierAttribute()`, not the column, because `setTierAttribute` deliberately discards
+assignments. So the column added by `2026_08_18_235839_add_tier_to_user_scores_table` is read by nobody.
+Still true, still not causing a wrong score, still not fixed - dropping a column is a migration and
+migrations are ask-first.
+
+**NOT BUILT HERE, DELIBERATELY.** Building `ScoreLedger` is a new class plus migrating the mutation paths
+in `applyAction`, `incrementCancellations`, `incrementNoShows` and `recordRideCompleted` - a wide-blast-
+radius refactor of the score subsystem that ride completion, cancellation, no-show and rating all run
+through. That is not a task to begin at the end of a very long session: this session already produced two
+self-inflicted defects that only the wider floor caught (a leaked wording, and a dropped dev-only OTP
+field). It is left as the next concrete piece of work, named in `STATE.md`, for a fresh session.
+

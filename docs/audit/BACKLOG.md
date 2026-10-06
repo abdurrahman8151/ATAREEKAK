@@ -179,7 +179,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 35 | RV-40 | Money schema additions (prereq for RV-02 L2, RV-09, RV-15) | P1 | VERIFIED FIX | n/a | AF-6 | R2 sec 26.1 VF, sec 26.12 VF (price width), sec 26.13 VF (one report/booking); caebbfa + f4d1df8 + 53fe8d1 | R2 sec 54 (decision 13: 18 DB ENUM columns -> varchar, `e93f3c5`, verified up+down, fail-loud rollback) `e93f3c5`; |
 | 36 | RV-09 | Money concurrency and side-effect ordering | P1 | PARTIAL | 3 - ANSWERED; remainder coupled to RV-02 L2 | V16; RV-02 L2; T1-1 lock precedent | R2 sec 26.3 "VERIFIED FIX (safe subset); throughput redesign separate", sec 26.14; caebbfa |
 | 37 | RV-10 | Ride lifecycle and escrow liveness | P1 | **BLOCKED** | **decision 2 = B "expire, do NOT auto-confirm"** - the auto-confirm WINDOW was never answered, so this row is **NOT decision-free**; see `R2 sec 70` | AF-4e (config windows); T1-1 | R2 sec 26.7 (search guard VF, rest owner-gated), sec 26.14; caebbfa |
-| 38 | RV-11 | Score subsystem internally inconsistent | P1 | PARTIAL | **none** - the 4 defects are FIXED; what remains is consolidation, not correctness | T1-1 state machine | R2 sec 26.9 PARTIAL ~35% (dead `applyScore` deleted), sec 26.14; `caebbfa`, `de61c7b` (un2 policy) - **R2 sec 67: the ride double-count and the 3 policy defects are FIXED** (owner 2026-10-03: a ride counts ONCE). Before the fix: `applyAction:277` + `recordRideCompleted:52` counted every completed ride TWICE (inflating `cancel_rate`, so the 50% high-cancel gate under-fired); `firstOrCreate` used 100 not the pinned 70; no ceiling; a dead `cancel_rate` write. Verified: needle both directions, 12 new tests pin the GATE not just the arithmetic, 275 tests / 451 assertions / 4 failures = the same 4 as sec 64.5, zero new |
+| 38 | RV-11 | Score subsystem internally inconsistent | P1 | PARTIAL | **none** - now genuinely unblocked: un2 + `R2 sec 67` answered the policy question `R2 sec 1923` said was required. Remaining work is to BUILD `ScoreLedger`, which does not exist (`R2 sec 73`) | T1-1 state machine | R2 sec 26.9 PARTIAL ~35% (dead `applyScore` deleted), sec 26.14; `caebbfa`, `de61c7b` (un2 policy) - **R2 sec 67: the ride double-count and the 3 policy defects are FIXED** (owner 2026-10-03: a ride counts ONCE). Before the fix: `applyAction:277` + `recordRideCompleted:52` counted every completed ride TWICE (inflating `cancel_rate`, so the 50% high-cancel gate under-fired); `firstOrCreate` used 100 not the pinned 70; no ceiling; a dead `cancel_rate` write. Verified: needle both directions, 12 new tests pin the GATE not just the arithmetic, 275 tests / 451 assertions / 4 failures = the same 4 as sec 64.5, zero new; **`R2 sec 73`** (BACKLOG criterion corrected: `ScoreLedger` does not exist, so the remainder is a build not a migration) |
 | 39 | RV-15 | Booking idempotency | P1 | VERIFIED FIX | n/a | RV-02 L2 `posting_key` | R2 sec 26.2 VF; caebbfa |
 | 40 | RV-21 | Wallet identity and money creation | P1 | VERIFIED FIX | n/a | RV-39 (seeder half), AF-6 | R2 sec 26.5 PARTIAL, sec 26.11 VF (seeder half); un10 fixtures `bff1d3e`; R2 sec 56 (`wallets.kind` + DB triggers, `ae09981`); R2 sec 57-60.1 (double-entry: `ledger_entries` + `LedgerService`, every money path converted, External Capital account closes the external flows, `ledger:reconcile` scheduled daily) `3be510a`; R2 sec 61.1 closes the row - no money movement remains that the ledger cannot explain |
 | 41 | RV-20 | Payment strategy one-third wired | P2 | PARTIAL | 2, 3 - ANSWERED; coupled to RV-02 L2 | AF-6; T2-1 | R2 sec 26.4 "grounded but NOT changed"; sec 26.14 item 4 (~20% done, credited to the RV-09/RV-15 work in caebbfa) - nothing committed under this ID |
@@ -375,7 +375,7 @@ acceptance conditions, not implementation instructions.
   that deliberately book past-departure rides are moved to a supported test path instead of relying on the hole.
 - Closed already, do not redo: the decision-free search guard (departed rides no longer returned) is `VERIFIED FIX`.
 
-**RV-11 - score subsystem** *(the 4 defects are FIXED - `R2 sec 67`; what remains below is consolidation)*
+**RV-11 - score subsystem** *(the 4 defects are FIXED - `R2 sec 67`; what remains is a BUILD, not a migration - `R2 sec 73`)*
 - **DONE - the double-count.** A completed ride increments `total_rides` exactly once, so `cancel_rate`, whose
   thresholds gate penalties, is right. Previously `ScoreService:277` and `recordRideCompleted:52` both incremented it.
   Pinned by `RV11RideCountTest` at 1 ride and at 3, for the driver and for every passenger.
@@ -387,9 +387,19 @@ acceptance conditions, not implementation instructions.
   The `applyDelta` docblock that claimed a `[0, 200]` ceiling - the scale the owner rejected in un2 - is corrected,
   and so is an orphaned comment that still described the pre-sec-42 tier arrangement.
 - Remaining, and none of it causes a wrong score today:
-- One mutation path (`ScoreLedger::apply()`) writes the score; the service still has several. No `config/score.php`
-  exists yet - the constants close the drift, not the design question.
-- Tier boundaries are asserted by tests at the exact edge values, not sampled in the middle. **DONE** - `RV37ScorePolicyTest`.
+  - **CORRECTED (`R2 sec 73`) - this criterion was factually wrong.** It said "One mutation path
+  (`ScoreLedger::apply()`) writes the score; the service still has several." **`ScoreLedger` does not
+  exist** - no file, no caller, no `score_ledger` table - so there is nothing to migrate TO. `R2 sec 67`
+  had already recorded the opposite thirty lines earlier; the status authority was the wrong side of that
+  disagreement. The real remaining work is to BUILD `ScoreLedger::apply()` as the single write path, not to
+  route call sites to an existing one - a larger job than this sentence implied. It is now genuinely
+  unblocked: `R2 sec 1923` said it needed the owner to pick the clamp ceiling, tier bands and start score,
+  and un2 (`de61c7b`) + `R2 sec 67` + `RV37ScorePolicyTest` have since answered all three - so
+  `Blocked by = none` is correct for the first time. Not started: wide-blast-radius refactor of a subsystem
+  ride completion, cancellation, no-show and rating all run through.
+  Also confirmed here: no `config/score.php` exists, and the `tier` column IS dead - the only two `tier`
+  references in `app/` are `$userScore->tier` (`ScoreController:157`, `StaffOperationsController:183`),
+  which is the computed accessor, not the column. Dropping it is a migration and remains ask-first. the exact edge values, not sampled in the middle. **DONE** - `RV37ScorePolicyTest`.
 
 **RV-12 - account status model** *(blocked by un13)*
 - The `status = 0` "logged out" and "banned" overloading is separated: a temporary ban that has expired can never lock
