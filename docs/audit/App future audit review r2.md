@@ -6046,3 +6046,52 @@ only non-app-authored messages, or always show domain messages) is a **product a
 determines whether the migration can be status- and body-preserving at all. It is therefore parked here as a
 question rather than guessed at, and `BACKLOG.md` RV-13's `Blocked by` cell is corrected accordingly.
 
+## 70. RV-10 - escrow CAN be held indefinitely, and the release policy is an owner decision - **BLOCKED** (terminal)
+
+Investigated as the next decision-free remainder by Order (37). **The row's `Blocked by` cell claiming
+"remainder decision-free" is wrong, and this section is the correction.**
+
+**THE HOLE, verified in code.** A `CONFIRMED` e-pay booking has its money in SyCash escrow. That escrow is
+released on exactly two paths:
+- `EPayPaymentStrategy::processRideCompletionPayment` - **that passenger** confirming (`RideService`'s
+  per-passenger confirm path), which releases only that passenger's share;
+- `RideService::checkAndCompleteRide` - which gates on the driver confirming (`:405`) **and on EVERY confirmed
+  booking's passenger having `passenger_confirmed_at`** (`:414-421`) before it releases anything.
+
+So anyone who taps is paid. The money that sticks belongs to **a passenger who never taps on a ride whose driver
+also never taps** - and nothing sweeps it. `ExpireStaleBookingsCommand` (`bookings:expire-stale`, every 15 min,
+added by decision 2) only touches `status = PENDING` bookings, i.e. requests the driver never accepted - and per
+`R2 sec 53` those never took money at all (`amount_paid = 0`, never entered escrow). **It cannot and must not
+release this money: it never sees a confirmed booking.** There is no `rides:advance-status` command; the console
+command list has no status sweeper of any kind.
+
+Consequences while stuck: escrow sits in SyCash with no expiry, the bookings stay `confirmed` and never
+`completed`, no scores are recorded, and the ride sits at `awaiting_confirmation` indefinitely.
+
+**A CORRECTION TO THE CRITERION'S SEVERITY.** `BACKLOG.md` says "Escrow release stops depending on a driver tap
+that may never arrive; a stuck booking cannot hold money forever". The per-passenger release path means this is
+**not** a whole-ride freeze: passengers who do confirm are paid. The exposure is the subset who never do. Worth
+knowing before sizing the fix.
+
+**WHY IT IS NOT DECISION-FREE.** Closing it means choosing a release policy for a ride that departed, was driven,
+and that nobody confirmed - and the app genuinely cannot tell whether the passenger showed up. The three
+defensible answers all move real money in opposite directions: **release to the driver** after N hours (a driver is
+paid for a service that may never have happened), **refund the passenger** (a driver is unpaid for one that did), or
+**escalate to a human** (no automated movement, but the money is still stuck until someone acts). Picking one is
+`AGENTS.md`'s ask-first list ("changing money or ledger semantics"), and the **window** is the missing number.
+
+**AND THE OWNER HAS ALREADY SPOKEN ADJACENT TO IT, IN THE OPPOSITE DIRECTION.** Decision 2 (sec 53) is "expire
+unconfirmed bookings, **do NOT auto-confirm**", and `STATE.md` lists "RV-10 auto-confirm hours" under *Blocked on
+owner*. Implementing an auto-confirm window now would silently reverse a ruling the owner made and marked for
+reconsideration - not something to do unattended because a BACKLOG cell was stale.
+
+**NOTHING WAS CHANGED.** No probe, no half-built sweeper, no guessed window. The finding is recorded and the row
+is moved to BLOCKED so it stops being read as ready.
+
+**THE QUESTION, FOR THE OWNER.** For a ride that has departed, is `CONFIRMED`, and that neither the driver nor the
+last passenger confirms: after how long, and then should the escrow go to the driver, back to the passenger, or to a
+staff queue for manual resolution? A third option is worth considering: a read-only sweeper that only REPORTS stuck
+escrow with its age and amount, moving no money, so the policy can be chosen from real data. That one is
+decision-free and was deliberately NOT built here only because it was not asked for - say the word and it is a
+small, contained command.
+

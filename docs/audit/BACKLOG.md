@@ -178,7 +178,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 34 | RV-08 | Deploy pipeline is broken | P1 | OPEN | 7 - ANSWERED (B: Render, shipped 2114308); placement still unconfirmed (conflict 13) | V10 | R1 sec 4 RV-08, sec 7 Wave 2; R2 sec 6 omits it, sec 18.3 "placement: unconfirmed" |
 | 35 | RV-40 | Money schema additions (prereq for RV-02 L2, RV-09, RV-15) | P1 | VERIFIED FIX | n/a | AF-6 | R2 sec 26.1 VF, sec 26.12 VF (price width), sec 26.13 VF (one report/booking); caebbfa + f4d1df8 + 53fe8d1 | R2 sec 54 (decision 13: 18 DB ENUM columns -> varchar, `e93f3c5`, verified up+down, fail-loud rollback) `e93f3c5`; |
 | 36 | RV-09 | Money concurrency and side-effect ordering | P1 | PARTIAL | 3 - ANSWERED; remainder coupled to RV-02 L2 | V16; RV-02 L2; T1-1 lock precedent | R2 sec 26.3 "VERIFIED FIX (safe subset); throughput redesign separate", sec 26.14; caebbfa |
-| 37 | RV-10 | Ride lifecycle and escrow liveness | P1 | PARTIAL | 2 - ANSWERED (B, shipped 5926230); remainder decision-free | AF-4e (config windows); T1-1 | R2 sec 26.7 (search guard VF, rest owner-gated), sec 26.14; caebbfa |
+| 37 | RV-10 | Ride lifecycle and escrow liveness | P1 | **BLOCKED** | **decision 2 = B "expire, do NOT auto-confirm"** - the auto-confirm WINDOW was never answered, so this row is **NOT decision-free**; see `R2 sec 70` | AF-4e (config windows); T1-1 | R2 sec 26.7 (search guard VF, rest owner-gated), sec 26.14; caebbfa |
 | 38 | RV-11 | Score subsystem internally inconsistent | P1 | PARTIAL | **none** - the 4 defects are FIXED; what remains is consolidation, not correctness | T1-1 state machine | R2 sec 26.9 PARTIAL ~35% (dead `applyScore` deleted), sec 26.14; `caebbfa`, `de61c7b` (un2 policy) - **R2 sec 67: the ride double-count and the 3 policy defects are FIXED** (owner 2026-10-03: a ride counts ONCE). Before the fix: `applyAction:277` + `recordRideCompleted:52` counted every completed ride TWICE (inflating `cancel_rate`, so the 50% high-cancel gate under-fired); `firstOrCreate` used 100 not the pinned 70; no ceiling; a dead `cancel_rate` write. Verified: needle both directions, 12 new tests pin the GATE not just the arithmetic, 275 tests / 451 assertions / 4 failures = the same 4 as sec 64.5, zero new |
 | 39 | RV-15 | Booking idempotency | P1 | VERIFIED FIX | n/a | RV-02 L2 `posting_key` | R2 sec 26.2 VF; caebbfa |
 | 40 | RV-21 | Wallet identity and money creation | P1 | VERIFIED FIX | n/a | RV-39 (seeder half), AF-6 | R2 sec 26.5 PARTIAL, sec 26.11 VF (seeder half); un10 fixtures `bff1d3e`; R2 sec 56 (`wallets.kind` + DB triggers, `ae09981`); R2 sec 57-60.1 (double-entry: `ledger_entries` + `LedgerService`, every money path converted, External Capital account closes the external flows, `ledger:reconcile` scheduled daily) `3be510a`; R2 sec 61.1 closes the row - no money movement remains that the ledger cannot explain |
@@ -361,6 +361,16 @@ acceptance conditions, not implementation instructions.
 - `rides:advance-status` exists and moves `active -> launched -> completed` using the auto-confirm window from
   decision 2, tested at both sides of the boundary (just inside / just outside).
 - Escrow release stops depending on a driver tap that may never arrive; a stuck booking cannot hold money forever.
+  **BLOCKED (`R2 sec 70`)** - and this row was wrong to call the remainder decision-free. Verified in code: a
+  `CONFIRMED` e-pay booking's escrow is released only when THAT passenger confirms
+  (`EPayPaymentStrategy::processRideCompletionPayment`) or when `checkAndCompleteRide` clears BOTH gates (driver
+  confirmed AND every confirmed booking's passenger confirmed). Anyone who taps is paid, so this is NOT a
+  whole-ride freeze - the exposure is a passenger who never taps on a ride whose driver also never taps, and
+  `bookings:expire-stale` cannot help because it only touches `PENDING` bookings that never took money
+  (`R2 sec 53`). **The fix is a money-semantics choice** - release to driver, refund to passenger, or escalate to
+  staff - and the WINDOW is the missing number. Decision 2 already ruled "do NOT auto-confirm" for pending
+  bookings, so this must not be inferred. A read-only sweeper that only REPORTS stuck escrow (age + amount, moves
+  no money) is decision-free and was deliberately NOT built, because it was not asked for.
 - The booking rule for past-departure rides is decided once and applied consistently; the ~335 settlement fixtures
   that deliberately book past-departure rides are moved to a supported test path instead of relying on the hole.
 - Closed already, do not redo: the decision-free search guard (departed rides no longer returned) is `VERIFIED FIX`.
