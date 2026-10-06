@@ -11,6 +11,9 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- Done recently: **RV-04 audience separation PROVEN (`R2 sec 75`)** - the staff->user guard was real but
+  untested; neutralising it returns 200 instead of 401, so the test is proven non-vacuous. Found and
+  recorded, NOT closed: `users.token_version` defaults to 1 in the migration vs 0 in `UserFactory`.
 - Done recently: **RV-11 is now VERIFIED FIX (`R2 sec 74`)** - `ScoreLedger` built as the single score
   write path; `ScoreService` -172 lines and delegates; 4 creation sites collapsed to 1; 9 tests;
   bisect zero new. Its remaining two items are deliberately NOT done: dropping the vestigial

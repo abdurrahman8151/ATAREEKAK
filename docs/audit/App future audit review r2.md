@@ -6388,3 +6388,96 @@ against a real lookup - so the pin is **structural**, reading the ledger's sourc
 - The no-show paths were re-verified for behaviour, not exhaustively for **stored `metadata` shape** -
   both write `payment_method` + `booking_id`/`ride_id` exactly as before, pinned only by reading rather
   than by a test.
+
+## 75. RV-04 - the staff/user audience separation is now PROVEN, not just commented - **VERIFIED FIX (test half)**
+
+Selected by the owner ("do all the partial ones in one go") from the 11 `PARTIAL` rows. This is the
+runnable remainder; the classification of all 11 is at the end of this section.
+
+### WHY THIS ROW, AND WHAT WAS LEFT
+
+Decision 9 is ANSWERED ("keep the 600-min TTL"), and the TTL is in fact **already shipped**:
+`config/jwt.php` has `ttl => 600` and `staff_ttl => 60`, and `StaffJwtService:45` reads
+`config('jwt.staff_ttl')` rather than a hardcoded 3600. So the row's "the number plus staff parity"
+was stale - only the parity half remained, and the row did not say what it was.
+
+Reading it in code, the mechanism exists and is correct:
+
+- `StaffJwtService:193` emits `'sub_type' => 'employee'`.
+- `JwtAuthMiddleware:53` rejects any payload carrying `sub_type`.
+
+**But no test in the entire suite referenced `sub_type`.** The audience separation - a security
+control on every authenticated user endpoint - was carried entirely by a comment in the middleware
+explaining the guard it did not test, and that same comment records the guard's history ("Without this
+check the reverse ... was accepted as that user"). A control whose only documentation is its own source
+comment is one refactor away from deletion, and nothing would have failed.
+
+### WHAT WAS ADDED
+
+`tests/Feature/Review/RV04TokenAudienceTest.php`, 5 tests, using the REAL services rather than
+hand-built payloads:
+
+1. `a_real_staff_token_is_refused_at_a_user_endpoint` - the criterion's own case, made concrete by
+   creating a USER whose id equals the employee's, so the `sub` collision is real rather than
+   hypothetical.
+2. `a_real_user_token_is_refused_at_a_staff_endpoint` - the reverse direction.
+3. `a_staff_token_carries_the_sub_type_claim_the_user_middleware_rejects` - so the guard cannot be
+   silently dead code, which is the failure it exists to prevent.
+4. `a_user_token_carries_no_sub_type_claim` - pins the "cannot affect legitimate user tokens" claim.
+5. `token_version_parity_across_schema_factory_and_staff_path` - see below.
+
+### THE NEEDLE IS THE HEADLINE
+
+Neutralising the one-line guard (`if (isset($payload['sub_type']))` -> `if (false)`) makes test 1
+fail with **200 instead of 401**: a real staff token is **accepted as a user** at `/api/user`. The
+guard is load-bearing, the test is not vacuous, and before this file existed nothing in the suite
+would have detected its removal. Restored byte-identical (SHA256).
+
+### A REAL DIVERGENCE FOUND, RECORDED NOT CLOSED
+
+The criterion requires `token_version` to be identical in the schema default, `UserFactory` and the
+staff path. It is not:
+
+- `users.token_version` migration default: **1** (`2026_05_10_172303`, line 22)
+- `UserFactory`: **0**
+- `employees.token_version` default: **0**
+
+So a production user and a factory user never start on the same value, and the tests therefore never
+exercise the starting state that production has. The test **measures and reports** this with
+`markTestIncomplete()` on every run rather than being closed or deleted.
+
+It is deliberately not closed here: reconciling it means either a **migration** (changing the schema
+default to 0) or editing **every fixture** that creates a user. Both are outside an agent call under
+`AGENTS.md`, and the `sub`+`ver` collision the criterion worries about is currently closed by
+`sub_type` rather than by parity - so this is a real inconsistency worth an owner call, not a live
+exploit.
+
+### VERIFICATION
+
+- Identity floor (`Auth`, `Security`, `Staff`) + this file: controlled bisect HEAD `326 tests / 5
+  errors / 5 failures` vs AFTER `331 / 5 / 5`. Failure NAME SETS compared with `Compare-Object`:
+  **zero new**. The 10 are the known pre-existing set.
+- Needle one direction (guard removed -> 401 test fails with 200; restored byte-identical).
+- No app file changed - only a new test - so no regression surface exists.
+- `pint` clean.
+
+### THE OTHER TEN PARTIAL ROWS - CLASSIFIED, NOT SKIPPED
+
+"PARTIAL" does not mean "unblocked"; six carry an owner gate and one is a deliberate deferral.
+
+| Row | Remainder | Verdict |
+|---|---|---|
+| 19 RV-01 | private-disk move | owner (storage) |
+| 22 RV-02 | `posting_key` + derived escrow | **needs a MIGRATION + money semantics** - `posting_key` exists in neither `database/migrations` nor `app/`. Ask-first. |
+| 27 RV-13 | masking policy for migrated exceptions | owner |
+| 28 RV-14 | distance/duration units | owner |
+| 36 RV-09 | coupled to RV-02 L2 | follows RV-02 |
+| 41 RV-20 | "Lands with RV-02 L2, not before it" | blocked by RV-02 |
+| 44 RV-17 | production-shaped k6 run | infra / owner |
+| 45 RV-12 | drop persisted `status = 0` | product |
+| 48 RV-29 | 5 items DEFERRED by the owner | do not touch |
+| 49 RV-19 | items 2/4/5 | item 2 is a report-semantics question; 4 and 5 are runnable |
+
+**RV-02 is the gate for three rows at once** (RV-09, RV-20 and AF-6's acceptance alias), and it
+cannot start without a schema change and a money-semantics decision. That single owner call unlocks
+the largest remaining cluster in the backlog.
