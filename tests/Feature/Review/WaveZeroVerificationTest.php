@@ -242,13 +242,38 @@ class WaveZeroVerificationTest extends TestCase
             'the revenue lookup must use the canonical key every money path uses'
         );
 
-        // The SECOND V8 site stays recorded exactly as recorded: VerificationRepository still
-        // reads config('system_admin.email') -> null, so its "seed 3.0 rating for approved
-        // drivers" block never fires. Fixing it would SILENTLY ACTIVATE that dormant write
-        // (every driver approval starts inserting ratings) - that is a product decision
-        // (RV-19 remainder / decision table in §28.7), not a blind key swap.
-        $verify = (string) file_get_contents(app_path('Repositories/VerificationRepository.php'));
-        $this->assertStringContainsString('system_admin', $verify);
+        // The SECOND V8 site is now RESOLVED. Owner decision D4 = B (2026-10-04) removed it: it read
+        // config('system_admin.email') -> null, so its "seed 3.0 rating for approved drivers" block
+        // never fired, and swapping the key would have silently ACTIVATED it (every driver approval
+        // inserting an admin-attributed rating). The rating now comes from `UserObserver::created()`
+        // at SIGNUP with rater_id = null.
+        //
+        // FLIPPED: this used to assert the dormant read was still present, pinning the bug. It now
+        // asserts the read is GONE, so the config file cannot be reintroduced from the other side.
+        $verify = $this->stripComments(app_path('Repositories/VerificationRepository.php'));
+        $this->assertStringNotContainsString(
+            'system_admin',
+            $verify,
+            'the dead config(\'system_admin.email\') read must stay removed - it can never resolve'
+        );
+    }
+
+    /**
+     * The replacement must actually work: the rating is seeded at SIGNUP, for every user, by the
+     * observer - not by the approval path that never fired.
+     *
+     * @test
+     */
+    public function a_new_user_carries_a_three_star_rating_from_signup(): void
+    {
+        $user = User::factory()->create();
+
+        $this->assertDatabaseHas(
+            'user_ratings',
+            ['rated_user_id' => $user->id, 'rating' => 3.0, 'rater_id' => null],
+            null,
+            'a new user must start at 3.0, platform-assigned, at signup'
+        );
     }
 
     /** Tokenizer-based comment strip: prose may NAME a pattern without tripping detectors. */

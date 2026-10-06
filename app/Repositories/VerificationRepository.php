@@ -5,7 +5,6 @@ namespace App\Repositories;
 use App\Interfaces\ProfileRepositoryInterface;
 use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\User;
-use App\Models\UserRating;
 
 class VerificationRepository implements VerificationRepositoryInterface
 {
@@ -63,22 +62,22 @@ class VerificationRepository implements VerificationRepositoryInterface
             'verification_status' => 'approved',
         ]);
 
-        // ── Seed initial 3-star rating for new drivers ─────────────────
-        // Uses the primary admin account as the rater so foreign key is valid.
-        // firstOrCreate ensures re-approving the same driver never duplicates it.
-        $adminUser = User::where('email', config('system_admin.email'))->first();
-
-        if ($adminUser) {
-            UserRating::firstOrCreate(
-                [
-                    'rater_id' => $adminUser->id,
-                    'rated_user_id' => $userId,
-                ],
-                [
-                    'rating' => 3.0,
-                ]
-            );
-        }
+        // RV-19 item 4 / owner decision D4 = B (2026-10-04): this block is GONE.
+        //
+        // It read `config('system_admin.email')`, and `config/system_admin.php` does not exist, so
+        // that call returned NULL; `User::where('email', null)` matches no row under SQL, so
+        // `$adminUser` was always null and this "seed 3.0 rating for new drivers" NEVER RAN. It was
+        // dormant code that read a config file that was never there.
+        //
+        // It was not merely useless - it was dangerous. Swapping the key to the canonical
+        // `admin.system_admin.phone` would have silently ACTIVATED it, and every driver approval
+        // would have started inserting a rating attributed to a wallet phone's user. That is why it
+        // sat untouched for so long, and why `WaveZeroVerificationTest` recorded it rather than
+        // "fixing" it.
+        //
+        // The rating now comes from where the owner asked for it: `UserObserver::created()` seeds
+        // `rating = 3.0` with `rater_id = null` (platform-assigned) AT SIGNUP, so it applies to
+        // every user rather than only to approved drivers, and needs no admin account to exist.
         // ───────────────────────────────────────────────────────────────
 
         return $user;

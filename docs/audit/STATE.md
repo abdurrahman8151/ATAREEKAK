@@ -17,6 +17,10 @@ with each status taken from the newest section that mentions it. The per-task lo
   constraint: the 95/5 split and ALL six refund tiers stay byte-identical - bookkeeping only.
   NOTE the literal BACKLOG invariant `SyCash == SUM(escrow_held)` is FALSE (cash rows are backfilled
   to 0 by design); the true form is e-pay only. Pin the true one.
+- Done recently: **D10 (RV-11-B) and D4 (RV-19 item 4) both VERIFIED FIX (`R2 sec 78`)** - the
+  `models_to_enums` baseline went 2 -> **3** (the ratchet counts FILES, so the owner's 4 enum PAIRS are
+  3 edges; a 4 would have been a green hole); and the dead `config('system_admin.email')` rating seed is
+  removed with rating 3 now PROVEN at SIGNUP.
 - Done recently: **RV-19 item 5 VERIFIED FIX (`R2 sec 76`)** - three admin derived numbers fixed and the
   bug-pinning tests flipped. Item 4 proven but OWNER-GATED: `config/system_admin.php` is absent, so the
   new-driver rating seed silently never runs.

@@ -6660,3 +6660,67 @@ this turn is the complete, verified execution map above plus the decision record
 bookkept ledger.
 
 **The map is the deliverable. D1 is the next task to execute, and it is unblocked.**
+
+RV-11-B / D10: baseline 2 -> 3 (not 4), and RV-19 item 4 / D4: the dormant rating seed is gone
+
+Two of the twelve 2026-10-04 owner decisions taken to a terminal state.
+
+=== D10 (RV-11-B) - models_to_enums baseline ===
+
+The owner's instruction was conditional: publish the edge list BEFORE raising. Published - and the
+list corrected the number:
+
+    Complaint  -> ComplaintStatus AND ComplaintType   (two enums, ONE counted edge)
+    Employee   -> StaffRole
+    Wallet     -> WalletKind
+
+The ratchet counts PER FILE that references App\Enums (BoundaryDependencyTest:111-112 pushes one
+$rel per file), so the owner's four model/enum PAIRS are THREE counted edges. Raising to 4 as first
+drafted would have left a permanently-green hole: the true count is 3, so a 4 would admit a new
+violating file without failing. Caught by running the test before believing the number.
+
+Raised 2 -> 3. The old budget was 2 "because Complaint, Employee" (the file's own R7 note); Wallet
+arrived later. All three are genuine domain enums - the baseline predates them. Still a CEILING:
+needle-confirmed that adding an App\Enums reference to a fourth model file (User.php) fails the
+ratchet, restored byte-identical by SHA256.
+
+BoundaryDependencyTest: OK (9 tests, 36 assertions). No other baseline touched.
+
+=== D4 (RV-19 item 4) - the rating seed that never ran ===
+
+THE OWNER'S ANSWER CHANGED THE TASK. D4 = B was "delete the block", with the note "i want the user to
+have rating of 3 when signup". Checking the code first: UserObserver::created() ALREADY does exactly
+that - it seeds rating = 3.0 with rater_id = null (platform-assigned) at signup. So the remainder was
+not "add a signup rating"; it was removing the SECOND, dead attempt at the same thing.
+
+Removed from VerificationRepository (lines 66-81): a block reading config('system_admin.email').
+config/system_admin.php does not exist, so that returned NULL, and User::where('email', null) matches
+no row under SQL - so $adminUser was always null and "seed 3.0 rating for new drivers" NEVER RAN.
+
+It was not merely useless, it was a trap. Swapping the key to the canonical admin.system_admin.phone
+would have silently ACTIVATED it, and every driver approval would have started inserting a rating
+attributed to a wallet phone's user. That is why it sat untouched, and why WaveZeroVerificationTest
+recorded it rather than "fixing" it.
+
+FLIPPED WaveZeroVerificationTest:251, which asserted the dormant read was still PRESENT - it was
+pinning the bug, holding the question open. It now asserts the read is GONE, and uses the file's own
+stripComments() helper so the explanatory comment can still name the key it forbids (asserting on raw
+text would have failed on the very comment explaining the removal). Added
+a_new_user_carries_a_three_star_rating_from_signup, because the replacement must be proven to work,
+not just assumed: the old block is gone AND the new path seeds 3.0 for every new user.
+
+VERIFICATION
+  - WaveZeroVerificationTest: OK (10 tests, 26 assertions)
+  - Needle: reintroducing the dead read fails the flipped guard; restored byte-identical (SHA256)
+  - Floor bisect (Review + Verification): HEAD 350 tests / 5 failures vs AFTER 351 / 5. Failure
+    NAME SETS via Compare-Object: zero new.
+  - pint clean.
+
+RV-11-B -> VERIFIED FIX. RV-19 item 4 -> VERIFIED FIX.
+
+Still open from the 2026-10-04 decisions, all with their answers recorded and unblocked:
+D1/RV-02 (escrow, mapped in R2 sec 77 - not built), D2/RV-10 (reporter first), D3/RV-13a (masking),
+D5/RV-19 item 2 (two earnings fields), D6/RV-14 (metres/seconds), D7/RV-12 (drop status=0),
+D8/T3-4 (processed_by_employee_id), D9/T3-10 (deploy hygiene). D11 stays deferred, D12 is owner-only.
+
+Nothing pushed.
