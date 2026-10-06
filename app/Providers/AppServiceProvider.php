@@ -53,6 +53,7 @@ use App\Services\Ride\BookingService;
 use App\Services\Ride\RideSearchService;
 use App\Services\Ride\RideService;
 use App\Services\Ride\RideValidationService;
+use App\Services\Score\ScoreLedger;
 use App\Services\Score\ScoreService;
 use App\Services\Staff\EmployeeAuthService;
 use App\Services\Staff\EmployeeManagementService;
@@ -87,10 +88,14 @@ class AppServiceProvider extends ServiceProvider
             );
         });
         $this->app->singleton(ScoreService::class, function ($app) {
+            // RV-11 (`R2 sec 73`): `ScoreService` no longer takes `ScorePolicyFactory` - all policy
+            // lookups moved into `ScoreLedger`, which is now its only dependency. This binding passed
+            // the factory alone and would have thrown ArgumentCountError on first resolution.
             return new ScoreService(
-                $app->make(ScorePolicyFactory::class)
+                $app->make(ScoreLedger::class)
             );
         });
+        $this->app->singleton(ScoreLedger::class);
         $this->app->singleton(ScorePolicyFactory::class);
         $this->app->singleton(RouteCalculationService::class);
 

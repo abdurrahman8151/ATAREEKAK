@@ -11,12 +11,10 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
-- **NEXT CONCRETE TASK (named, so a fresh session starts here): RV-11 - build `App\Services\Score\ScoreLedger`
-  as the single score-mutation path, plus `config/score.php`.** `Blocked by = none` and genuinely ready:
-  un2 (`de61c7b`) + `R2 sec 67` + `RV37ScorePolicyTest` have already answered the policy question that
-  used to gate it. NOTE: the class does **not** exist today (`R2 sec 73`) - the BACKLOG previously said it
-  did, which was wrong. This is a BUILD, not a migration, and it has a wide blast radius (ride completion,
-  cancellation, no-show, rating all route through `ScoreService`), so start it in a fresh session.
+- Done recently: **RV-11 is now VERIFIED FIX (`R2 sec 74`)** - `ScoreLedger` built as the single score
+  write path; `ScoreService` -172 lines and delegates; 4 creation sites collapsed to 1; 9 tests;
+  bisect zero new. Its remaining two items are deliberately NOT done: dropping the vestigial
+  `user_scores.tier` column and adding `config/score.php` are each a migration / a design decision.
 - Done recently: **RV-16 is now VERIFIED FIX** - decision 8 was ANSWERED but never applied; four
   unauthenticated account-enumeration oracles closed (`R2 sec 72`), incl. the `resend` endpoint which
   needed a second edit because 200-vs-409 enumerated on its own.

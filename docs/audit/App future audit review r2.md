@@ -6298,3 +6298,93 @@ through. That is not a task to begin at the end of a very long session: this ses
 self-inflicted defects that only the wider floor caught (a leaked wording, and a dropped dev-only OTP
 field). It is left as the next concrete piece of work, named in `STATE.md`, for a fresh session.
 
+## 74. RV-11 - `ScoreLedger` is now the one path that writes a score - **VERIFIED FIX**
+
+Selected by the owner ("next") from the remainder `R2 sec 73` named in `STATE.md`, because the strict
+next-task rule cannot select RV-11 (it is `PARTIAL`, and only selects `OPEN` rows with `Blocked by = none`).
+
+### WHAT WAS ACTUALLY WRONG
+
+`ScoreService` wrote a user's score in four places that did not agree:
+
+| # | Site | Clamp | Ride count | Transaction row |
+|---|---|---|---|---|
+| 1 | `applyAction()` | both ends (after `R2 sec 67`) | `RIDE_COMPLETED` | wrote, real gate value |
+| 2 | `recordPassengerNoShow()` | via `applyDelta` | none | wrote, **`false` literal** |
+| 3 | `recordDriverNoShow()` | via `applyDelta` | none | wrote, **`false` literal** |
+| 4 | `UserScore::applyDelta()` / `incrementNoShows()` / `incrementCancellations()` | model method | - | - |
+
+Three real consequences, in order of how much they mattered:
+
+1. **Four creation sites.** `applyAction` started users at **100**; `initializeScore` and
+   `getOrCreateScore` at 70; `getScore` at 70 **and omitted `total_no_shows`** entirely. A user's
+   starting state depended on which method touched them first.
+2. **A double save.** Paths 2 and 3 ran `applyDelta()` (a `save()`) and then `incrementNoShows()` (a
+   second `increment()`). A failure between them left the score moved and the counter not.
+3. **Two clamp implementations.** `applyDelta` clamped `[0,100]`; `applyAction` had its own.
+
+### THE CLAIM I HAD TO WITHDRAW - RECORDED BECAUSE IT WAS WRONG
+
+The obvious reading of the `false` literal on paths 2 and 3 is that the audit trail was **denying a
+high-cancel gate that had actually fired** - which would have been a genuine defect, and the headline
+of this task. **It is not true.** Checked before concluding:
+
+- `DriverCancelRidePolicy:60` and `PassengerCancelPolicy:60` set `highCancelRateApplied: true`.
+- `PassengerNoShowPolicy` and `DriverNoShowPolicy` never set it - they return the `ScoreResult`
+  default of `false`.
+
+So `false` was the **truthful** value for a no-show, and the two paths agreed with each other. I wrote
+`RV11ScoreLedgerTest` asserting the gate *does* fire on a no-show; it failed; **the test was wrong and
+was corrected, not the code.** This is exactly the failure mode the audit warns about at
+`R2 sec 5911` - a plausible story contradicting the code thirty lines away.
+
+What the hard-coding was still worth removing for, and what the surviving test pins: it made the
+audit row a **constant** rather than a mirror of the policy. With both values being `false`, a
+behavioural assertion ("the row equals the policy's value") passes just as well against a literal as
+against a real lookup - so the pin is **structural**, reading the ledger's source to require
+`$result->highCancelRateApplied` and to forbid any literal at the write site.
+
+### WHAT CHANGED
+
+- **`app/Services/Score/ScoreLedger.php` (NEW).** `apply()` runs the policy, clamps **once** against
+  `ScoreService::MIN_SCORE`/`MAX_SCORE`, applies counters in one save, writes the transaction once and
+  returns the result. `scoreRow()` is the **single creation path**. `recordCancellation()` carries the
+  `total_cancellations` counter, which is a fact about a record rather than a score action.
+  `RIDES_INCREMENTING` / `NO_SHOWS_INCREMENTING` are declared as lists, not `if` chains - the
+  `RIDE_COMPLETED` special case was itself the `R2 sec 67` double-count defect and must stay visible.
+- **`app/Services/Score/ScoreService.php`.** -172 lines. All four write paths delegate. `ScoreService`
+  no longer injects `ScorePolicyFactory` (every lookup moved into the ledger) and
+  `getOrCreateScore()` is deleted. **Public API unchanged** - it is what ride completion,
+  cancellation, no-show and rating call.
+- **`app/Providers/AppServiceProvider.php`.** The singleton passed `ScorePolicyFactory` alone and
+  would have thrown `ArgumentCountError` on first resolution once the constructor changed; it now
+  passes `ScoreLedger`, which is registered as a singleton in its own right.
+- **`tests/Feature/Review/RV11ScoreLedgerTest.php` (NEW), 9 tests.** Two structural guards, plus the
+  behavioural pins: e-pay passenger score unmoved but no-show counted; cash passenger -15; **driver
+  penalised for e-pay too** (a driver's refund goes TO the passenger, so nothing was taken from their
+  wallet); one action produces exactly one audit row; floor holds across 8 no-shows.
+
+### VERIFICATION
+
+- **Controlled bisect**, identical selection (`Review`, `Unit/Domain`, `Unit/Models`, `Unit/Providers`,
+  `Rides`, `Bookings`, `Config`): HEAD `735 tests / 1 error / 13 failures` vs AFTER
+  `744 tests / 1 error / 13 failures`. Failure NAME SETS compared with `Compare-Object`: **zero new**.
+  The 14 are the known pre-existing set.
+- **Needles, both directions.** Re-hard-coding `false` at the write site fails
+  `the_high_cancel_flag_is_written_from_the_policy_and_never_as_a_literal`; re-inserting a
+  `UserScore::firstOrCreate` into `ScoreService` fails `score_service_no_longer_writes_score_rows_itself`.
+  Both files restored and proven byte-identical by SHA256.
+- **Boundary baselines not raised.** `BoundaryDependencyTest`: only the known pre-existing
+  `models_to_enums` failure (BACKLOG row 106). No `use` line was added to any controller.
+- `pint --test` clean on all four changed files; `php -l` clean.
+
+### GENUINELY UNVERIFIED
+
+- The vestigial `user_scores.tier` column is still in the schema (`R2 sec 73` confirmed it is read by
+  nobody). Dropping it is a migration and remains ask-first.
+- `config/score.php` still does not exist. The constants on `ScoreService` close the drift, but a config
+  file would let the bands move without a code change. Not written: it changes where the policy lives,
+  and that is a design decision, not a consolidation step.
+- The no-show paths were re-verified for behaviour, not exhaustively for **stored `metadata` shape** -
+  both write `payment_method` + `booking_id`/`ride_id` exactly as before, pinned only by reading rather
+  than by a test.
