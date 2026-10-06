@@ -168,7 +168,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 24 | RV-34 | Shared test-support layer (both red root causes) | P1 | VERIFIED FIX | n/a | V15; T4-1 harness | R2 sec 17, sec 17.4; 5414344 - 443 -> 71 errors |
 | 25 | RV-37 | Test determinism and hermeticity | P2 | VERIFIED FIX | n/a | V13, V14; RV-18 (CI order) | R2 sec 23, sec 23.6 correction, sec 39 VF (order) + 39.1 VF (hermeticity) + 39.2 (tracked-file ratchet + CI double-run) + 39.3 (CI executed; pre-existing CI install breaks fixed); cd6a49a + c45e05e + a087342 + eaa7f14 + the closure commit. Closed by owner instruction 2026-10-03 |
 | 26 | RV-18 | CI signal (V6 driver leak, migration guards) | P1 | VERIFIED FIX | n/a | V6, AF-2' | R2 sec 24, sec 24.2 VF; 51b6ca7 - whole-suite red is separate debt (sec 24.1) |
-| 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 = ANSWERED (C: later); remainders (a)+(b) are DECISION-FREE | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3; `980741c` - **LEAKAGE HALF CLOSED, ratchet at ZERO**: R2 sec 64 `f9f536a` (Domain exceptions, domain violation 500 -> 422/403/409), sec 64.1 `a1c072c` (leak measured 47, shrink-only ratchet), sec 64.2 `3bfdaa4` (Chat 47->42), sec 64.3 `8d92b60` (ratchet was OVER-BROAD, 42->21), sec 64.4 `7a01fa5` (all non-owner controllers 21->15), sec 64.5 `5fb1a4b` (owner-owned RideController 15->0); needle proven both ways, 211 tests / 321 assertions / 4 failures IDENTICAL to pre-sweep |
+| 27 | RV-13 | Error model (envelope, domain exceptions, leakage) | P1 | PARTIAL | un4 = ANSWERED (C: later); remainder **(b) DONE**, remainder **(a) DECISION-FREE** | V5; RV-33 ratchet | R2 sec 20, sec 20.1, sec 20.3; `980741c` - **LEAKAGE HALF CLOSED, ratchet at ZERO**: R2 sec 64 `f9f536a` (Domain exceptions, domain violation 500 -> 422/403/409), sec 64.1 `a1c072c` (leak measured 47, shrink-only ratchet), sec 64.2 `3bfdaa4` (Chat 47->42), sec 64.3 `8d92b60` (ratchet was OVER-BROAD, 42->21), sec 64.4 `7a01fa5` (all non-owner controllers 21->15), sec 64.5 `5fb1a4b` (owner-owned RideController 15->0); needle proven both ways, 211 tests / 321 assertions / 4 failures IDENTICAL to pre-sweep - **`R2 sec 68` remainder (b) CLOSED**: the `$e->getCode() ?: 422` code-as-status channel is gone from `WalletRequestController` (4 sites), `WalletRequestService` now throws the typed hierarchy with **statuses UNCHANGED (422/409)** and shape UNCHANGED; new zero-baseline ratchet `RV13ExceptionCodeAsStatusTest` that self-tests its own detector; needle both ways + byte-identical restore; regression by controlled bisect 576/39E/27F at HEAD vs 583/39E/27F after, failure-name-set diff EMPTY both ways |
 | 28 | RV-14 | Route/controller mismatches, lying endpoints | P1 | PARTIAL | distance/duration units (owner) | V10, V8; RV-40 did the price width | R2 sec 21, sec 21.1, sec 21.2 PARTIAL; 1c18c07 | R2 sec 62 (`create-with-route` now uses `CreateRideRequest` — the live endpoint had `min:0` price and no phone-format check, `3616636`; plus a pre-existing 500 `chosen_route_index` NOT NULL fixed) `3616636`; |
 | 29 | RV-16 | OTP and mail flows | P1 | PARTIAL | 4, 8 - ANSWERED; remainder decision-free | RV-31 (mailers), T2-3/T2-4 | R2 sec 22, sec 22.4, sec 22.5, sec 29 (plaintext -> HMAC); cac4084 + d776c1f |
 | 30 | RV-22 | TLS and log hygiene leftovers | P1 | VERIFIED FIX | n/a | AF-1 (2/3 landed); V13 | R2 sec 26.15, sec 26.16 VF; 4239087 + b34df62 - slice 3 is deploy-surface (sec 30 item 2) |
@@ -405,6 +405,18 @@ acceptance conditions, not implementation instructions.
   regression-pinned.
 - The `$e->getCode() ?: 500` pattern elsewhere: an exception CODE is not an HTTP status, so a caught database error can
   currently become a hard failure inside the error handler. Decision-free, still open (`R2 sec 64.4`).
+  **DONE (`R2 sec 68`)** - with a correction: the live sites were 4 x `: 422` in `WalletRequestController`, not `: 500`
+  (the `: 500` form was already removed from `ProfileController`). `$code` defaults to 0, so any throw that forgot a
+  code silently became 422 - the status was being GUESSED at the controller - and any non-HTTP code would have been
+  passed straight to `response()->json()`. `WalletRequestService` now throws `BusinessRuleViolation`/`ConflictViolation`
+  with stable codes and the controller reads `$e->httpStatus`. **Statuses (422/409) and response shape are unchanged**
+  on purpose: moving an endpoint's answer, or adding `code`/`status_code` via `toArray()`, is a public API change and
+  is the owner's call. Ratchet at ZERO over `app/Http/Controllers` + a test proving the ratchet can still SEE a
+  violation. `AdminWalletRequestController` deliberately untouched - it does not use this service and hardcodes 422.
+  **REMAINING (a):** the SPL `\DomainException` throwers in `ComplaintService` (1), `EmployeeManagementService` (18)
+  and `StaffComplaintService` (8) must migrate together WITH their controllers, or the exception escapes to a
+  `catch (\Exception)` and answers 500. The 61+ `InvalidArgumentException` sites are unchanged and still correctly
+  answer 422 with the generic `DOMAIN_RULE_VIOLATION` code.
 - Only after those halves: one envelope `{success,data,error{...}}` and the `assertNotEquals` ratchet over the 13
   surveyed occurrences (`ProfileTest` 4, `NotificationTest` 3, `BookingTest` 3, `StaffComplaintControllerTest` 2,
   `ChatTest` 1) rewritten to exact statuses. Correction: writing "the exact status" today would enshrine 500s (`R2 sec 20.2`).

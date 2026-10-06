@@ -11,6 +11,8 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- Done recently: RV-13(b) exception-code-as-status - VERIFIED FIX (`R2 sec 68`). Statuses and response
+  shape deliberately UNCHANGED; zero-baseline ratchet added; regression proved by controlled bisect.
 - OWNER DECISION SLATE 2026-10-02 - ALL 18 DECISIONS DISPATCHED. Branch `Agentic` only, never pushed.
 - OWNER DECISION 2026-10-03 - "a completed ride counts ONCE" (RV-11). Applied, `R2 sec 67`.
 - Done recently: RV-11 ride double-count + 3 score-policy defects - VERIFIED FIX (`R2 sec 67`).

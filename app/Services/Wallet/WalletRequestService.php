@@ -2,6 +2,8 @@
 
 namespace App\Services\Wallet;
 
+use App\Exceptions\Domain\BusinessRuleViolation;
+use App\Exceptions\Domain\ConflictViolation;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
@@ -13,6 +15,18 @@ use Illuminate\Support\Facades\Log;
 
 class WalletRequestService
 {
+    // RV-13 (R2 sec 68): the seven `\DomainException` throws below carried the HTTP status in
+    // `$code`, and `WalletRequestController` read it back with `$e->getCode() ?: 422`. An exception
+    // code is NOT an HTTP status: it is an arbitrary int that PHP defaults to 0, so a throw that
+    // forgot the code silently became 422, and a throw that used a non-HTTP code would hand that
+    // number straight to `response()->json($payload, $status)`. The status belongs to the exception
+    // TYPE, which is what `App\Exceptions\Domain\*` exists for.
+    //
+    // EVERY STATUS HERE IS UNCHANGED (422 / 409), because `WalletRequestControllerTest` pins them and
+    // changing an endpoint's answer is not this task's business - only the CHANNEL is fixed. The
+    // one 409 stays a conflict because "you already have a pending charge request" really is a
+    // state conflict, and a client can act on that by waiting.
+
     public function __construct(
         private readonly NotificationService $notifications,
     ) {}
@@ -22,7 +36,10 @@ class WalletRequestService
         $user->loadMissing('wallet');
 
         if (! $user->wallet) {
-            throw new \DomainException('You do not have a wallet yet. Please create one first.', 422);
+            throw new BusinessRuleViolation(
+                'You do not have a wallet yet. Please create one first.',
+                'WALLET_NOT_FOUND'
+            );
         }
 
         $exists = WalletRequest::where('user_id', $user->id)
@@ -31,7 +48,10 @@ class WalletRequestService
             ->exists();
 
         if ($exists) {
-            throw new \DomainException('You already have a pending charge request. Please wait for it to be reviewed.', 409);
+            throw new ConflictViolation(
+                'You already have a pending charge request. Please wait for it to be reviewed.',
+                'PENDING_CHARGE_EXISTS'
+            );
         }
 
         return DB::transaction(function () use ($user, $amount, $notes) {
@@ -56,7 +76,7 @@ class WalletRequestService
         $user->loadMissing('wallet');
 
         if (! $user->wallet) {
-            throw new \DomainException('You do not have a wallet yet.', 422);
+            throw new BusinessRuleViolation('You do not have a wallet yet.', 'WALLET_NOT_FOUND');
         }
 
         // T3-15: this used to read the balance and the pending total OUTSIDE any
@@ -74,13 +94,16 @@ class WalletRequestService
             $wallet = $user->wallet()->lockForUpdate()->first();
 
             if (! $wallet) {
-                throw new \DomainException('You do not have a wallet yet.', 422);
+                throw new BusinessRuleViolation('You do not have a wallet yet.', 'WALLET_NOT_FOUND');
             }
 
             $balance = (float) $wallet->balance;
 
             if ($amount > $balance) {
-                throw new \DomainException("Insufficient balance. Your current balance is {$wallet->balance} SYP.", 422);
+                throw new BusinessRuleViolation(
+                    "Insufficient balance. Your current balance is {$wallet->balance} SYP.",
+                    'INSUFFICIENT_BALANCE'
+                );
             }
 
             $pendingTotal = (float) WalletRequest::where('user_id', $user->id)
@@ -89,7 +112,10 @@ class WalletRequestService
                 ->sum('amount');
 
             if (($pendingTotal + $amount) > $balance) {
-                throw new \DomainException("You already have pending withdraw requests totalling {$pendingTotal} SYP. This request would exceed your balance.", 422);
+                throw new BusinessRuleViolation(
+                    "You already have pending withdraw requests totalling {$pendingTotal} SYP. This request would exceed your balance.",
+                    'PENDING_WITHDRAWALS_EXCEED_BALANCE'
+                );
             }
 
             $walletRequest = WalletRequest::create([
@@ -144,7 +170,7 @@ class WalletRequestService
         $request = $this->getForUser($userId, $id);
 
         if (! $request->isPending()) {
-            throw new \DomainException('Only pending requests can be cancelled.', 422);
+            throw new BusinessRuleViolation('Only pending requests can be cancelled.', 'REQUEST_NOT_PENDING');
         }
 
         $request->update(['status' => 'cancelled']);

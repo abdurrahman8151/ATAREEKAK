@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\T3Batch;
 
+use App\Exceptions\Domain\BusinessRuleViolation;
 use App\Models\Booking;
 use App\Models\Employee;
 use App\Models\NoshowReport;
@@ -148,7 +149,13 @@ class MoneyPathBatchTest extends TestCase
         $svc->requestWithdraw($this->passenger->fresh(), 600.0); // ok: 600 <= 1000
 
         // A second withdraw of 600 would put 1200 pending against a 1000 balance.
-        $this->expectException(\DomainException::class);
+        // RV-13 (R2 sec 68): the assertion used to be `\DomainException` - a PHP SPL class unrelated
+        // to this app's `App\Exceptions\Domain\*` hierarchy, which carried the HTTP status in an
+        // integer `$code`. It is now the specific typed exception, which pins MORE than before: the
+        // old assertion could not tell the over-commit guard from an unrelated SPL domain error, and
+        // it could not check that the right rule produced it.
+        $this->expectException(BusinessRuleViolation::class);
+        $this->expectExceptionMessage('pending withdraw requests');
         $svc->requestWithdraw($this->passenger->fresh(), 600.0);
     }
 
@@ -157,7 +164,9 @@ class MoneyPathBatchTest extends TestCase
         $this->passengerWallet->update(['balance' => 500]);
         $svc = app(WalletRequestService::class);
 
-        $this->expectException(\DomainException::class);
+        // Same tightening as above - the guard is named, not merely "something threw a domain error".
+        $this->expectException(BusinessRuleViolation::class);
+        $this->expectExceptionMessage('Insufficient balance');
         $svc->requestWithdraw($this->passenger->fresh(), 501.0);
     }
 

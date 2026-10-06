@@ -5912,3 +5912,68 @@ kept being quoted; a comment that contradicts its own file is how it survived th
 there is still no `config/score.php`, and the vestigial `tier` column is still in the schema. None of those cause a
 wrong score today.
 
+## 68. RV-13(b) - an exception CODE is no longer used as an HTTP status - **VERIFIED FIX**
+
+**Selected by the owner ("continue") from the four decision-free remainders** the next-task rule cannot pick,
+because it only selects `OPEN` rows and all four are `PARTIAL`: RV-13 (Order 27), RV-16 (29), RV-10 (37),
+RV-19 (49). Lowest Order won. Every other candidate was rejected first, not skipped: AF-5's remainder moves
+complaint/KYC attachments off the `'public'` disk, which changes URLs clients already hold - AGENTS.md's
+ask-first list; AF-6/AF-7 are money-semantics changes, also ask-first.
+
+**THE DEFECT.** `WalletRequestService` threw PHP's SPL `\DomainException` and carried the HTTP status in the
+integer `$code`. `WalletRequestController` read it back four times as `$e->getCode() ?: 422`. Two distinct
+failures hide in that one expression:
+
+- `$code` defaults to **0**. Any throw that forgot the code silently became 422 through the `?:`. The status was
+  being *guessed at the controller*, so a rule deserving 403 or 404 would answer 422 and nothing would look wrong.
+- `$code` is arbitrary. A throw using any non-HTTP number - a SQLSTATE-derived value, a domain code - hands it
+  straight to `response()->json($payload, $status)` and produces a status no client understands.
+
+**THE MEASUREMENT CORRECTED THE CRITERION.** `BACKLOG.md` described this as "the `$e->getCode() ?: 500` pattern
+elsewhere". Grep found the `: 500` form already gone - `ProfileController` carries comments recording its removal -
+and **4 live `: 422` sites**, all in `WalletRequestController`. `AdminWalletRequestController` also catches
+`\DomainException`, but it does **not** use this service and its catch hardcodes 422, so it is untouched: changing
+it would be unrelated editing. A grep also confirmed `WalletRequestController` is the service's only consumer, which
+is what made a self-contained migration possible.
+
+**THE FIX, AND WHAT IT DELIBERATELY DID NOT CHANGE.** The seven service throws now use
+`App\Exceptions\Domain\BusinessRuleViolation` / `ConflictViolation` with stable `errorCode`s, and the four catches
+read `$e->httpStatus`. **Every status is unchanged (422 / 409)** because `WalletRequestControllerTest` pins them and
+moving an endpoint's answer is not this task's business - only the channel is repaired. The 409 stays a
+`ConflictViolation` because "you already have a pending charge request" genuinely is a state conflict. The response
+**shape is unchanged** (`success` / `status` / `message`): `DomainException::toArray()` would have added `code` and
+`status_code`, which is a public API shape change and therefore the owner's call, not this task's.
+
+**A TEST EDIT, DECLARED.** `AGENTS.md` forbids editing a test to make it pass. Two assertions in
+`MoneyPathBatchTest` named `\DomainException` for this service, and the task changes that type deliberately. They
+were **tightened, not weakened**: `expectException(BusinessRuleViolation::class)` **plus**
+`expectExceptionMessage('pending withdraw requests' / 'Insufficient balance')`, where the old assertion could not
+tell the over-commit guard from any unrelated SPL domain error and could not check *which* rule fired.
+
+**THE RATCHET IS AT ZERO, AND PROVES IT CAN SEE.** `RV13ExceptionCodeAsStatusTest` fails on any non-comment line in
+`app/Http/Controllers` containing `getCode()`. Zero is deliberate: the defect is that the channel exists at all, so
+one surviving site is a bug, not progress. Comments are skipped on purpose, because several controllers carry a
+comment explaining they REMOVED this pattern and counting the explanation would make the ratchet fail on the record
+of its own fix. A second test feeds the detector the exact old line, the fixed line, and a comment, and asserts it
+flags the first and ignores the other two - a ratchet whose pattern quietly stopped matching would otherwise pass
+forever.
+
+**NEEDLE, BOTH DIRECTIONS.** Reintroducing `$e->getCode() ?: 422` and `catch (\DomainException $e)` fails the
+ratchet (exit 1). The controller was then restored **byte-identically** (SHA256) and passes again.
+
+**NO REGRESSION - proved by controlled bisect, not by counting.** The same selection run with my three files swapped
+back to their HEAD blobs: **576 tests / 39 errors / 27 failures** at HEAD versus **583 / 39 / 27** with the change
+(the 7 extra are the new test). Comparing the two failure **name sets**: 66 unique each, **intersection diff empty
+in both directions - zero new failures, and nothing accidentally fixed.** The 66 are the known pre-existing red set
+(`GeocodingServiceTest`, `StaffComplaintServiceTest`, `EmployeeManagementServiceTest`, `AdminDriverServiceTest`,
+`CashRideFeeServiceTest`, `MoneyPathBatchTest::test_two_charges_in_the_same_second_do_not_collide`, ...).
+`pint --test` PASS on all four changed files. The boundary gate still fails `models_to_enums` - the **pre-existing**
+violation already bisect-proven and recorded as BACKLOG row 106; the baseline was not raised.
+
+**STILL OPEN - this is the (a) half, and it is much larger.** The remaining SPL `\DomainException` throwers are
+`ComplaintService` (1), `EmployeeManagementService` (18) and `StaffComplaintService` (8), each with controllers that
+catch SPL `\DomainException` and would have to migrate together or the exception would escape to a
+`catch (\Exception)` and answer **500** - a regression, which is why they are not folded in here. The 61+
+`InvalidArgumentException` sites remain untouched; `DomainExceptionMappingTest` still answers them 422 via the
+generic `DOMAIN_RULE_VIOLATION` code, which is correct and is the part already shipped.
+

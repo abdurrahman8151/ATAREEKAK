@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Exceptions\Domain\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\WalletChargeRequest;
 use App\Http\Requests\Wallet\WalletStoreRequest;
@@ -32,12 +33,12 @@ class WalletRequestController extends Controller
                 'message' => 'Charge request submitted. The admin will review it shortly.',
                 'data' => $this->service->format($walletRequest),
             ], 201);
-        } catch (\DomainException $e) {
+        } catch (DomainException $e) {
             return response()->json([
                 'success' => false,
                 'status' => 'error',
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?: 422);
+            ], $e->httpStatus);
         }
     }
 
@@ -56,12 +57,12 @@ class WalletRequestController extends Controller
                 'message' => 'Withdraw request submitted. The admin will process it shortly.',
                 'data' => $this->service->format($walletRequest),
             ], 201);
-        } catch (\DomainException $e) {
+        } catch (DomainException $e) {
             return response()->json([
                 'success' => false,
                 'status' => 'error',
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?: 422);
+            ], $e->httpStatus);
         }
     }
 
@@ -81,12 +82,12 @@ class WalletRequestController extends Controller
                 'message' => 'Wallet request submitted.',
                 'data' => $this->service->format($walletRequest),
             ], 201);
-        } catch (\DomainException $e) {
+        } catch (DomainException $e) {
             return response()->json([
                 'status' => 'error',
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?: 422);
+            ], $e->httpStatus);
         }
     }
 
@@ -135,12 +136,12 @@ class WalletRequestController extends Controller
                 'success' => false,
                 'message' => 'Request not found.',
             ], 404);
-        } catch (\DomainException $e) {
+        } catch (DomainException $e) {
             return response()->json([
                 'status' => 'error',
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() ?: 422);
+            ], $e->httpStatus);
         }
     }
 }
