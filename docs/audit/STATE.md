@@ -10,6 +10,22 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- OWNER DECISION NEEDED (RV-20 REFUND HALF) - `R2 sec 86`: both real refund paths are SET-LEVEL
+  `(Ride, Collection)` - one aggregate SyCash sufficiency check, `PostingKey::buildForSet`, one
+  `debitEscrowForSet`, and ONE combined SyCash ledger row - but `PaymentStrategy::processRefund(
+  Booking, Ride, User)` is per-booking and matches NEITHER real flow. Calling it per booking would
+  weaken the guard, change the idempotency scope, and multiply ledger rows, so it was NOT done.
+  **Choose: (a) split into `processDriverCancellationRefund` / `processStaffCancellationRefund`, or
+  (b) re-shape to `(Ride, Collection, reason)` with a reason enum.** Either is an interface design
+  change, not a wiring change. Note `processRefund` has never had a production caller.
+- Done recently: **RV-20 CHARGE HALF VERIFIED FIX (`R2 sec 86`)** - `bookRide` + `acceptBooking` now
+  dispatch through `PaymentStrategyFactory`; the `E_PAY` branch is gone from `BookingService` (the
+  actual point: a new payment method no longer means editing that service). 8 new tests, with a
+  NON-VACUOUS routing proof - the E-PAY money outcome is identical before and after, so the proof
+  rides on the CASH path, where only `CashPaymentStrategy` produces the log line. Needle 2 fail; bisect
+  641/11F -> 641/11F IDENTICAL. 2 disclosed behaviour changes: cash bookings now log, and an
+  out-of-range `payment_method` now throws instead of silently not charging.
+- (empty - no other task is mid-flight.)
 - **CORRECTION: D6 IS NOT BLOCKED.** Earlier notes said D6 was "genuinely blocked on the owner". That
   was STALE. `D6 = B (metres/seconds)` has been answered since 2026-10-04 (STATE.md, BACKLOG row 28) and
   is now independently CORROBORATED from the Flutter client (`R2 sec 85`): routing APIs return metres +

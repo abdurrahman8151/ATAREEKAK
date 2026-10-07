@@ -7375,3 +7375,98 @@ does this (it sends none of the three), so this is latent rather than live, and 
 carries uncommitted owner edits, so nothing here was touched. Noted for RV-14's remaining scope.
 
 Nothing pushed.
+
+## 86. RV-20 - the CHARGE half routes through the strategy; the REFUND half cannot - **VERIFIED FIX (partial by design)**
+
+Owner-approved 2026-10-08 ("next", in answer to RV-20 being offered). `sec 84` had removed the
+precondition, so the gate is satisfied. Scoping this by reading the call sites first - rather than
+assuming the row was one job - is what found the blocker below.
+
+### THE HEADLINE: RV-20 IS TWO HALVES AND ONLY ONE OF THEM IS WIREABLE
+
+RV-20 is three movements: book (charge), completion (release), refund. Completion was already wired
+(`BookingService:554`). This section takes the **charge** half and **stops** at the refund half, for a
+reason that is about money rather than taste.
+
+Both real refund paths are **SET-LEVEL**:
+
+```
+refundPassengersForDriverCancellation(Ride $ride, Collection $bookings)
+refundPassengersForStaffCancellation(Ride $ride, Collection $bookings)
+```
+
+`WalletTransactionService:358` does, for the whole set at once: one **aggregate** SyCash sufficiency
+check, a posting key derived from the **set** (`PostingKey::buildForSet($ride->id, 'driver-cancel',
+$bookings)`), `debitEscrowForSet(...)`, and **one** SyCash `driver_cancellation_refunds` transaction
+for the combined total.
+
+`PaymentStrategy::processRefund(Booking $booking, Ride $ride, User $passenger)` takes a **single
+booking**. Forcing the set through it by calling it once per booking would silently do all three of
+these:
+
+- **weaken the sufficiency guard** from set-total to per-booking, so a set that cannot be refunded in
+  full could still have its individual legs refunded;
+- **change the idempotency scope**, because a set-derived posting key becomes N per-booking keys;
+- **multiply the SyCash ledger rows**, one per booking instead of one per cancellation.
+
+That is a money change, not a wiring change, so it is **not taken**. The interface is the defect -
+`processRefund`'s shape matches **neither** real refund flow. It has never had a production caller,
+which is exactly why nobody noticed. `processBookingPayment` by contrast matches both charge paths
+exactly. **The refund half needs an owner decision**: either split the method
+(`processDriverCancellationRefund` / `processStaffCancellationRefund`) or re-shape it to
+`(Ride, Collection, reason)` with a reason enum. Neither is a wiring change.
+
+### THE CHANGE
+
+Two sites in `BookingService`, and nothing else:
+
+| Site | Before | After |
+|---|---|---|
+| `bookRide` (:115) | `if ($initialStatus === CONFIRMED && payment_method === E_PAY) { $this->walletService->chargePassengerForBooking(...) }` | `if ($initialStatus === CONFIRMED) { $this->paymentFactory->make($ride->payment_method)->processBookingPayment(...) }` |
+| `acceptBooking` (:180) | same guard, calling the wallet service | `$this->paymentFactory->make($ride->payment_method)->processBookingPayment(...)`, unguarded |
+
+The `E_PAY` branch is no longer spelled out in the service, which is the actual point: adding a
+payment method no longer means editing `BookingService`. `walletService` stays injected - four other
+callers remain (`calculateRefundPolicy`, `processTimeBasedCancellation`). `RideService:186` is
+**untouched**.
+
+Both sites inspect `! $paymentResult->success` and throw, matching the existing pattern at :554. That
+check cannot fire today - the strategies throw (RV-09(a)) - but `PaymentStrategyFactory::register()`
+is public API, so a registered strategy that *returns* a failure would otherwise be silently ignored,
+which is precisely the `sec 83` failure mode.
+
+### TWO BEHAVIOUR CHANGES, DISCLOSED
+
+1. **A CASH booking now emits an INFO log** ("Cash booking recorded") where previously nothing ran at
+   all. No money, no response change, no new query.
+2. **An out-of-range `payment_method` now throws instead of silently not charging.** The column was
+   widened from ENUM to VARCHAR by `2026_10_03_233000_convert_enum_columns_to_varchar`, so the
+   database no longer constrains the value. Before, a ride with `payment_method = 'barter'` produced a
+   CONFIRMED booking with no money taken. Now the factory refuses it. `rides.payment_method` is
+   `NOT NULL`, so there is no null-`make()` risk. Failing loud here is the correct behaviour for a
+   money path, and it is now pinned by a test rather than left implicit.
+
+### VERIFICATION
+
+NEW `tests/Feature/Review/RV20ChargeThroughStrategyTest.php` - 8 tests, 20 assertions.
+
+The suite would be worthless if it could not tell this change from the old code, and for **E-PAY it
+cannot** - the money outcome is identical either way. So the routing is proved on the path where it is
+observable: `a_cash_booking_reaches_the_cash_strategy` asserts the log line that only
+`CashPaymentStrategy::processBookingPayment` can produce. Everything else pins money equivalence (escrow
+amount, balance deltas, transaction counts, the REQUEST deferral on both charge sites) and rollback
+(`a_refusal_through_the_service_aborts_the_whole_booking`: an unfundable booking throws **and leaves
+no booking row**, so routing through the strategy did not reintroduce a swallow).
+
+- **Needle** - restore the bypass-the-factory branch at site 1: **2 tests fail** (the routing proof and
+  the loud-rejection test). Restored byte-identical, SHA256 verified.
+- **Controlled bisect** - identical selection (`tests/Feature/{Rides,Bookings,Wallet,Payment}`,
+  `tests/Unit/Domain`, `tests/Feature/Review`), only `app/` varying, new test held out of both runs:
+  **641 tests / 11 failures at HEAD vs 641 / 11 after - failure name set IDENTICAL, zero new.**
+  Final run including the new file: **649 tests / 11 failures**, all 11 pre-existing.
+- `pint` clean; `BoundaryDependencyTest` **9 green**; `php -l` clean.
+
+### STATE
+
+RV-20 stays **PARTIAL**: charge and completion are wired, **refund is not, and is blocked on an
+interface design decision from the owner**. Nothing pushed.

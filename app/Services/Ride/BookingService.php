@@ -110,12 +110,23 @@ final class BookingService
                 'idempotency_key' => $dto->idempotencyKey,
             ]);
 
-            // 7. Charge passenger for DIRECT + E-PAY only.
-            //    REQUEST bookings defer payment until driver accepts.
-            if ($initialStatus === BookingStatus::CONFIRMED
-                && $ride->payment_method === PaymentMethod::E_PAY->value
-            ) {
-                $this->walletService->chargePassengerForBooking($booking, $ride, $passenger);
+            // 7. Charge passenger via the payment strategy (RV-20).
+            //    The E-PAY branch is deliberately NOT spelled out here any more: the factory picks
+            //    the strategy from the ride's own payment_method, so adding a payment method no
+            //    longer means editing this service. For CASH the strategy is a documented no-op.
+            //    REQUEST bookings defer payment until the driver accepts.
+            //
+            //    The `success` check is defence for a future strategy registered through
+            //    PaymentStrategyFactory::register() that RETURNS a failure instead of throwing.
+            //    Today's strategies throw (RV-09(a)), so it cannot fire - but `sec 83` was written
+            //    precisely because a caller that ignores a soft result loses money silently.
+            if ($initialStatus === BookingStatus::CONFIRMED) {
+                $paymentResult = $this->paymentFactory->make($ride->payment_method)
+                    ->processBookingPayment($booking, $ride, $passenger);
+
+                if (! $paymentResult->success) {
+                    throw new \RuntimeException('Booking payment failed: '.$paymentResult->message);
+                }
             }
 
             // 8. Deduct seats from ride only when booking is immediately confirmed
@@ -176,9 +187,13 @@ final class BookingService
             $booking->status = BookingStatus::CONFIRMED->value;
             $booking->save();
 
-            // E-PAY: charge passenger now that driver accepted
-            if ($ride->payment_method === PaymentMethod::E_PAY->value) {
-                $this->walletService->chargePassengerForBooking($booking, $ride, $booking->user);
+            // Charge the passenger now that the driver accepted (RV-20: through the strategy,
+            // for the same reason as site 7 - see the comment there).
+            $paymentResult = $this->paymentFactory->make($ride->payment_method)
+                ->processBookingPayment($booking, $ride, $booking->user);
+
+            if (! $paymentResult->success) {
+                throw new \RuntimeException('Booking payment failed: '.$paymentResult->message);
             }
 
             $this->deductSeats($ride, $booking->seats);
