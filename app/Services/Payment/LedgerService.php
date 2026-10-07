@@ -66,7 +66,14 @@ class LedgerService
 
         $written = [];
 
+        // RV-09(a): this transaction retries on a concurrency error (see the attempts argument
+        // below). Laravel rolls the attempt back before retrying, but `$written` lives in the
+        // ENCLOSING scope - so a retry would append this attempt's legs to the previous
+        // attempt's and the caller would receive duplicates of rows that no longer exist.
+        // Resetting it inside the closure is what makes the retry safe to re-run.
         DB::transaction(function () use ($legs, $transaction, &$written) {
+            $written = [];
+
             foreach ($legs as $leg) {
                 $entry = LedgerEntry::create([
                     'wallet_id' => $leg['wallet_id'],
@@ -77,7 +84,7 @@ class LedgerService
 
                 $written[] = $entry;
             }
-        });
+        }, attempts: 3);
 
         return $written;
     }

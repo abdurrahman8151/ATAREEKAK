@@ -141,7 +141,7 @@ final class BookingService
             // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
             // per booking. Re-load the relations the response path needs.
             return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -205,7 +205,7 @@ final class BookingService
             // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
             // per booking. Re-load the relations the response path needs.
             return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -255,7 +255,7 @@ final class BookingService
             // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
             // per booking. Re-load the relations the response path needs.
             return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -345,7 +345,7 @@ final class BookingService
             // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
             // per booking. Re-load the relations the response path needs.
             return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -447,7 +447,7 @@ final class BookingService
                     ],
                 ],
             ];
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -593,7 +593,7 @@ final class BookingService
                     : 'Confirmed successfully.',
                 'ride_finished' => $rideNowFinished,
             ];
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================

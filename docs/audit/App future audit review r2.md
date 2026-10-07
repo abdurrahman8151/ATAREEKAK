@@ -7197,3 +7197,116 @@ will meet it, not in the suite.
 
 No code, migration, test or config was changed by this section. BACKLOG rows RV-09 and RV-20 now carry
 the hazard so the ordering cannot be lost. **Nothing pushed.**
+
+## 84. RV-09(a) - the strategies stop swallowing exceptions; the money transactions retry - **VERIFIED FIX**
+
+Owner-approved 2026-10-08. Deferred since `sec 26.3`, where it was listed as "(a) wrapping strategies so
+they stop swallowing exceptions + `DB::transaction` retry `attempts=3`" and called money-critical.
+`sec 83` promoted it from parallel improvement to **precondition for RV-20**.
+
+### PART 1 - THE STRATEGY SWALLOW (the RV-20 blocker)
+
+`EPayPaymentStrategy` wrapped all three wallet calls in
+
+```php
+try { ...wallet call...; return PaymentResult::success(...); }
+catch (\Exception $e) { return PaymentResult::failure($e->getMessage()); }
+```
+
+All three try/catch blocks removed. The class is now a faithful adapter: it forwards, and it does not
+reinterpret failure. `CashPaymentStrategy` never throws and is untouched. `PaymentResult::failure()` /
+`RefundResult::failure()` are still part of the value-object API and are still unit-tested - they are
+simply no longer constructed anywhere in `app/`, which is itself the proof the swallow is gone.
+
+**Two existing tests were INVERTED, and this is disclosed rather than buried.** In
+`tests/Unit/Domain/EPayPaymentStrategyTest`, `..._returns_failure_when_balance_insufficient` and
+`..._returns_failure_when_no_wallet` asserted `$result->success === false`. They were pinning the
+defect on purpose. They are now `..._propagates_when_balance_insufficient` /
+`..._propagates_when_no_wallet`, asserting a `RuntimeException` **with a message match** so they cannot
+rot into "any throw counts". Nothing else in that file changed. The bisect below shows them failing at
+HEAD and passing after, which is the causality proof for the behaviour change.
+
+### PART 2 - `DB::transaction(..., attempts: 3)`
+
+Applied to the **13 money entrypoints listed in `sec 77`** (BookingService 62/159/222/283/362/484,
+RideService 121/394, Noshowservice 80/206/338, StaffOperationsController 417/532) **plus
+`LedgerService:69`** - 14 sites. Laravel retries only on a concurrency error and rolls the attempt back
+first, so each attempt starts clean.
+
+Each closure was checked for re-runnability BEFORE the argument was added, because a retried closure
+re-executes and any by-ref accumulator would double-count:
+
+| Closure | Pattern | Verdict |
+|---|---|---|
+| `StaffOperationsController` x2 | `$refund = ...` - assignment | safe |
+| `Noshowservice:338` | returns a fresh bool | safe |
+| `BookingService` x6, `RideService` x2, `Noshowservice:80/206` | no by-ref | safe |
+| **`LedgerService:69`** | **`$written[] = $entry` - accumulates in the ENCLOSING scope** | **WAS UNSAFE** |
+
+`LedgerService` is the one that would have broken. Laravel rolls the failed attempt back, but `$written`
+lives outside the transaction, so a retry would append the new attempt's legs to the previous attempt's
+and the **caller would receive entries for rows that no longer exist**. Fixed by resetting `$written`
+*inside* the closure. That fix is not cosmetic - without it, adding `attempts: 3` here would have
+introduced exactly the class of bug this task exists to prevent.
+
+### VERIFICATION
+
+**NEW** `tests/Feature/Review/RV09StrategyGuardPropagationTest.php` - 7 tests. It does not assert "an
+exception happened"; it asserts the **specific RV-02 L2 guards arrive intact**:
+
+- a repeated charge throws, and the message **names the posting key**
+- a repeated charge adds no transaction row and leaves SyCash untouched
+- an **exhausted escrow** throws via `processRideCompletionPayment` - reached through a DIFFERENT
+  movement (different posting key), so only the escrow guard can stop it
+- a refusal through the strategy moves no money at all (driver, SyCash, row count)
+- a repeated **refund** throws
+- a successful call still returns a `RefundResult` with `success === true`, so no caller contract changed
+- the ledger returns one entry per leg and **every returned entry is a persisted row**
+
+**Needle A - re-wrap the charge in a blanket catch (the exact `sec 83` landmine):** 4 tests fail
+(2 new + both inverted ones). Restored byte-identical (SHA256).
+
+**Needle B - remove the in-closure `$written = []` reset: DID NOT FAIL.** Reported plainly rather than
+buried: the test does not induce a retry, because that would require a real deadlock. So the test pins
+the *provable* property (returned entries are real rows) and the retry-safety of the reset rests on
+reading the code, not on executing a failure. The earlier draft of that test asserted "no duplicates
+from a retry" and would have been a **false claim of coverage** - it passed with the reset removed. That
+is recorded because the next session must not assume it is tested.
+
+**Controlled bisect**, identical selection (`tests/Feature/{Review,Wallet,Payment}`, `tests/Unit/Domain`),
+only `app/` varying, new test held out of both runs:
+
+- **BEFORE: 534 tests, 9 failures**
+- **AFTER: 534 tests, 7 failures**
+- name-set diff: **2 fixed, ZERO new** - the 2 being exactly the inverted tests, failing at HEAD and
+  passing after. Positive causality, not a coincidence.
+
+Final run including the new file: **541 tests, 7 failures**, all 7 pre-existing (`KycActionGateTest` x1,
+`RV39SeederHygieneTest` x2, `SharedTestSupportTest` x1, `WalletTest` x3).
+
+`pint clean` on all 8 changed files. **BoundaryDependencyTest: 9 green.**
+
+### TWO PROCESS FAILURES, BOTH CAUGHT, BOTH RECORDED
+
+1. **`[System.IO.File]::WriteAllLines` converted four files from LF to CRLF wholesale.** `core.autocrlf
+   = true` hid it - `git diff` showed only the 6 intended lines - and Pint's `line_ending` rule caught
+   it. Caught, reverted by rewriting those files byte-wise with CRLF stripped, and re-verified: diff
+   still exactly 13 `});` -> `}, attempts: 3);`, Pint clean, pure-LF endings restored. **Anyone running
+   a brace-matching rewrite script on this Windows repo must write bytes, not lines.**
+2. **The first bisect used `git stash push` and silently measured nothing.** After the earlier T3-4
+   bisect had already run `git checkout HEAD --` over the same files, there was nothing left to stash,
+   so `stash push` created no stash, the "AFTER" run executed HEAD code again, and the comparison came
+   back "identical" - **while the entire change had been destroyed by the preceding checkout.** Caught
+   only because the script printed the post-restore `git diff --stat`, which came back empty. The
+   bisect was rebuilt using **file copies on disk outside the repo**, with a SHA256 check that every
+   file came back byte-identical. `sec 77`, `sec 81` and `sec 82` all used the checkout-and-restore
+   pattern safely because the backups were made BEFORE the checkout; the failure here was a stash that
+   was never verified to exist.
+
+### REMAINING ON RV-09
+
+Item **(b)** - events carrying ids instead of models - is untouched and still open. RV-09 stays
+**PARTIAL**; this closes (a) and the `sec 83` precondition. **RV-20 is now unblocked** in the sense that
+its stated precondition is met, but taking it is a separate decision.
+
+Nothing pushed.

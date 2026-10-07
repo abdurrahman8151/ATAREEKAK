@@ -11,6 +11,18 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- Done recently: **RV-09(a) VERIFIED FIX (`R2 sec 84`)** - `EPayPaymentStrategy` no longer catches
+  anything: 3 try/catch blocks removed, so D1's posting-key and escrow guards now PROPAGATE instead of
+  becoming an ignorable `PaymentResult`. **2 existing tests inverted** (they pinned the swallow on
+  purpose) - disclosed, and the bisect shows them failing at HEAD and passing after. `attempts: 3`
+  added to the 13 `sec 77` money entrypoints + `LedgerService:69`, which needed a `$written` reset
+  first or the retry would hand the caller phantom entries. Bisect 534/9F -> 534/7F: 2 fixed, ZERO new.
+  **`sec 83`'s RV-20 landmine is now defused.** RV-09 stays PARTIAL - only (b) "events carry ids not
+  models" remains. **TWO PROCESS TRAPS RECORDED IN `sec 84`, both of which bite the next session:**
+  (1) `WriteAllLines` silently converts LF files to CRLF here and `core.autocrlf` HIDES it from
+  `git diff` - only Pint catches it; (2) `git stash push` with an explicit path list silently created
+  NO stash when the files were already reverted, so a bisect can "prove" identity while measuring
+  nothing and the change is gone. Back files up to disk and verify with SHA256.
 - Done recently: **D1 DISCHARGED the recorded blocker on RV-09 and RV-20 - and armed a landmine
   (`R2 sec 83`, documentation only, no code).** Both rows said "remainder coupled to RV-02 L2"; that
   is now done, so by the letter of the gate they are the next work. **RV-20 must NOT be taken.**

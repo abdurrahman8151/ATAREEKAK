@@ -238,7 +238,7 @@ final class RideService
             ]);
 
             return $ride->fresh();
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -472,7 +472,7 @@ final class RideService
                 'bookings' => $confirmedBookings->count(),
                 'payment' => $ride->payment_method,
             ]);
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================

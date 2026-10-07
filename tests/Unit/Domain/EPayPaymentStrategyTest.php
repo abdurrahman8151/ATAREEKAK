@@ -152,24 +152,45 @@ class EPayPaymentStrategyTest extends TestCase
         $this->assertEquals($before - $amount, (float) $this->passengerWallet->fresh()->balance);
     }
 
-    public function test_process_booking_payment_returns_failure_when_balance_insufficient(): void
+    /**
+     * RV-09(a): this test USED TO assert `$result->success === false`.
+     *
+     * It asserted the swallowing behaviour on purpose, and that behaviour was the defect: the
+     * strategy caught every exception and returned an ignorable `PaymentResult`. After RV-02 L2 the
+     * swallowed exceptions include the posting-key collision and the escrow guard, so returning a
+     * soft failure on an already-written booking row is how a double payment would come back.
+     *
+     * The failure must PROPAGATE so the enclosing `DB::transaction` unwinds. Inverted deliberately
+     * by owner decision, and the message is asserted so this cannot silently weaken into "any throw
+     * counts".
+     *
+     * @throws \RuntimeException
+     */
+    public function test_process_booking_payment_propagates_when_balance_insufficient(): void
     {
         $this->passengerWallet->update(['balance' => 0]);
         $booking = $this->makeBooking(1);
 
-        $result = $this->strategy->processBookingPayment($booking, $this->ride, $this->passenger);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/insufficient balance/i');
 
-        $this->assertFalse($result->success);
+        $this->strategy->processBookingPayment($booking, $this->ride, $this->passenger);
     }
 
-    public function test_process_booking_payment_returns_failure_when_no_wallet(): void
+    /**
+     * RV-09(a): inverted from `assertFalse($result->success)` - see the sibling test for why.
+     *
+     * @throws \RuntimeException
+     */
+    public function test_process_booking_payment_propagates_when_no_wallet(): void
     {
         $noWalletPassenger = User::factory()->create();
         $booking = $this->makeBooking(1);
 
-        $result = $this->strategy->processBookingPayment($booking, $this->ride, $noWalletPassenger);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/wallet not found/i');
 
-        $this->assertFalse($result->success);
+        $this->strategy->processBookingPayment($booking, $this->ride, $noWalletPassenger);
     }
 
     // ─── processRefund ─────────────────────────────────────────────────────

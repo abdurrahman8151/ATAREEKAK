@@ -465,7 +465,7 @@ final class StaffOperationsController extends Controller
                     'needs_review' => $refund['needs_review'],
                     'driver_score_penalty' => 'none (decision 6: not the driver\'s fault)',
                 ]);
-            });
+            }, attempts: 3);
 
             return response()->json([
                 'status' => 'success',
@@ -581,7 +581,7 @@ final class StaffOperationsController extends Controller
                     'needs_review' => $refund['needs_review'],
                     'driver_score_penalty' => 'none (decision 6: not the driver\'s fault)',
                 ]);
-            });
+            }, attempts: 3);
 
             return response()->json([
                 'status' => 'success',

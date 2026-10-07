@@ -15,6 +15,24 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
  *   booking   → chargePassengerForBooking   : passenger wallet → escrow
  *   confirm   → releaseEscrowToDriver       : escrow → driver wallet (minus cut)
  *   cancel    → refundPassengersFor…        : escrow → passenger wallet
+ *
+ * ── WHY THERE IS NO try/catch HERE (RV-09(a)) ──────────────────────────────────
+ * This class used to wrap all three calls in `catch (\Exception) { return
+ * PaymentResult::failure($e->getMessage()); }`. That silently converted every failure into a soft
+ * result object that a caller could ignore - and after RV-02 L2 it would have been much worse,
+ * because the guards D1 added are THROWN, not returned:
+ *
+ *   - a `posting_key` collision  (this movement was already posted)
+ *   - an escrow guard refusing to overdraw `bookings.escrow_held`
+ *
+ * Caught, those become an ignorable `PaymentResult` on a booking row that has ALREADY been
+ * written - the double-payment defect RV-02 L2 exists to prevent, returning through the front
+ * door. Every caller already runs inside `DB::transaction`, so letting the exception propagate
+ * unwinds cleanly and leaves nothing half-written.
+ *
+ * This class is now a faithful adapter: it forwards and it does not reinterpret failure. That is
+ * also the precondition RV-20 needs - routing charge and refund through this factory is only
+ * behaviour-preserving now that the strategies cannot swallow a refusal. See `R2 sec 83`.
  */
 final class EPayPaymentStrategy implements PaymentStrategy
 {
@@ -29,13 +47,9 @@ final class EPayPaymentStrategy implements PaymentStrategy
         Ride $ride,
         User $passenger,
     ): PaymentResult {
-        try {
-            $this->walletService->chargePassengerForBooking($booking, $ride, $passenger);
+        $this->walletService->chargePassengerForBooking($booking, $ride, $passenger);
 
-            return PaymentResult::success('Payment held in escrow');
-        } catch (\Exception $e) {
-            return PaymentResult::failure($e->getMessage());
-        }
+        return PaymentResult::success('Payment held in escrow');
     }
 
     // ── Confirm (per-passenger) ──────────────────────────────────────────────
@@ -49,14 +63,10 @@ final class EPayPaymentStrategy implements PaymentStrategy
         Ride $ride,
         User $passenger,
     ): PaymentResult {
-        try {
-            $driver = $ride->driver;   // ← derive driver from ride; passenger is the confirmer
-            $this->walletService->releaseEscrowToDriver($booking, $ride, $driver);
+        $driver = $ride->driver;   // ← derive driver from ride; passenger is the confirmer
+        $this->walletService->releaseEscrowToDriver($booking, $ride, $driver);
 
-            return PaymentResult::success('Escrow released to driver');
-        } catch (\Exception $e) {
-            return PaymentResult::failure($e->getMessage());
-        }
+        return PaymentResult::success('Escrow released to driver');
     }
     // ── Refund ───────────────────────────────────────────────────────────────
 
@@ -65,14 +75,10 @@ final class EPayPaymentStrategy implements PaymentStrategy
         Ride $ride,
         User $passenger,
     ): RefundResult {
-        try {
-            $bookings = new EloquentCollection([$booking]);
-            $this->walletService->refundPassengersForDriverCancellation($ride, $bookings);
+        $bookings = new EloquentCollection([$booking]);
+        $this->walletService->refundPassengersForDriverCancellation($ride, $bookings);
 
-            return RefundResult::success('Refund processed successfully');
-        } catch (\Exception $e) {
-            return RefundResult::failure($e->getMessage());
-        }
+        return RefundResult::success('Refund processed successfully');
     }
 
     // ── Meta ─────────────────────────────────────────────────────────────────

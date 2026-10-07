@@ -193,7 +193,7 @@ final class Noshowservice
                 'expires_at' => $report->expires_at->toIso8601String(),
                 'conflict' => false,
             ];
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -316,7 +316,7 @@ final class Noshowservice
                 'expires_at' => $report->expires_at->toIso8601String(),
                 'conflict' => false,
             ];
-        });
+        }, attempts: 3);
     }
 
     // =========================================================================
@@ -376,7 +376,7 @@ final class Noshowservice
                     ]);
 
                     return true;
-                });
+                }, attempts: 3);
 
                 if (! $applied) {
                     continue;
