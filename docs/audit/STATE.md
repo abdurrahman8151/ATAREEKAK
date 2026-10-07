@@ -11,6 +11,14 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- Done recently: **T3-4 VERIFIED FIX (`R2 sec 82`)** - the wallet-request audit trail recorded the
+  employee's SHADOW `users` row, and `ensureShadowUser()` returns whatever user it finds by EMAIL, so
+  a customer holding the admin's email became the recorded approver of a financial request. Added
+  `processed_by_employee_id` -> `employees(id)` ON DELETE SET NULL at both admin sites;
+  `processed_by` kept for history. 8 new tests incl. one that DEMONSTRATES the collision. Needle both
+  directions; family + money floor diffed by name set, both IDENTICAL to baseline.
+  **NEW FOLLOW-UP, not yet a row: `users.banned_by` and `wallet_transactions.user_id` are still
+  shadow-based and still wrong in that same scenario - the fix pattern is known.**
 - Done recently: **D1 / RV-02 L2 is now VERIFIED FIX (`R2 sec 81`)** - `bookings.escrow_held` is finally
   written and read: guarded decrements (`WHERE escrow_held >= :amount`, abort unless 1 row) at all 8
   escrow sites, plus a deterministic UNIQUE `wallet_transactions.posting_key`, so a replayed settlement

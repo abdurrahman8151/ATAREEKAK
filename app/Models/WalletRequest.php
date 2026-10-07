@@ -20,6 +20,7 @@ class WalletRequest extends Model
         'user_notes',
         'admin_notes',
         'processed_by',
+        'processed_by_employee_id',   // T3-4: the employee who actually decided (employees.id)
         'processed_at',
     ];
 
@@ -40,9 +41,24 @@ class WalletRequest extends Model
         return $this->belongsTo(Wallet::class);
     }
 
+    /**
+     * T3-4: the SHADOW user id, kept for history.
+     *
+     * `processedBy()` is NOT the employee. It points at `users`, and `StaffJwtMiddleware` resolves
+     * it through `EmployeeManagementService::ensureShadowUser()` - a mirror row found or created
+     * from the employee's EMAIL. If a real customer holds that email, this is that customer. It is
+     * nullable and null for requests processed before T3-4. Read `processorEmployee()` for who
+     * actually approved or rejected the request.
+     */
     public function processedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    /** T3-4: the Employee who approved or rejected this request. The real audit actor. */
+    public function processorEmployee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'processed_by_employee_id');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

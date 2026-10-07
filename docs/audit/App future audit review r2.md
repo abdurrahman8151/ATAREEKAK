@@ -7007,3 +7007,121 @@ RV-02 -> **L2 VERIFIED FIX**. L1 was already closed (`ba45e4b`). BACKLOG's accep
 this section record why.
 
 Nothing pushed.
+
+## 82. T3-4 - the wallet-request audit trail named a mirror row, or a customer - **VERIFIED FIX**
+
+Owner decision **D8 = A** (recorded in `STATE.md`): add nullable `wallet_requests
+.processed_by_employee_id` with an FK to `employees`; **keep** `processed_by` for history; **keep**
+`wallet_id NOT NULL`.
+
+### THE DEFECT, AND WHY T2-1'S FIX DID NOT CLOSE IT
+
+T2-1 closed "the acting admin is never recorded at all". It did so by binding a user resolver in
+`StaffJwtMiddleware`, which now returns the employee's **SHADOW** `users` row - not the employee. It
+has to: `processed_by` and `wallet_transactions.user_id` carry real foreign keys to `users`, and an
+Employee id there raises `SQLSTATE[23000] 1452` and aborts the money-moving transaction. T2-1's own
+record says so explicitly and leaves T3-4 open by design.
+
+The shadow comes from `EmployeeManagementService::ensureShadowUser()`:
+
+```php
+$existing = User::where('email', $employee->email)->first();
+if ($existing) { return $existing; }   // <-- returns WHATEVER it finds
+```
+
+**That is the whole defect.** It is a lookup by email with no check that the row is actually a
+mirror. If a real customer already holds the admin's email address, the "shadow" IS that customer, and
+`wallet_requests.processed_by` records a real user's id as the acting admin on a financial approval.
+Nothing surfaces it: the value resolves in `users`, so the FK is satisfied, the old T2-1 assertions
+(`User::find($processed_by)` is not null, its email matches) still pass, and every read looks healthy.
+The audit's own wording was "passing silently whenever the ids overlap, and recording the wrong
+actor". This is that case, and it is reachable - a shared email is an ordinary data state, not an
+exotic one.
+
+### THE BUILD
+
+**NEW** `2026_10_08_000003_add_processed_by_employee_id_to_wallet_requests.php` - nullable FK to
+`employees`, `ON DELETE SET NULL`, guarded on `hasTable` (fails loud) and `hasColumn` (idempotent).
+Verified live on the scratch DB: up -> column + `wallet_requests_processed_by_employee_id_foreign`
+-> `employees(id)` `SET NULL`; down -> column and FK gone, `processed_by` and its FK untouched;
+re-up applies again, second run reports "Nothing to migrate".
+
+`nullOnDelete` is deliberate and is tested: an approved wallet request is a financial record. Deleting
+an employee must not cascade into deleting it. It matches `processed_by`'s existing behaviour.
+
+**`AdminWalletRequestController`** - both write sites (`approve` ~222, `reject` ~331) now also write
+`'processed_by_employee_id' => $request->attributes->get('staffEmployee')?->id`. That attribute is
+set by `StaffJwtMiddleware:82` and is the **established idiom** in this codebase - 12 other
+admin/staff call sites already read it, which is what `SYRIDE_COMPREHENSIVE_AUDIT.md` called "two
+sources of truth for the same concept". This removes one more use of the wrong one. No
+`setUserResolver` was added and no route or role gate changed.
+
+**`WalletRequest`** - `processed_by_employee_id` added to `$fillable`; `processorEmployee()`
+relationship added; and `processedBy()` now carries a docblock saying **plainly that it is not the
+employee**, so the next reader does not repeat this investigation.
+
+`processed_by` is still written. D8 = A says keep it, and it is the only actor any row processed
+before this migration will ever have.
+
+### VERIFICATION - 8 new tests, 38 assertions, all through the REAL admin HTTP endpoint
+
+The centrepiece is a test that **demonstrates the defect rather than describing it**: it creates a
+real customer, then an admin with the *same email address*, approves through
+`POST /api/admin/wallet/requests/{id}/approve`, and asserts both halves at once -
+
+- `processed_by_employee_id` IS the employee's id, and `processorEmployee()` resolves to them, and
+- `processed_by` IS the **customer's** id - the exact confusion T3-4 closes, now made visible.
+
+Without that second assertion the fix would look like a cosmetic addition; with it, the legacy column
+is shown to be actively wrong in this state, which is why the new column was necessary rather than
+merely nicer.
+
+Also covered: both write sites; two different employees produce two different recorded ids (proving
+it is the acting employee, not a constant); `processed_by` still satisfies its FK; a **pending**
+request records nobody; and the denied paths - `support_agent` -> 403 and unauthenticated -> 401 -
+still denied, still leave status `pending` and record nobody. **No authoris was weakened**, and both
+denied cases are asserted to record no actor rather than merely to 403.
+
+**NEEDLE, both directions, file restored byte-identical (SHA256).** Replacing the employee lookup with
+`null` at both sites -> **4 of the 8 tests fail** (the collision test, the two-employees test, the
+reject test, the delete test). Restored, and the needle was re-run against the final state after a
+controlled bisect reverted the files, precisely so the recorded result matches the committed bytes.
+
+**REGRESSION, by name-set diff rather than by eye.**
+
+| Selection | Before | After |
+|---|---|---|
+| T3-4 family + Admin + T3Batch + boundary + new test | 101 tests / 6 failures | 109 tests / **6 failures**, `Compare-Object` **IDENTICAL** |
+| **Money floor** (`Wallet`, `Payment`, `Unit/Domain`) | 172 tests / 3 failures | 172 tests / **3 failures**, **IDENTICAL** |
+
+The money floor was run with the same controlled-bisect method as `sec 81`: only `app/` varies, the
+new test is held out of both runs, and the failure NAME SETS are diffed. The 3 are the long-standing
+`WalletTest` OTP failures. The other 6 in the wider selection are 5 pre-existing `WalletRequestTest`
+enum-cast assertions (they want `notes` and enum casts the model has never had - **not** this task's
+business, deliberately left alone) and 1 `MoneyPathBatchTest` second-collision.
+
+**pint clean** on all 4 changed files. **BoundaryDependencyTest: 9 green.**
+
+### HONEST LIMITS
+
+- `ensureShadowUser()` itself is NOT changed. T2-1 needs it for `users.banned_by` and
+  `wallet_transactions.user_id`, which still have no employee column, so those two columns remain
+  shadow-based and remain wrong in exactly this collision scenario. T3-4 fixes
+  `wallet_requests` only, which is what the decision asked for. The general problem is a **follow-up
+  task**, and it is now sharper than before: the fix pattern is known, it needs the same column on
+  `users.banned_by` and `wallet_transactions.user_id`.
+- `SYRIDE_COMPREHENSIVE_AUDIT.md` says an **email-less** employee makes the resolver return null.
+  That is unchanged: such an actor records `processed_by_employee_id` correctly (it comes from the
+  middleware's employee, not the resolver) while `processed_by` stays null. The new column is
+  strictly better there, which was not obvious before.
+- Not exercised through a live RoadRunner/Octane server; verified in-process through the real
+  middleware and routes, like T2-1.
+
+### A NOTE ON PROCESS
+
+The controlled bisect reverted `app/Models/WalletRequest.php` and
+`app/Http/Controllers/API/AdminWalletRequestController.php` to HEAD, as designed - and the re-apply
+was then verified by re-running the full selection and the needle. Recorded because the bisect method
+here has that footgun and the next session will use it again.
+
+T3-4 -> **VERIFIED FIX**. Nothing pushed.

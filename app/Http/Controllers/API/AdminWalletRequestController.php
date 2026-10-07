@@ -219,6 +219,12 @@ final class AdminWalletRequestController extends Controller
                 $walletRequest->update([
                     'status' => 'approved',
                     'admin_notes' => $request->input('admin_notes'),
+                    // T3-4: `processed_by` is the shadow `users` id and is kept for history;
+                    // `processed_by_employee_id` is the real actor, read from the attribute
+                    // StaffJwtMiddleware sets (the same idiom 12 other admin/staff call sites
+                    // use). Writing only the shadow id made the audit trail name a mirror row -
+                    // and a real customer, if one already held the admin's email address.
+                    'processed_by_employee_id' => $request->attributes->get('staffEmployee')?->id,
                     'processed_by' => $request->user()?->id,
                     'processed_at' => now(),
                 ]);
@@ -328,6 +334,8 @@ final class AdminWalletRequestController extends Controller
             $walletRequest->update([
                 'status' => 'rejected',
                 'admin_notes' => $request->input('admin_notes'),
+                // T3-4: see the approve() call site for why both columns are written.
+                'processed_by_employee_id' => $request->attributes->get('staffEmployee')?->id,
                 'processed_by' => $request->user()?->id,
                 'processed_at' => now(),
             ]);
