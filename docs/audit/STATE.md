@@ -9,19 +9,7 @@ with each status taken from the newest section that mentions it. The per-task lo
 `docs/audit/App future audit review r2.md`. Feature plan: `docs/audit/ROADMAP.md`.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **AF-5 (P0) IN FLIGHT - the call-site move.** Owner said "do all of these" (2026-10-08) for all
-  six OPEN rows; 4 of them (RV-08, AF-6, AF-7, T3-10) are genuinely owner-blocked and are reported,
-  not faked. AF-5's remainder is recorded as "the call-site move, decision-free".
-  **ROOT PROBLEM FOUND WHILE SCOPING:** `DocumentController:58` WRITES to
-  `config('filesystems.documents_disk')` but `StaffDocumentController:81` READS from hard-coded
-  `Storage::disk('public')`. The switch is half-wired: setting `DOCUMENTS_DISK=minio` would 404 every
-  document. 13 more sites hard-code `'public'`.
-  Expect to change: `config/filesystems.php` (add `uploads_disk`, default `public` so behaviour is
-  UNCHANGED), `app/Http/Controllers/API/Staff/StaffDocumentController.php`,
-  `app/Http/Controllers/API/VerificationController.php`,
-  `app/Services/File/FileUploadService.php`, `app/Services/Complaint/ComplaintService.php`,
-  `app/Services/MessageTypes/ImageMessageType.php`,
-  NEW `tests/Feature/Review/AF5ConfigurableDiskTest.php`. No probe/backup left behind.
+- (empty - no task is mid-flight.)
 - OWNER DECISION NEEDED (RV-20 REFUND HALF) - `R2 sec 86`: both real refund paths are SET-LEVEL
   `(Ride, Collection)` - one aggregate SyCash sufficiency check, `PostingKey::buildForSet`, one
   `debitEscrowForSet`, and ONE combined SyCash ledger row - but `PaymentStrategy::processRefund(
@@ -183,6 +171,13 @@ with each status taken from the newest section that mentions it. The per-task lo
   - verify later), 12 (moot), un6 (no change).
 
 ## Done recently (newest first; detail is in the audit record)
+- **AF-5 (P0) PARTIAL** (`R2 sec 89`, `16ba613`) - all 14 hard-coded `'public'` disk literals replaced by
+  config (`uploads_disk` / `documents_disk`); while scoping it I found a **half-wired switch**:
+  `DocumentController` wrote to `documents_disk` but `StaffDocumentController` read from `'public'`, so the
+  documented `DOCUMENTS_DISK=minio` deploy would have **404'd every document** while the record claimed KYC
+  was closed. Behaviour UNCHANGED (all defaults stay `public`). 7 tests/13 assertions; needle `404 != 200`;
+  regression 804 tests / same 14 failures, zero new. **Remainder is a DEPLOY action, not code: a MinIO bucket
+  and credentials must exist before either disk is flipped.**
 - **The `Blocked by` column was stale, and that is WHY the queue looked empty** - VERIFIED FIX (the column);
   RV-11 defects FOUND (`App future audit review r2.md` sec 66). All 27 decisions were answered on 2026-10-02, but
   the gate column predates them, so **17 of the 21 unfinished rows sat behind a question you had already answered**
