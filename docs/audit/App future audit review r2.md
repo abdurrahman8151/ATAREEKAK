@@ -7125,3 +7125,75 @@ was then verified by re-running the full selection and the needle. Recorded beca
 here has that footgun and the next session will use it again.
 
 T3-4 -> **VERIFIED FIX**. Nothing pushed.
+
+## 83. D1 discharged the recorded blocker on RV-20 - and thereby armed a landmine - **RECORDED, no code changed**
+
+This is not a task record; it is a finding produced by the D1 work in `sec 81` and it changes what
+RV-20 means. It is written down because the next session will otherwise walk straight into it.
+
+### WHAT CHANGED IN THE DEPENDENCY GRAPH
+
+`sec 26.4` deferred RV-20 for exactly one stated reason:
+
+> Routing them through the factory is behaviour-preserving only if the strategies are faithful - but
+> it overlaps the RV-02 L2 escrow redesign, so doing it now would half-wire two coupled tasks.
+
+D1 (RV-02 L2) is now closed. The stated blocker is **discharged**, and the backlog row's own words -
+"remainder coupled to RV-02 L2" - no longer hold. The same applies to RV-09, whose deferred item (c)
+was literally "the real throughput fix ... that IS RV-02 L2" (`sec 26.3`).
+
+By the letter of the gate, RV-20 and RV-09 are now the unblocked work. **Do not take RV-20.**
+
+### WHY RV-20 IS NO LONGER BEHAVIOUR-PRESERVING - IT IS NOW THE OPPOSITE
+
+The precondition was "behaviour-preserving **only if the strategies are faithful**". They are not, and
+D1 made them less faithful than when `sec 26.4` was written.
+
+`EPayPaymentStrategy` wraps every wallet call in a blanket catch:
+
+```php
+try {
+    $this->walletService->chargePassengerForBooking($booking, $ride, $passenger);
+    return PaymentResult::success('Payment held in escrow');
+} catch (\Exception $e) {
+    return PaymentResult::failure($e->getMessage());   // <-- swallows
+}
+```
+
+Before D1, `chargePassengerForBooking` could fail only by throwing, and every caller wanted that
+throw. After D1 it throws for two NEW and much more important reasons: a **posting-key collision**
+(movement already posted) and an **insufficient escrow** (`escrow_held >= :amount` refusing). Those are
+hard refusals that must abort the booking, not soft results that a caller can forget to inspect.
+
+Routing charge through the strategy today would **catch both new guards and return a `failure`
+object**, on a booking row that has already been written. The exact defect RV-02 L2 exists to
+prevent - a settlement applied twice - would come back through the front door as a silently
+ignored `PaymentResult`.
+
+Two call sites are exposed:
+
+| Site | Call | D1 guard it would swallow |
+|---|---|---|
+| `BookingService:118` (create + charge) | `chargePassengerForBooking` | posting key, escrow credit |
+| `BookingService:181` (accept a REQUEST booking) | `chargePassengerForBooking` | same |
+| `RideService:186` (driver cancel refund) | `refundPassengersForDriverCancellation` | posting key, escrow debit |
+| `EPayPaymentStrategy:33 / :70` | the same two, already wrapped | - |
+
+### THE ORDERING CONSEQUENCE
+
+**RV-09(a) must land BEFORE RV-20, not after.** `sec 26.3` already listed it -
+"(a) wrapping strategies so they stop swallowing exceptions + `DB::transaction` retry `attempts=3`" -
+and it was deferred as money-critical. It is now also the **precondition** for RV-20 rather than a
+parallel improvement. That reordering is an owner decision (it changes money-path error semantics)
+and is recorded here, not taken.
+
+### WHY NO TEST WAS WRITTEN FOR THIS
+
+A test asserting "the strategy swallows exceptions" would have to be **deleted** when RV-09(a)
+lands - a ratchet in the wrong direction. The finding belongs in the record, where RV-20's implementer
+will meet it, not in the suite.
+
+### STATE
+
+No code, migration, test or config was changed by this section. BACKLOG rows RV-09 and RV-20 now carry
+the hazard so the ordering cannot be lost. **Nothing pushed.**

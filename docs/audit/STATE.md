@@ -11,6 +11,15 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- Done recently: **D1 DISCHARGED the recorded blocker on RV-09 and RV-20 - and armed a landmine
+  (`R2 sec 83`, documentation only, no code).** Both rows said "remainder coupled to RV-02 L2"; that
+  is now done, so by the letter of the gate they are the next work. **RV-20 must NOT be taken.**
+  `EPayPaymentStrategy` wraps every wallet call in `catch (\Exception) { return PaymentResult::failure(); }`,
+  so routing `BookingService:118/:181` (charge) and `RideService:186` (refund) through the factory
+  would **swallow D1's new posting-key and escrow guards** and turn a hard abort into an ignorable
+  `PaymentResult`. **RV-09(a) (stop the strategies swallowing exceptions) is now the PRECONDITION for
+  RV-20, not a parallel improvement.** That reordering changes money-path error semantics, so it is
+  the owner's call.
 - Done recently: **T3-4 VERIFIED FIX (`R2 sec 82`)** - the wallet-request audit trail recorded the
   employee's SHADOW `users` row, and `ensureShadowUser()` returns whatever user it finds by EMAIL, so
   a customer holding the admin's email became the recorded approver of a financial request. Added
