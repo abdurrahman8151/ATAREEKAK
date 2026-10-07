@@ -8124,3 +8124,97 @@ proposed, not applied.** Say the word and it is one line, 21 -> 20.
 This single test is the ONLY new failure in this task and it is the intended signal, not a regression.
 
 Nothing pushed.
+## 96. RV-08: the "deploy TARGET" gate was wrong - the target was already chosen, and the chosen target had a real defect - **VERIFIED FIX (the defect); BLOCKED on a deletion approval**
+
+Owner: *"next"* after `sec 95` reported *"none unblocked"*. Per the protocol that means **re-derive the
+gates, not repeat the list** - which is what found this.
+
+### The gate contradicted the row's own Decisions cell
+
+RV-08's gate read *"OWNER: deploy TARGET"*. Its Decisions cell in the same row read *"7 - ANSWERED
+(B: Render, shipped `2114308`)"*. Decision 7 is *"One deployment target: compose+nginx or Render"*, and it
+was answered. **The target was not the open question.**
+
+Verified from the code rather than the record: `render.yaml` defines web + worker + cron, and
+`deploy-to-vps.yml` is now `workflow_dispatch`-only (no `push:` trigger), so the VPS path is off the
+automatic deploy route.
+
+### What the chosen target actually needed - a real defect
+
+RV-08's prescribed fix ends *"choose one deployment target and delete the other's files"*, so the target's
+own configuration is fair game. Reading it turned up a genuine bug:
+
+**`DB_REPLICA_PORT` was set in three places and read in none.**
+
+- `render.yaml:84` declares it `sync: false` - Render **prompts the operator** for a required secret.
+- `phpunit.xml:43` forces it.
+- `scripts/scratch-env.ps1:84,110` refuses to run when it disagrees with `DB_PORT`, and its error text
+  asserts *"config/database.php reads the replica host first"*.
+
+And `config/database.php` honoured the replica **host** but never touched the replica **port** - the
+read connection used the single top-level `'port' => env('DB_PORT', '3306')`. So in production every
+read connected to the **replica host on the primary's port**. That is correct only while both listeners
+share a port; the moment they differ, a read either fails or lands on the wrong instance.
+
+Why that is not a cosmetic config nit: the whole read/write split is load-bearing for correctness.
+`JwtService`, `UserRepository`, `WalletController` and `JwtAuthMiddleware` all call `useWritePdo`
+*precisely because* reads go to a replica that can lag. A read aimed at the wrong endpoint degrades as
+stale auth and stale money reads rather than as an obvious connection error.
+
+```php
+// config/database.php - inside 'read', beside the existing host guard
+'port' => [($_SERVER['APP_ENV'] ?? null) === 'production'
+    ? env('DB_REPLICA_PORT', env('DB_PORT', '3306'))
+    : env('DB_PORT', '3306')],
+```
+
+`read` is the correct place, confirmed in vendor source rather than from memory:
+`ConnectionFactory::mergeReadWriteConfig()` (line 153) is `array_merge($config, $merge)`, so any key
+under `read` overrides the base for read queries. The guard mirrors the host one exactly - production
+only, falling back to `DB_PORT` - so **local and testing are provably unchanged** and an operator who
+never sets `DB_REPLICA_PORT` keeps today's behaviour.
+
+### Verification
+
+`tests/Feature/Review/RV08ReplicaPortTest.php`, 5 tests / 13 assertions. It loads the real config file
+under a controlled `$_SERVER` (the production guard reads `$_SERVER['APP_ENV']` directly, so the branch is
+unobservable once config is cached) and resolves the read/write configs with the same `array_merge` the
+framework uses. It pins: production reads use the replica port; **writes never move**; production falls
+back to `DB_PORT` when unset; local/testing ignore the replica port; and host and port are always chosen
+together.
+
+The fallback test caught something worth recording: clearing only `$_SERVER` left the old value visible,
+because `env()` reads `$_SERVER`, `$_ENV` **and** `getenv()`. The helper now manages all three, so "unset"
+assertions mean something.
+
+- **NEEDLE: 4 of the 5 fail with the fix reverted**, restored SHA256-proven.
+- **Config floor** (`tests/Feature/Config`, `tests/Unit/Providers`, `RV28InfraHardeningTest`,
+  `BoundaryDependencyTest`): **68 tests, 129 assertions, 1 failure** - and that one failure is the
+  pre-existing `controllers_to_models` 21-vs-20 proposal from `sec 95`, not this change. **Zero new.**
+- `php -l` both files; `pint --test` PASS after fixing `concat_space`.
+
+### Also verified coherent (so the target is not left half-checked)
+
+`Dockerfile:83` copies `docker/start.sh` to `/start.sh`, `:93` is `CMD ["/start.sh"]`, `start.sh:67`
+runs `php artisan migrate --force` after a DB-readiness wait, and `routes/web.php:22` serves the `/up`
+health check the blueprint depends on. **The Render path is sound.**
+
+### What is left, and why it is not mine to do
+
+RV-08's remaining prescribed action is *"delete the other's files"*: `docker-compose.yml`,
+`deploy-to-vps.yml`, `docker/start.sh`, `docker/nginx-docker.conf`, `docker/mysql/replica-init.sh`,
+`nginx-docker.conf`. **Deleting code is ask-first, so this is not done unilaterally.** Row 34 ->
+**BLOCKED** on that one question.
+
+They are dead but still buggy: `deploy-to-vps.yml:94,97` runs `docker compose exec -T app …` while
+`docker-compose.yml` defines `app1..app5` and **no `app` service**, so a manual dispatch fails at the
+migration step. Keeping them costs nothing today; keeping them armed is the risk.
+
+### A stray stale reference, deliberately NOT changed
+
+`routes/api.php:507` cites *"the platform healthcheck uses GET /up (`render.yaml:5`)"* - line 5 is a
+comment; the real `healthCheckPath` is line 41. Accurate in substance, wrong in its pointer. It is a
+cross-reference inside a 700-line audit-driven comment block, unrelated to this defect, and not worth
+folding into an unrelated diff.
+
+Nothing pushed.

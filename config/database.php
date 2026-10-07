@@ -70,6 +70,36 @@ return [
                 'host' => [($_SERVER['APP_ENV'] ?? null) === 'production'
                     ? env('DB_REPLICA_HOST', env('DB_HOST', '127.0.0.1'))
                     : env('DB_HOST', '127.0.0.1')],
+
+                /*
+                 * RV-08: the replica's PORT was never read anywhere in this file.
+                 *
+                 * The replica HOST was honoured but the PORT silently was not, so every read
+                 * went to the replica HOST on the PRIMARY's port. That is correct only for as
+                 * long as both listeners share one port. The moment the replica listens
+                 * elsewhere, a read either fails to connect or lands on the wrong instance -
+                 * and because `sticky` and the `useWritePdo` calls in JwtService,
+                 * UserRepository, WalletController and JwtAuthMiddleware are all built on the
+                 * premise that reads reach a real replica, the failure would surface as stale
+                 * auth/money reads rather than an obvious connection error.
+                 *
+                 * Three separate places already treat DB_REPLICA_PORT as a real setting:
+                 * render.yaml declares it `sync: false` (so Render PROMPTS the operator for a
+                 * value it never uses), phpunit.xml forces it, and scripts/scratch-env.ps1
+                 * refuses to run when it disagrees with DB_PORT. This is the line that makes
+                 * those three true rather than decorative.
+                 *
+                 * It belongs here because Laravel merges the WHOLE `read` array over the base
+                 * config for read queries (ConnectionFactory::mergeReadWriteConfig ->
+                 * array_merge($config, $merge)), so any key under `read` overrides the base.
+                 *
+                 * The guard mirrors the host one exactly - production only, and falls back to
+                 * DB_PORT when unset - so local and testing are provably unchanged and an
+                 * operator who never sets DB_REPLICA_PORT keeps today's behaviour.
+                 */
+                'port' => [($_SERVER['APP_ENV'] ?? null) === 'production'
+                    ? env('DB_REPLICA_PORT', env('DB_PORT', '3306'))
+                    : env('DB_PORT', '3306')],
             ],
             'write' => [
                 'host' => [env('DB_HOST', '127.0.0.1')],
