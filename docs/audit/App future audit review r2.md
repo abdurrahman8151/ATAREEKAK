@@ -8290,3 +8290,71 @@ MinIO bucket, run `--dry-run`, run it live, set `DOCUMENTS_DISK`. RV-01 stays `P
 those run, the old URLs still resolve - which is the honest state, not a hedge.
 
 Nothing pushed.
+## 98. T1-3 reconnaissance: TWO SECRETS ARE BOTH IN GIT HISTORY **AND STILL LIVE** - **P0, owner action, no code substitutes**
+
+Owner: *"next"* -> the rotation list, which is pure reconnaissance and unblocks T3-10.
+
+**No secret value was printed, logged, or written to this record.** Every check below reports only key
+names, blob/commit counts, and match/no-match.
+
+### The gates were stale again
+
+T1-3's gate read `RV-07, T2-8`. **Both are `VERIFIED FIX`**, and both say *"rotation owed"*. The fixes were
+verified; the rotation they were waiting on never happened. Same pattern as RV-04, RV-19/V8 and RV-08 - the
+gate column is not the problem, it is just never re-derived after the repairs land.
+
+### The finding
+
+`.env` **was tracked**: added `6091b15` (2026-05-17), modified `df96d68` (2026-06-25), deleted `df9304c`
+(2026-08-09). It is now correctly untracked and gitignored (`.gitignore:40`), so this is a *historical*
+exposure that stays recoverable indefinitely. `docker-compose.yml` carries literals across 13 revisions,
+the newest being `3e9a304`.
+
+The question that decides severity is not "what was once committed" but **"is what was committed still in
+use"**, so I compared every historical literal against the live on-disk configuration:
+
+| key | in git history | live value == a leaked value? |
+|---|---|---|
+| `JWT_SECRET` | YES (4 literals) | **YES - STILL IN USE** |
+| `PUSHER_APP_SECRET` | YES (2 literals) | **YES - STILL IN USE** |
+| `APP_KEY` | YES (4 literals) | no - already rotated |
+| `MAIL_PASSWORD` | YES (1 literal) | no - already rotated |
+| `DB_PASSWORD` | YES (3 literals) | no - already rotated |
+| `DB_USERNAME` | YES (2 literals) | no - already rotated |
+| `REDIS_PASSWORD` | no | no |
+
+**Two secrets must be rotated now. Everything else was already rotated by the owner at some point.**
+
+### Why `JWT_SECRET` is the serious one
+
+It signs **every access token**. Anyone who can read this repository can sign a token for an arbitrary
+`sub` and mint their way in - and the guards that would normally stop that do not close it:
+`JwtService:87` only requires the `ver` claim to be *present*, and `token_version` defaults to `1` in the
+users migration, so a guessable value passes. `StaffJwtService` signs with the same secret, so staff
+impersonation rides the same key.
+
+Rotation is the fix, and it is cheap in a way that is worth stating plainly: `JWT_SECRET` is independent of
+`APP_KEY`, so rotating it invalidates tokens **without** breaking encrypted sessions. The cost is that every
+user is logged out once. That is the correct outcome, not a regression.
+
+### What is NOT compromised - checked, so it is not carried as a worry
+
+**No production database credential was leaked.** Every literal `DB_HOST` in history (74 distinct
+`docker-compose.yml` blobs, both `.env` blobs) is a *local/dev* host. The current `.env` points at a
+third-party cloud database whose hostname value **does not appear anywhere in git history**. The old
+`MYSQL_ROOT_PASSWORD` literals are local compose credentials, not production ones.
+
+### Also live right now, and not in history at all
+
+`origin` is configured as `https://user:token@github.com` - a **PAT in the remote URL**. That lives in
+`.git/config`, not in any commit, so no amount of history rewriting touches it, and anything that can read
+that file can read the token. (Recorded as redacted; the value is not reproduced here.)
+
+### `filter-repo` scope, measured
+
+**244 commits across 4 refs** (`Agentic`, `main`, `origin/Agentic`, `origin/main`). A rewrite needs a
+force-push, which `AGENTS.md` forbids me from doing, so it is the owner's to run - and it should be run
+*after* rotation, not instead of it. Rotation is what actually closes the exposure; rewriting history is
+defence in depth so the old values stop being a distraction.
+
+Nothing pushed.
