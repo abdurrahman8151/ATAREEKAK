@@ -28,7 +28,7 @@ class ImageMessageType implements MessageTypeInterface
         // Here you would typically handle image upload and storage
         // For now, we'll just return a placeholder
 
-        $imagePath = $data['image']->store('chat-images', 'public');
+        $imagePath = $data['image']->store('chat-images', config('filesystems.uploads_disk', 'public'));
         $imageUrl = asset('storage/'.$imagePath);
 
         return [

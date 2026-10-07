@@ -32,7 +32,7 @@ final class FileUploadService
 
         $filename = $userId.'_'.now()->timestamp.'.'.$file->getClientOriginalExtension();
 
-        return $file->storeAs('profiles/profile_photo', $filename, 'public');
+        return $file->storeAs('profiles/profile_photo', $filename, $this->uploadsDisk());
     }
 
     /**
@@ -52,7 +52,7 @@ final class FileUploadService
         $filename = Str::uuid().'.'.$file->guessExtension();
         $folder = "verifications/{$documentType}";
 
-        return $file->storeAs($folder, $filename, 'public');
+        return $file->storeAs($folder, $filename, $this->uploadsDisk());
     }
 
     /**
@@ -64,7 +64,7 @@ final class FileUploadService
 
         $filename = $userId.'_'.now()->timestamp.'.'.$file->getClientOriginalExtension();
 
-        return $file->storeAs('verifications/car_pic', $filename, 'public');
+        return $file->storeAs('verifications/car_pic', $filename, $this->uploadsDisk());
     }
 
     /**
@@ -75,7 +75,7 @@ final class FileUploadService
         $this->validateImage($file);
 
         $filename = "{$senderId}_{$receiverId}_".now()->timestamp.'.'.$file->getClientOriginalExtension();
-        $path = $file->storeAs('chat-images', $filename, 'public');
+        $path = $file->storeAs('chat-images', $filename, $this->uploadsDisk());
 
         return [
             'path' => $path,
@@ -100,7 +100,7 @@ final class FileUploadService
 
         $filename = $customFilename ?? Str::random(40).'.'.$file->getClientOriginalExtension();
 
-        return $file->storeAs($folder, $filename, 'public');
+        return $file->storeAs($folder, $filename, $this->uploadsDisk());
     }
 
     /**
@@ -112,7 +112,7 @@ final class FileUploadService
             return false;
         }
 
-        return Storage::disk('public')->delete($path);
+        return Storage::disk($this->uploadsDisk())->delete($path);
     }
 
     /**
@@ -134,7 +134,7 @@ final class FileUploadService
      */
     public function exists(string $path): bool
     {
-        return Storage::disk('public')->exists($path);
+        return Storage::disk($this->uploadsDisk())->exists($path);
     }
 
     /**
@@ -198,7 +198,7 @@ final class FileUploadService
      */
     public function getReadableSize(string $path): string
     {
-        $bytes = Storage::disk('public')->size($path);
+        $bytes = Storage::disk($this->uploadsDisk())->size($path);
 
         $units = ['B', 'KB', 'MB', 'GB'];
         $i = 0;
@@ -209,5 +209,17 @@ final class FileUploadService
         }
 
         return round($bytes, 2).' '.$units[$i];
+    }
+
+    /**
+     * AF-5: the one place this service resolves its disk.
+     *
+     * Every write and every read above used a hard-coded `'public'`. Routing them through a single
+     * accessor means the disk is decided in exactly one place - and, the part that actually broke,
+     * a read can no longer disagree with the write that produced the file.
+     */
+    private function uploadsDisk(): string
+    {
+        return config('filesystems.uploads_disk', 'public');
     }
 }

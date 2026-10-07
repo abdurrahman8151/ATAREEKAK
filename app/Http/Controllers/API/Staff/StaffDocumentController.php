@@ -78,7 +78,11 @@ class StaffDocumentController extends Controller
             ], 404);
         }
 
-        $disk = Storage::disk('public');
+        // AF-5: this MUST be the same key `DocumentController::store` writes to. It was a
+        // hard-coded 'public' while the write side already used `documents_disk`, so the
+        // documented switch to a private disk would have written every document somewhere the
+        // reader never looks - a 404 for all of them. Default matches the write side exactly.
+        $disk = Storage::disk(config('filesystems.documents_disk', 'public'));
 
         if (! $disk->exists($photo->path)) {
             return response()->json([

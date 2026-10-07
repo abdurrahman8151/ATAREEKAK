@@ -114,6 +114,28 @@ return [
     'documents_disk' => env('DOCUMENTS_DISK', 'public'),
 
     /*
+     * ------------------------------------------------------------------
+     * User-upload disk (AF-5, decision un1 remainder)
+     * ------------------------------------------------------------------
+     *
+     * Which disk NON-KYC uploads land on: profile photos, chat images and complaint
+     * attachments. Separate from `documents_disk` because those are identity documents and must
+     * move to private storage first; mixing them in one switch would either expose a face ID or
+     * strand a profile photo on a disk nobody reads.
+     *
+     * Defaults to `public` - the historical hard-coded behaviour at every one of these call sites -
+     * so adding this key changes NOTHING until an operator sets it. The point is that the disk is
+     * now one env var per concern instead of a literal repeated across six files.
+     *
+     * NOTE for whoever flips it: the READ paths must move to the same disk as the WRITE paths. That
+     * was the actual defect here - `DocumentController` wrote to `documents_disk` while
+     * `StaffDocumentController` read from a hard-coded `public`, so enabling MinIO would have 404'd
+     * every document. Both sides now read the same key.
+     */
+
+    'uploads_disk' => env('UPLOADS_DISK', 'public'),
+
+    /*
     |--------------------------------------------------------------------------
     | Symbolic Links
     |--------------------------------------------------------------------------

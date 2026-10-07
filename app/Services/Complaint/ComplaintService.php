@@ -60,7 +60,7 @@ final class ComplaintService
 
         // Store attachments (max 3, already validated in controller)
         foreach (array_slice($files, 0, 3) as $file) {
-            $path = $file->store("complaints/{$complaint->id}", 'public');
+            $path = $file->store("complaints/{$complaint->id}", config('filesystems.uploads_disk', 'public'));
 
             ComplaintAttachment::create([
                 'complaint_id' => $complaint->id,

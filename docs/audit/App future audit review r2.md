@@ -7612,3 +7612,39 @@ original typography but makes every future anchor work, which was the point of f
 chosen unilaterally.
 
 Nothing pushed.
+## 89. AF-5 - uploads resolve their disk from config, and the document switch stops being half-wired - **VERIFIED FIX**
+
+Owner said "do all of these" for the six OPEN rows. Four (RV-08, AF-6, AF-7, T3-10) are genuinely owner-blocked and are reported as such rather than faked. This row's remainder was recorded as "the call-site move, decision-free", and it was.
+
+### THE REAL DEFECT, FOUND BY SCOPING RATHER THAN BY THE ROW
+
+`DocumentController:58` already WROTE to `config('filesystems.documents_disk')`. `StaffDocumentController:81` READ from a literal `Storage::disk('public')`. Decision un1 documented "set DOCUMENTS_DISK=minio to move identity documents off the public disk" as a one-line deploy change. **Doing exactly that would have written every document to a disk the reader never looks at - a 404 for all of them, while the audit record claimed the KYC exposure was closed.** The documented deploy instruction was actively dangerous.
+
+Thirteen further sites hard-coded `'public'`: profile photos, chat images, car photos, complaint attachments, verification documents.
+
+### THE CHANGE
+
+`config/filesystems.php` gains `uploads_disk` (default `public`) for non-KYC uploads, kept SEPARATE from `documents_disk` because mixing them would either expose a face ID or strand a profile photo on a disk nothing reads. Then every hard-coded literal became a config read: `FileUploadService` (8 sites, now via one private `uploadsDisk()` accessor), `VerificationController` (2, on `documents_disk` since they ARE identity documents), `StaffDocumentController` (the mismatch above), `ComplaintService`, `ImageMessageType`.
+
+**BEHAVIOUR IS UNCHANGED.** Every default is `public`, which is what these sites hard-coded. This is safe to deploy today; it makes the disk one env var per concern instead of a literal repeated across six files, and it makes a read impossible to disagree with the write that produced the file.
+
+### VERIFICATION - AND A NEEDLE THAT TAUGHT ME SOMETHING
+
+`AF5ConfigurableDiskTest`, 7 tests / 13 assertions. The load-bearing one is
+`the_staff_document_reader_follows_the_disk_the_document_written_to`: it writes a KYC document the way `DocumentController` does, then serves it through the staff reader, so a split disk 404s. A companion test asserts a genuinely missing document still 404s, so the fix cannot have turned "not found" into a leak.
+
+**The first needle proved nothing, and that is the useful part.** Restoring the hard-coded read left the selection at **617 tests / 5 errors / 9 failures - completely unchanged**, because with the default disk set to `public` the read and the write agree by accident. No test covered it. The two staff-reader tests were written BECAUSE of that result, and re-running the needle then fails with **`404 is not identical to 200`**. A needle that passes is not always a weak test; sometimes it means the gap is in the suite, not the test.
+
+Restore byte-identical, SHA256 verified.
+
+- **Regression**: `tests/Feature/{Review,Staff,Auth}` + `tests/Unit/Domain` = **804 tests / 5 errors / 9 failures**, the same 14 failures as before the change. **Zero new.**
+- `pint` clean (7 files), `php -l` clean, **BoundaryDependencyTest 9 green**.
+- `git diff -- app/` contains only my six files plus the owner's `RideController.php`, untouched.
+
+### WHAT REMAINS - AND IT IS NOT CODE
+
+`uploads_disk` and `documents_disk` both still default to `public`. **Enabling MinIO is a deploy action, not a code one**, exactly as `config/filesystems.php` already documents: a real bucket and credentials must exist first. This change makes that deploy possible without a code release; it does not perform it.
+
+RV-01 keeps its own remainder (existing public URLs still resolve until the stored files are moved), unchanged by this task.
+
+Nothing pushed.
