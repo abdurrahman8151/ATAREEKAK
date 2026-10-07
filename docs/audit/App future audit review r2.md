@@ -8464,3 +8464,83 @@ is a `Query\Expression`, but `Ride::setPickupLocationAttribute(array $coords)` t
 113 / AF-13** rather than fixed inside RV-10, because it is a shared kernel file and a different problem.
 
 Nothing pushed.
+## 100. I corrupted the BACKLOG's own column layout, and the repair had two false starts of its own - **VERIFIED FIX (the table), and a warning about how I edit it**
+
+Owner: *"continue"* -> derive the next task. The derivation itself returned **nothing**, which was the
+tell: I had created row 113 with Status `OPEN` and `Blocked by = none` in the previous task, and the rule
+should have selected it immediately.
+
+### What I broke
+
+The main table's header is:
+
+```
+| Order | ID | Title | Pri | Status | Blocked by (owner decision #) | Aliases | Evidence (file section / commit) |
+```
+
+Every row-edit script I wrote this session addressed cells as if the columns were
+`... Status | Decisions | Blocked by | Evidence`, i.e. `c[5]=status, c[6]=decisions, c[7]=blocked,
+c[8]=evidence`. That is **off by one from column 7 onward**: there is no `Decisions` column.
+
+The consequence was not cosmetic. **I overwrote the real `Aliases` text of rows 19 (RV-01), 37 (RV-10),
+64 (AF-5) and 69 (T1-3) with gate commentary**, destroying:
+
+- RV-01: `supersedes AF-5's scope; feeds RV-31`
+- RV-10: `AF-4e (config windows); T1-1`
+- AF-5: `RV-01 (its own storage half remains: ...)`
+- T1-3: `RV-07, T2-8`
+
+`Aliases` is how these rows cross-reference each other, so this silently broke the links between tasks -
+which is precisely the mechanism I keep using to find stale gates.
+
+Row 113 (AF-13) was worse in a smaller way: it was written with **7 cells**, missing `Aliases` entirely,
+so it was structurally invisible to anything reading the table by position.
+
+### How it was found
+
+Not by reading the diff. By **running the next-task rule and getting an impossible answer**: row 113 was
+`OPEN` with `Blocked by = none` and the rule still selected nothing. A rule returning "none" while an
+obviously-qualifying row exists is a data fault, not a scheduling fact.
+
+### The repair, and two false starts of its own
+
+The original `Aliases` values were **recovered from git** (`git show e3493b4:docs/audit/BACKLOG.md`) rather
+than reconstructed from memory or invented - the same discipline `AGENTS.md` demands for audit findings.
+They are restored verbatim.
+
+Both repair attempts were wrong before they were right, and both are worth recording:
+
+1. **First attempt asserted every row had 8 columns** and aborted on row 64, which has 10. That turned out
+   to be **pre-existing corruption** - row 64 was already over-wide at `e3493b4` - so the assertion was
+   wrong, not the file.
+2. **Second attempt handled row 64 "append-only"** and I put its aliases text into `Blocked by` instead of
+   restoring the `Aliases` cell, leaving my own sec-97 commentary sitting in `Aliases`. The row still read
+   wrong after a "successful" run. Fixed with a third, targeted pass.
+
+**Verification is by column count and content, per row, not by exit code.** A run that completes without
+raising can still have written the wrong cell - which is exactly what happened twice.
+
+### State
+
+- Rows 19, 37, 69: 8 cells, `Aliases` restored verbatim, `Blocked by` now states the real current blocker.
+- Row 64: `Aliases` restored; `Blocked by` keeps its original text with the remaining owner action appended.
+  Its **10 columns are left as found** - that predates this session and restructuring a row I did not break
+  is a separate job.
+- Row 113: `Aliases` cell inserted, 8 columns.
+- The next-task rule now selects **order 113 / AF-13**, as it should.
+
+### Pre-existing malformations NOT fixed here (recorded, not touched)
+
+Row 35 (RV-40) and rows 44 (RV-17), 45 (RV-12), 109 (T4-10) carry 9 columns; row 110 carries 7; row 64
+carries 10. These are all in BACKLOG.md's *other* tables - the owner-decision list (4 columns) and the
+contradictions list (3 columns) - and the main-table anomalies above. Worth a dedicated normalisation pass;
+not repaired by guesswork.
+
+### The transferable rule
+
+**Never address a BACKLOG cell by a remembered column index.** Read the header, map the name to the
+position, and assert the row's cell count *before* writing. `sec 65` already recorded the same lesson for
+BACKLOG rows ("address cells by header position, never `split(' | ')[7]`") - I recorded the rule and then
+broke it in the same session, which is the real lesson.
+
+Nothing pushed.
