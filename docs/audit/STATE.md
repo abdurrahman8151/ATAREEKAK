@@ -10,6 +10,20 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- **T4-8 - VERIFIED FIX (`R2 sec 90`).** The mojibake repair CONVERGES; `sec 88`'s "fixed point"
+  was `ISO-8859-1`, which cannot represent U+20AC and therefore returns its input unchanged - the
+  same thing, visually, as "already converged". **Windows-1252** inverts it, and repeating the
+  inverse unwinds multi-pass corruption. 250 runs across the same 9 files, every one an exact
+  inverse: no character guessed, no ASCII stand-in. Scope was held to COMMENT TOKENS by PHP
+  tokenizer byte spans, so no string literal was reachable. Token-level proof (9 files, 0
+  failures) with needles that fail on a 1-character string edit. New zero-baseline gate
+  `T48CommentEncodingTest`, 26 tests. Bisected 848 tests 19F -> 18F, the only difference being the
+  new gate going red -> green. **Correction carried forward: the byte dump in `sec 88` was itself
+  transcribed through a re-encoding terminal and is not reliable evidence - compare code points.**
+- **NEW OWNER DECISION (BACKLOG row 108 / T4-9): the SAME mojibake in USER-VISIBLE Arabic string
+  literals - 6 files, 89 runs** (`R2 sec 90`). Found while scoping T4-8 and deliberately left
+  alone: repairing it changes text the Flutter client renders. **Choose: repair in place, or
+  normalize at the API boundary, or leave as-is.** This is more user-visible than T4-8 was.
 - OWNER DECISION NEEDED (RV-20 REFUND HALF) - `R2 sec 86`: both real refund paths are SET-LEVEL
   `(Ride, Collection)` - one aggregate SyCash sufficiency check, `PostingKey::buildForSet`, one
   `debitEscrowForSet`, and ONE combined SyCash ledger row - but `PaymentStrategy::processRefund(
@@ -29,14 +43,6 @@ with each status taken from the newest section that mentions it. The per-task lo
   (`R2 sec 88`).** Symptom `â€` / `Ã`; e.g. `RideService:190`. This is the documented cause of the
   "non-ASCII anchors fail to match" rule in AGENTS.md. **Blocked by: none - the rule selects it.**
   Comments only; `RideController.php` is NOT one of the 9, so the owner's edits stay untouched.
-- OWNER DECISION NEEDED (RV-20 REFUND HALF) - `R2 sec 86`: both real refund paths are SET-LEVEL
-  `(Ride, Collection)` - one aggregate SyCash sufficiency check, `PostingKey::buildForSet`, one
-  `debitEscrowForSet`, and ONE combined SyCash ledger row - but `PaymentStrategy::processRefund(
-  Booking, Ride, User)` is per-booking and matches NEITHER real flow. Calling it per booking would
-  weaken the guard, change the idempotency scope, and multiply ledger rows, so it was NOT done.
-  **Choose: (a) split into `processDriverCancellationRefund` / `processStaffCancellationRefund`, or
-  (b) re-shape to `(Ride, Collection, reason)` with a reason enum.** Either is an interface design
-  change, not a wiring change. Note `processRefund` has never had a production caller.
 - Done recently: **RV-20 CHARGE HALF VERIFIED FIX (`R2 sec 86`)** - `bookRide` + `acceptBooking` now
   dispatch through `PaymentStrategyFactory`; the `E_PAY` branch is gone from `BookingService` (the
   actual point: a new payment method no longer means editing that service). 8 new tests, with a

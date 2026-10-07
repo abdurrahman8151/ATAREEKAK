@@ -23,16 +23,16 @@ use Illuminate\Support\Facades\Validator;
  * Admin + System Admin only routes.
  * Protected by: middleware('staff:admin,system_admin')
  *
- * â”€â”€ UC-ADM-10 : Review Verification Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- *   GET   /api/staff/verifications/pending       â†’ pendingVerifications()
+ * ── UC-ADM-10 : Review Verification Requests ──────────────────────────────
+ *   GET   /api/staff/verifications/pending       → pendingVerifications()
  *
- * â”€â”€ UC-ADM-11 : Approve / Reject Verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- *   POST  /api/staff/verifications/{userId}/approve  â†’ approveVerification()
- *   POST  /api/staff/verifications/{userId}/reject   â†’ rejectVerification()
+ * ── UC-ADM-11 : Approve / Reject Verification ─────────────────────────────
+ *   POST  /api/staff/verifications/{userId}/approve  → approveVerification()
+ *   POST  /api/staff/verifications/{userId}/reject   → rejectVerification()
  *
- * â”€â”€ Escalated Complaints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- *   GET   /api/staff/escalated-complaints            â†’ escalatedComplaints()
- *   PATCH /api/staff/escalated-complaints/{id}/resolve â†’ resolveEscalated()
+ * ── Escalated Complaints ──────────────────────────────────────────────────
+ *   GET   /api/staff/escalated-complaints            → escalatedComplaints()
+ *   PATCH /api/staff/escalated-complaints/{id}/resolve → resolveEscalated()
  */
 final class StaffAdminController extends Controller
 {
@@ -42,7 +42,7 @@ final class StaffAdminController extends Controller
     ) {}
 
     // =========================================================================
-    // UC-ADM-10 â€“ PENDING VERIFICATIONS LIST
+    // UC-ADM-10 – PENDING VERIFICATIONS LIST
     // =========================================================================
 
     public function pendingVerifications(): JsonResponse
@@ -96,7 +96,7 @@ final class StaffAdminController extends Controller
     }
 
     // =========================================================================
-    // UC-ADM-11 â€“ APPROVE VERIFICATION
+    // UC-ADM-11 – APPROVE VERIFICATION
     // =========================================================================
 
     /**
@@ -150,7 +150,7 @@ final class StaffAdminController extends Controller
                 ? $this->verificationRepo->verifyDriver($userId)
                 : $this->verificationRepo->verifyPassenger($userId);
 
-            // Save national ID â€” cannot be changed through normal flows after this point
+            // Save national ID — cannot be changed through normal flows after this point
             $verified->national_id = $nationalId;
             $verified->save();
 
@@ -190,7 +190,7 @@ final class StaffAdminController extends Controller
     }
 
     // =========================================================================
-    // UC-ADM-11 â€“ REJECT VERIFICATION
+    // UC-ADM-11 – REJECT VERIFICATION
     // =========================================================================
 
     public function rejectVerification(int $userId, Request $request): JsonResponse
@@ -260,7 +260,7 @@ final class StaffAdminController extends Controller
     }
 
     // =========================================================================
-    // ESCALATED COMPLAINTS â€“ LIST
+    // ESCALATED COMPLAINTS – LIST
     // =========================================================================
 
     public function escalatedComplaints(Request $request): JsonResponse
@@ -301,7 +301,7 @@ final class StaffAdminController extends Controller
     }
 
     // =========================================================================
-    // ESCALATED COMPLAINTS â€“ RESOLVE
+    // ESCALATED COMPLAINTS – RESOLVE
     // =========================================================================
 
     public function resolveEscalated(int $complaintId, Request $request): JsonResponse

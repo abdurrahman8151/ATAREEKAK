@@ -7648,3 +7648,119 @@ Restore byte-identical, SHA256 verified.
 RV-01 keeps its own remainder (existing public URLs still resolve until the stored files are moved), unchanged by this task.
 
 Nothing pushed.
+
+## 90. T4-8 - the mojibake repair converges; the earlier "fixed point" was a wrong encoding - **VERIFIED FIX**
+
+Owner said "continue from here". The rule routes to T4-8 (BACKLOG row 107, OPEN, Blocked by `none`,
+lowest qualifying Order). The previous attempt had parked it as "the repair does not converge".
+
+### WHY THE PREVIOUS ATTEMPT CONCLUDED IT COULD NOT CONVERGE - AND WHY THAT WAS WRONG
+
+`R2 sec 88` recorded that `mb_convert_encoding` in either direction "returns the line BYTE-IDENTICAL -
+a fixed point". The conclusion (multi-pass corruption, therefore unrepairable) was drawn from a
+measurement that was an artifact of the tool, not a property of the data.
+
+**ISO-8859-1 cannot represent U+20AC.** `mb_convert_encoding($s, 'UTF-8', 'ISO-8859-1')` on a run
+containing a real euro sign has nowhere to put that character, so mbstring returns its INPUT
+UNCHANGED. Read as "the input is already a fixed point", that is indistinguishable from the truth.
+The correct source encoding is **Windows-1252**, which does represent U+20AC, U+201D, U+2020,
+U+2122 and U+00A0. With Windows-1252 the transform is invertible and the chain unwinds.
+
+The second reason it appeared to diverge: the corruption is **several passes DEEP**, so a single
+inverse call is not enough. `RideService:190` is U+2192 after TWO passes; the run reduces
+8 characters -> 3 -> 1.
+
+**It converges.** 250 runs across 9 files, every one an exact inverse. Nothing was guessed and
+nothing was replaced with an ASCII stand-in, so option (b) of `sec 88` was never needed and the
+"does `â€™` mean `'` or an apostrophe" question never had to be answered by opinion.
+
+The three recovered shapes, all byte-exact:
+
+| corrupted bytes in file | unwinds to | meaning |
+|---|---|---|
+| `C3 A2 E2 80 A6 E2 80 9D` | `E2 86 92` | U+2192 RIGHTWARDS ARROW, 1 pass |
+| `C3 83 C2 A2 C3 A2 E2 82 AC C2 A0 C3 A2 E2 82 AC E2 84 A2` | `E2 86 92` | U+2192, **2 passes** (the `RideService:190` case) |
+| `C3 A2 E2 82 AC E2 84 A2` | `E2 80 99` | U+2019 RIGHT SINGLE QUOTE, 1 pass |
+| `C3 A2 E2 80 9D E2 80 9D` | `E2 94 80` | U+2500 BOX DRAWING, 1 pass |
+| `C3 83 C2 A2 C3 A2 E2 82 AC C2 B0 C3 82 C2 A5` | `E2 89 A5` | U+2265, 2 passes |
+
+`sec 88` asked whether `â‰¤` was `<=` or `<U+2265>`. It is U+2265 - recovered, not chosen.
+
+### SCOPE - COMMENTS ONLY, AND WHY THAT IS A HARD BOUNDARY HERE
+
+`app/` holds the SAME corruption in **user-visible Arabic message literals**, e.g.
+`PassengerProfileController:633` `'trip_safety' => 'أمان الرحلة'` before repair. Repairing
+those changes text the Flutter client renders, which is a different decision with a different
+risk profile, so they were left alone and **filed as a new row (BACKLOG 108)**.
+
+The boundary is not a convention, it is structural: the repair is applied only to the byte spans
+of `T_COMMENT` / `T_DOC_COMMENT` tokens reported by PHP's tokenizer. A PHP string literal is not a
+comment token, so it is incapable of being reached.
+
+### THE SAFETY PROOF, AND WHY IT IS STRONGER THAN A TEST
+
+`verify.php` re-tokenises the original and the repaired source of all 9 files and requires:
+every non-comment token byte-identical and in the same order, the comment token count unchanged,
+the per-line ASCII skeleton unchanged, and the line count unchanged.
+
+- **9 files changed, 0 failures.**
+- **Needles, both directions.** Mojibake appended to an existing comment -> PASS (the change the
+  repair makes). ONE character altered inside a string literal -> FAIL, `NON-COMMENT token #350
+  changed`. Code whitespace changed -> FAIL. A verifier that cannot fail is worthless, so it was
+  shown to fail on the exact thing this task must never cause.
+
+Additional structural guarantees, by construction rather than by test:
+- Only maximal runs of non-ASCII Windows-1252-representable characters are touched, and an ASCII
+  character breaks a run. So no ASCII byte can move, shift or disappear.
+- Arabic, box drawing and emoji have no Windows-1252 byte, so they break a run and are untouched.
+- A run is rewritten ONLY if the inverse reaches a fixed point; anything else is left byte-identical.
+- The result may not contain a C1 control, which is what an undefined Windows-1252 slot leaves.
+
+### A SECOND ENCODING TRAP, FOUND WHILE WRITING THE RATCHET
+
+PHP's mbstring maps the five **undefined** Windows-1252 slots (0x81, 0x8D, 0x8F, 0x90, 0x9D) to
+the C1 control of the same number; Python's `cp1252` codec refuses them and so does a naive
+`mb_convert_encoding($ch,'Windows-1252','UTF-8')` round trip. Worse, mbstring **substitutes `?`** for
+a character it cannot represent instead of failing, so a round-trip check silently reads `?` as
+byte 0x3F and corrupts everything. The first draft of the PHP detector did exactly that and
+reported real mojibake as clean.
+
+The repair therefore builds an explicit reverse table, and `unwrap` consumes those five slots.
+With that corrected, **24 further runs in 5 more files** became recoverable (the U+0090 / U+009D
+artifacts, unwinding to U+2190 LEFTWARDS ARROW and U+2014). The audit record's own byte dump from
+`sec 88` was transcribed through a re-encoding terminal and is therefore not reliable as evidence -
+the same trap the commit message warned about, caught a second time.
+
+### VERIFICATION
+
+- `T48CommentEncodingTest` (new, `tests/Feature/Review/`): **26 tests, 29 assertions, OK.**
+  Zero-baseline ratchet over `app/`, plus 23 known samples proving the detector separates corrupt
+  from clean, plus a case that pins the transform to the bytes actually found on disk.
+- **Ratchet needle:** mojibake injected into `RideService.php` -> the ratchet fails and names the
+  file and line (`RideService.php:161`). File restored, SHA256 proven, `verify.php` re-run clean.
+- Idempotent: a second pass over the repaired tree fixes 0 runs and changes 0 files.
+- `php -l` clean, `pint --test` PASS (9 files + the test).
+- **Regression, bisected, same selection both ways** (`Rides`, `Bookings`, `Unit/Domain`, `Admin`,
+  `Config`, `Unit/Providers`, `AppFuture`, `Review`, `T3Batch`): **848 tests, 19 failures before ->
+  18 after.** The name-set diff has exactly ONE entry, and it is the new gate going red -> green:
+  `T48CommentEncodingTest::test_no_comment_in_app_holds_recoverable_mojibake`. Zero regressions.
+- `app/Http/Controllers/API/RideController.php` is excluded (owner's uncommitted edits) and was
+  independently confirmed to contain no recoverable comment mojibake, so nothing was deferred.
+
+### A SEPARATE, MORE SERIOUS DEFECT FOUND AND FILED - BACKLOG row 108
+
+The same corruption in **user-visible string literals**: **6 files, 89 runs**, all Arabic -
+`PassengerProfileController` (31), `AdminReportService` (19), `ProfileController` (16),
+`StaffAdminController` (15), `RideService` (7), `AdminWalletRequestController` (1). These are the
+strings the client displays. Unlike T4-8 this is a **behaviour change**, so it needs an owner
+decision on whether to repair in place (changing text already shipped to the app stores) or to
+normalize at the API boundary.
+
+### WHAT REMAINS
+
+Nothing in the code change. T4-8 is closed, not partial: the remainder filed for T4-8 was the
+MinIO deploy action, which belongs to AF-5 and is not code.
+
+Files changed: the 9 sources (comments only) + `tests/Feature/Review/T48CommentEncodingTest.php`.
+
+Nothing pushed.

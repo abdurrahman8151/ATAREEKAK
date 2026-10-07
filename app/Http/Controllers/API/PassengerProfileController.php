@@ -14,7 +14,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\JwtService;
 use App\Services\NotificationService;
-use App\Services\Payment\LedgerService;      // â† added
+use App\Services\Payment\LedgerService;      // ← added
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,24 +29,24 @@ use Illuminate\Support\Str;
  *
  * Provides the admin-facing passenger profile dashboard.
  *
- * â”€â”€ Routes (all behind staff:* middleware) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── Routes (all behind staff:* middleware) ──────────────────────────────────
  *
  *  BFF (single call, returns full page):
- *    GET  /api/admin/passengers/{userId}/full-profile   â†’ fullProfile()
+ *    GET  /api/admin/passengers/{userId}/full-profile   → fullProfile()
  *
  *  Individual (for partial refreshes):
- *    GET  /api/admin/passengers/{userId}/stats          â†’ stats()
- *    GET  /api/admin/passengers/{userId}/monthly-trips  â†’ monthlyTrips()
- *    GET  /api/admin/passengers/{userId}/recent-trips   â†’ recentTrips()
- *    GET  /api/admin/passengers/{userId}/complaints     â†’ complaints()
- *    GET  /api/admin/passengers/{userId}/wallet-charges â†’ walletCharges()
+ *    GET  /api/admin/passengers/{userId}/stats          → stats()
+ *    GET  /api/admin/passengers/{userId}/monthly-trips  → monthlyTrips()
+ *    GET  /api/admin/passengers/{userId}/recent-trips   → recentTrips()
+ *    GET  /api/admin/passengers/{userId}/complaints     → complaints()
+ *    GET  /api/admin/passengers/{userId}/wallet-charges → walletCharges()
  *
  *  Actions:
- *    POST /api/admin/passengers/{userId}/charge-wallet  â†’ chargeWallet()
- *    POST /api/admin/users/{userId}/ban                 â†’ ban()   (AdminBanController)
- *    POST /api/admin/users/{userId}/unban               â†’ unban() (AdminBanController)
+ *    POST /api/admin/passengers/{userId}/charge-wallet  → chargeWallet()
+ *    POST /api/admin/users/{userId}/ban                 → ban()   (AdminBanController)
+ *    POST /api/admin/users/{userId}/unban               → unban() (AdminBanController)
  *
- * â”€â”€ Caching summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── Caching summary ─────────────────────────────────────────────────────────
  *
  *  CACHED    fullProfile()    admin.passenger.full-profile.{id}           5 min
  *  CACHED    stats()          admin.passenger.stats.{id}                  5 min
@@ -54,7 +54,7 @@ use Illuminate\Support\Str;
  *  CACHED    recentTrips()    admin.passenger.recent-trips.{id}.{limit}   3 min
  *  NOT CACHED complaints()    paginated + filters + status changes from admin side
  *  NOT CACHED walletCharges() paginated financial data
- *  NOT CACHED chargeWallet()  mutation â€” busts full-profile + stats + dashboard
+ *  NOT CACHED chargeWallet()  mutation — busts full-profile + stats + dashboard
  */
 final class PassengerProfileController extends Controller
 {
@@ -64,13 +64,13 @@ final class PassengerProfileController extends Controller
     ) {}
 
     // =========================================================================
-    // BFF â€” full page in one call
+    // BFF — full page in one call
     // =========================================================================
 
     /**
      * GET /api/admin/passengers/{userId}/full-profile
      *
-     * CACHED â€” 5 minutes per user.
+     * CACHED — 5 minutes per user.
      * The BFF fires many sub-queries (stats, monthly trips, recent trips,
      * complaints summary, wallet charges). Caching is high-value since an
      * admin may refresh the modal several times without anything changing.
@@ -112,8 +112,8 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/stats
      *
-     * CACHED â€” 5 minutes per user.
-     * Stats include wallet_balance â€” this is an admin read, not a payment
+     * CACHED — 5 minutes per user.
+     * Stats include wallet_balance — this is an admin read, not a payment
      * endpoint, so 5-minute staleness is acceptable. Cache is busted
      * immediately by chargeWallet() since the balance changes.
      */
@@ -135,7 +135,7 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/monthly-trips
      *
-     * CACHED â€” 15 minutes per user + months value.
+     * CACHED — 15 minutes per user + months value.
      * Pure historical aggregate (completed bookings grouped by month). A new
      * booking completing mid-session won't shift the chart meaningfully within
      * 15 minutes.
@@ -160,9 +160,9 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/recent-trips
      *
-     * CACHED â€” 3 minutes per user + limit value.
+     * CACHED — 3 minutes per user + limit value.
      * "Recent" implies freshness, so a shorter TTL than the other endpoints.
-     * Three minutes is the minimum worth having â€” still removes per-request
+     * Three minutes is the minimum worth having — still removes per-request
      * DB pressure when an admin paginates or re-opens the modal quickly.
      *
      * Query params:
@@ -189,7 +189,7 @@ final class PassengerProfileController extends Controller
      * Two reasons:
      *   1. Status changes come from the admin side (not this controller), so
      *      invalidation would require cross-controller coordination.
-     *   2. Paginated with status + type + per_page + page filters â€” unbounded
+     *   2. Paginated with status + type + per_page + page filters — unbounded
      *      key combinations.
      *
      * Query params:
@@ -252,7 +252,7 @@ final class PassengerProfileController extends Controller
     /**
      * GET /api/admin/passengers/{userId}/wallet-charges
      *
-     * NOT cached â€” financial data, paginated, and mutated by chargeWallet().
+     * NOT cached — financial data, paginated, and mutated by chargeWallet().
      *
      * Query params:
      *   per_page = 1-50 (default 15)
@@ -300,7 +300,7 @@ final class PassengerProfileController extends Controller
     /**
      * POST /api/admin/passengers/{userId}/charge-wallet
      *
-     * Mutation â€” not cached. Busts the full-profile BFF and the stats
+     * Mutation — not cached. Busts the full-profile BFF and the stats
      * endpoint because both embed wallet_balance / wallet_charges data
      * that is now stale. Also busts the main admin dashboard since it may
      * aggregate financial totals.
@@ -359,7 +359,7 @@ final class PassengerProfileController extends Controller
                     'reference' => 'admin_charge:'.$user->id,
                 ]);
 
-                // â”€â”€ Decision un3 (owner choice (a)): external flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // ── Decision un3 (owner choice (a)): external flow ──────────────────────
                 // An admin charge is money arriving from OUTSIDE the platform. Recorded against the
                 // External Capital account so the ledger closes - without it this was a balance
                 // change no ledger entry could explain.
@@ -410,7 +410,7 @@ final class PassengerProfileController extends Controller
                 ]);
             });
 
-            // Bust caches â€” wallet balance and transaction list are now stale
+            // Bust caches — wallet balance and transaction list are now stale
             Cache::forget("admin.passenger.full-profile.{$userId}");
             Cache::forget("admin.passenger.stats.{$userId}");
             Cache::forget('admin.dashboard.data');
@@ -483,7 +483,7 @@ final class PassengerProfileController extends Controller
     }
 
     /**
-     * Monthly trip counts + total cost (seats Ã— price_per_seat) for each month.
+     * Monthly trip counts + total cost (seats × price_per_seat) for each month.
      */
     private function buildMonthlyTrips(int $userId, int $months = 6): array
     {
@@ -518,7 +518,7 @@ final class PassengerProfileController extends Controller
     }
 
     /**
-     * Recent bookings with correct total cost = seats Ã— price_per_seat.
+     * Recent bookings with correct total cost = seats × price_per_seat.
      */
     private function buildRecentTrips(int $userId, int $limit = 10): array
     {
@@ -550,7 +550,7 @@ final class PassengerProfileController extends Controller
 
     /**
      * Complaints for this user.
-     * No ride_id exposed â€” only complaint ID, type, and status.
+     * No ride_id exposed — only complaint ID, type, and status.
      */
     private function buildComplaints(int $userId, string $status = 'all', string $type = 'all'): array
     {

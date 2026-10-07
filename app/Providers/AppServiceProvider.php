@@ -148,7 +148,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AdminTripService::class);
         $this->app->singleton(AdminDriverService::class);
         $this->app->singleton(AdminUserService::class);
-        // â”€â”€ Staff / Employee Services â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Staff / Employee Services ────────────────────────────────────────────
         $this->app->singleton(StaffJwtService::class);
         $this->app->singleton(EmployeeAuthService::class);
         $this->app->singleton(EmployeeManagementService::class);
@@ -244,9 +244,9 @@ class AppServiceProvider extends ServiceProvider
 
         Schema::defaultStringLength(191);
 
-        // RV-38 â€” Eloquent data-integrity strictness, OUTSIDE PRODUCTION.
+        // RV-38 — Eloquent data-integrity strictness, OUTSIDE PRODUCTION.
         //
-        // WHY: silent data loss is invisible by construction â€” `Model::create([...
+        // WHY: silent data loss is invisible by construction — `Model::create([...
         // 'not_fillable' => x])` drops the value with no error, and reading a column that
         // wasn't selected returns null as if it were legitimately absent. This session alone
         // found several such bugs (RV-23: complaint ride_id/complained_id silently dropped;
@@ -256,7 +256,7 @@ class AppServiceProvider extends ServiceProvider
         //
         // WHY NOT production: an exception in prod is a 500; production keeps today's
         // lenient behavior. This is R1's prescription verbatim (`shouldBeStrict(!
-        // isProduction())`), and the "roll out tests first, fix what surfaces" step is done â€”
+        // isProduction())`), and the "roll out tests first, fix what surfaces" step is done —
         // measured: enabling these two flags across the full suite surfaced EXACTLY 2
         // offenders (both now fixed: PushTokenManager's redundant updated_at mass-assign, and
         // a stale UntangleBatch fixture with 4 phantom keys).
@@ -308,8 +308,8 @@ class AppServiceProvider extends ServiceProvider
         // existing env()-missing -> refuse pattern. Exempted in local AND
         // testing, so it can never brick a developer machine or the suite
         // (which legitimately runs without real broadcast credentials); every
-        // real deployment environment â€” production, staging, or any environment
-        // added later â€” is still covered.
+        // real deployment environment — production, staging, or any environment
+        // added later — is still covered.
         if (! app()->environment('local', 'testing')
             && config('broadcasting.default') === 'pusher'
             && (empty(config('broadcasting.connections.pusher.key'))
@@ -324,7 +324,7 @@ class AppServiceProvider extends ServiceProvider
 
         // T3-14: SendPushNotificationJob is ShouldQueue with tries/backoff, but
         // config/queue.php defaults QUEUE_CONNECTION to `sync`, which runs it
-        // inline â€” a slow or failing FCM call (3 retries + backoff) then executes
+        // inline — a slow or failing FCM call (3 retries + backoff) then executes
         // inside the HTTP request and the retry configuration is meaningless
         // there. Previously an unset env silently degraded every notification
         // into a request-blocking call. Fail fast outside local/testing,
@@ -349,7 +349,7 @@ class AppServiceProvider extends ServiceProvider
      * `JwtService::generateSignature()` passes `config('jwt.secret')` straight to
      * `hash_hmac()`. PHP 8.2 coerces the null that an unset/blank JWT_SECRET
      * produces into '', so the app will happily sign HS256 tokens with an EMPTY
-     * key â€” and an empty key is public knowledge, which makes every access token
+     * key — and an empty key is public knowledge, which makes every access token
      * forgeable by anyone. (`StaffJwtService::secret()` throws on this; the user
      * path never did.) `.env.example` ships `JWT_SECRET=` blank, so this is one
      * missing variable away from being live, and the failure is silent: the app
@@ -379,7 +379,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * RV-16 â€” refuse to boot with a testing OTP mode enabled outside development.
+     * RV-16 — refuse to boot with a testing OTP mode enabled outside development.
      *
      * These switches exist so the test suite and local work can read a code back out
      * of the API instead of waiting for a real message. Left enabled on a deployed

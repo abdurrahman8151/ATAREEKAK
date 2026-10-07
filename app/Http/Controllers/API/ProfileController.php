@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Validator;
  * - ProfileInteractionService: Comments and ratings
  * - ProfileRepositoryInterface: Data retrieval
  *
- * â”€â”€ Caching summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── Caching summary ───────────────────────────────────────────────────────────
  *
  *  CACHED    show()       profile.user.{userId}   3 min  (non-owners only)
  *  NOT CACHED show()      profile owner always gets live data
@@ -32,18 +32,18 @@ use Illuminate\Support\Facades\Validator;
  *  BUST      comment()    profile.user.{targetId}
  *  BUST      rateUser()   profile.user.{targetId}
  *
- * â”€â”€ Verification revocation on update() â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── Verification revocation on update() ──────────────────────────────────────
  *
  *  Identity fields (first_name, last_name, gender):
- *    Change â†’ revoke BOTH passenger and driver verification.
+ *    Change → revoke BOTH passenger and driver verification.
  *    These fields are matched against the national ID during the admin review.
  *
  *  Vehicle fields (type_of_car, color_of_car, number_of_seats):
- *    Change â†’ revoke DRIVER verification only.
+ *    Change → revoke DRIVER verification only.
  *    These are checked against the mechanic card. Passenger status is unaffected.
  *
  *  Document photos (face_id_pic, back_id_pic, license, mechanic_card_pic):
- *    Handled by DocumentController â€” not accepted here.
+ *    Handled by DocumentController — not accepted here.
  *
  *  All other fields (description, address, radio, smoking, profile_photo, etc.):
  *    No verification impact.
@@ -65,7 +65,7 @@ class ProfileController extends Controller
     /**
      * GET /profile/{userId}
      *
-     * CACHED â€” 3 minutes, non-owners only.
+     * CACHED — 3 minutes, non-owners only.
      */
     public function show(Request $request, int $userId)
     {
@@ -157,16 +157,16 @@ class ProfileController extends Controller
         }
 
         try {
-            // â”€â”€ Load current profile for vehicle-field comparison â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Load current profile for vehicle-field comparison ─────────────
             // We need the old values BEFORE the service writes new ones so we
-            // can detect a genuine change (same value submitted â†’ no revocation).
+            // can detect a genuine change (same value submitted → no revocation).
             $profile = $this->profileRepo->getProfileByUserId($user->id);
 
-            // â”€â”€ Determine what is actually changing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Determine what is actually changing ───────────────────────────
 
             // Identity fields: name and gender appear on the national ID card.
             // Any change means the document the admin reviewed no longer matches
-            // the current account holder â†’ revoke ALL verification.
+            // the current account holder → revoke ALL verification.
             $identityChanging =
                 (isset($data['first_name']) && $data['first_name'] !== $user->first_name)
                 || (isset($data['last_name']) && $data['last_name'] !== $user->last_name)
@@ -180,7 +180,7 @@ class ProfileController extends Controller
                 || (isset($data['number_of_seats']) && (int) $data['number_of_seats'] !== (int) $profile->number_of_seats)
             );
 
-            // â”€â”€ Decide revocation scope â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Decide revocation scope ───────────────────────────────────────
             $revokeAll = $identityChanging
                 && ($user->is_verified_passenger || $user->is_verified_driver);
 
@@ -190,7 +190,7 @@ class ProfileController extends Controller
                 && $vehicleChanging
                 && $user->is_verified_driver;
 
-            // â”€â”€ Apply changes atomically â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Apply changes atomically ──────────────────────────────────────
             $result = DB::transaction(function () use ($user, $data, $revokeAll, $revokeDriver) {
 
                 if ($revokeAll) {
@@ -214,8 +214,8 @@ class ProfileController extends Controller
                 return $this->updateService->updateProfile($user, $data);
             });
 
-            // â”€â”€ Cache busting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // â”€â”€ Cache busting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Cache busting ─────────────────────────────────────────────────
+            // ── Cache busting ─────────────────────────────────────────────────
             Cache::forget("profile.user.{$user->id}");
             Cache::forget("profile.user.owner.{$user->id}");
             Cache::forget("admin.driver.profile.{$user->id}");
@@ -228,7 +228,7 @@ class ProfileController extends Controller
                 Cache::forget('staff.pending-verifications');
             }
 
-            // â”€â”€ Response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Response ──────────────────────────────────────────────────────
             $response = [
                 'success' => true,
                 'message' => 'Profile updated successfully',
@@ -277,7 +277,7 @@ class ProfileController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'comment' => 'required|string|max:500',
-            'ride_id' => 'required|integer|exists:rides,id',  // â† new required field
+            'ride_id' => 'required|integer|exists:rides,id',  // ← new required field
         ], [
             'ride_id.required' => 'A ride ID is required. You can only comment after completing a ride.',
             'ride_id.exists' => 'The specified ride does not exist.',
@@ -295,7 +295,7 @@ class ProfileController extends Controller
                 $request->user()->id,
                 $userId,
                 $request->input('comment'),
-                (int) $request->input('ride_id'),  // â† pass ride_id to service
+                (int) $request->input('ride_id'),  // ← pass ride_id to service
             );
 
             Cache::forget("profile.user.{$userId}");
@@ -334,7 +334,7 @@ class ProfileController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'rating' => 'required|numeric|min:1|max:5',
-            'ride_id' => 'required|integer|exists:rides,id',  // â† new required field
+            'ride_id' => 'required|integer|exists:rides,id',  // ← new required field
         ], [
             'ride_id.required' => 'A ride ID is required. You can only rate after completing a ride.',
             'ride_id.exists' => 'The specified ride does not exist.',
@@ -352,7 +352,7 @@ class ProfileController extends Controller
                 $request->user()->id,
                 $userId,
                 (float) $request->input('rating'),
-                (int) $request->input('ride_id'),  // â† pass ride_id to service
+                (int) $request->input('ride_id'),  // ← pass ride_id to service
             );
 
             Cache::forget("profile.user.{$userId}");
@@ -381,16 +381,16 @@ class ProfileController extends Controller
     }
 
     // =========================================================================
-    // PRIVATE â€” FORMAT
+    // PRIVATE — FORMAT
     // =========================================================================
 
     private function formatProfileData($profile, $user, bool $isOwner = false): array
     {
-        // â”€â”€ Comments & rating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Comments & rating ─────────────────────────────────────────────────
         $comments = $this->interactionService->getProfileComments($user->id);
         $ratingStats = $this->interactionService->getRatingStats($user->id);
 
-        // â”€â”€ Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Documents ─────────────────────────────────────────────────────────
         // RV-01: face/back ID and licence scans are personal data. $isOwner was
         // accepted and then ignored, so GET /api/profile/{anyUserId} returned
         // the document URLs of ANY user to ANY authenticated caller. Documents
@@ -406,10 +406,10 @@ class ProfileController extends Controller
             )->mapWithKeys(fn ($d) => ["{$d->type}_pic" => asset("storage/{$d->path}")])->toArray();
         }
 
-        // â”€â”€ Score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Score ─────────────────────────────────────────────────────────────
         $userScore = $this->scoreService->getScore($user);
 
-        // â”€â”€ Ride history: as driver â€” 1 query instead of 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Ride history: as driver — 1 query instead of 4 ───────────────────
         $driverStats = Ride::where('driver_id', $user->id)
             ->selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
@@ -422,7 +422,7 @@ class ProfileController extends Controller
             'no_show' => $driverStats->get('awaiting_confirmation', 0),
         ];
 
-        // â”€â”€ Ride history: as passenger â€” 1 query instead of 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Ride history: as passenger — 1 query instead of 4 ────────────────
         $passengerStats = Booking::where('user_id', $user->id)
             ->selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
@@ -435,7 +435,7 @@ class ProfileController extends Controller
             'no_show' => $passengerStats->get('no_show', 0),
         ];
 
-        // â”€â”€ Assemble â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Assemble ──────────────────────────────────────────────────────────
         return [
             'user_id' => $user->id,
             'full_name' => trim("{$user->first_name} {$user->last_name}"),

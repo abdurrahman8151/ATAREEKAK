@@ -24,11 +24,11 @@ use Illuminate\Support\Str;
  * Admin endpoints for reviewing and acting on wallet charge/withdraw requests.
  *
  * Routes (all behind `staff:admin` / `staff:system_admin` middleware):
- *   GET   /api/admin/wallet/requests              â†’ index()
- *   POST  /api/admin/wallet/requests/{id}/approve â†’ approve()
- *   POST  /api/admin/wallet/requests/{id}/reject  â†’ reject()
+ *   GET   /api/admin/wallet/requests              → index()
+ *   POST  /api/admin/wallet/requests/{id}/approve → approve()
+ *   POST  /api/admin/wallet/requests/{id}/reject  → reject()
  *
- * â”€â”€ Fixes applied â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── Fixes applied ────────────────────────────────────────────────────────────
  *  1. Withdrawal WalletTransaction amount stored as -$amount (outflow convention).
  *  2. reject() now eager-loads user + wallet so formatRequest() has no N+1.
  *  3. autoClearDebt wrapped in its own DB::transaction() so lockForUpdate()
@@ -40,7 +40,7 @@ final class AdminWalletRequestController extends Controller
         private readonly CashRideFeeService $cashRideFeeService,
     ) {}
 
-    // â”€â”€ GET /api/admin/wallet/requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── GET /api/admin/wallet/requests ──────────────────────────────────────
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -100,7 +100,7 @@ final class AdminWalletRequestController extends Controller
         ]);
     }
 
-    // â”€â”€ POST /api/admin/wallet/requests/{id}/approve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── POST /api/admin/wallet/requests/{id}/approve ─────────────────────────
     public function approve(int $id, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -134,7 +134,7 @@ final class AdminWalletRequestController extends Controller
                     $previousBalance = (float) $wallet->balance;
                     $newBalance = $previousBalance - $amount;
                     $transactionType = 'withdrawal';
-                    // FIX 1: withdrawal is an outflow â€” store as negative to match
+                    // FIX 1: withdrawal is an outflow — store as negative to match
                     //         the convention used everywhere else in the codebase.
                     $transactionAmount = -$amount;
                     $description = 'Withdrawal processed by admin';
@@ -159,10 +159,10 @@ final class AdminWalletRequestController extends Controller
                     'description' => $description,
                     // T3-1: was 'WR-'.$walletRequest->id.'-'.now()->timestamp.
                     // Honest note: because the request id is itself unique, this
-                    // generator could not actually collide â€” the real collision
+                    // generator could not actually collide — the real collision
                     // was in PassengerProfileController::chargeWallet() where the
                     // id was 'ADM-'.$user->id.'-'.timestamp (same passenger, same
-                    // second, UNIQUE transaction_id â†’ 500 + rollback). Normalised
+                    // second, UNIQUE transaction_id → 500 + rollback). Normalised
                     // to UUID anyway so both money paths share one collision-free
                     // scheme; the readable prefix is kept for ops.
                     'transaction_id' => 'WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
@@ -170,7 +170,7 @@ final class AdminWalletRequestController extends Controller
                     'reference' => 'wallet_request:'.$walletRequest->id,
                 ]);
 
-                // â”€â”€ Decision un3 (owner choice (a)): external flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // ── Decision un3 (owner choice (a)): external flow ──────────────────────
                 // A top-up is money ARRIVING from outside; a withdrawal is money LEAVING to outside.
                 // Both are recorded against the External Capital account, which is what closes the
                 // ledger. `$transactionAmount`'s sign already encodes the direction, so the inbound
@@ -246,7 +246,7 @@ final class AdminWalletRequestController extends Controller
 
             Cache::forget("wallet.requests.{$walletRequest->user_id}");
 
-            // â”€â”€ Auto-clear cash ride debt after a top-up â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Auto-clear cash ride debt after a top-up ────────────────────
             // Only for charges; withdrawals reduce the balance so debt clearing
             // would immediately fail the balance >= debt check anyway.
             // FIX 3: wrapped in its own DB::transaction() so that the
@@ -268,7 +268,7 @@ final class AdminWalletRequestController extends Controller
                 }
             }
 
-            // â”€â”€ Notify user â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Notify user ─────────────────────────────────────────────────
             try {
                 $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
                 $msg = $walletRequest->isCharge()
@@ -305,7 +305,7 @@ final class AdminWalletRequestController extends Controller
         }
     }
 
-    // â”€â”€ POST /api/admin/wallet/requests/{id}/reject â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── POST /api/admin/wallet/requests/{id}/reject ──────────────────────────
     public function reject(int $id, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -381,7 +381,7 @@ final class AdminWalletRequestController extends Controller
         }
     }
 
-    // â”€â”€ Private â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Private ──────────────────────────────────────────────────────────────
     private function formatRequest(WalletRequest $r): array
     {
         return [

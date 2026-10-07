@@ -17,7 +17,7 @@ class Wallet extends Model
 
     protected $fillable = [
         'name',            // 'Primary Escrow' | 'SyCash' | null for user wallets
-        'user_id',         // nullable â€” system wallets have no owner
+        'user_id',         // nullable — system wallets have no owner
         'wallet_number',
         'balance',
         'cash_ride_debt',  // deferred cash ride creation fees owed to platform
