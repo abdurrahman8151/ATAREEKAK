@@ -7912,3 +7912,81 @@ V10 is discharged (`sec 91`) and V8 is not cited by anything still open here. Wi
 and D6 answered, RV-14 has no decision-free code work left. **The row is `VERIFIED FIX`.**
 
 Nothing pushed.
+## 93. RV-04 was already done; three findings filed instead of being silently closed - **VERIFIED FIX (RV-04); rows 110-112 filed**
+
+Owner: *"do them all together, i dont want to see them not fixed when you finish."* So this section
+does the honest version of that: fixes what is genuinely fixable, and **says plainly what is not,
+rather than reporting a clean sweep I did not earn.**
+
+### RV-04 - the row was stale, not open
+
+All three of its items were complete and had been for some time:
+
+| item | state | proof |
+|---|---|---|
+| staff -> user replay | FIXED + PROVEN | `JwtAuthMiddleware:53` `sub_type` guard; `RV04TokenAudienceTest` (commit `85643e9`) - 10 tests pass |
+| empty JWT secret | FIXED | boot guard `AppServiceProvider:372`, refuses an empty value outside local/testing |
+| TTL | SHIPPED | `config/jwt.php:39` - `env('JWT_TTL', 600)`, decision 9 = B |
+
+Its recorded blocker, "AF-4b (Sanctum already gone)", was never a gate - Sanctum is absent and T2-9
+is closed on the same finding. **Row 20 -> `VERIFIED FIX`.** Identity area floor re-run to justify
+flipping a P0: **419 tests**.
+
+### A HYPOTHESIS I HAD TO RETRACT, RECORDED SO IT IS NOT RE-DERIVED
+
+Reading `JwtService:91` as a bare `(int) $payload['ver']` cast, next to `EmployeeManagementService`
+setting employees to `token_version = 0` and `UserFactory` setting users to `0`, looked like a
+**fail-open**: a token with no `ver` claim casts to `0`, and `0 === 0` would accept it. I was
+about to report a security hole. **Line 87 already has `if (! isset($payload['ver'])) { return
+false; }`** - the user path fails closed, exactly as intended, and the staff path's `?? -1` at
+`StaffJwtService:88` is a belt-and-braces restatement rather than the only guard.
+
+**There is no fail-open.** The `0` vs `1` divergence is a fidelity gap, not a vulnerability, and
+it is filed as row 112 rather than dressed up.
+
+### 93.1 The 12 red tests in the identity floor - filed, not touched
+
+All pre-existing (no auth code was changed in this task). Two clusters, and **in both the app is
+STRICTER than the test assumes**, so neither is a hole:
+
+**(a) 403 clusters - 13 tests.** `EmployeeManagementControllerTest` x4 and `AdminDashboardControllerTest`
+x9 expect 2xx / 401 / 422 and receive 403. `routes/api.php:495` is
+`middleware(['staff:system_admin', 'throttle:admin'])`, while the tests authenticate an
+`ADMIN`-role employee. The deny is the route working exactly as written; the tests encode a
+pre-tightening permission model.
+
+**(b) `TOKEN_TYPE_INVALID` is unreachable BY DESIGN.** `JwtAuthMiddlewareTest` and
+`StaffJwtMiddlewareTest` expect that code and get `TOKEN_INVALID`. The cause is not a regression -
+it is that **`JwtService::generateRefreshToken` returns `Str::random(64)`, an opaque random string,
+not a JWT.** A refresh token presented as a bearer token therefore fails at `decodeToken`
+(middleware line 36) and never reaches the type check (line 41). Both endpoints still correctly
+return **401**, so nothing is accepted that should not be. The opaque design is the *better* one:
+refresh tokens are not decodable client-side and revocation/reuse detection is a DB row.
+
+**Why I did not "just fix" them.** (a) is an auth/permission rule and (b) is a public error code;
+`AGENTS.md` reserves both, and separately forbids editing an existing test to make it pass. Filed as
+**row 111** with the root cause of each, so it is a one-step decision rather than an open mystery.
+
+### 93.2 AF-7 re-measured, and deliberately NOT started
+
+`ARCHITECTURE_MAP.md` sec 2 says "21 controllers doing model queries inline". Re-measured:
+**18 controllers / 42 sites** - the number was stale. The Larastan half is **already done and
+shipped** (un8 = A: `larastan/larastan` 2.9, `phpstan.neon.dist`,
+`.github/workflows/static-analysis.yml` running it report-only behind a deliberate
+`continue-on-error`), so what remains is the service extraction.
+
+**I did not start it.** It spans auth, money and ride paths - 6 of the 42 sites are
+`WalletTransaction::create` / `Wallet::create`, which `AGENTS.md` reserves for the owner - and a
+refactor I cannot finish *and* verify to a terminal state is precisely the partial work the
+completion rule forbids. Re-scoped with the fresh measurement and a suggested first slice
+(`AdminBanController` + `AdminDashboardController`, 5 sites, no money, no auth-rule change) as
+**row 110**. Starting it needs its own session, not the tail of this one.
+
+### SUMMARY OF THIS SECTION
+
+- **Fixed and verified:** RV-14 (committed `2437d71`), RV-04 (status correction - the work was
+  already done and is proven by an existing passing test).
+- **Found, diagnosed to root cause, filed rather than silently closed:** rows 110, 111, 112.
+- **Retracted:** a fail-open hypothesis that a 5-second read of line 87 disproved.
+
+Nothing pushed.
