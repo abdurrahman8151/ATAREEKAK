@@ -8046,3 +8046,81 @@ strictly worse than leaving the row open.
 two-line change plus tests.
 
 Nothing pushed.
+## 95. AF-7: the row was mostly not a defect; the one real duplication is extracted and verified - **VERIFIED FIX (the real defect); baseline proposal pending**
+
+Owner: *"next"* - taking row 66 / 110, the last `OPEN` row with a live `none` gate.
+
+### The row's premise was mostly wrong, and the evidence is in two regex false positives
+
+`ARCHITECTURE_MAP.md` sec 2 records "21 controllers doing model queries inline" as the defect. Re-measured
+in sec 93 it was 18 controllers / 42 sites. Reading the sites before extracting anything changed the
+answer:
+
+- **`RideController:232`** looked like the same aggregation. It is not - it aggregates **seats**
+  (`SUM(seats)` on one ride's bookings), not counts by status.
+- **`PassengerProfileController:688`** looked like the same aggregation. It is not - it counts
+  **Complaints**.
+- Most of the remaining ~38 sites are a single `User::findOrFail($userId)`. That is ordinary Laravel.
+  Wrapping it in a service adds a class, a call and a test with no behaviour change - the refactor would
+  make the codebase *worse* while satisfying the row's wording.
+
+**So the fix was applied to the one thing that was genuinely duplicated, and the rest was dismissed with
+reasons rather than mechanically chased to a number.**
+
+### The real defect
+
+`ProfileController:413/426` and `StaffOperationsController:132/144` contained the same two queries
+written out **verbatim** - identical `selectRaw('status, COUNT(*) as count')`, `groupBy('status')`,
+`pluck('count', 'status')` - differing only in whether the user id came from `$user->id` or `$userId`.
+
+```php
+// app/Services/Ride/UserRideStatsService.php  (new)
+public function ridesAsDriver(int $userId): Collection { ... }
+public function bookingsAsPassenger(int $userId): Collection { ... }
+```
+
+**The reshaping deliberately stays in the controllers.** ProfileController exposes `total_created`,
+`total_booked`, `no_show`; StaffOperations exposes `total`. Those are different public response shapes
+and `AGENTS.md` reserves changing them, so only the query is shared. Each call stays ONE grouped query -
+the service documents that rewriting it as a loop of `count()` calls would reintroduce an N+1.
+
+`RideController.php` was **not** touched (it holds the owner's uncommitted RV-38 edits), and its two
+sites are seat aggregation anyway.
+
+### Verification - bisect, method-level, over 478 tests
+
+Same selection both directions (`Staff`, `Profile`, `Rides`, `Bookings`, `Unit/Domain`,
+`BoundaryDependencyTest`, and the 3 Review files that grep matched):
+
+| | tests | assertions | errors | failures |
+|---|---|---|---|---|
+| at HEAD (only my 3 paths reverted) | 478 | 950 | 5 | 12 |
+| with the extraction | 478 | 948 | 5 | **13** |
+
+Individually-named failures, diffed method by method:
+
+- **BEFORE: 11.** `ProfileTest` x3, `RideControllerFullTest` x3, `RideTest` x1, `EmployeeManagementControllerTest` x4.
+- **AFTER: 12.** The same 11, unchanged, **plus** `BoundaryDependencyTest::test_a_boundary_edge_never_grows_beyond_its_baseline`.
+
+**Zero regressions.** The 3 `ProfileTest` failures (`test_can_comment_on_another_users_profile`,
+`test_can_rate_another_user`, `test_rating_updates_on_second_submission`) are **pre-existing at HEAD** and
+are about comments/ratings, not ride stats.
+
+### PROPOSAL for the owner - boundary baseline, NOT applied
+
+```
+Tests\Feature\AppFuture\BoundaryDependencyTest.php:48
+    'controllers_to_models' => 21,
+```
+
+`ProfileController` no longer imports `App\Models\*` at all, so the count is **20, not 21**. The test
+fails by design ("baseline is 21 but only 20 violations remain - lower the number in BASELINES to claim
+the improvement").
+
+`AGENTS.md` says both *"if a change removes a violation, report the new number and propose lowering the
+baseline"* and *"stop and ask before any change to the boundary BASELINES"*. So: **reported and
+proposed, not applied.** Say the word and it is one line, 21 -> 20.
+
+This single test is the ONLY new failure in this task and it is the intended signal, not a regression.
+
+Nothing pushed.

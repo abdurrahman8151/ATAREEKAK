@@ -5,10 +5,9 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
-use App\Models\Booking;
-use App\Models\Ride;
 use App\Services\Profile\ProfileInteractionService;
 use App\Services\Profile\ProfileUpdateService;
+use App\Services\Ride\UserRideStatsService;
 use App\Services\Score\ScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -56,6 +55,7 @@ class ProfileController extends Controller
         private readonly ProfileInteractionService $interactionService,
         private readonly PhotoRepositoryInterface $photoRepo,
         private readonly ScoreService $scoreService,
+        private readonly UserRideStatsService $rideStats,
     ) {}
 
     // =========================================================================
@@ -410,10 +410,10 @@ class ProfileController extends Controller
         $userScore = $this->scoreService->getScore($user);
 
         // ── Ride history: as driver — 1 query instead of 4 ───────────────────
-        $driverStats = Ride::where('driver_id', $user->id)
-            ->selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status');
+        // AF-7: the query lives in UserRideStatsService; this was duplicated verbatim in
+        // StaffOperationsController. The reshaping below stays here because `total_created` /
+        // `no_show` are THIS endpoint's public shape.
+        $driverStats = $this->rideStats->ridesAsDriver($user->id);
 
         $asDriver = [
             'total_created' => $driverStats->sum(),
@@ -423,10 +423,7 @@ class ProfileController extends Controller
         ];
 
         // ── Ride history: as passenger — 1 query instead of 4 ────────────────
-        $passengerStats = Booking::where('user_id', $user->id)
-            ->selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status');
+        $passengerStats = $this->rideStats->bookingsAsPassenger($user->id);
 
         $asPassenger = [
             'total_booked' => $passengerStats->sum(),
