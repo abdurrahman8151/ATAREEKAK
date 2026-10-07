@@ -9,8 +9,28 @@ with each status taken from the newest section that mentions it. The per-task lo
 `docs/audit/App future audit review r2.md`. Feature plan: `docs/audit/ROADMAP.md`.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- (empty - no task is mid-flight.)
-- **RV-09 IS NOW FULLY CLOSED (`R2 sec 88`) - item (b) "events carrying ids not models" is closed as
+- **AF-5 (P0) IN FLIGHT - the call-site move.** Owner said "do all of these" (2026-10-08) for all
+  six OPEN rows; 4 of them (RV-08, AF-6, AF-7, T3-10) are genuinely owner-blocked and are reported,
+  not faked. AF-5's remainder is recorded as "the call-site move, decision-free".
+  **ROOT PROBLEM FOUND WHILE SCOPING:** `DocumentController:58` WRITES to
+  `config('filesystems.documents_disk')` but `StaffDocumentController:81` READS from hard-coded
+  `Storage::disk('public')`. The switch is half-wired: setting `DOCUMENTS_DISK=minio` would 404 every
+  document. 13 more sites hard-code `'public'`.
+  Expect to change: `config/filesystems.php` (add `uploads_disk`, default `public` so behaviour is
+  UNCHANGED), `app/Http/Controllers/API/Staff/StaffDocumentController.php`,
+  `app/Http/Controllers/API/VerificationController.php`,
+  `app/Services/File/FileUploadService.php`, `app/Services/Complaint/ComplaintService.php`,
+  `app/Services/MessageTypes/ImageMessageType.php`,
+  NEW `tests/Feature/Review/AF5ConfigurableDiskTest.php`. No probe/backup left behind.
+- OWNER DECISION NEEDED (RV-20 REFUND HALF) - `R2 sec 86`: both real refund paths are SET-LEVEL
+  `(Ride, Collection)` - one aggregate SyCash sufficiency check, `PostingKey::buildForSet`, one
+  `debitEscrowForSet`, and ONE combined SyCash ledger row - but `PaymentStrategy::processRefund(
+  Booking, Ride, User)` is per-booking and matches NEITHER real flow. Calling it per booking would
+  weaken the guard, change the idempotency scope and multiply ledger rows, so it was NOT done.
+  **Choose: (a) split into `processDriverCancellationRefund` / `processStaffCancellationRefund`, or
+  (b) re-shape to `(Ride, Collection, reason)` with a reason enum.** Either is an interface design
+  change, not a wiring change. Note `processRefund` has never had a production caller.
+- **RV-09 IS NOW FULLY CLOSED (`R2 sec 88`)** - item (b) "events carrying ids not models" is closed as
   NOT-A-DEFECT, on evidence.** The codebase has exactly ONE listener (single `$listen` entry,
   `shouldDiscoverEvents()` = false); it reads only `$event->user->id` and a string; the other five
   events have NO listeners and are broadcast-only. So no listener can act on stale model state, while
