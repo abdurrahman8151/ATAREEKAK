@@ -7310,3 +7310,68 @@ Item **(b)** - events carrying ids instead of models - is untouched and still op
 its stated precondition is met, but taking it is a separate decision.
 
 Nothing pushed.
+
+## 85. D6 (RV-14 distance units) - RESOLVED, and a correction to the record - **RECORDED, no code changed**
+
+### A CORRECTION FIRST, BECAUSE THE RECORD WAS WRONG
+
+Earlier sessions carried a note that **D6 is "genuinely blocked on the owner"** because whether the
+Flutter client sends distance in metres is a fact about the client. **That was stale and wrong.**
+`STATE.md` has carried `D6 = B (RV-14): distance in METRES, duration in SECONDS` since 2026-10-04, and
+`BACKLOG.md` row 28 carries the same answer. The decision was made. Recorded here so the stale claim
+is not repeated a fourth time.
+
+### THE OWNER SUPPLIED THE FRONTEND REPO, AND IT CORROBORATES D6 = B
+
+Repo: `Salah-Al-Tenawi/AlaTarekak` (public, Dart/Flutter, `main`). Relevant files and what they show:
+
+| File | Evidence |
+|---|---|
+| `lib/features/maps/data/model/map_info_model.dart` | `distanceInKm => distance / 1000`; `durationInMinutes => duration / 60`. OpenRouteService `summary.distance` and GraphHopper `pathData['distance']` are **metres**; GraphHopper `pathData['time'] / 1000` gives **seconds** |
+| `lib/features/maps/presantion/view/push_ride_map.dart` | `_onConfirm` stores `distance = routeInfos[..]['distance'] / 1000`, `duration = .. / 60` |
+| `lib/features/trip_create/presantion/view/trip_select_price_and_booking_type.dart` | comment «مسافة الرحلة **بالكيلومترات**»; feeds `RidePriceRules.suggestedFor(_km)` |
+| `lib/features/.../distan_model.dart` | doc comment «`distance` **بالأمتار**», raw row `"distance": 47818` |
+| `lib/features/.../trip_model.dart` | `DistanceModel.fromAny(data['distance'])` |
+
+So: **routing APIs return metres and seconds; the client divides by 1000 and 60 only for its own
+pricing and display; every `distance` that crosses the wire is in METRES and every `duration` in
+SECONDS.** That is exactly D6 = B, independently confirmed from the client side.
+
+### THE FINDING THAT WAS NOT EXPECTED - THE CLIENT SENDS NO DISTANCE AT ALL
+
+`lib/features/trip_create/data/data_source/trip_create_remote_data_source.dart` POSTs to
+`ApiEndPoint.createRide` (`https://api.onwayride.me/api/rides/create-with-route`) with **twelve**
+fields: pickup/destination lat+lng, `departure_time`, `available_seats`, `price_per_seat`, `notes`,
+`route_index`, `payment_method`, `booking_type`, `communication_number`, and an optional
+`vehicle_type`.
+
+**There is no `distance`, no `duration` and no `route_geometry` in the body.** `push_ride_cubit.dart`
+never reads `trip.distance` or `trip.duration` before calling `createTrip`, and `ApiKey` defines no
+distance or duration constant. Distance on the client exists purely to choose a fare and to render
+"كم" on screen.
+
+The server already handles this correctly - `RideController::694` treats all three as missing and
+derives them:
+
+```php
+if (empty($validated['route_geometry']) || empty($validated['distance']) || empty($validated['duration'])) {
+    $route = $this->routeService->getRouteDetails(pickup, destination);
+    $validated['distance']         = $validated['distance'] ?? $route['distance'];
+    $validated['duration']         = $validated['duration'] ?? $route['duration'];
+    $validated['route_geometry']   = $validated['route_geometry'] ?? [...];
+}
+```
+
+and `RouteCalculationService:117` documents `'distance' => (float) $route['summary']['distance],
+// meters`. So the authoritative distance for a created ride is **server-computed, in metres**, which
+agrees with D6 = B and needs no change.
+
+### ONE SUBTLE THING WORTH KNOWING, NOT CHANGING TODAY
+
+Because the fallback uses `??` INSIDE a block guarded by "any of the three missing", a client that
+sent `distance` but not `route_geometry` would keep **its own** distance while the server replaced
+the geometry with its own route. The two could then describe different roads. The real client never
+does this (it sends none of the three), so this is latent rather than live, and `RideController.php`
+carries uncommitted owner edits, so nothing here was touched. Noted for RV-14's remaining scope.
+
+Nothing pushed.

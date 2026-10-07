@@ -11,6 +11,12 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- **CORRECTION: D6 IS NOT BLOCKED.** Earlier notes said D6 was "genuinely blocked on the owner". That
+  was STALE. `D6 = B (metres/seconds)` has been answered since 2026-10-04 (STATE.md, BACKLOG row 28) and
+  is now independently CORROBORATED from the Flutter client (`R2 sec 85`): routing APIs return metres +
+  seconds, the client divides by 1000/60 only for its own fare and "كم" display, and every wire
+  `distance` is METRES. **Do not ask about D6 again.** Remaining RV-14 work is the `??`-inside-the-guard
+  quirk in `RideController:699` - latent only, and that file has owner edits.
 - Done recently: **RV-09(a) VERIFIED FIX (`R2 sec 84`)** - `EPayPaymentStrategy` no longer catches
   anything: 3 try/catch blocks removed, so D1's posting-key and escrow guards now PROPAGATE instead of
   becoming an ignorable `PaymentResult`. **2 existing tests inverted** (they pinned the swallow on
