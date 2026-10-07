@@ -10,6 +10,21 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- **T4-10 VERIFIED FIX (`R2 sec 91`) - the `Blocked by` column was STALE AGAIN.** 8 of the 13 gates
+  named by the 5 OPEN rows were ALREADY DISCHARGED, so the rule selected nothing and every session
+  ended at "none unblocked" - the same failure `sec 66` found for `PARTIAL` rows, recurring because
+  the column was never re-derived after the repairs landed. **AF-7's ENTIRE gate list (RV-33,
+  RV-24) had been dead from the day the row was written; it was the one row the rule could have
+  selected and a dead cell was hiding it.** Each gate was re-derived from the owning row's own
+  `Status` or the cited code line, never from memory. RV-08 <- V10 (`routes/api.php:203` now routes
+  to `create`); AF-6 <- RV-02 L2/RV-09/RV-11/RV-15/RV-21; T3-10 <- decision 7 (shipped `2114308`).
+  **TRAP recorded: never address a BACKLOG cell by `split(' | ')[7]`** - a Decisions cell ending
+  `sec 66` splits identically to a column boundary, so a positional split wrote 482 chars into the
+  WRONG column. Use the header. No code, no test - docs only.
+- **STILL OWNER-GATED after T4-10 - 5 decisions, 5 tasks, none guessed:** (1) deploy TARGET (Render
+  vs VPS) unblocks RV-08 + T3-10; (2) RV-10 W window from reporter data; (3) RV-20 refund-half
+  interface design (`R2 sec 86`/87); (4) T1-3 credential rotation + `filter-repo`; (5) T4-9 repair
+  Arabic literals in place, or normalize at the API boundary, or leave as-is.
 - **T4-8 - VERIFIED FIX (`R2 sec 90`).** The mojibake repair CONVERGES; `sec 88`'s "fixed point"
   was `ISO-8859-1`, which cannot represent U+20AC and therefore returns its input unchanged - the
   same thing, visually, as "already converged". **Windows-1252** inverts it, and repeating the

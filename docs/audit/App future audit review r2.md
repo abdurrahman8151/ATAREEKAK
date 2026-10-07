@@ -7764,3 +7764,66 @@ MinIO deploy action, which belongs to AF-5 and is not code.
 Files changed: the 9 sources (comments only) + `tests/Feature/Review/T48CommentEncodingTest.php`.
 
 Nothing pushed.
+## 91. T4-10 - the `Blocked by` column is STALE again; 8 of 13 gates were already discharged, and correcting them UNBLOCKED a row - **VERIFIED FIX (the column)**
+
+Owner said "continue". T4-8 had just closed and I had reported `Next task: none unblocked` for the
+second time running. That is not a result - it is the rule refusing to work - so I did what
+`AGENTS.md` step 3 explicitly orders: **"Before starting, confirm the row is still open. If it is
+already done or gated, correct its BACKLOG.md row and take the next one."**
+
+### THE FINDING
+
+I re-derived every gate on every `OPEN` row from the owning row's own `Status`, and from the code
+where the gate was a defect. **8 of the 13 gates named by the 5 `OPEN` rows were already discharged.**
+
+| OPEN row | gate as written | actually live? |
+|---|---|---|
+| 34 RV-08 | `V10` | **NO.** V10's finding was "500 `BadMethodCallException`, `createRide` missing". `routes/api.php:203` routes `POST /api/rides` to `create`, committed, with the fix described in a comment naming RV-14/V10. Dead gate. Left: the deploy **target** |
+| 65 AF-6 | `= Wave 3: RV-02 L2, RV-09, RV-10, RV-11, RV-15, RV-20, RV-21` | **5 of 7 dead.** RV-02 L2, RV-09, RV-11, RV-15, RV-21 are all `VERIFIED FIX`. Live: RV-10 (`BLOCKED`), RV-20 (refund half) |
+| 66 AF-7 | `RV-33 (baseline ratchet), RV-24 (reads)` | **BOTH dead.** RV-33 and RV-24 are each `VERIFIED FIX` (`97792b6`, `b84cea0`) - and were long before this row was queued |
+| 91 T3-10 | `T1-3, RV-08, decision 7` | **1 of 3 dead.** "decision 7" was answered (= B: Render, shipped `2114308`) and its hygiene half is `R2 sec 80` DONE. Live: T1-3, RV-08 |
+| 108 T4-9 | (cell was empty - the provenance sat in the gate slot) | Live: the owner decision. Fixed here too |
+
+**THE CONSEQUENCE, WHICH IS THE ACTUAL BUG.** AF-7's entire gate list had been discharged from the
+day it was written. It was the *only* row in the backlog that the rule could have selected, and a
+two-word dead cell was hiding it. Every session since has correctly reported "none unblocked" and
+stopped, which is the rule working perfectly over a false premise - the same failure `sec 66`
+diagnosed for `PARTIAL` rows, now recurring for `OPEN` rows because nobody re-derived the column
+after the repairs landed.
+
+**What is genuinely still owner-gated, unchanged by this section:** the deploy target (RV-08), the
+RV-10 W window, the RV-20 refund-half interface design, T1-3 credential rotation + `filter-repo`, and
+T4-9's client-visible Arabic text. Five decisions, five tasks. None of them was invented here and
+none was guessed.
+
+### A SECOND DEFECT FOUND WHILE DOING IT: THE TABLE HAS NO STABLE COLUMN INDEX
+
+The obvious way to edit a cell programmatically is `row.split(' | ')[7]`. **That silently returns
+the Decisions column on 3 of the 4 rows I touched**, because a Decisions cell that ends in `sec 66`
+splits the same way a column boundary does - and it did: my first pass wrote 482 characters of
+"Blocked by" prose into RV-08's **Decisions** cell. Caught by an assertion before the file was
+written, so nothing was committed wrong.
+
+Row 66 also has a different field count from its neighbours, and row 108 (which I wrote in
+`sec 90`) shipped with its provenance sentence sitting in the gate slot and no gate written at all.
+
+Cells must be addressed from the header - `Order | ID | Title | Pri | Status | Decisions |
+Blocked by | Evidence` - and every rewritten row re-printed afterwards. **Recorded so the next
+session does not trust a positional split on this table.**
+
+### WHAT DID NOT CHANGE
+
+No code, no test, no migration, flag OFF. This is a documentation reconciliation, so claiming a
+test run would be theatre. The only verification claimed is the one performed: every gate was
+checked against the owning row's `Status` in this same table, or against the cited line of code,
+and the five rewritten gate cells were re-read and printed after writing.
+
+Filed as **BACKLOG row 109 (T4-10)**.
+
+### WHAT THE RULE NOW SELECTS
+
+**AF-7 (row 66)** - "Controller extraction / Larastan", the lowest-Order `OPEN` row whose gate is
+now genuinely `none`. Two caveats recorded in its row rather than discovered later: Larastan is
+still deferred by `ARCHITECTURE_MAP.md` sec 4, and `R2 sec 1.3` places it in CI.
+
+Nothing pushed.
