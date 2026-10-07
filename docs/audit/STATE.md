@@ -10,6 +10,17 @@ with each status taken from the newest section that mentions it. The per-task lo
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - (empty - no task is mid-flight.)
+- **RV-09 IS NOW FULLY CLOSED (`R2 sec 88`) - item (b) "events carrying ids not models" is closed as
+  NOT-A-DEFECT, on evidence.** The codebase has exactly ONE listener (single `$listen` entry,
+  `shouldDiscoverEvents()` = false); it reads only `$event->user->id` and a string; the other five
+  events have NO listeners and are broadcast-only. So no listener can act on stale model state, while
+  "fixing" it would change SIX public WebSocket payloads the Flutter client consumes. **Do not
+  re-open (b)** unless a listener is added that MUTATES a carried model or reads an attribute another
+  writer may have changed - that trigger is recorded in `sec 88`.
+- **NEW UNBLOCKED TASK - BACKLOG row 107 (T4-8): source comments are DOUBLE-ENCODED UTF-8 in 9 files
+  (`R2 sec 88`).** Symptom `â€` / `Ã`; e.g. `RideService:190`. This is the documented cause of the
+  "non-ASCII anchors fail to match" rule in AGENTS.md. **Blocked by: none - the rule selects it.**
+  Comments only; `RideController.php` is NOT one of the 9, so the owner's edits stay untouched.
 - OWNER DECISION NEEDED (RV-20 REFUND HALF) - `R2 sec 86`: both real refund paths are SET-LEVEL
   `(Ride, Collection)` - one aggregate SyCash sufficiency check, `PostingKey::buildForSet`, one
   `debitEscrowForSet`, and ONE combined SyCash ledger row - but `PaymentStrategy::processRefund(

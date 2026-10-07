@@ -7530,3 +7530,57 @@ tests, with the same 11 pre-existing failures.
 Nothing changed for the owner to decide - the decision is simply better informed now. RV-20's refund
 half remains **blocked on the interface choice** (split the method, or re-shape to
 `(Ride, Collection, reason)`). Nothing pushed.
+
+## 88. RV-09(b) is closed as NOT-A-DEFECT, and a real encoding defect is filed - **RECORDED, no production code changed**
+
+### RV-09(b) "events carrying ids not models" - CLOSED, ON EVIDENCE
+
+The owner asked for continuous progress without further input, so rather than repeat "none
+unblocked" a fourth time this section takes the one named BACKLOG row still untouched and
+**investigates it rather than implementing it**. The finding is that there is nothing to fix.
+
+The concern behind (b) is legitimate and general: a queued listener receives a **serialised snapshot**
+of whatever model the event carried, so a listener that acts on it can act on stale data. Whether
+that applies *here* is an empirical question, and the answer is no:
+
+| Question | Evidence |
+|---|---|
+| How many listeners exist? | **One.** `EventServiceProvider::$listen` contains a single entry (`UserVerified => SendUserVerifiedNotification`), and `shouldDiscoverEvents()` returns `false`, so nothing is auto-discovered. There is exactly one file in `app/Listeners` and no `__invoke` listeners anywhere |
+| What does it read off the model? | Only `$event->user->id` (for the notification's `user_id`) and `$event->verificationType`. It never mutates the model and never reads an attribute that could go stale |
+| What about the other five events? | `RideBooked`, `RideCancelled`, `RideCreated`, `NotificationSent`, `MessageSent` have **no listeners at all** - they are dispatched by `broadcast(...)` and consumed by real-time clients only |
+
+So **no listener in this codebase can act on stale model state**, and there is no defect to prevent.
+
+Meanwhile the cost of "fixing" it is concrete and not small: all six events implement
+`ShouldBroadcast`, so changing their constructor arguments to carry ids changes **six public
+WebSocket payloads** consumed by the Flutter client - a public API response shape, which is on the
+owner-approval list in any case. Trading that for zero demonstrable benefit is a bad trade, and the
+row has now said "do this" for several sessions.
+
+**The trigger that would revive it:** if a listener is ever added that MUTATES a model carried by an
+event, or reads an attribute another writer may have changed since dispatch, (b) becomes a real
+defect immediately. Recorded here so the next session does not re-open it from scratch.
+
+This closes RV-09 completely: (c) was RV-02 L2 (`sec 81`), (a) is `sec 84`, (b) is this section.
+
+### A REAL DEFECT FOUND WHILE LOOKING - filed as T4-8, deliberately NOT auto-fixed
+
+`RideService:190` reads `elapsed < 30% â full refund always` where it should read an em-dash. The
+symptom `â€` / `Ã` is **double-encoded UTF-8** (correct bytes decoded as Latin-1 and re-encoded). It
+is in **9 files** under `app/`:
+
+`AdminBanController`, `AdminWalletRequestController`, `PassengerProfileController`,
+`ProfileController`, `StaffAdminController`, `Models/Wallet`, `AppServiceProvider`,
+`AdminReportService`, `RideService`.
+
+It is filed rather than fixed, for two reasons. It is unrelated cleanup that `AGENTS.md` tells me to
+avoid unprompted; but more importantly it is **not merely cosmetic** - `AGENTS.md`'s own edit-hygiene
+rule records that "em-dashes and other non-ASCII characters in anchors have repeatedly failed to
+match", and this is the cause. An anchor written with a real em-dash cannot match a comment holding
+corrupted bytes. Fixing it would remove a recurring source of failed edits across every future task.
+
+**BACKLOG row 107 (T4-8), OPEN, Blocked by `none`** - which means the rule now selects it. It is
+comments only: no behaviour, no money, no auth, and `RideController.php` is not among the 9, so the
+owner's uncommitted edits stay untouched.
+
+Nothing pushed.
