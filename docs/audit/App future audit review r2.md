@@ -7583,4 +7583,32 @@ corrupted bytes. Fixing it would remove a recurring source of failed edits acros
 comments only: no behaviour, no money, no auth, and `RideController.php` is not among the 9, so the
 owner's uncommitted edits stay untouched.
 
+#### T4-8 ATTEMPTED AND PARKED - the automated repair does NOT converge
+
+The owner then said continue again, which the rule now routes to T4-8, so it was attempted.
+
+A repair script was written with a hard safety guarantee: a line is rewritten **only** if, after
+stripping every non-ASCII character, it is identical to the original - which, since PHP code is
+ASCII, proves no code token moved. It reported **0 lines fixed, 141 skipped**, and that guard is why
+nothing was damaged.
+
+The reason is worth recording so it is not repeated. `RideService:190` holds the code points
+`U+00C3 U+00A2 U+00E2 U+20AC U+00A0 U+00E2 U+20AC U+2122`. This is **not** a single-pass
+double-encode: `mb_convert_encoding` in either direction, and the full Windows-1252 round trip, both
+return the line **byte-identical** - a fixed point. So the corruption is multi-pass, and the usual
+one-call fix does not apply. Guessing the intended character at 141 sites - `â€™` could be an
+apostrophe or a right single quote, `â‰¤` could be `<=` or `≤` - would be inventing content, which is
+worse than leaving comments ugly.
+
+**Two traps for whoever finishes this.** First, do NOT trust a terminal to inspect these bytes: the
+console re-encodes the very characters under investigation, so a fix appears to do nothing when it
+has worked, and appears to work when it has not. Inspect code points or hex, and compare those. This
+cost three probe rounds. Second, the ASCII-identical invariant above is the acceptance criterion for
+any repair, and it is cheap - keep it.
+
+The pragmatic options are: (a) repair line by line with a tool that shows true bytes, or (b) replace
+the corrupted runs with their **ASCII equivalents** (`â€™` -> `'`, `â€”` -> `-`), which loses the
+original typography but makes every future anchor work, which was the point of filing it. Neither was
+chosen unilaterally.
+
 Nothing pushed.
