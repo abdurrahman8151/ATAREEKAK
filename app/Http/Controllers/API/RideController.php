@@ -688,12 +688,17 @@ class RideController extends Controller
                     ['lat' => $validated['pickup_lat'],      'lng' => $validated['pickup_lng']],
                     ['lat' => $validated['destination_lat'], 'lng' => $validated['destination_lng']]
                 );
-                $validated['distance'] = $validated['distance'] ?? $route['distance'];
-                $validated['duration'] = $validated['duration'] ?? $route['duration'];
-                $validated['route_geometry'] = $validated['route_geometry'] ?? [
-                    'type' => 'LineString',
-                    'coordinates' => $route['geometry'],
-                ];
+                // The guard above tests empty(), so the fill MUST test empty() too. `??` only
+                // replaces null/absent, so a client sending distance=0 or duration=0 (both legal:
+                // `numeric|min:0`) or route_geometry=[] (legal: `array`) tripped the guard and
+                // then kept its own degenerate value while the server filled the OTHER fields -
+                // storing a real server geometry beside a zero distance. Server-derived metres
+                // are authoritative here (D6 = B), so fill exactly what the guard flagged.
+                $validated['distance'] = empty($validated['distance']) ? $route['distance'] : $validated['distance'];
+                $validated['duration'] = empty($validated['duration']) ? $route['duration'] : $validated['duration'];
+                $validated['route_geometry'] = empty($validated['route_geometry'])
+                    ? ['type' => 'LineString', 'coordinates' => $route['geometry']]
+                    : $validated['route_geometry'];
             }
 
             $dto = CreateRideDTO::fromRequest($validated, $request->user()->id);

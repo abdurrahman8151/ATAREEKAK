@@ -7827,3 +7827,88 @@ now genuinely `none`. Two caveats recorded in its row rather than discovered lat
 still deferred by `ARCHITECTURE_MAP.md` sec 4, and `R2 sec 1.3` places it in CI.
 
 Nothing pushed.
+## 92. RV-14 - the `??`-inside-the-`empty()`-guard quirk: a ride could be stored with a real geometry and a distance of 0 - **VERIFIED FIX (the last code item on the row)**
+
+`sec 85` closed D6 and left exactly one item: *"the `??`-inside-the-guard quirk - a client sending
+distance but not route_geometry would keep its own distance against a server-replaced geometry"*.
+`sec 91` then showed V10, one of this row's two gates, was dead. This is that item.
+
+### THE DEFECT, STATED PRECISELY
+
+The guard that decides whether to ask the routing service for a route tests `empty()`:
+
+```php
+if (empty($validated['route_geometry']) || empty($validated['distance']) || empty($validated['duration'])) {
+```
+
+The three fills **inside** that guard used `??`, which replaces only null/absent. The two tests
+disagree on exactly the degenerate values - and all three are reachable through
+`CreateRideRequest`:
+
+| client sends | validation | `empty()` | `??` | stored, before the fix |
+|---|---|---|---|---|
+| `distance = 0` | `numeric\|min:0` - **passes** | true | false | client's **0** |
+| `duration = 0` | `numeric\|min:0` - **passes** | true | false | client's **0** |
+| `route_geometry = []` | `nullable\|array` - **passes** | true | false | client's **[]** |
+
+So a single request with all three tripped the guard, the server computed a route, the server
+filled nothing that `??` would accept, and the ride was persisted with the client's zeros and an
+empty geometry - while the *other* fields in the same request got real server values. **The
+realistic bad case is the mixed one:** send `distance` but not `route_geometry` and the ride keeps
+the client's distance while the server supplies the geometry, so the line drawn on the map and the
+number quoted as its length can disagree.
+
+**Why it was latent, and why that is not a defence.** `sec 85` established that the Flutter client
+sends **none** of the three - it derives distance/duration in metres itself and sends no geometry
+- so nothing in production tripped it. But the endpoint is public and accepts these values, and
+`distance` is the input that drives the fare. A latent hole in a money-adjacent field is still a
+hole; it is one API caller away from not being latent.
+
+### THE FIX
+
+Make the fill test the same thing the guard tests. Minimal, and it deliberately does **not**
+become "always overwrite" - a client that supplies all three keeps them:
+
+```php
+$validated['distance'] = empty($validated['distance']) ? $route['distance'] : $validated['distance'];
+```
+
+D6 = B is already answered and corroborated from the Flutter client (`sec 85`): ORS returns metres
+and the client divides only for its own display, so server-derived metres are authoritative. No new
+decision was needed and none was invented.
+
+### VERIFICATION
+
+**The needle proved the bug was real, not theoretical.** Reverting the fix and re-running:
+
+```
+a client distance of 0 must not be stored beside a server-derived geometry
+Failed asserting that 0.0 matches expected 12000.
+an_empty_client_geometry  ->  Failed asserting that null is identical to 'LineString'.
+Tests: 3, Assertions: 12, Failures: 2.
+```
+
+**The complement is pinned too, and it is the part a careless fix would break.** A client supplying
+all three values keeps them, and `Http::assertNothingSent()` proves `getRouteDetails` was never
+entered - which is also what proves the guard still works rather than having been widened. Without
+that second test, "always overwrite from the server" would have passed the first one.
+
+**Bisect, same selection both ways** (`Rides`, `Bookings`, `Unit/Domain`, `Review`, `AppFuture`):
+**647 tests, 10 failures before -> 8 after, ZERO new failures**, the two fixed entries being
+exactly the two new tests going red -> green. `php -l` clean, `pint --test` PASS.
+
+### THE COMMIT DOES NOT CONTAIN THE OWNER'S WORK
+
+`RideController.php` also holds the owner's uncommitted RV-38 eager-load edits, so `git add` on
+that file would have committed their unreviewed work into my commit. Instead the index was fed a
+patch built as *HEAD content -> HEAD content with only these 3 lines replaced*, so
+`git diff --cached` is 11 insertions / 6 deletions (this hunk) while `git diff` keeps 19 / 7
+(theirs, still unstaged). **Worth remembering for any future task that lands in a file with
+uncommitted owner work in it.**
+
+### ROW STATE
+
+V10 is discharged (`sec 91`) and V8 is not cited by anything still open here. With this item done
+and D6 answered, RV-14 has no decision-free code work left. **The row is `VERIFIED FIX`.**
+
+Nothing pushed.

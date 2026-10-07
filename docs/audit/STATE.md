@@ -9,7 +9,12 @@ with each status taken from the newest section that mentions it. The per-task lo
 `docs/audit/App future audit review r2.md`. Feature plan: `docs/audit/ROADMAP.md`.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- (empty - no task is mid-flight.)
+- **RV-14 `??`-inside-the-guard quirk - the last code item on that row.** Fix in
+  `RideController::createRideWithRoute` + new `tests/Feature/Review/RV14DegenerateRouteFieldsTest.php`.
+  **NOTE for the next task touching this file:** it carries the OWNER's uncommitted RV-38 edits, so
+  `git add` would commit their work too - build a patch from HEAD and `git apply --cached` instead
+  (method recorded in `R2 sec 92`).
+- (empty - no other task is mid-flight.)
 - **T4-10 VERIFIED FIX (`R2 sec 91`) - the `Blocked by` column was STALE AGAIN.** 8 of the 13 gates
   named by the 5 OPEN rows were ALREADY DISCHARGED, so the rule selected nothing and every session
   ended at "none unblocked" - the same failure `sec 66` found for `PARTIAL` rows, recurring because
@@ -21,6 +26,17 @@ with each status taken from the newest section that mentions it. The per-task lo
   **TRAP recorded: never address a BACKLOG cell by `split(' | ')[7]`** - a Decisions cell ending
   `sec 66` splits identically to a column boundary, so a positional split wrote 482 chars into the
   WRONG column. Use the header. No code, no test - docs only.
+- **RV-14 VERIFIED FIX (`R2 sec 92`) - the row's last code item is DONE.** The guard that calls the
+  routing service tested `empty()` but the three fills inside it used `??`, which only replaces
+  null/absent. A client sending `distance=0`, `duration=0` or `route_geometry=[]` (all three pass
+  `CreateRideRequest`) tripped the guard and then KEPT its degenerate value, so the ride could be
+  stored with a real server geometry beside a distance of 0 - and `distance` drives the fare.
+  Latent because the Flutter client sends none of the three (`R2 sec 85`), but the endpoint is
+  public. Fix = make the fill test the same thing the guard tests. Needle proved the old code stored
+  0.0; a complement test pins that complete client data is still kept and the routing service is
+  still NOT called (so "always overwrite" cannot pass). Bisect 647 tests 10F -> 8F, ZERO new.
+  **Do NOT `git add` `RideController.php`** - it holds the owner's uncommitted RV-38 edits; the
+  commit was staged as a HEAD-derived patch so only the RV-14 hunk went in.
 - **STILL OWNER-GATED after T4-10 - 5 decisions, 5 tasks, none guessed:** (1) deploy TARGET (Render
   vs VPS) unblocks RV-08 + T3-10; (2) RV-10 W window from reporter data; (3) RV-20 refund-half
   interface design (`R2 sec 86`/87); (4) T1-3 credential rotation + `filter-repo`; (5) T4-9 repair
