@@ -8358,3 +8358,109 @@ force-push, which `AGENTS.md` forbids me from doing, so it is the owner's to run
 defence in depth so the old values stop being a distraction.
 
 Nothing pushed.
+## 99. RV-10: D2's first half was never built - the read-only stuck-escrow reporter now exists - **VERIFIED FIX (the reporter)**
+
+Owner: *"next"* -> the T1-3 rotation list, done in `sec 98`. This one came from re-deriving the gates.
+
+### The gate was stale again, and the "waiting" work was code
+
+RV-10's gate read `AF-4e (config windows); T1-1`. Both are `VERIFIED FIX` - the same stale-gate pattern as
+RV-04, RV-19/V8, RV-08 and T1-3. But checking the *decision* rather than the gate was what mattered:
+
+> **D2 = D + C:** "Build the READ-ONLY stuck-escrow reporter first (age + amount, moves no money), then the
+> staff-queue escalation. Window W still unnamed - take it from the reporter's data."
+
+The reporter **did not exist**. No command, no service, nothing. So D2's first half was unbuilt work
+sitting behind a decision that had already been answered - and it was blocking the one thing the owner
+still owes on this row (W), because W is supposed to be read off its output.
+
+### Why the escrow is invisible today
+
+A ride booked with e-pay credits the passenger's money into the SyCash wallet ("escrow") and is supposed to
+come back out when the booking settles. `AdminReportService:324-332` reports escrow IN and escrow OUT as two
+separate totals and never their difference, so **an amount that came in and never leaves looks like a healthy
+float rather than a leak.** That is the defect this reporter makes visible.
+
+### The design decision that matters: correlate by MONEY, not by NAME
+
+The obvious query is "escrow_received rows with no matching escrow_release". **It is wrong here, and wrong in
+the direction that destroys trust in the report.** Escrow leaves through driver payout, cancellation refund,
+time-based refund, passenger/driver no-show, and the cash-ride fee paths - and `LedgerType`'s own docblock
+records that this vocabulary has already drifted three times (`escrow_release` vs `escrow_released` was a
+production data defect, T1-2). A hand-maintained list of settlement types is a list that starts reporting
+settled bookings as stuck the first time someone adds a settlement type.
+
+So the correlation is:
+
+```
+per (reference, wallet_id), grouped
+  net = SUM(new_balance - previous_balance)
+  keep only wallets with an escrow_received leg
+  stuck  <=>  net > 0
+```
+
+Grouping is by `(reference, wallet_id)` and restricted to wallets that actually received escrow, because
+every booking *also* writes a leg to the passenger's own wallet under the same reference - without that
+filter, the passenger's own debit reads as held money.
+
+### What it deliberately does NOT do
+
+**Window W is not assumed.** The command prints an age histogram instead of filtering on a window, because
+D2 says W comes from its data. `--min-age-hours` narrows the summary and the detail table but **not** the
+histogram: filtering the histogram with a guessed threshold would let the window be chosen from data the
+window already selected, which is the question deciding its own answer. (I initially wrote the docblock
+saying the histogram was unfiltered and the code filtered it; the test caught the contradiction and the code
+was changed to match the intent.)
+
+Age is measured from the ride's **departure time**, not from the escrow receipt - escrow is not stuck the
+moment a booking is made, it is stuck relative to a departure that has passed. A ride with no
+`departure_time` falls back to the receipt timestamp and is flagged in the output rather than dropped.
+
+### Verification
+
+`tests/Feature/Review/RV10StuckEscrowReportTest.php` - **10 tests / 32 assertions, OK.** Covers: money still
+in SyCash is reported; money already out is not; **a refund with no release leg is not reported**; a no-show
+settlement is not; a partially settled booking reports only the difference; the passenger's own wallet leg is
+ignored; **the command moves no money** (wallet rows, balances and ledger rows all compared before/after);
+the histogram is printed; `--min-age-hours` narrows the summary but not the histogram.
+
+**Needle** - swap the money correlation for the type-name correlation the design rejects:
+
+| | result |
+|---|---|
+| `SUM(CASE WHEN type = 'escrow_received' THEN amount ELSE 0 END)` as net | **5 tests fail**: paid-out, **refund with no release leg**, no-show, partial settlement, passenger-wallet leg |
+
+The refund case is the one the design exists for: under a type-name correlation, every refunded and
+no-show-settled booking is reported as stuck forever. Restore SHA256-proven, back to OK.
+
+**First needle attempt was inconclusive and is recorded as such** - PowerShell quoting emitted `''escrow_received''`,
+which PHP parses as a bare constant, so all 10 tests *errored* rather than passing or failing. Errors are not
+a result. Redone with a `php -l` gate before running, which is now part of the needle procedure.
+
+**Bisect:** 307 tests / 13 failures at baseline -> **317 tests, the same 13 failures, zero new, zero
+disappeared.** The 13 are pre-existing and unchanged: 9 `AdminDashboardControllerTest` + 3 `WalletTest`
+(OTP testing-mode) + the `controllers_to_models` 21-vs-20 baseline proposal.
+
+### A dead path removed rather than fake-tested
+
+The first draft handled legs whose balance columns were NULL. Writing that test **proved impossible**:
+`previous_balance` is NOT NULL in the schema (`Integrity constraint violation: 1048`). Since the design's
+correctness depends on those columns always being present, that branch could never run - so it was deleted,
+and a test now pins the NOT NULL constraint itself and fails loudly if a future migration relaxes it.
+
+### State of the row
+
+`PARTIAL`. The reporter is done. The remaining work is (a) **the owner runs it against production and names
+W from the histogram** - now a single read rather than a guess - and (b) the staff-queue escalation half,
+which is then ordinary code with a named window. Row 37's gate cell rewritten, since the old text pointed at
+two rows that are already closed.
+
+### Found along the way, filed rather than fixed: `RideFactory` is unusable
+
+`database/factories/RideFactory.php:19` writes `pickup_location` with `DB::raw("ST_GeomFromText(...)")`, which
+is a `Query\Expression`, but `Ride::setPickupLocationAttribute(array $coords)` type-hints `array`. **Every**
+`Ride::factory()->create()` dies with a `TypeError`. No test calls it, so nothing fails today - and
+`RV11RideCountTest:350` already avoids it *in a comment*, which is how this stayed invisible. Filed as **row
+113 / AF-13** rather than fixed inside RV-10, because it is a shared kernel file and a different problem.
+
+Nothing pushed.
