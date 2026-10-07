@@ -7990,3 +7990,59 @@ completion rule forbids. Re-scoped with the fresh measurement and a suggested fi
 - **Retracted:** a fail-open hypothesis that a 5-second read of line 87 disproved.
 
 Nothing pushed.
+## 94. RV-19: V8 is discharged, item 4 is done, and the remainder is exactly ONE owner sentence - **no code changed**
+
+Following `sec 93`, the one gate I had not yet checked.
+
+### V8 - DISCHARGED, and the "revenue reads 0" symptom is gone
+
+V8 asked *"does `config/system_admin.php` exist?"* and recorded *"file missing, so revenue reads 0"*.
+The file indeed never existed - but the key is not missing, it **moved**:
+
+```php
+// config/admin.php
+'system_admin' => ['phone' => env('ADMIN_WALLET_PHONE', '0912345678'), 'wallet_prefix' => 'ADM'],
+```
+
+`env(...)` with a **non-empty default**, so `config('admin.system_admin.phone')` resolves. V8's symptom
+cannot occur. The gate was discharged by a restructure nobody went back to record.
+
+### Item 4 (D4 = B) - DONE
+
+`UserObserver:33` sets `'rating' => 3.0` at user creation, which is exactly what the owner asked for
+("rating 3 at SIGNUP, not in verification approval").
+
+### Item 2 (D5 = C) - the whole remainder, and it is one sentence from the owner
+
+The spec, recovered from STATE.md: *"Add TWO clearly-named fields (ledger earnings + estimated gross)
+and keep `total_earnings` as an ALIAS so the admin front-end does not break."*
+
+Today there is one field, and it is the thing this row is named for:
+
+```php
+// AdminDriverService:335
+$totalEarnings = Booking::join('rides', ...)
+    ->where('rides.driver_id', $driverId)
+    ->where('bookings.status', 'completed')
+    ->selectRaw('SUM(bookings.seats * rides.price_per_seat * ?) as total',
+                [(float) config('fees.driver_share_rate', 0.95)])
+    ->value('total') ?? 0.0;
+```
+
+That is a **derived estimate**, recomputed live from the CURRENT `rides.price_per_seat` - it is not the
+money the driver actually earned, it does not read `ledger_entries`, and it silently diverges from
+reality if a ride's price is edited after booking. Presenting it as `total_earnings` is precisely
+"a fake or derived number in admin".
+
+**Why I stopped instead of building it.** The decision names the fields but not their sources.
+Choosing the ledger as the authoritative earnings figure is a **money-semantics** decision, and adding
+two fields to this response is a **public API shape** change - the two categories `AGENTS.md` reserves
+for the owner outright. Guessing here could make an admin dashboard quote real money wrongly, which is
+strictly worse than leaving the row open.
+
+**The question, so it can be answered in one word:** should `ledger_earnings` read from
+`ledger_entries` (which RV-21 already builds and reconciles), with today's derived value relabelled
+`estimated_gross`, and `total_earnings` kept as an alias of `ledger_earnings`? **Yes** and it is a
+two-line change plus tests.
+
+Nothing pushed.
