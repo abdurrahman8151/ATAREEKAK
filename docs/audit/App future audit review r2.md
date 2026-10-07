@@ -8218,3 +8218,75 @@ cross-reference inside a 700-line audit-driven comment block, unrelated to this 
 folding into an unrelated diff.
 
 Nothing pushed.
+## 97. RV-01: correcting my own error, and the documented storage switch turns out to be UNSAFE today - **VERIFIED FIX (the move tool)**
+
+Owner picked four items from "actions only you can take". Three genuinely need something only the owner
+has. This one turned out to be a code deliverable - but not the one I said.
+
+### CORRECTION: decision 1b was already implemented, and I said it was not
+
+My pending list told the owner to *"approve a staff-authenticated document route so KYC files can leave
+the public disk (decision 1b)"*. **That was wrong.** `routes/api.php:419-425` already serves documents
+only to authenticated staff behind the `staff` gate, shipped in `066b1dd`/`b4885d8`, and
+`StaffDocumentController`'s own header explains the IDOR it closes. **There was nothing to approve.**
+Checking the row's Evidence cell (`R2 sec 46 (1b: staff streaming route) 066b1dd/b4885d8`) before writing
+code is what caught it - the same rule that has now caught three stale claims this session.
+
+What actually remained was the **action gate**: *"old public URLs still resolve until the files move."*
+A data move, for which no tool existed.
+
+### The hazard found while building it: the documented switch is currently UNSAFE
+
+`config/filesystems.php:114` documents setting `DOCUMENTS_DISK=minio` as *"the one-line deploy change that
+moves identity documents off the public disk"*. But `StaffDocumentController:85` reads through the same
+key:
+
+```php
+$disk = Storage::disk(config('filesystems.documents_disk', 'public'));
+if (! $disk->exists($photo->path)) { return response()->json([...], 404); }
+```
+
+So flipping that env var **without moving the bytes first** makes `$disk->exists()` false for every
+existing row: **every staff KYC view 404s at once.** The switch the config file recommends would take the
+verification queue down. That is the real reason the move has to happen first, and it is now written down
+where the next person will hit it.
+
+### `kyc:migrate-disk`
+
+Copy, **verify the size**, **then** delete the source - in that order. The ordering is the whole design:
+a half-finished move can leave a duplicate (recoverable) but can never destroy an identity document.
+Alongside it: idempotent (a path already on the target is skipped, so a re-run after an interruption
+converges), `--dry-run`, and a `photos` row whose file is on neither disk is **reported and left
+completely alone** rather than tidied away.
+
+Scope is the `photos` table only - KYC identity documents, the rows with a privacy problem and the rows
+this controller serves. Profile photos, chat images and complaint attachments live on `uploads_disk` and
+belong to AF-5.
+
+### Verification
+
+`tests/Feature/Review/RV01KycDiskMigrationTest.php` - **8 tests / 29 assertions, OK.** Covers: bytes land
+on the target and the row is NOT rewritten (the path is disk-agnostic by design); the source is deleted so
+the old public URL stops resolving; idempotence; dry run moves nothing in either direction; a
+missing-file row survives; same-disk and undefined-disk runs refuse before touching anything; all four
+KYC types migrate, not just `face_id`; an empty table is a no-op.
+
+**Two needles, because the failure mode here is irreversible.**
+
+| needle | result |
+|---|---|
+| remove the source delete | **2 tests fail** - the old public URL would keep resolving, which is the privacy property this row exists to close |
+| force the size check to always mismatch (simulated truncated copy) | **3 tests fail** - verification genuinely gates the delete, so a truncated copy cannot destroy a document |
+
+Both restores SHA256-proven. **Floor bisect:** 131 tests / 10 failures at baseline -> 139 tests with the
+change, the **same 10 failures**, zero new. (9 `AdminDashboardControllerTest` + the known
+`controllers_to_models` 21-vs-20 proposal.) `php -l` both files; `pint --test` PASS after fixing
+`fully_qualified_strict_types` and `ordered_imports`.
+
+### State of the row
+
+**The tool is done. Nothing else is code.** The remaining four steps are all owner actions: create the
+MinIO bucket, run `--dry-run`, run it live, set `DOCUMENTS_DISK`. RV-01 stays `PARTIAL` because until
+those run, the old URLs still resolve - which is the honest state, not a hedge.
+
+Nothing pushed.
