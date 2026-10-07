@@ -7470,3 +7470,63 @@ no booking row**, so routing through the strategy did not reintroduce a swallow)
 
 RV-20 stays **PARTIAL**: charge and completion are wired, **refund is not, and is blocked on an
 interface design decision from the owner**. Nothing pushed.
+
+## 87. RV-20 - the SET-LEVEL refund semantics are now pinned, so the pending decision is safe - **tests only, no production code changed**
+
+Not a BACKLOG row. This is supporting work for the decision `sec 86` left open, and it is
+**decision-free**: it asserts what the code already does, and changes nothing.
+
+### WHY
+
+`sec 86` established that the refund half is not a wiring change but an interface design decision,
+and that decision has not been made. **A decision not yet made is a reason to pin the current
+behaviour, not a reason to leave it implicit.**
+
+Checking what was already pinned, the gap was exactly where it mattered. The only guard test -
+`WalletTransactionServiceTest::test_refund_passengers_throws_when_sycash_insufficient_balance` -
+uses a **single booking**. So **nothing in the suite would have noticed** if someone rewired the
+refund through `processRefund` one booking at a time, which is precisely the change that must not be
+made by accident. The half-refunded cancellation would have shipped green.
+
+### WHAT WAS ADDED
+
+NEW `tests/Feature/Review/RV20SetLevelRefundSemanticsTest.php` - 3 tests, 14 assertions, pinning the
+three properties that per-booking wiring destroys:
+
+| Property | Test |
+|---|---|
+| the **aggregate** sufficiency check - a set needing 200 from a SyCash holding 150 is refused with **zero** balance movement and **zero** rows written | `a_set_whose_total_exceeds_sycash_is_refused_before_any_money_moves` |
+| **set-scoped idempotency** - replaying the same set is refused, nothing moves twice | `a_second_refund_of_the_same_set_is_refused` |
+| **one** SyCash row for the whole set carrying the **combined** total (2x100 + 3x100 = 500), plus one row per passenger | `the_set_writes_one_sycash_row_and_one_row_per_passenger` |
+
+The first test is the one that matters most: it is exactly the case a per-booking loop gets wrong.
+Booking 1 would be refunded, booking 2 would then fail, and the cancellation would be left HALF
+REFUNDED. The set-level check refuses the whole thing before any money moves.
+
+Test 2 uses `try`/`catch` rather than `expectException` **on purpose** - the "nothing moved twice"
+assertions would have been unreachable dead code after `expectException` throws.
+
+### VERIFICATION - BOTH GUARDS NEEDLE-PROVEN, AND THE FIRST NEEDLE WAS CONTAMINATED
+
+- **N1** - make the guard see one booking instead of the set
+  (`$bookings->sum(...)` -> `$bookings->first()->seats * ...`, i.e. exactly the information loss
+  per-booking wiring causes): **all 3 tests fail or error.**
+- **N2** - delete `assertPostingKeyUnused($escrowOutKey)`: reported first as breaking all 3 tests,
+  **which was contaminated** - it had been applied on top of N1 rather than to the clean file. Redone
+  alone: **exactly 1 test fails**, the idempotency one. Recorded rather than quietly re-run, because
+  the contaminated run is the kind of result that gets quoted as proof.
+
+Both restores byte-identical, SHA256 verified, `php -l` clean, Pint clean.
+
+### REGRESSION
+
+No production file changed, so no bisect is warranted; `git diff -- app/` confirms it (the
+`RideController.php` entry there is the owner's uncommitted RV-38 work, untouched). Area floor +
+`tests/Feature/Review`: **652 tests / 11 failures**, i.e. the previous 649/11 plus these 3 green
+tests, with the same 11 pre-existing failures.
+
+### STATE
+
+Nothing changed for the owner to decide - the decision is simply better informed now. RV-20's refund
+half remains **blocked on the interface choice** (split the method, or re-shape to
+`(Ride, Collection, reason)`). Nothing pushed.
