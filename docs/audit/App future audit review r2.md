@@ -10939,5 +10939,91 @@ ruling. The rest are a real systemic finding and belong to their own row, not to
   and went red the instant the catch stopped swallowing.
 - Money assertions around the changed tests were left untouched and still hold (driver paid once,
   exactly one `ride_earning` and one `escrow_release` ledger row).
+---
 
-**Next audit section number: 134.**
+## 134. V6, V13, V14 closed - and a hermeticity violation this agent had introduced
+
+**Rows 6, 13, 14 -> SUPERSEDED. New row 120 (RV-45, P1, OPEN) files the systemic 5xx finding.**
+Plus one repair: `TestDeterminismRatchetTest` was red, and the cause was this agent's own V2 test.
+
+### The three RECORDED rows
+
+**V6 (CI pinned to sqlite).** Resolved by RV-18. The committed `phpunit.xml` really does pin
+`DB_CONNECTION=sqlite` via `<env>` **without `force`** - the half of the finding that was true.
+The fix is at the level that can actually win: `sonar.yml` provisions a `mysql:8.0` service and
+sets `DB_CONNECTION=mysql` in the job's `env:`. PHPUnit does not overwrite an already-set
+variable, and Laravel's Dotenv repository is immutable, so neither `phpunit.xml` nor `.env` can
+undo it. `CI_REQUIRE_MYSQL=1` arms `CiMySqlDriverTest`, which fails the job red on the wrong
+driver and refuses to let money/geo suites skip quietly. Verified here: 2 tests / 10 assertions
+green. The recorded needle (re-injecting the sqlite leak) goes red. `T3-11` had also removed the
+`|| true` that used to discard the suite's failures.
+
+**V13 (suite with network blocked).** Resolved for the environment half: all five
+`TestDeterminismRatchetTest` invariants green - no process-environment writes, no real mailer, the
+test environment cannot reach the network, every DB-writing class is transactional, no test writes
+a tracked file.
+
+**V14 (order-dependence).** Resolved by RV-37, and better than asked: order-independence was
+demonstrated across **five** distinct orders, not the three the acceptance criteria required.
+`sonar.yml` re-runs the suite with `--order-by=random --random-order-seed=$(date +%s)` and echoes
+the seed, placed after the coverage upload, with no `|| true` and no `if: always()` - so it can
+neither mask failures nor suppress the artifact.
+
+### The part worth reading: this agent broke the ratchet
+
+Running `TestDeterminismRatchetTest` for V13 turned up a red invariant nobody had reported:
+
+    Every test class that writes to the database is transactional
+    RV-37 ratchet: ... tests/Feature/Review/V2SridAlterSafetyTest.php writes to the database
+    (DB::statement) without RefreshDatabase|DatabaseTransactions|...
+
+That is the `V2SridAlterSafetyTest` written earlier in this same sweep for V2. Its own docblock
+argued it did not need a transactional trait because it only ever creates and drops its own
+scratch table. That argument is not something the ratchet can verify, and **an unverifiable
+exemption is how a hermeticity rule quietly stops meaning anything.** A class that calls
+`DB::statement` without a transactional trait is exactly the shape that leaks committed rows into
+every later test in the process - the failure mode V14 measured.
+
+Fixed by adding `DatabaseTransactions`. The scratch table's DDL still commits implicitly, but
+every inserted row now rolls back, and `tearDown` drops the table. This is a real improvement to
+that test, not a way of satisfying a check: `RefreshDatabase` remains deliberately excluded,
+because migrating an empty schema is precisely what made the original V2 tests unable to see a
+migration that damages pre-existing rows.
+
+The lesson is recorded rather than just fixed: **an exemption asserted in a docblock is not an
+exemption the project can hold you to.** The ratchet found a violation three commits after it was
+written, in code written by the same agent that wrote the ratchet's own premise.
+
+Also worth recording as a process failure: an earlier probe using the glob `tests\**\*.php`
+reported "0 putenv leaks". PowerShell does not recurse that pattern, so the count was a **false
+zero** - the real figure is 27 call sites across 9 files. The zero was re-derived with
+`Get-ChildItem -Recurse` before any claim was made from it.
+
+### RV-45 (row 120, OPEN, P1) - the systemic finding, measured not fixed
+
+While checking V6 I counted, correctly this time:
+
+| | count |
+|---|---|
+| `catch (\Throwable)` blocks in `app/Http/Controllers` | **46** |
+| ...wrapping a service call, so able to swallow domain errors | **36** |
+
+By controller: `RideController` 26 (23 wrapping a service), `EmployeeManagementController` 6,
+`SignupController` 3, `AdminWalletRequestController` 3, `VerificationController` 2, plus five
+others with 1-2 each. Some are money-adjacent.
+
+The owner ruled RV-44 "this endpoint only", so this is filed rather than swept. It is the largest
+unfixed finding in the table and it is a systemic API-correctness problem, not a style issue: on
+those endpoints a validation or rule refusal is still reported to the client as a server fault,
+and RV-13's error model is bypassed one layer up. **Blocked on an owner decision about sweep
+scope**, not on any missing information.
+
+### Verified
+
+- `TestDeterminismRatchetTest` + `V2SridAlterSafetyTest` + `V2SpatialIndexTest` +
+  `CiMySqlDriverTest`: **14 tests, 35 assertions**, green (was 1 failure before the repair).
+- Scratch table `zz_v2_srid_probe` confirmed absent after the run (0 matching tables in
+  `information_schema`), so the repair leaves nothing behind.
+- Pint clean; `php -l` clean.
+
+**Next audit section number: 135.**

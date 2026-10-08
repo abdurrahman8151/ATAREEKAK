@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Review;
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -22,9 +23,19 @@ use Tests\TestCase;
  * It needs no RefreshDatabase because it only ever creates and drops its own scratch table — and
  * it must not use one, because DDL in MySQL commits implicitly and would break the surrounding
  * test's transaction.
+ *
+ * It DOES use DatabaseTransactions (RV-37's hermeticity ratchet requires it): the scratch table's
+ * DDL still commits implicitly, but every row the test inserts is rolled back, and the table
+ * itself is dropped in tearDown. The ratchet flags any class that calls DB::statement without a
+ * transactional trait because such rows leak into every later test in the same process — the
+ * committed-leak order dependence recorded in R2 section 23.6. Leaving this class out of that
+ * ratchet was a real violation, found by running TestDeterminismRatchetTest, not an argument that
+ * the rule does not apply here.
  */
 class V2SridAlterSafetyTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private const PROBE_TABLE = 'zz_v2_srid_probe';
 
     protected function setUp(): void
