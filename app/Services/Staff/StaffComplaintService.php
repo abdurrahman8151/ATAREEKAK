@@ -28,10 +28,10 @@ final class StaffComplaintService
      * Escalated complaints are deliberately excluded (they belong to admin now).
      */
     public function listAll(
-        ?string $status,
-        ?string $type,
-        ?string $date,
-        ?int $userId,
+        ?string $status = null,
+        ?string $type = null,
+        ?string $date = null,
+        ?int $userId = null,
         int $perPage = 15,
         int $page = 1,
     ): LengthAwarePaginator {
@@ -72,9 +72,9 @@ final class StaffComplaintService
      * @param  string|null  $status  further filter (resolved|closed) for history
      */
     public function listEscalated(
-        ?string $status,
-        ?string $type,
-        ?string $date,
+        ?string $status = null,
+        ?string $type = null,
+        ?string $date = null,
         int $perPage = 15,
         int $page = 1,
     ): LengthAwarePaginator {

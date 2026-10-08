@@ -11239,5 +11239,26 @@ because the visible symptom was arithmetic.
   `ImageMessageType` undefined key 4, misc 7.
 - RV-48 (row 123) filed: the 3.0 signup rating averaged into `average_rating`.
 - Probe deleted; `git status` clean apart from the owner's `phpunit.xml`.
+---
 
-**Next audit section number: 138.**
+## 138. RV-47 signature-drift group fixed; the resolution-note mismatch split out
+
+**Terminal state for this cause: VERIFIED FIX.** Problem: `StaffComplaintService::listAll()` and `listEscalated()` declared their filter parameters as required, but the test suite calls them with no arguments or named arguments only. The app callers already pass every argument by name, so this is test-vs-code drift, not a behaviour defect.
+
+**Fix:** the four leading filters on `listAll()` and the three on `listEscalated()` become optional with `null` defaults (`app/Services/Staff/StaffComplaintService.php`, 7 lines changed). No response shape, no money, no auth, no route, no schema change.
+
+**Verification:**
+- `php -l` clean on the changed file.
+- `php vendor/bin/pint --test` on the changed file: PASS.
+- `tests/Unit/Services/Staff/StaffComplaintServiceTest.php`: 45 tests, 53 assertions, 1 failure (was 20 errors); the 19 signature errors are gone.
+- `tests/Feature/Staff` floor: 233 tests, 555 assertions, OK.
+- Only reference to `StaffComplaintService` in tests is the unit file above.
+- `git diff --stat` shows the service file only, apart from the owner's `phpunit.xml`, which is not committed.
+
+**Split out, not fixed:** `test_resolve_escalated_persists_resolution_notes` asserts the stored note equals the admin text exactly. The service appends a `[RESOLVED by ... at ...]` audit prefix on purpose. That is a different behaviour from the drift above, so it is filed as RV-49 (row 124, OPEN, owner decision). Making it pass requires either editing the test expectation or removing the audit prefix, and neither is mine to choose.
+
+**Still open under RV-47 (row 122):** `GeocodingServiceTest` 13 (incl. `PendingRequest::throw()` API misuse), `AdminWalletService` missing External Capital wallet seed 4, `ImageMessageType` undefined key 4, misc 7.
+
+**Not done here:** the `## In progress` block at the top of STATE.md (line 11) still holds stale RV-14 notes from an earlier session. It belongs to the owner's uncommitted RV-38 work and was not cleared, so no in-progress entry is recorded for this task.
+
+**Next audit section number: 139.**
