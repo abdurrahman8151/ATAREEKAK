@@ -9556,3 +9556,91 @@ defect unrepaired is a partial fix. The table's shape is now pinned by a test.
 
 **The rule now returns nothing, and this time that is a fact rather than a misreading**: the four
 remaining `OPEN` rows are T3-10, T4-9, RV-04b and RV-04c, and every one names an owner decision.
+
+## 114. AF-6 criterion 3: `ledger:reconcile` had never been shown to DETECT anything
+
+`sec 112` re-measured AF-6 against its own acceptance criteria and left one clause standing as **NOT
+PROVEN**: *"reports a real mismatch when one is injected"*. The only test touching the command asserted a
+clean run exits 0, and a grep of `tests/` for the report strings returned nothing.
+
+That gap is worth more than its size. The command is scheduled **daily at 04:30** (`Kernel:84`) and its
+entire reason for existing is to notice that a money path moved a balance without recording the legs that
+explain it. Until a test injects that fault and watches the command catch it, "the ledger is reconciled"
+is a claim the suite has never actually checked.
+
+This is the one AF-6 item that is **not** behind the signed-money owner decision, so it was taken.
+
+### What was built
+
+New `tests/Feature/Review/LedgerReconcileDetectsDriftTest.php` - **8 tests, 25 assertions**.
+
+**Why the fault is injected the way it is.** `LedgerService::postTransfer` refuses legs that do not sum to
+zero, so the realistic fault is not "a bad leg" - it is a `wallet_transactions` row with **no legs at all**,
+which is exactly what an unconverted money path looks like from the reconciler's side. It is also the only
+shape that leaves the system-level conservation check green, so these tests pin the **per-wallet** path
+rather than tripping the coarser guard. `test_an_unexplained_wallet_does_not_pretend_the_system_is_unbalanced`
+asserts that separation directly.
+
+What the file pins:
+
+| test | what it holds |
+|---|---|
+| `clean_data_is_reported_as_fully_explained` | the baseline - quiet on healthy data, so the drift tests cannot pass by "it printed something" |
+| `a_balance_moved_without_legs_is_reported` | **the criterion itself** - an unledgered movement is reported |
+| `the_drift_report_names_the_wallet` | the operator is told *which* wallet |
+| `the_drift_report_quantifies_the_drift` | *how much*, including the sign |
+| `an_unexplained_wallet_does_not_pretend_the_system_is_unbalanced` | per-wallet drift does not masquerade as a conservation failure |
+| `drift_at_the_default_tolerance_is_tolerated_and_a_cent_more_is_not` | the `--threshold` boundary, at the cent |
+| `a_threshold_raised_above_the_drift_hides_it` | `--threshold` is not a mute button |
+| `drift_smaller_than_a_cent_is_invisible_even_at_a_zero_threshold` | sub-cent drift is unreachable by design |
+
+### Three assumptions of mine that measurement refuted
+
+Recorded because each one cost real time and each would have shipped a fake-green test.
+
+1. **`--threshold 0.0` would surface everything.** It does not. `ReconcileLedgerCommand:76` rounds the
+   drift to 2dp *before* comparing, so sub-cent drift is invisible at **any** threshold. That is correct
+   for this schema - every `amount` column is `decimal(15,2)` (RV-40), so sub-cent drift cannot be built
+   by a real bug - but it is now pinned so the next person does not rediscover it.
+2. **The threshold should be probed at sub-cent scale.** Pinned at the cent instead, which is the scale
+   money exists at: drift equal to the tolerance is within tolerance; twice it is not.
+3. **Two `expectsOutputToContain` values can both be satisfied.** They cannot, when they live on the same
+   output line. `PendingCommand` registers each as a separate Mockery expectation on
+   `BufferedOutput::doWrite` (`PendingCommand:423-431`), and Mockery attributes one `doWrite` call to ONE
+   expectation - so the second is reported missing even though the command printed it. Measured, not
+   assumed: with a probe, all five candidate strings (`-777.00`, `drift`, `drift -777.00 SYP`, `777`,
+   `wallet_transactions`) matched **on their own**, and the wallet+amount pair failed only when chained.
+   The two assertions are now one per test.
+
+A fourth detour is worth naming: `Artisan::output()` returns an **empty string** in this harness, and
+`Kernel::call` with a `BufferedOutput` returned the full report for the drift path but nothing for the
+clean path. The console's own reporting path was used instead, which is order-independent - the clean-data
+test passes in isolation and in the full file.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` | no syntax errors |
+| `pint --test` | PASS |
+| new test file alone | **OK - 8 tests, 25 assertions** |
+| clean-data test **in isolation** (order independence) | OK - 4 assertions |
+| **NEEDLE** - `abs($drift) <= $threshold \|\| true`, i.e. drift can never be reported | **6 of 8 tests FAIL** |
+| ...which 2 survived, and why that is correct | the two **negative controls** - clean data, and sub-cent invisibility. Both should still pass. |
+| restore after the needle | `ReconcileLedgerCommand.php` SHA256-identical (`CDE229F8...`) |
+| money floor `Wallet` + `Payment` + `Unit/Domain` + `DoubleEntryLedgerTest` + new file + `BoundaryDependencyTest` | **199 tests, 318 assertions, 3 failures** |
+| the 3 failures | `test_can_create_wallet_after_otp_verification`, `test_initiate_fails_with_wrong_password`, `test_initiate_returns_otp_in_testing_mode` - the same `tests/Feature/Wallet/WalletTest.php` OTP baseline items proven pre-existing at `sec 112`. **Zero new failures.** |
+
+The needle is the important row: a test that cannot fail when detection is switched off proves nothing,
+and here the positive controls all failed while the negative controls stayed green.
+
+### What this does NOT do
+
+The exit code on per-wallet drift is still `SUCCESS`, and that stays as it is - it is owner call (a) at
+`sec 112`, and this task exists to give the owner the evidence for it rather than to pre-empt it. With
+every money path now ledgered, warning-and-returning-success has no defence left, but whether a daily job
+should fail the schedule is an alerting decision.
+
+**AF-6 remains `PARTIAL`.** Criterion 1 (the `Money` sweep) is still gated on the signed-money design call,
+and RV-10 is still `BLOCKED` on the owner window W. What changed is that criterion 3 is no longer
+unproven - it is now demonstrated, not asserted.
