@@ -8676,7 +8676,7 @@ outage), and `--to` is intentionally NOT passed so the destination follows `DOCU
 **RV-01 is now VERIFIED FIX with no owner action remaining.** AF-5 narrows to an optional scaling step: no
 privacy requirement depends on MinIO any more, so the bucket is no longer a gate.
 
-### RV-34 (P0, new): `read.port` was an ARRAY, breaking every read in production
+### RV-41 (P0, new): `read.port` was an ARRAY, breaking every read in production
 
 Running `kyc:migrate-disk --dry-run` - the first thing in this application that issues a SELECT before any
 write - failed:
@@ -8910,3 +8910,62 @@ then.
 - `SharedTestSupportTest::test_system_wallets_are_seeded_by_phone_and_are_idempotent`
 
 Nothing pushed.
+## 106. RV-34: the shared test-support layer's own test asserted a stale wallet count - and a duplicate ID of mine
+
+### The stale assertion
+
+`SharedTestSupportTest::test_system_wallets_are_seeded_by_phone_and_are_idempotent` asserted
+`Wallet::whereNull('user_id')->count() === 2`. It got **3**.
+
+That is not a product bug. `Tests\Support\Concerns\SeedsSystemWallets::seedSystemWallets()` returns **three**
+wallets - primary, sycash, and the EXTERNAL capital account added by **decision un3** (owner choice (a)).
+The trait's own comment gives the reason: `AdminWalletService::chargeWallet` *fails loudly* without it,
+because "a ledger that cannot record money entering the platform is not a closed ledger". The test was left
+behind by that decision, not weakened by it.
+
+The assertion is now **derived from the trait's own return value** (`assertCount(3, $wallets)`) rather than
+hard-coded, so the next system wallet cannot silently re-break that line the same way - which is precisely
+how it broke here. It also now asserts the external wallet's phone against
+`config('admin.external.phone')`, which the old version never checked. Idempotency (seed twice, no
+duplicates) is still asserted and still passes.
+
+No production code changed, so there is no needle to run here and none is claimed: the verification is that
+`tests/Feature/Review` went from 2 failures to 1, and the corrected assertions are strictly stronger than the
+ones they replace.
+
+### A duplicate ID I introduced, found and corrected
+
+While identifying this row I checked the IDs and found that **sec 102's new row 114 reused `RV-34`, which was
+already in use at row 24** ("Shared test-support layer"). That was my error, made when I named the P0
+replica-port bug. Row 114 has been renamed **`RV-41`**, and the audit record and STATE entry updated to
+match. The table now has no duplicate IDs (verified: RV-1..RV-41, all unique) and row 24 is untouched.
+
+The general lesson, already paid for once this session in `sec 100`: a new row must be checked against the
+existing ID set before it is written, not after.
+
+### Progress
+
+`tests/Feature/Review`: **5 -> 4 -> 2 -> 1 failure** across secs 103-106.
+
+### The one that remains needs an owner-owned file
+
+`KycActionGateTest::an_unverified_user_cannot_book_a_ride` fails because the refusal is *correct* but
+*generic*:
+
+```
+testing.ERROR: RideController: request failed {"error":"You must be verified as a passenger to book rides"}
+the refusal must be the VERIFICATION gate, not a validation error - decision 11
+Failed asserting that 'the request could not be completed. please try again.' contains "verified"
+```
+
+`RideController::book` logs the real reason and then returns the generic
+`'The request could not be completed. Please try again.'`, which appears 12 times in that file. The test
+requires the specific message because of **owner decision 11**.
+
+I verified this is **pre-existing**, not collateral damage from the owner's uncommitted RV-38 edits: the
+generic string is present at the same twelve places in `git show HEAD:...RideController.php` as in the working
+copy - the edits only shifted line numbers by four.
+
+The fix requires editing `app/Http/Controllers/API/RideController.php`, which is **owner-owned with
+uncommitted work** and has been on the never-touch list for this whole audit. So it is reported, not applied.
+Raised with the owner rather than guessed at.

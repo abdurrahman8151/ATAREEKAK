@@ -41,12 +41,27 @@ class SharedTestSupportTest extends TestCase
         $this->assertSame(config('admin.sycash.phone'), $wallets['sycash']->phone_number);
         $this->assertNull($wallets['primary']->user_id, 'system wallets have no user');
         $this->assertNull($wallets['sycash']->user_id);
-        $this->assertSame(2, Wallet::whereNull('user_id')->count());
+        // CORRECTED (R2 sec 106). This asserted 2. `SeedsSystemWallets::seedSystemWallets()`
+        // has seeded THREE system wallets since decision un3 (owner choice (a)) added the EXTERNAL
+        // capital account, because `AdminWalletService::chargeWallet` fails loudly without it -
+        // "a ledger that cannot record money entering the platform is not a closed ledger".
+        // The assertion was left behind by that decision, not weakened by it.
+        //
+        // The count is now derived from the trait's own return value rather than hard-coded, so a
+        // future system wallet cannot silently re-break this line again - which is exactly how it
+        // broke here.
+        $this->assertCount(3, $wallets, 'primary + sycash + external');
+        $this->assertSame(3, Wallet::whereNull('user_id')->count());
+        $this->assertSame(
+            config('admin.external.phone'),
+            $wallets['external']->phone_number,
+            'the EXTERNAL capital account must be seeded too, or the money path throws for the wrong reason'
+        );
 
         // Idempotent: a second call must not create duplicates.
         $again = $this->seedSystemWallets();
         $this->assertSame($wallets['sycash']->id, $again['sycash']->id);
-        $this->assertSame(2, Wallet::whereNull('user_id')->count(), 'seeding twice must not duplicate');
+        $this->assertSame(3, Wallet::whereNull('user_id')->count(), 'seeding twice must not duplicate');
     }
 
     public function test_staff_and_admin_tokens_are_minted_through_the_real_doors(): void
