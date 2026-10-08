@@ -11103,5 +11103,60 @@ fare and false of the fee, which is exactly why the refund tiers matter at all.
 - Pint applied and clean; `php -l` clean.
 - `CashRideFeeServiceTest` left untouched and still red at 5 - its failures are the content of
   RV-46, not a regression from this task.
+---
 
-**Next audit section number: 136.**
+## 136. V15 delivered: the failures fall into six groups, not two
+
+**Row 15 (V15) -> SUPERSEDED** (delivered). **New row 122 (RV-47, P1, OPEN)** holds the unowned
+failures it uncovered.
+
+V15 asked for the suite's errors to be grouped by message so that 320-427 of them could be
+triaged. That has been done - on real data rather than asserted - and the prediction in the
+finding does not hold.
+
+### Why this was worth doing at all
+
+The floors used through this sweep (Rides, Bookings, Unit/Domain) are all green. The suspicion
+that motivated V15 was that green floors were hiding red directories, and that is exactly what
+happened: `tests/Unit/Services`, which **no floor in this sweep ever ran**, holds **67 problems
+across 360 tests** - 39 errors and 28 failures.
+
+```
+Tests: 360, Assertions: 560, Errors: 39, Failures: 28.
+```
+
+### Six root causes, not two
+
+| group | count | signature |
+|---|---|---|
+| `StaffComplaintService` signature drift | 20 | `ArgumentCountError: listAll()/listEscalated() arguments not passed` |
+| `AdminDriverService` aggregates | 14 | `Failed asserting that 0 matches expected 2`, rating averages off |
+| `GeocodingServiceTest` | 13 | `Error`, plus `TypeError: PendingRequest::throw() argument must be ?callable` |
+| `CashRideFeeService` | 5 | the tier divergence, already filed as **RV-46** |
+| `AdminWalletService` | 4 | `RuntimeException: External Capital wallet not found for phone: 0900000042` |
+| `ImageMessageType` | 4 | `ErrorException: Undefined array key "image"` |
+| assorted singletons | 7 | including a `DomainException` vs `RuntimeException` mismatch |
+
+R1 predicted two groups. There are six, and they are **not** one root cause wearing six hats:
+at least two are test-vs-code drift (`StaffComplaintService` signatures, the `DomainException`
+expectation), one is a missing seeder (`External Capital wallet`, the same class of problem as the
+`SystemWalletSeeder` gap fixed elsewhere), one is an HTTP-client API misuse
+(`PendingRequest::throw()`), and one - `AdminDriverService` - is **aggregation correctness and
+cannot be classified without investigation**: `suspended drivers 0 vs expected 2`, `rating 4.0 vs
+5.0`, `average of several ratings 4.0 vs 4.5`. Those are the shape of a real reporting defect,
+not of stale expectations, and they are the ones worth triaging first.
+
+### The grouping is the deliverable, and it is reusable
+
+Nothing new was built to produce this - the same normalisation (strip numbers, group on the first
+message line) answers the question again on any directory. What changed is that the number R1
+carried - an undifferentiated wall of 320-427 - is now six named buckets with counts, and one of
+them is already resolved as RV-46 and three are visibly mechanical.
+
+### Verified
+
+- `tests/Unit/Services`: 360 tests, 560 assertions, 39 errors, 28 failures - the scope finding.
+- `tests/Feature/Rides`: 90 tests, 182 assertions, **0 failures** (from section 135).
+- No app or test files changed by this task; it is measurement and recording.
+
+**Next audit section number: 137.**
