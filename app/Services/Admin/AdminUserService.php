@@ -27,7 +27,9 @@ use Carbon\Carbon;
  * ── Status definitions ──────────────────────────────────────────────────────
  *   verified  = is_verified_driver = 1  OR  is_verified_passenger = 1
  *   pending   = verification_status = 'pending'
- *   suspended = status = 0
+ *   suspended = banned: status = -1 and the ban is not expired
+ *                (RV-42a - it was `status = 0`, which is LOGGED_OUT, so every
+ *                 signed-out and every unbanned account was counted as suspended)
  */
 final class AdminUserService
 {
@@ -96,7 +98,7 @@ final class AdminUserService
             'passengers' => User::where('is_verified_passenger', true)
                 ->where('is_verified_driver', false)
                 ->count(),
-            'suspended_users' => User::where('status', 0)->count(),
+            'suspended_users' => User::bannedNow()->count(),
         ];
     }
 
@@ -160,7 +162,7 @@ final class AdminUserService
 
             'pending' => $query->where('verification_status', 'pending'),
 
-            'suspended' => $query->where('status', 0),
+            'suspended' => $query->bannedNow(),
 
             default => null,   // 'all' — no constraint
         };
@@ -225,7 +227,10 @@ final class AdminUserService
 
     private function resolveUserStatus(User $user): string
     {
-        if ($user->status == 0) {
+        // RV-42a: "suspended" means BANNED (status -1), the same thing
+        // `LoginController:83` refuses login for. It was `status == 0`, which is
+        // LOGGED_OUT - so every signed-out and every unbanned account read as suspended.
+        if ($user->isBannedNow()) {
             return 'suspended';
         }
         if ($user->is_verified_driver) {

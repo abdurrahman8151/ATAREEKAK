@@ -171,7 +171,7 @@ final class StaffOperationsController extends Controller
                     'verification_status' => $user->verification_status,
                     'is_verified_driver' => (bool) $user->is_verified_driver,
                     'is_verified_passenger' => (bool) $user->is_verified_passenger,
-                    'account_status' => $user->status == 1 ? 'active' : 'suspended',
+                    'account_status' => $user->isBannedNow() ? 'suspended' : 'active',
                     'joined_at' => $user->created_at->toIso8601String(),
                     'profile_photo' => $profile->profile_photo
                         ? asset("storage/{$profile->profile_photo}")

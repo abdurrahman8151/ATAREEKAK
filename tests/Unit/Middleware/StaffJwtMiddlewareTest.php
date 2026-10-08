@@ -187,7 +187,7 @@ class StaffJwtMiddlewareTest extends TestCase
     // Refresh token must not be usable as an access token
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public function test_staff_refresh_token_rejected_with_token_type_invalid(): void
+    public function test_staff_refresh_token_rejected(): void
     {
         $loginResponse = $this->postJson('/api/staff/login', [
             'identifier' => 'mw_agent@test.test',
@@ -196,10 +196,15 @@ class StaffJwtMiddlewareTest extends TestCase
 
         $refreshToken = $loginResponse->json('tokens.refresh_token');
 
+        // R2 sec 121 (owner decision 2026-10-12): TOKEN_INVALID is the ratified public code. The old
+        // expectation of TOKEN_TYPE_INVALID was unreachable - the staff refresh token is an opaque
+        // random string, so decodeToken fails first (StaffJwtMiddleware:51 -> :53) and the type check
+        // at :57 is never reached. Renamed off "..._with_token_type_invalid" because the name asserted
+        // a code this endpoint cannot return.
         $this->withToken($refreshToken)
             ->getJson('/api/staff/me')
             ->assertStatus(401)
-            ->assertJsonPath('code', 'TOKEN_TYPE_INVALID');
+            ->assertJsonPath('code', 'TOKEN_INVALID');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

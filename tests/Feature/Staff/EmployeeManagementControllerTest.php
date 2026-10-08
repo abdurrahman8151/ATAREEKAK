@@ -12,16 +12,29 @@ use Tests\TestCase;
 /**
  * EmployeeManagementControllerTest
  *
- * All /api/employees routes require staff:admin,system_admin middleware.
+ * All /api/employees routes require `staff:system_admin` (routes/api.php:495).
  *
  * TWO TOKEN STRATEGIES used here:
- *   1. Admin JWT (system_admin path): obtained from /api/admin/login.
- *      StaffJwtMiddleware::handleAdminToken() grants SYSTEM_ADMIN access.
- *   2. Staff JWT (employee path): obtained from /api/staff/login with
- *      an Employee record that has ADMIN role.
+ *   1. Admin JWT (system_admin path): obtained from /api/admin/login. Both doors mint the SAME
+ *      staff token (EmployeeAuthService:71 -> StaffJwtService::generateTokenPair), so an admin-door
+ *      token is accepted by the staff middleware and vice versa.
+ *   2. Staff JWT (employee path): obtained from /api/staff/login with a named Employee role.
  *
- * Known: system_admin can manage both admin and support_agent employees.
- * Admin employees can only manage support_agent employees.
+ * R2 sec 121 (owner decision 2026-10-12) - THIS CLASS PRE-DATED THREE INDEPENDENT TIGHTENINGS.
+ * They are separate causes, and one "the tests are stale" note would hide two of them:
+ *
+ *   (a) The route guard was `staff:admin,system_admin`; it is now `staff:system_admin` ONLY. The two
+ *       role tests therefore assert the DENIAL (403). That is deliberate: they are the boundary
+ *       test. Re-authenticating them as system_admin would turn them green by DELETING the only
+ *       coverage that an admin-role employee cannot manage employees.
+ *
+ *   (b) `EmployeeManagementService:153` now REQUIRES an email for `support_agent`, because the chat
+ *       bridge matches Employee::email -> User::email and without one ContactController returns 503.
+ *       It throws a DomainException that the controller maps to 403, so a create call omitting email
+ *       fails with 403 BEFORE reaching validation - which is what made (b) look like (a).
+ *
+ *   (c) A duplicate username is a DomainException, mapped to 403 (EmployeeManagementController:101).
+ *       409 is reserved for RuntimeException (line 103), which this path never throws.
  */
 class EmployeeManagementControllerTest extends TestCase
 {
@@ -79,12 +92,14 @@ class EmployeeManagementControllerTest extends TestCase
             ->assertJsonStructure(['data']);
     }
 
-    public function test_staff_admin_can_list_employees(): void
+    public function test_staff_admin_can_no_t_list_employees(): void
     {
+        // R2 sec 121: the route is `staff:system_admin` only, so an ADMIN-role employee is refused.
+        // Asserting the denial is the point - see the class docblock.
         $this->withToken($this->staffToken(null, StaffRole::ADMIN))
             ->getJson('/api/employees')
-            ->assertStatus(200)
-            ->assertJsonPath('status', 'success');
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'FORBIDDEN');
     }
 
     public function test_unauthenticated_cannot_list_employees(): void
@@ -96,9 +111,11 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_system_admin_can_create_support_agent(): void
     {
+        // R2 sec 121: `email` is required for support_agent (EmployeeManagementService:153).
         $this->withToken($this->adminToken())
             ->postJson('/api/employees', [
                 'username' => 'new_agent',
+                'email' => 'new_agent@staff.test',
                 'password' => 'password123',
                 'first_name' => 'New',
                 'last_name' => 'Agent',
@@ -131,14 +148,20 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_store_fails_with_duplicate_username(): void
     {
+        // R2 sec 121: TWO stale expectations here, not one. The email is needed so this reaches
+        // the duplicate check instead of stopping at the support_agent email guard, and the code is
+        // 403 because the duplicate guard throws DomainException, mapped at
+        // EmployeeManagementController:101 (409 is reserved for RuntimeException on line 103).
         $this->withToken($this->adminToken())
             ->postJson('/api/employees', [
                 'username' => 'admin_mgr', // already exists
+                'email' => 'dup@staff.test',
                 'password' => 'password123',
                 'first_name' => 'Dup',
                 'last_name' => 'User',
                 'role' => 'support_agent',
-            ])->assertStatus(409);
+            ])->assertStatus(403)
+            ->assertJsonPath('message', "Username 'admin_mgr' is already taken.");
     }
 
     public function test_store_fails_with_invalid_role(): void
@@ -155,15 +178,20 @@ class EmployeeManagementControllerTest extends TestCase
 
     public function test_admin_employee_cannot_create_system_admin(): void
     {
-        // admin role level < system_admin — forbidden
+        // R2 sec 121: an ADMIN-role employee cannot even reach the handler - the route requires
+        // system_admin, so the answer is 403 FORBIDDEN, not a validation error.
         $this->withToken($this->staffToken(null, StaffRole::ADMIN))
             ->postJson('/api/employees', [
                 'username' => 'new_sysadmin',
+                'email' => 'new_sysadmin@staff.test',
                 'password' => 'password123',
                 'first_name' => 'New',
                 'last_name' => 'SysAdmin',
                 'role' => 'system_admin',
-            ])->assertStatus(422); // DomainException → 403 or 422
+            ])->assertStatus(403)
+            ->assertJsonPath('code', 'FORBIDDEN');
+
+        $this->assertDatabaseMissing('employees', ['username' => 'new_sysadmin']);
     }
 
     // ─── show ──────────────────────────────────────────────────────────────

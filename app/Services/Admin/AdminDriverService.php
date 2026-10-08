@@ -96,7 +96,14 @@ final class AdminDriverService
         // `where('status', 0)` and `resolveDriverStatus()` maps `status == 0` to 'suspended'.
         // The two halves of one screen contradicted each other. Counted the same way the filter
         // counts, so the card and the table can no longer disagree.
-        $suspendedDrivers = User::where('status', 0)->count();
+        //
+        // RV-42a: agreeing with each other was not enough - BOTH halves were wrong about WHICH
+        // accounts were suspended. `status = 0` is LOGGED_OUT (every self-registration starts
+        // there, and `unban()` writes it back), so "suspended" counted every signed-out and every
+        // unbanned driver. "Suspended" is what the user is told when login is refused
+        // (`LoginController:83`, `ACCOUNT_BANNED`), which is `status = -1`. Both halves now go
+        // through `User::bannedNow()`.
+        $suspendedDrivers = User::bannedNow()->count();
 
         $avgRating = UserRating::whereHas(
             'ratedUser',
@@ -145,7 +152,7 @@ final class AdminDriverService
             'verified' => $query->where('is_verified_driver', true),
             'pending' => $query->where('verification_status', 'pending')
                 ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
-            'suspended' => $query->where('status', 0),
+            'suspended' => $query->bannedNow(),
             default => null,
         };
 
@@ -684,7 +691,10 @@ final class AdminDriverService
 
     private function resolveDriverStatus(User $driver): string
     {
-        if ($driver->status == 0) {
+        // RV-42a: "suspended" means BANNED (status -1) - see `User::scopeBannedNow()`.
+        // It was `status == 0`, which is LOGGED_OUT, so every driver who was simply
+        // signed out, or who had been unbanned, read as suspended.
+        if ($driver->isBannedNow()) {
             return 'suspended';
         }
         if ($driver->is_verified_driver) {

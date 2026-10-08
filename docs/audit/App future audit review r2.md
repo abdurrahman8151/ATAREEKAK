@@ -10372,4 +10372,94 @@ built.
 **Not verified by execution** - the finding is static reading of the four sites plus the tests that
 pin the behaviour. No test was run and no database was touched.
 
-**Next audit section number: 123.**
+---
+
+## 123. RV-04b: the 12 red identity tests were six different causes, and the app was right in all of them
+
+**Row 111. Status VERIFIED FIX.** Carried over from a session that was interrupted by the scratch MySQL dying. No new decision was needed - every decision in the In-progress block had already been taken by the owner on 2026-10-12; what was missing was the evidence.
+
+### Controlled bisect (not a guess)
+
+Scoped selection derived from the diff: `tests/Feature/Auth`, `tests/Feature/Staff`, `tests/Feature/Admin`, `tests/Unit/Middleware`, `tests/Feature/AppFuture/BoundaryDependencyTest.php` - **490 tests**.
+
+| | tests | errors | failures |
+|---|---|---|---|
+| at HEAD (all 10 of my files stashed) | 489 | 5 | 16 |
+| with all changes | 490 | 0 | 9 |
+
+- **New failures caused by these changes: NONE.**
+- Fixed by these changes: **12** - the 4 `EmployeeManagementControllerTest` tests, `StaffAdminControllerTest::test_can_approve_passenger_verification`, the 2 middleware token tests, and the 5 `ReviewModerationServiceTest::test_format_*` tests.
+- The extra 1 test in the second row is the new negative test added for the 422.
+
+The 9 that remain are **all in `tests/Feature/Admin/AdminDashboardControllerTest.php` and are pre-existing at HEAD** - they fail identically with the changes stashed. Filed separately as row 118 (RV-43), deliberately not fixed here: one problem at a time.
+
+### Needle (the only app-code change)
+
+`ReviewModerationService::format()` without `loadMissing()` reproduces **10 errors**; with it, 250 tests / 580 assertions are green. Restored and SHA256-verified.
+
+### Why the tests were wrong, in each case
+
+The recurring theme: **the app was tightened and the tests were not updated to match.** Each changed expectation carries a comment naming the app line that justifies it, so the next reader does not have to re-derive it.
+
+1. **Route guard** - `staff:system_admin` only. The tests re-authenticated as a system admin, which would have deleted the only coverage that an admin-role employee cannot manage employees. Now they assert the 403 **denial**.
+2. **Support-agent email** - `EmployeeManagementService:153` requires it; the chat bridge needs `Employee::email`. The 2 create tests must send one.
+3. **Duplicate username** - `DomainException` -> 403 (`EmployeeManagementController:101`); 409 is reserved for `RuntimeException` at `:103`.
+4. **`national_id`** - required at `StaffAdminController:115` and `AdminDashboardController:468`. The test sends one, and a new negative test pins the 422.
+5. **`TOKEN_INVALID` vs `TOKEN_TYPE_INVALID`** - refresh tokens are opaque `Str::random(64)`, so the type branch is unreachable. `TOKEN_INVALID` is the ratified public code.
+
+**Deliberately rejected inference, recorded so it is not retried:** `adminToken()` is not an audience mismatch. `EmployeeAuthService:71` mints the same staff token at both doors, proved with a temporary diagnostic test that was then deleted.
+
+### One correction worth recording
+
+A bisect script destroyed this work once already: `-replace '\\','__'` on forward-slash paths produced a nested destination directory that was never created, so `finally` restored from an empty directory. Two rules came out of it - flat backup filenames, and a per-file SHA256 comparison after every restore. Every restore in this task was SHA256-verified.
+
+---
+
+## 124. RV-42a: "suspended" meant two different things, and one of them was nobody's idea
+
+**Row 117 -> VERIFIED FIX. Row 118 (RV-43) filed.** The owner ruled on 2026-10-12 that "suspended" means BANNED.
+
+### What was wrong
+
+`LoginController:83` refuses login when `isBannedNow()` - `status = -1` - and returns `ACCOUNT_BANNED` with the message *"Your account has been suspended"*. **So to a user, suspended already meant banned.**
+
+Meanwhile:
+
+- `AdminUserService:99` and `AdminDriverService:99` counted `status = 0`, and `:163`/`:148` filtered on it. But `0` is `AccountStatus::LOGGED_OUT` - what every self-registration starts as (`SignupController:144`) and what `BanService::unban()` deliberately writes back (`BanService:86`, *"returns to LOGGED_OUT (not ACTIVE)"*).
+- `StaffOperationsController:174` rendered `status == 1 ? 'active' : 'suspended'`, labelling every **banned** account suspended.
+
+Three surfaces, one word, three different populations. `7ab1eff` widened it: before that commit `createUser` hardcoded `status => 1`, so no self-registered account was ever counted.
+
+### The fix
+
+A new `User::scopeBannedNow()` is the **SQL twin** of `isBannedNow()`, so a count or a list cannot drift from the single-row answer, and all seven readers now use one or the other.
+
+The subtle part: `ban_type` is a **nullable enum** and `ban_expires_at` is nullable (add-ban-fields migration). So a plain `ban_expires_at > now()` would wrongly expire a NULL, and SQL `ban_type != 'temporary'` is not true for NULL either. The scope mirrors `banHasExpired()` exactly, including both NULLs. `test_a_temporary_ban_with_a_null_expiry_is_still_in_force` exists to pin that.
+
+### Verification
+
+`tests/Feature/Review/RV42aSuspendedMeansBannedTest.php` - **8 tests, 22 assertions, all passing.**
+
+- `test_the_query_scope_agrees_with_is_banned_now_row_for_row` compares the scope against `isBannedNow()` for each of four states (logged out, permanent ban, live temporary ban, expired temporary ban). This is the test that would have caught the original bug.
+- **Needle 1:** scope reverted to `status = 0` -> 2 failures.
+- **Needle 2:** the three label sites reverted to `status == 0` -> 1 failure. It was needled separately because they do not go through the scope.
+- Both restores SHA256-verified.
+- The staff test **hits the real endpoint** `/api/staff/users/{id}`; it does not skip.
+
+**A tautological test was written first and caught.** It compared `isBannedNow() ? 'a' : 'b'` with itself, so it could never fail. It was replaced with one that exercises the endpoint - the third time that failure mode has appeared (`R2 sec 119`, `120`).
+
+### Left alone, on purpose
+
+`JwtAuthMiddleware:103` also reads `status == 0`. It rejects a stale token for a logged-out user, which is **token validity, not a "suspended" report**. Different concern; changing it would have been scope creep.
+
+### Behaviour change the owner should know
+
+`suspended_users` and `suspended_drivers` were counting every logged-out and every unbanned account. They now count only genuinely banned ones, so **those numbers will drop sharply on live admin endpoints.** Anyone who has been reading them as a real metric will see a discontinuity.
+
+---
+
+## 125. RV-43 filed: admin login 401s for the seeded system admins
+
+Filed, not fixed. 9 failures, all in `tests/Feature/Admin/AdminDashboardControllerTest.php`, all **pre-existing at HEAD** (confirmed by the bisect above with all changes stashed). `test_admin_can_login_with_correct_credentials` posts `{email: primary@admin.test, password: primary_pass}` to `/api/admin/login` and gets **401 where 200 is expected**; the other 8 are downstream of the same login, which is consistent with one broken path rather than nine defects. `setUp()` only calls `Config::set("admin.system_admin", ...)` and `seedSystemWallets()`, so whether the admin user is created lazily at login or by a seeder is the open question. **It is not yet known whether the app or the test is wrong**, and that must be settled before anyone edits the test.
+
+**Next audit section number: 126.**

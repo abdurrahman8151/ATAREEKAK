@@ -102,8 +102,12 @@ class StaffAdminControllerTest extends TestCase
     {
         $user = User::factory()->create(['verification_status' => 'pending']);
 
+        // R2 sec 121: approval requires `national_id` (StaffAdminController:115, mirrored at
+        // AdminDashboardController:468) - without it the endpoint answers 422 and records nothing.
         $this->withToken($this->adminToken())
-            ->postJson("/api/staff/verifications/{$user->id}/approve")
+            ->postJson("/api/staff/verifications/{$user->id}/approve", [
+                'national_id' => 'N-123456789',
+            ])
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
 
@@ -111,6 +115,22 @@ class StaffAdminControllerTest extends TestCase
             'id' => $user->id,
             'verification_status' => 'approved',
             'is_verified_passenger' => true,
+        ]);
+    }
+
+    /** R2 sec 121: the national-ID precondition is enforced, not advisory. */
+    public function test_cannot_approve_verification_without_a_national_id(): void
+    {
+        $user = User::factory()->create(['verification_status' => 'pending']);
+
+        $this->withToken($this->adminToken())
+            ->postJson("/api/staff/verifications/{$user->id}/approve")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('national_id');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'verification_status' => 'pending',
         ]);
     }
 

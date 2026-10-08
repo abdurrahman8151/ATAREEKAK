@@ -215,34 +215,11 @@ with each status taken from the newest section that mentions it. The per-task lo
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-**RV-04b - the identity-floor red tests encode a pre-tightening auth model (BACKLOG row 111). Owner decisions 2026-10-12.**
-  The row's diagnosis covers only 2 of 4 EmployeeManagementControllerTest failures; running the calls found SIX causes.
-  Files changed: tests/Feature/Staff/EmployeeManagementControllerTest.php (4), tests/Feature/Staff/StaffAdminControllerTest.php (1),
-  tests/Unit/Middleware/JwtAuthMiddlewareTest.php (1), tests/Unit/Middleware/StaffJwtMiddlewareTest.php (1),
-  app/Services/Staff/ReviewModerationService.php (N+1 lazy load).
-  Decisions: (a) route guard correct, the 2 role-boundary tests now assert the 403; (b) the support-agent email requirement is
-  correct, the 2 create tests must send an email; (c) TOKEN_INVALID is the ratified public code, TOKEN_TYPE_INVALID unreachable
-  because refresh tokens are opaque; (d) fix the N+1 here; (e) the 422 is a real national_id precondition, fix the test + add a
-  negative test.
-  IDENTITY FLOOR IS GREEN: 420 tests, 1160 assertions, 0 failures (was 419 with 5 errors + 7 failures). php -l and pint --test clean.
-
-**RV-42a - the admin "suspended" defect is WRITTEN BUT NOT YET VERIFIED (owner ordered it 2026-10-12, "do this").**
-  Changed (all php -l + pint --test clean): app/Models/User.php (new `scopeBannedNow()`, the SQL twin of `isBannedNow()`),
-  app/Services/Admin/AdminUserService.php (`:99` count, `:163` filter, `resolveUserStatus()`),
-  app/Services/Admin/AdminDriverService.php (`:99` count, `:148` filter, `resolveDriverStatus()`),
-  app/Http/Controllers/API/Staff/StaffOperationsController.php (`:174` account_status),
-  new tests/Feature/Review/RV42aSuspendedMeansBannedTest.php (7 tests, incl. a scope-vs-isBannedNow row-for-row agreement test).
-  **NOT RUN - the scratch MySQL is down and the agent must not start it.** So this is NOT a terminal state and is deliberately UNCOMMITTED.
-  A tautological test was written first (it compared `isBannedNow() ? a : b` with itself and could not fail) and was replaced with one that
-  hits the real endpoint, which is the failure mode `R2 sec 119`/`120` recorded twice already.
-  `JwtAuthMiddleware:103` also reads `status == 0`, deliberately LEFT ALONE: it rejects a stale token for a logged-out user, which is token
-  validity, not a "suspended" report.
-  **NOT AT A TERMINAL STATE:** the controlled bisect and the needle are NOT done, because the scratch MySQL went down mid-task
-  and the agent must not start it. Nothing is committed for this task. Temp: dsh_* files at the repo root (removed before report).
-
-(none - the last task reached a terminal state; see Done recently)
-
 ## Done recently
+- **RV-04b VERIFIED FIX (`R2 sec 123`)** - the 12 red identity tests were SIX distinct causes, not the two the row claimed, and in all six the app is correct and the test was stale. Controlled bisect on a 490-test selection: HEAD 5 errors + 16 failures -> **0 new failures**, 12 fixed. Needle: removing `loadMissing()` alone reproduces 10 errors.
+- **RV-42a VERIFIED FIX (`R2 sec 124`)** - "suspended" now means BANNED everywhere, via a new `User::scopeBannedNow()` that is the SQL twin of `isBannedNow()` so a count cannot drift from a single row. 8 new tests, 22 assertions. Two separate needles (query side, label side). **Numbers will drop sharply on live admin endpoints** - `suspended_users` was counting every logged-out and unbanned account.
+- **RV-43 filed as row 118, NOT fixed (`R2 sec 125`)** - 9 tests in `tests/Feature/Admin/AdminDashboardControllerTest.php` fail at HEAD with a 401 where `/api/admin/login` should return 200. Pre-existing, not caused by either task. **Not yet known whether the app or the test is wrong** - that must be settled before editing the test.
+
 - **Six `PARTIAL` rows re-statused; PARTIAL is now 0 (`R2 sec 122`).** The owner asked to "verify them fixed and just remove them from partial". **Only one of the six could honestly be closed**, because four need something that is not in this repo - a number only the owner can produce, a deferred decision, or a production-shaped host. Marking them VERIFIED FIX anyway would have written six false verifications into the file the next session reads to choose work, so they were re-statused to name their real gate: **AF-5 -> VERIFIED FIX** (re-verified on disk: `config/filesystems.php:47,84,148`, four call sites, and the only surviving `disk('public')` literals are a documented READ-ONLY legacy fallback at `StaffDocumentController:99,102`); **RV-10, RV-17, RV-29, AF-6 -> BLOCKED**. `R2 sec 121` separately fixed row 34 (RV-08), which said BLOCKED while its own Evidence said the work was finished. Census 85 -> 86 VERIFIED FIX, BLOCKED 2 -> 7, **116 rows, 0 malformed**.
 - **A real defect found and filed as row 117 (RV-42a), NOT fixed (`R2 sec 122`).** Admin "suspended" means **two different populations**: `AdminUserService:99` and `AdminDriverService:99` count `status = 0`, which is `AccountStatus::LOGGED_OUT` and also what `BanService::unban()` writes - so every logged-out and every unbanned account is counted as suspended - while `StaffOperationsController:174` labels anything that is not 1 as suspended, which includes every **BANNED** account. `User.php:214` says banned is -1. `7ab1eff` **widened** this: before it, `createUser` hardcoded `status => 1` and no self-registered account was ever counted. Not fixed because it is a live public reporting field plus an auth-semantics call, both reserved by `AGENTS.md`.
 - **RV-12 is NOT merely unstarted work - it is TWO SAME-DAY RULINGS IN CONFLICT.** Decision `D7=A` (2026-10-04: stop persisting `status = 0`, migrate 0 rows to 1) was **never built**, and commit `7ab1eff` (`R2 sec 61.2`, **the same day**) shipped the opposite on purpose. D7=A also cannot be applied literally: it would break four tests that pin `status = 0` as correct (`SignupPasswordOverwriteTest:184`, `AccountStatusBanServiceTest:152`, `AdminBanControllerTest:249,308`). **OWNER ONLY:** decide which 2026-10-04 ruling governs, then build it or withdraw it.

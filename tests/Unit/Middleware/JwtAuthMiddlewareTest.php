@@ -137,10 +137,15 @@ class JwtAuthMiddlewareTest extends TestCase
             'password' => 'password123',
         ])->json('tokens.refresh_token');
 
+        // R2 sec 121 (owner decision 2026-10-12): the ratified code is TOKEN_INVALID, not
+        // TOKEN_TYPE_INVALID. TOKEN_TYPE_INVALID is UNREACHABLE for a refresh token: login mints an
+        // OPAQUE Str::random(64) (JwtService::generateRefreshToken), not a JWT, so it fails at
+        // decodeToken (JwtAuthMiddleware:36) and never reaches the type check on line 41. The denial
+        // was always a correct 401; only the public code differed.
         $this->withToken($refreshToken)
             ->getJson('/api/user')
             ->assertStatus(401)
-            ->assertJsonPath('code', 'TOKEN_TYPE_INVALID');
+            ->assertJsonPath('code', 'TOKEN_INVALID');
     }
 
     // ─── Helper ────────────────────────────────────────────────────────────

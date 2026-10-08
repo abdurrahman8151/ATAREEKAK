@@ -75,6 +75,19 @@ final class ReviewModerationService
     /** Shape a single comment for the API response. */
     public function format(ProfileComment $comment): array
     {
+        // R2 sec 121: this method was only safe when its caller happened to eager-load. `getComments`
+        // does (`:31-35`), but `format()` is public, and any caller passing a bare model - as the
+        // tests do - lazy-loaded `commenter` and `profile.user` per row. Under
+        // Model::preventLazyLoading() that is a hard error; in production it is an N+1, two extra
+        // queries for every comment on the page. `loadMissing` keeps the eager-load win on the list
+        // path (nothing is loaded, they are already there) and makes the single-model path correct
+        // on its own.
+        $comment->loadMissing([
+            'commenter:id,first_name,last_name',
+            'profile:id,user_id',
+            'profile.user:id,first_name,last_name',
+        ]);
+
         $commenter = $comment->commenter;
         $recipient = $comment->profile?->user;
 

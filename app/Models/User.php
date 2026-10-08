@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Concerns\GuardsLazyLoading;
 use App\Notifications\CustomResetPassword;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -108,6 +109,43 @@ class User extends Authenticatable
         return $this->ban_type === 'temporary'
             && $this->ban_expires_at !== null
             && now()->greaterThan($this->ban_expires_at);
+    }
+
+    /**
+     * The SQL twin of `isBannedNow()`, so a COUNT or a list cannot drift from the
+     * single-row answer.
+     *
+     * RV-42a: "suspended" is what the USER is told when login is refused -
+     * `LoginController:83` blocks on `isBannedNow()` and returns `ACCOUNT_BANNED`
+     * with the message "Your account has been suspended". So "suspended" means
+     * BANNED, which is `status = -1`, and it is NOT `status = 0`: `0` is
+     * LOGGED_OUT, it is what every self-registration starts as
+     * (`SignupController:144`) and what `BanService::unban()` deliberately writes
+     * back (`BanService:86`, "returns to LOGGED_OUT (not ACTIVE)"). Admin screens
+     * that counted `status = 0` as suspended were therefore counting every
+     * signed-out and every unbanned account.
+     *
+     * `ban_type` and `ban_expires_at` are both NULLABLE (see the add-ban-fields
+     * migration), so the expiry test has to mirror `banHasExpired()` exactly
+     * rather than with a plain `>`: a NULL `ban_expires_at` does NOT expire, and
+     * SQL `ban_type != 'temporary'` is not true for NULL either.
+     *
+     * @param  Builder<User>  $query
+     * @return Builder<User>
+     */
+    public function scopeBannedNow(Builder $query): Builder
+    {
+        return $query->where('status', -1)->where(function (Builder $q) {
+            $q->whereNull('ban_type')
+                ->orWhere('ban_type', '!=', 'temporary')
+                ->orWhere(function (Builder $t) {
+                    $t->where('ban_type', 'temporary')
+                        ->where(function (Builder $e) {
+                            $e->whereNull('ban_expires_at')
+                                ->orWhere('ban_expires_at', '>', now());
+                        });
+                });
+        });
     }
 
     // ── Relationships ────────────────────────────────────────────────────────
