@@ -14,15 +14,19 @@ use Illuminate\Console\Command;
  * lifecycle, that the legs exactly equal what the balances did. This command is the same check run
  * against REAL data, on demand.
  *
- * IT DELIBERATELY REPORTS INCOMPLETENESS RATHER THAN HIDING IT. Only flows converted so far write
- * legs (every RIDE money movement). The admin wallet paths - `AdminWalletService::chargeWallet`,
- * `AdminWalletRequestController`, `PassengerProfileController::chargeWallet` - are EXTERNAL
- * inflows/outflows with no internal counterparty and are NOT converted, pending the owner's decision
- * on whether this ledger should model external flows at all.
+ * EVERY MONEY PATH IS NOW CONVERTED. This paragraph used to say that the admin wallet paths -
+ * `AdminWalletService::chargeWallet`, `AdminWalletRequestController`,
+ * `PassengerProfileController::chargeWallet` - were NOT converted, because they are EXTERNAL
+ * inflows/outflows with no internal counterparty. That stopped being true in `R2 sec 57-60.1`:
+ * they post `postExternalTransfer()` against the External Capital account, and
+ * `AdminWalletService:129` THROWS if that account is missing rather than recording money the
+ * ledger cannot explain. So the ledger is closed, and the old text was wrong in a way that
+ * mattered: it told the operator to EXPECT unexplained movement here, which would have had them
+ * dismissing a real defect on a money path.
  *
- * So a wallet whose balance moved but whose movement has no legs is EXPECTED for those flows and is
- * reported as `unexplained`, not as a failure. Reading the output as "the ledger is broken" would be
- * the wrong conclusion in exactly the same way a silently-excluded flow would be.
+ * What this command still does NOT do is fail the job on per-wallet drift - it warns and returns
+ * SUCCESS. The exit code is what decides whether the daily schedule reports an error, and that
+ * is a deliberate owner call rather than a silent default, so it is left alone here.
  */
 class ReconcileLedgerCommand extends Command
 {
@@ -96,10 +100,10 @@ class ReconcileLedgerCommand extends Command
                 $this->line($line);
             }
             $this->newLine();
-            $this->comment('  Expected for ADMIN wallet paths (external credit / withdrawal), which are');
-            $this->comment('  intentionally not double-entry until the owner decides whether this ledger');
-            $this->comment('  models external flows. Unexpected anywhere else: a converted money path');
-            $this->comment('  moved a balance without posting legs.');
+            $this->comment('  Unexpected on ANY wallet: a converted money path moved a balance');
+            $this->comment('  without posting legs. Every money path is double-entry now, the admin');
+            $this->comment('  and external flows included (R2 sec 57-60.1), so no flow is left for which');
+            $this->comment('  unexplained movement is expected.');
         }
 
         return self::SUCCESS;

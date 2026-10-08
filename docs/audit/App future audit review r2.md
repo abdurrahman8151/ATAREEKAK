@@ -9298,3 +9298,132 @@ not touched. AF-7's original framing - "service extraction across 21 controllers
 
 That is why this row can close honestly: the one genuine defect was fixed earlier, and the remainder is
 a deliberate judgement, not unfinished work.
+
+## 112. AF-6 re-measured: the vocabulary is already closed, the `Money` sweep is a reserved design call
+
+The previous session ended with AF-6 as the one unblocked lead, and correctly declined to start it because
+it is a money path. The lead was worth measuring before it was scheduled, so this task re-measured AF-6
+against **its own four acceptance criteria** (`BACKLOG.md` section 4, lines 630-637) rather than against
+the session's summary of them. Two of the four turned out to rest on premises that are no longer true.
+
+**No money code was changed.** One comment block and one operator-facing output string were corrected; both
+were factually wrong about the ledger's current state. Everything else is measurement.
+
+### The lead as it was handed over was a misreading
+
+The handoff described "5 files still calling `WalletTransaction::create` directly - the thing AF-6 wants to
+eliminate". That is not what AF-6 asks for, and the premise about the code is wrong.
+
+`LedgerService`'s own contract (`app/Services/Payment/LedgerService.php:19-26`) is explicit: it is
+"deliberately additive", it "does NOT move balances", and *"a converted path looks like: do exactly what
+it did before (adjust balances, write the single-sided row), then call `postTransfer()` to record the
+legs."* A direct `WalletTransaction::create` is therefore **the designed shape of a converted path**, not a
+bypass of the ledger. There are 36 such sites in 5 files and they are not the work.
+
+The record behind that claim is also already closed: RV-21 (`sec 57-60.1`, `3be510a`) converted every money
+path, `sec 60` added the External Capital account that closes the external flows, and `sec 61.1` closed the
+row with "no money movement remains that the ledger cannot explain".
+
+### Criterion by criterion, from the code
+
+| # | Criterion | Verdict | Evidence |
+|---|---|---|---|
+| 1 | `Money` VO replaces raw decimal math across 7 services / 66 sites, rounding in one place | **NOT MET** | measured below |
+| 2 | One `LedgerEvent` enum is the only vocabulary for `wallet_transactions.type` | **MET, under another name**; its stated *mechanism* is **REFUTED** | measured below |
+| 3 | `ledger:reconcile` is scheduled and reports a real mismatch, proving `SUM(balances)` and `SyCash == SUM(escrow_held)` | **PARTLY MET**; two sub-clauses are **REFUTED** premises, one is **NOT PROVEN** | measured below |
+| 4 | Aliases: done when RV-02 L2, RV-09, RV-10, RV-11, RV-15, RV-20, RV-21 are | **6 of 7** | RV-10 is `BLOCKED` on the owner's window W |
+
+**Criterion 2.** There is no class named `LedgerEvent` and there never was one. The vocabulary exists as
+`App\Enums\LedgerType` (RV-39), and the drift is pinned repo-wide by
+`RV39SeederHygieneTest::test_every_wallet_transaction_type_written_anywhere_is_a_shared_ledger_type`, which
+walks every `WalletTransaction::create(` block in `app/` and `database/seeders/`, resolves literals and
+variables traced to their literal assignment, and requires each value to be a `LedgerType` case. The
+"two dialects" and "the seeder's third dialect" are gone. The enum's own docblock says AF-6 "will absorb
+or rename this enum", so the rename is cosmetic and should not be done for its own sake.
+
+The criterion's second clause - "the seeder's third dialect cannot reappear **because the column rejects
+unknown values**" - is **false**. `2026_10_03_233000_convert_enum_columns_to_varchar.php` converted
+`wallet_transactions.type` to varchar as owner decision 13 (`sec 54`). `LedgerType`'s docblock already says
+so: *"an unknown value never fails at the database - only at the readers. That is exactly why drift must
+be pinned in code, not in the schema."* What actually prevents reappearance is the ratchet, not the column.
+
+**Criterion 3.** Scheduled: **yes**, `app/Console/Kernel.php:84`, daily at 04:30, `onOneServer`,
+`withoutOverlapping`, output appended to `storage/logs/scheduled/ledger-reconcile.log`.
+
+- *"proving `SUM(balances)`"* - **refuted premise.** `ReconcileLedgerCommand:70-71` compares
+  `SUM(wallet_transactions.amount)` against `SUM(ledger_entries.amount)` **per wallet**. It never reads the
+  `wallets.balance` column, so it does not check balances.
+- *"`SyCash == SUM(bookings.escrow_held)`"* - **not checked by this command at all**, but the invariant **is**
+  pinned, in the corrected e-pay form, by
+  `RV02EscrowDerivationTest::sycash_equals_the_sum_of_escrow_held_for_epay_bookings`. `sec 77` and `sec 81`
+  already record why the literal form cannot hold.
+- *"reports a real mismatch when one is injected"* - **NOT PROVEN.** The only test touching the command is
+  `DoubleEntryLedgerTest::the_reconcile_command_runs_against_real_data_and_reports_success`, which asserts
+  a **clean** run exits 0. A repo-wide grep for `unexplained`, `does not yet explain` and
+  `SYSTEM DOES NOT BALANCE` across `tests/` returns **no match**: nothing injects drift and asserts the
+  report. `an_unbalanced_transfer_is_refused_rather_than_recorded` proves `postTransfer` rejects bad legs,
+  which is the other half and not the same thing.
+
+**Criterion 1 - the real remainder.** `Money` is used in **5 files**. Of its ~29 use sites, 20 are
+`formatted()` calls in admin/report presentation, plus `CreateRideDTO:64` and `AdminWalletService:144-145`.
+The arithmetic is still raw floats with per-call `round()`: `WalletTransactionService:1229`,
+`CashRideFeeService:343` and `:388`, `LedgerService` (6 sites), `AdminDriverService:417-421`,
+`PassengerProfileController:479/481/513/543`, `BackfillBookingMoneySnapshot:92`, `Testfullrideflow:211-212`.
+
+The goal clause - "rounding decided in one place" - is **already met for the decision that matters**: the
+95/5 split routes through `FeeSplit::driverAndPlatform()`, which does its subtraction in integer minor
+units via `Money` (`sec 71`), and that was a real P0-class defect once (`FeeSplit`'s docblock records a
+ride at 1000.50 that could never reach FINISHED). What is left is coverage of the remaining arithmetic.
+
+**Why that remainder cannot be mechanical.** `Money` **refuses negative amounts** - the constructor throws
+on `amountInMinorUnits < 0` and `subtract()` throws when the result would be negative
+(`Money.php:29-37`, `:111-116`). The money paths are built on negatives: `postTwoPartyTransfer` emits
+`-amount`, `postExternalTransfer` emits `-amount` on the external leg, and `FeeSplit::releaseLegs` emits
+`-($split['platform'] + $split['driver'])`. Debits, refunds and escrow releases are all negative by design.
+So "replace raw decimal math with `Money`" cannot be done by substitution: it needs signed money, either as
+a widened contract on `Money` or as a second type. That is a design decision on a money type, which
+`AGENTS.md` reserves for the owner. **It is recorded, not started.**
+
+### A real defect found on the way, and fixed
+
+`ReconcileLedgerCommand`'s docblock still said the admin wallet paths "are NOT converted, pending the
+owner's decision on whether this ledger should model external flows at all", and told the reader that a
+wallet whose movement has no legs "is EXPECTED for those flows". That stopped being true in `sec 57-60.1`:
+`AdminWalletService:118`, `AdminWalletRequestController:211` and `PassengerProfileController:396` all call
+`postExternalTransfer()`, and `AdminWalletService:129` now **throws** rather than record money the ledger
+cannot explain.
+
+This was not cosmetic. The stale text would have had an operator reading a real unexplained-movement defect
+on a money path as an expected artefact - the same "dismissed because the doc said so" failure the two
+self-certifying seeder comments caused in `sec 104`. The docblock and the matching `comment()` output were
+corrected together, because correcting one alone would have left them contradicting each other.
+
+**Deliberately NOT changed, and it is the owner's call:** the command still returns `SUCCESS` when
+per-wallet drift is found. It warns. Since every money path is now ledgered, that permissiveness has no
+defence left - but the exit code is what decides whether the daily schedule reports an error, and changing
+it is a decision about operational alerting, not a cleanup. Recommended, not applied.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` on the changed file | no syntax errors |
+| `pint --test` on the changed file | PASS (1 file) |
+| money floor - `DoubleEntryLedgerTest`, `tests/Feature/Wallet`, `tests/Feature/Payment`, `tests/Unit/Domain` | 182 tests, 257 assertions, **3 failures** |
+| controlled bisect - same selection with the change reverted to the HEAD blob | **the same 3 failures, same names, same assertions** |
+| restore | SHA256-identical (`CDE229F8...` before and after the bisect) |
+
+The 3 failures are `WalletTest::test_initiate_returns_otp_in_testing_mode`,
+`::test_initiate_fails_with_wrong_password` and `::test_can_create_wallet_after_otp_verification`. They
+reproduce identically at HEAD with the change reverted, so **zero regressions**. No needle is claimed: a
+comment and an output string have no behaviour to invert, and the bisect plus the byte-identical restore is
+the whole proof.
+
+Scratch DB `127.0.0.1:3399`, pinged before the run, variables set in the same shell, guard asserted.
+
+### Final state
+
+**VERIFIED FIX** for the stale `ledger:reconcile` documentation - the only code change.
+
+**AF-6 itself: `OPEN` -> `PARTIAL`.** One criterion met, two met only in a corrected form with their
+stated mechanisms refuted, one not met. The remainder is a money-type design decision and is the owner's.
