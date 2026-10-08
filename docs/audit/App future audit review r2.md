@@ -10583,5 +10583,50 @@ testing a code path production never takes. Fixture corrected to assign a real a
 - Needle: reverting the app change fails 6 of the 8 new tests. The 2 that still pass are
   strategy-A-only and the test that documents MySQL's own behaviour, both intentionally
   independent of the fix.
+---
 
-**Next audit section number: 128.**
+## 128. V1: the first row in the backlog was closed by a fix filed twenty rows later
+
+**Row 1 -> SUPERSEDED (by RV-25, row 42).** No code change. The value of closing it is that
+the oldest P0 in the table stops looking like open work.
+
+### The overlap
+
+V1 "Axis order: Damascus-Aleppo distance in MySQL", evidence `97cd3f1 - FAIL: 258 km not
+309 km, transposed confirmed`, is the R1 statement of the defect that RV-25 fixed. RV-25's own
+row title is "Search correctness and cost (geometry axis order)", it is already VERIFIED FIX,
+and it shipped migration `2026_10_06_000001_rv25_correct_transposed_ride_geometry.php`. V1 is
+the same finding minus the fix.
+
+This is the second time one backlog row duplicated another. The first was RV-43 (row 118),
+where a stale test was mistaken for an app defect (`R2 sec 126`). Both had the same cause: a
+finding filed in one round, fixed in another, and the original row never revisited.
+
+### Re-verified rather than assumed
+
+Closing a row because another row says it is fixed would be exactly the kind of bookkeeping
+the audit exists to prevent, so the evidence was re-established against the scratch server:
+
+    MySQL 8.2.0
+    Damascus -> Aleppo, POINT(lat lng)  [correct] = 309.00 km
+    Damascus -> Aleppo, POINT(lng lat)  [old bug] = 257.93 km
+
+309.00 km is the true city-pair distance; 257.93 km is precisely the value this row recorded
+as the failure. The 4-test ratchet `RV25GeometryAxisOrderTest` passes (it asserts the
+correct reading is > 295 km and the transposed one differs, so it cannot pass vacuously).
+
+### Why the defect hid at all
+
+Worth keeping, because it explains why a real, measurable, money-adjacent error survived a
+whole audit round: write and read were **consistently** lng-first. A same-city query still
+returned 0 km. Only a pair of cities far enough apart to know the true answer by heart exposed
+it. That is the general lesson - the evidence that finds a bug is a known real-world value,
+not a self-consistent internal check.
+
+### Verified
+
+- Ground truth re-measured on MySQL 8.2.0: 309.00 km correct / 257.93 km transposed.
+- `RV25GeometryAxisOrderTest`: 4 tests, passing, with `WaveZeroVerificationTest` green (14 tests).
+- No app or test files changed. This row is a status correction only.
+
+**Next audit section number: 129.**
