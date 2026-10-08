@@ -9242,3 +9242,59 @@ there by `sec 87`, and re-deriving it here would be a second, weaker copy of the
 and the three existing tests repointed at the new signature.
 
 `phpunit.xml` was left out of this commit: it is the owner's local scratch config.
+## 111. AF-7: the boundary baseline was too loose to catch anything
+
+Owner-approved: lower `controllers_to_models` 21 -> 20. The whole of AF-7's remaining item.
+
+### Measured, not assumed
+
+`AGENTS.md` requires that a reduced violation count be *reported* and the lowering *proposed*, never
+applied silently. Before touching the constant I ran the test and read what it actually said:
+
+```
+Rule 'controllers_to_models': baseline is 21 but only 20 violations remain —
+lower the number in BASELINES to claim the improvement. Found: AdminBanController.php,
+AdminDashboardController.php, AdminDriverController.php, AdminWalletRequestController.php,
+GoogleController.php, ChatController.php, ContactController.php, EmailVerificationController.php,
+NotificationController.php, PassengerProfileController.php, ResetPasswordController.php,
+RideController.php, ScoreController.php, EmployeeManagementController.php, StaffAdminController.php,
+StaffChatController.php, StaffComplaintController.php, StaffOperationsController.php,
+VerificationController.php, WalletController.php
+```
+
+Twenty files, named by the test itself. The reduction is real and the claim rests on the test's output
+rather than on a document asserting it.
+
+### Why this is not bookkeeping
+
+While the budget sat at 21 with 20 actual violations, the ratchet **did not bite**. A twenty-first
+controller reaching for a model - a genuine new violation - would have been added with the suite still
+green. The baseline had drifted into a number that could not fail, which is the exact opposite of what a
+baseline is for. At 20 the test bites again, and `AGENTS.md` says this number may only shrink.
+
+What removed one: `ProfileController` stopped importing `App\Models\*` once the rides-as-driver /
+bookings-as-passenger status rollup it duplicated verbatim from `StaffOperationsController` was
+consolidated into `UserRideStatsService` (`sec 93/95`).
+
+### Verification
+
+| check | result |
+|---|---|
+| before | **FAILED** - "baseline is 21 but only 20 violations remain" |
+| after | **OK - 9 tests, 36 assertions** |
+| `php -l`; `pint` | clean / PASS |
+
+A needle is not the right instrument for a constant, and claiming one would be theatre: the change *is*
+the number. The before/after pair above is the whole proof - the same measurement produced a failure and
+then a pass, with nothing else altered.
+
+### What was deliberately NOT done
+
+The remaining twenty were **not** treated as defects. `AGENTS.md`'s own reading is that a
+`User::findOrFail($id)` in a controller is ordinary Laravel, and wrapping twenty of them to satisfy a
+number would add indirection with no benefit. The money-path sites are reserved by `AGENTS.md` and were
+not touched. AF-7's original framing - "service extraction across 21 controllers" - was assessed in `sec
+95` as mostly **not** a defect, and this task confirmed that rather than assuming it.
+
+That is why this row can close honestly: the one genuine defect was fixed earlier, and the remainder is
+a deliberate judgement, not unfinished work.

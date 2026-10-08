@@ -45,7 +45,25 @@ class BoundaryDependencyTest extends TestCase
         'request_below_http' => 0,
         'request_in_services' => 1,
         'async_to_http' => 0,
-        'controllers_to_models' => 21,
+        // RV-19 item 2 / AF-7, owner-approved 2026-10-08: 21 -> 20. LOWERED ONCE, after the reduction was
+        // MEASURED, never assumed - the run above printed "only 20 violations remain ... lower the
+        // number in BASELINES to claim the improvement" and listed the twenty files, so the claim
+        // rests on the test's own output rather than on a doc saying so.
+        //
+        // What removed one: `ProfileController` no longer imports `App\Models\*` after the duplicated
+        // rides-as-driver / bookings-as-passenger status rollup it shared verbatim with
+        // `StaffOperationsController` was consolidated into `UserRideStatsService` (`R2 sec 93/95`).
+        //
+        // This number MAY ONLY SHRINK. Its purpose is to make a ratchet that bites: while the budget
+        // sat at 21 with 20 real violations, a NEW controller reaching for a model could be added
+        // without turning the suite red, which is the opposite of what a baseline is for. At 20 it
+        // bites again.
+        //
+        // The remaining twenty are NOT treated as defects: `AGENTS.md`'s own reading is that a
+        // `User::findOrFail($id)` in a controller is ordinary Laravel, and wrapping each one to satisfy
+        // a number would add indirection with no benefit. The money-path sites are reserved by
+        // `AGENTS.md` and were deliberately not touched.
+        'controllers_to_models' => 20,
         // RV-11-B, owner decision D10 = A (2026-10-04): 2 -> 3. Raised ONCE, on instruction, with
         // the edges named rather than a bare number - a bare raise is indistinguishable from drift.
         //
