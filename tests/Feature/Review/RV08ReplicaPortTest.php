@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Review;
 
+use Illuminate\Support\Env;
 use Tests\TestCase;
 
 /**
@@ -42,18 +43,29 @@ use Tests\TestCase;
  */
 class RV08ReplicaPortTest extends TestCase
 {
-    /** @var array<string, array{server: mixed, env: mixed, getenv: string|false}> */
+    /** @var array<string, array{server: mixed, env: mixed}> */
     private array $savedServer = [];
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        // RV-37: this file used to call putenv(), which mutates the WHOLE PHP process and leaks into
+        // every test that runs afterwards - the order dependence V14 measured (53 failures in default
+        // order, 55 under random). `TestDeterminismRatchetTest::no_test_file_writes_to_the_process_
+        // environment` was red because of it.
+        //
+        // Dropping the putenv() CALLS is not enough on its own: Laravel's Env repository includes
+        // PutenvAdapter by default, so an unset $_SERVER/$_ENV would fall through to the ambient
+        // getenv() and this test would silently depend on the shell it runs in. Disabling the adapter
+        // for the duration of the test makes the environment genuinely hermetic - only the two
+        // channels this test writes are visible - with no process-wide mutation at all.
+        Env::disablePutenv();
+
         foreach (['APP_ENV', 'DB_HOST', 'DB_PORT', 'DB_REPLICA_HOST', 'DB_REPLICA_PORT'] as $key) {
             $this->savedServer[$key] = [
                 'server' => $_SERVER[$key] ?? null,
                 'env' => $_ENV[$key] ?? null,
-                'getenv' => getenv($key),
             ];
         }
     }
@@ -72,34 +84,31 @@ class RV08ReplicaPortTest extends TestCase
             } else {
                 $_ENV[$key] = $saved['env'];
             }
-
-            if ($saved['getenv'] === false) {
-                putenv($key);
-            } else {
-                putenv($key.'='.$saved['getenv']);
-            }
         }
+
+        $this->savedServer = [];
+
+        Env::enablePutenv();
 
         parent::tearDown();
     }
 
     /**
-     * Set or clear an env var across ALL THREE channels `env()` reads: $_SERVER, $_ENV and
-     * getenv(). Clearing only one of them silently leaves the old value visible, which is what
-     * makes the "unset" assertions in this file meaningful rather than accidental.
+     * Set or clear an env var across the channels `env()` can see while PutenvAdapter is disabled.
+     *
+     * Clearing BOTH is what makes the "unset" assertions meaningful rather than accidental: with only
+     * one cleared, the other still answers and the test would pass for the wrong reason.
      */
     private function putEnv(string $key, ?string $value): void
     {
         if ($value === null) {
             unset($_SERVER[$key], $_ENV[$key]);
-            putenv($key);
 
             return;
         }
 
         $_SERVER[$key] = $value;
         $_ENV[$key] = $value;
-        putenv($key.'='.$value);
     }
 
     /**

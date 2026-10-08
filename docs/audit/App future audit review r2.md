@@ -8730,3 +8730,58 @@ command it invokes was run directly against the scratch DB (exit 0), but the boo
 Worth one look on the next deploy.
 
 Nothing pushed.
+## 103. RV-37 determinism ratchet was red against its own test: `RV08ReplicaPortTest` mutated the process env
+
+The rule is "the next task" derived nothing unblocked, but the suite had **five red tests in
+`tests/Feature/Review`** that no owner gate covers. A red suite is unfinished work, so that is the queue.
+
+### The defect
+
+`TestDeterminismRatchetTest::no_test_file_writes_to_the_process_environment` scans every test file for
+`putenv(`. It was failing on exactly one file - and that file was **RV-08's own replica-port test**.
+
+`putenv()` mutates the entire PHP process. Everything after it in the same process sees the change, which
+is the order dependence V14 measured: 53 failures in default order, 55 under random. The test set and
+restored `$_SERVER`, `$_ENV` **and** `getenv()`, so it restored what it wrote - but the contamination
+window is the whole test, and the ratchet is a blanket rule with a documented allowlist.
+
+### Removal, not an allowlist entry
+
+The ratchet offers an allowlist keyed by path, reserved for tests "where the subject under test IS env
+resolution". That is not this test: its subject is **config resolution under a controlled environment**.
+So the question was whether `putenv` was actually load-bearing, and I measured rather than assumed.
+
+**Probe:** removing only the `putenv()` writes from `putEnv()` -> **OK, 5 tests / 13 assertions**. The two
+channels the test already wrote (`$_SERVER`, `$_ENV`) are sufficient, and `git diff --stat` was empty
+afterwards, so the file was fully restored before deciding.
+
+**But dropping the calls alone is not correct.** Laravel's `Env` repository includes `PutenvAdapter` by
+default, so on the "unset" paths an absent `$_SERVER`/`$_ENV` would fall through to the ambient `getenv()`
+and the test would silently depend on the shell it runs in - trading a contamination bug for a
+non-determinism bug. The fix therefore disables the adapter for the duration of the test:
+
+```php
+Env::disablePutenv();   // setUp
+Env::enablePutenv();    // tearDown, after restoring $_SERVER / $_ENV
+```
+
+Only the two channels this test actually writes are visible, and nothing process-wide is mutated at all.
+
+### Verification
+
+| check | result |
+|---|---|
+| `RV08ReplicaPortTest` + `TestDeterminismRatchetTest` + `DBReplicaPortShapeTest` | **OK, 15 tests / 34 assertions** |
+| Review floor | 457 tests, **5 -> 4 failures**, zero regressions |
+| NEEDLE - put the `putenv()` call back | ratchet red on `RV08ReplicaPortTest.php`, SHA256 restore |
+
+`php -l` clean; `pint --test` clean. No other file changed.
+
+### Still red in `tests/Feature/Review` (4, all pre-existing, none owner-gated)
+
+- `KycActionGateTest::an_unverified_user_cannot_book_a_ride`
+- `RV39SeederHygieneTest::test_truncate_list_covers_every_table_whose_rows_orphan_under_it`
+- `RV39SeederHygieneTest::test_every_wallet_transaction_type_written_anywhere_is_a_shared_ledger_type`
+- `SharedTestSupportTest::test_system_wallets_are_seeded_by_phone_and_are_idempotent`
+
+Nothing pushed.
