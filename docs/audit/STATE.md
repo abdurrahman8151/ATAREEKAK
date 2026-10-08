@@ -225,6 +225,18 @@ with each status taken from the newest section that mentions it. The per-task lo
   because refresh tokens are opaque; (d) fix the N+1 here; (e) the 422 is a real national_id precondition, fix the test + add a
   negative test.
   IDENTITY FLOOR IS GREEN: 420 tests, 1160 assertions, 0 failures (was 419 with 5 errors + 7 failures). php -l and pint --test clean.
+
+**RV-42a - the admin "suspended" defect is WRITTEN BUT NOT YET VERIFIED (owner ordered it 2026-10-12, "do this").**
+  Changed (all php -l + pint --test clean): app/Models/User.php (new `scopeBannedNow()`, the SQL twin of `isBannedNow()`),
+  app/Services/Admin/AdminUserService.php (`:99` count, `:163` filter, `resolveUserStatus()`),
+  app/Services/Admin/AdminDriverService.php (`:99` count, `:148` filter, `resolveDriverStatus()`),
+  app/Http/Controllers/API/Staff/StaffOperationsController.php (`:174` account_status),
+  new tests/Feature/Review/RV42aSuspendedMeansBannedTest.php (7 tests, incl. a scope-vs-isBannedNow row-for-row agreement test).
+  **NOT RUN - the scratch MySQL is down and the agent must not start it.** So this is NOT a terminal state and is deliberately UNCOMMITTED.
+  A tautological test was written first (it compared `isBannedNow() ? a : b` with itself and could not fail) and was replaced with one that
+  hits the real endpoint, which is the failure mode `R2 sec 119`/`120` recorded twice already.
+  `JwtAuthMiddleware:103` also reads `status == 0`, deliberately LEFT ALONE: it rejects a stale token for a logged-out user, which is token
+  validity, not a "suspended" report.
   **NOT AT A TERMINAL STATE:** the controlled bisect and the needle are NOT done, because the scratch MySQL went down mid-task
   and the agent must not start it. Nothing is committed for this task. Temp: dsh_* files at the repo root (removed before report).
 
