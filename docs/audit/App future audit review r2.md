@@ -8544,3 +8544,93 @@ BACKLOG rows ("address cells by header position, never `split(' | ')[7]`") - I r
 broke it in the same session, which is the real lesson.
 
 Nothing pushed.
+## 101. AF-13: `RideFactory` was unusable - every `Ride::factory()->create()` was a TypeError - **VERIFIED FIX**
+
+Filed in `sec 99` while building RV-10, where the ride had to be built by hand because the factory threw.
+This is the fix.
+
+### The defect
+
+`database/factories/RideFactory.php:19-20`:
+
+```php
+'pickup_location'     => \DB::raw("ST_GeomFromText('POINT(33.5138 36.2765)')"),
+'destination_location'=> \DB::raw("ST_GeomFromText('POINT(36.2021 37.1343)')"),
+```
+
+`DB::raw()` returns a `Query\Expression`. `Ride::setPickupLocationAttribute(array $coords)` type-hints
+`array`. **Every** `Ride::factory()->create()` therefore died with:
+
+```
+TypeError: App\Models\Ride::setPickupLocationAttribute(): Argument #1 ($coords) must be of type array,
+Illuminate\Database\Query\Expression given
+```
+
+It was invisible because **no test called the factory**. `RV11RideCountTest:350` documents the trap *in a
+comment* and reaches for the shared `RideBuilder` instead - so the cost of the broken factory was being paid
+in workarounds, invisibly, rather than in a red test.
+
+### The fix, and why it is not the "obvious" rewrite
+
+The tempting one-line change is to swap `DB::raw(...)` for hand-built `sprintf('POINT(%f %f)', ...)`. That
+would be the exact mistake **RV-25** documents: hand-rolled WKT is how the lat/lng transposition hid in this
+codebase for so long. Instead the factory passes named coordinates:
+
+```php
+'pickup_location'      => ['lat' => 33.5138, 'lng' => 36.2765],
+'destination_location' => ['lat' => 36.2021, 'lng' => 37.1343],
+```
+
+which routes through the mutator and therefore through `GeoPoint::fromLatLng()` - the single source of truth
+the mutator's own comment says every write must use.
+
+**Geometry is unchanged, and that was worth proving rather than assuming.** `GeoPoint::wkt()` is
+`sprintf('POINT(%F %F)', $lat, $lng)` - latitude first. The old raw literals were *already* in that order, so
+the arrays reproduce the identical point. The tests assert the stored WKT has latitude at the lower offset,
+and assert the destination values are not transposed, precisely because a silently-flipped axis produces a
+perfectly valid `POINT` that merely points at the wrong place.
+
+**A second defect the raw write was hiding.** A `DB::raw` assignment bypasses the mutator, so
+`pickup_lat` / `pickup_lng` were never set - which is why the mutator's comment says such rows "simply keep
+the read-fallback and are backfilled by the migration". Going through the mutator fills them, so
+factory-built rides no longer depend on that fallback.
+
+### Verification
+
+`tests/Feature/Review/AF13RideFactoryGeometryTest.php` - **6 tests / 17 assertions, OK.** Covers: the factory
+creates a ride; attributes can be overridden; the stored WKT is latitude-first; the accessor round-trips to
+the same lat/lng; the scalar `pickup_lat`/`pickup_lng`/`destination_*` columns are populated; destination is
+not transposed.
+
+**Needle** - restore the `DB::raw` write:
+
+| | result |
+|---|---|
+| `DB::raw("ST_GeomFromText('POINT(...)')")` | **6 errors**, `TypeError: ...setPickupLocationAttribute(): Argument #1 ($coords) must be of type array, Query\Expression given` - the original defect, reproduced verbatim |
+
+The first needle attempt was **inconclusive and was reported as such**: the escaping emitted a literal `\"`,
+so `php -l` failed and the run was refused before it could be mistaken for a result. Redone; the `php -l`
+gate before every needle is now permanent procedure.
+
+**Bisect:** 659 tests / 2 errors / 10 failures at baseline -> **665 tests (the 6 new), the same 2 errors and
+the same 10 failures.** Zero new, zero disappeared. `php -l` both files; `pint --test` PASS after fixing
+`single_blank_line_at_eof`.
+
+### A second failure of my own, recorded because it repeated
+
+The first bisect script reported "zero new failures" - **and was meaningless.** It had removed the new test
+file to build the baseline and its `finally` restored only the factory, so the "with fix" run silently had
+**no test file at all**. The tell was in the output: both runs reported 659 tests, i.e. the 6 new tests
+never ran. The test file was deleted from disk and had to be rewritten from context.
+
+This is the **third** time this session a probe/bisect script damaged state rather than just measuring it
+(the AF-7 bisect skipped its restore; the sec-100 BACKLOG repair wrote to the wrong cell). The pattern is
+consistent: **a script that mutates files needs every touched file backed up first and restored in
+`finally`, and the result needs a sanity check that it is capable of detecting the thing it claims to
+detect.** The corrected script backs up all touched files, restores all of them with a SHA256 comparison per
+file, and the bisect now self-checks by asserting the test count actually moved.
+
+A bisect whose baseline and treatment have the same test count has measured nothing. That check costs one
+line and would have caught this immediately.
+
+Nothing pushed.
