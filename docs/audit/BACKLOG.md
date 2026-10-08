@@ -144,7 +144,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 |---|---|---|---|---|---|---|---|
 | 1 | V1 | Axis order: Damascus-Aleppo distance in MySQL | P0 | RECORDED | n/a | feeds AF-4a, RV-24, RV-25 | R1 sec 3, sec 9; R2 sec 9; 97cd3f1 - FAIL: 258 km not 309 km, transposed confirmed |
 | 2 | V2 | Spatial index on `rides` | P0 | RECORDED | n/a | feeds RV-25 | R1 sec 3, sec 9; R2 sec 1.1; 97cd3f1 - none exist (2025_05_20 migration dropped them) |
-| 3 | V3 | Route-buffer units (`ST_Buffer`) | P0 | RECORDED | n/a | feeds RV-25 | R1 sec 3, sec 9; 97cd3f1 - error 3618 on LINESTRING; strategy B 500s |
+| 3 | V3 | Route-buffer units (`ST_Buffer`) | P0 | **VERIFIED FIX** | n/a | feeds RV-25 | R2 sec 127. ST_Buffer on a LINESTRING is unimplemented in a GEOGRAPHIC SRS (MySQL 3618) and `ST_GeomFromGeoJSON` defaults to SRID 4326, so `applyRouteMatching()` raised on EVERY search that met a ride carrying `route_geometry` - a 500 for the whole endpoint, not a missed match. Relabelled the parsed route Cartesian with `ST_SRID(...,0)`; radius stays in degrees (0.05 deg ~= 5.5 km). `route_geometry` is client-settable via POST /rides, so this was reachable in production. |
 | 4 | V4 | Client IP behind nginx | P0 | RECORDED | n/a | feeds RV-05 | R1 sec 3, sec 9; 97cd3f1 - collapse CONFIRMED, spoof REFUTED |
 | 5 | V5 | Validation `errors` bag stripped | P1 | RECORDED | n/a | feeds RV-13 | R1 sec 3, sec 9; R2 sec 1.1; 97cd3f1 - CONFIRMED |
 | 6 | V6 | CI driver + skipped tests | P1 | RECORDED | n/a | feeds AF-2', RV-18 | R1 sec 3, sec 9; 97cd3f1 - CI pinned to sqlite |

@@ -94,16 +94,41 @@ final class RideSearchService
         $srcWkt = GeoPoint::fromLatLng((float) $params['source_lat'], (float) $params['source_lng'])->wkt();
         $dstWkt = GeoPoint::fromLatLng((float) $params['dest_lat'], (float) $params['dest_lng'])->wkt();
 
-        $query->where(function ($q) use ($maxDistanceMeters, $srcWkt, $dstWkt) {
+        // V3: strategy B compares against the route in CARTESIAN SRID 0, where there is no
+        // EPSG axis-order rule, so it needs the other ordering. See routeProbeWkt().
+        $srcProbeWkt = $this->routeProbeWkt((float) $params['source_lat'], (float) $params['source_lng']);
+        $dstProbeWkt = $this->routeProbeWkt((float) $params['dest_lat'], (float) $params['dest_lng']);
+
+        $query->where(function ($q) use ($maxDistanceMeters, $srcWkt, $dstWkt, $srcProbeWkt, $dstProbeWkt) {
             // Strategy A: Direct endpoint matching
             $q->where(function ($q2) use ($maxDistanceMeters, $srcWkt, $dstWkt) {
                 $this->applyEndpointMatching($q2, $srcWkt, $dstWkt, $maxDistanceMeters);
             })
                 // Strategy B: Route-based matching
-                ->orWhere(function ($q2) use ($srcWkt, $dstWkt) {
-                    $this->applyRouteMatching($q2, $srcWkt, $dstWkt);
+                ->orWhere(function ($q2) use ($srcProbeWkt, $dstProbeWkt) {
+                    $this->applyRouteMatching($q2, $srcProbeWkt, $dstProbeWkt);
                 });
         });
+    }
+
+    /**
+     * `POINT(lng lat)` — deliberately the ONLY longitude-first string in this application.
+     *
+     * V3. Everything else here is lat-first, because MySQL applies EPSG:4326 AXIS-ORDER
+     * (latitude first) to the 4326 geometry columns (RV-25). Route matching is the exception
+     * because it is the one comparison that cannot run in a geographic SRS: ST_Buffer on a
+     * LINESTRING is unimplemented there (error 3618), so the route is relabelled to Cartesian
+     * SRID 0. In SRID 0 the ordinate order is literally x, y with no re-ordering, and
+     * ST_GeomFromGeoJSON preserves GeoJSON as-is — x = lng, y = lat. The probe point therefore
+     * has to be written lng-first to match it.
+     *
+     * Do not "normalise" this to lat-first for consistency with the rest of the file: that
+     * silently inverts the match, and because both orderings produce a valid-looking query the
+     * breakage would only show up as rides that never match. V3RouteBufferTest pins both.
+     */
+    private function routeProbeWkt(float $lat, float $lng): string
+    {
+        return sprintf('POINT(%F %F)', $lng, $lat);
     }
 
     /**
@@ -127,6 +152,17 @@ final class RideSearchService
 
     /**
      * Match rides where route passes near search points
+     *
+     * V3. This strategy is an `orWhere` on EVERY search, so anything it raises is a 500 for
+     * the whole endpoint rather than a missed match. It used to raise on every ride that
+     * carries a route: MySQL 8 does not implement ST_Buffer for a LINESTRING in a GEOGRAPHIC
+     * reference system (error 3618), and ST_GeomFromGeoJSON defaults to SRID 4326 — so
+     * `ST_Buffer(ST_GeomFromGeoJSON(...), d)` was always a geographic buffer.
+     *
+     * ST_SRID(<geom>, 0) relabels the parsed route as Cartesian, which makes the buffer legal.
+     * The radius stays in DEGREES, which is the unit `rides.search.route_buffer_degrees` is
+     * configured in (0.05 deg ~= 5.5 km). No GROUP_CONCAT is involved, so group_concat_max_len
+     * cannot truncate a long polyline.
      */
     private function applyRouteMatching(Builder $query, string $srcWkt, string $dstWkt): void
     {
@@ -139,10 +175,10 @@ final class RideSearchService
             ->whereRaw(
                 'ST_Contains(
                     ST_Buffer(
-                        ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)),
+                        ST_SRID(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0),
                         ?
                     ),
-                    ST_GeomFromText(?, 4326)
+                    ST_GeomFromText(?, 0)
                 )',
                 [$this->routeBufferDegrees, $srcWkt]
             )
@@ -150,10 +186,10 @@ final class RideSearchService
             ->whereRaw(
                 'ST_Contains(
                     ST_Buffer(
-                        ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)),
+                        ST_SRID(ST_GeomFromGeoJSON(JSON_UNQUOTE(route_geometry)), 0),
                         ?
                     ),
-                    ST_GeomFromText(?, 4326)
+                    ST_GeomFromText(?, 0)
                 )',
                 [$this->routeBufferDegrees, $dstWkt]
             );

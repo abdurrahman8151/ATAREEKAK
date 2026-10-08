@@ -78,7 +78,7 @@ class WaveZeroVerificationTest extends TestCase
         $this->assertCount(0, $spatial);
     }
 
-    public function test_v3_route_buffer_strategy_cannot_match_a_point_2km_off_the_line(): void
+    public function test_v3_route_buffer_strategy_matches_a_point_2km_off_the_line(): void
     {
         if (env('DB_CONNECTION', 'sqlite') !== 'mysql') {
             $this->markTestSkipped('V3 needs MySQL spatial semantics.');
@@ -114,38 +114,37 @@ class WaveZeroVerificationTest extends TestCase
         // Route polyline straight through the search area (the midpoint sits
         // ~2 km from the search points below).
         $line = '{"type":"LineString","coordinates":[[36.2765,33.5138],[37.1343,36.2021]]}';
-        $ride->forceFill(['route_geometry' => $line])->save();
+        // V3: assign an ARRAY, not the JSON string. Ride casts route_geometry to `array`, so
+        // passing an encoded string stores a JSON *string* ("{\"type\":...}") instead of a JSON
+        // object. That row still parses via ST_GeomFromGeoJSON, but strategy B's own guard
+        // (`JSON_EXTRACT(route_geometry, '$.coordinates') IS NOT NULL`) then rejects it — so
+        // the fixture silently tested nothing. Production assigns a real array (RideRepository),
+        // which is why the real endpoint behaved differently from this test. Fixture corrected
+        // to match production; see V3RouteBufferTest for the full regression set.
+        $ride->forceFill(['route_geometry' => json_decode($line, true)])->save();
 
         // Search endpoints near the LINE midpoint (~36.705/34.858), pushed ~2 km
         // off it; ride endpoints are >140 km away so A is impossible.
         $svc = app(RideSearchService::class);
 
-        try {
-            $results = $svc->searchRides([
-                'departure_date' => $date,
-                'seats_required' => 1,
-                'source_lat' => 34.8555, 'source_lng' => 36.7245, // ~2 km off, on neither endpoint
-                'dest_lat' => 34.8555, 'dest_lng' => 36.7245,
-            ]);
-        } catch (\Throwable $e) {
-            // Recording outcome 2 of 2 (the ACTUAL one, settled via raw probe):
-            // MySQL 8.2 refuses ST_Buffer on LINESTRING at all (error 3618,
-            // "not been implemented"), so strategy B never matches — it raises,
-            // and any ride WITH route_geometry breaks the whole search with a
-            // 500. (Settled by wave-0 probe; either way RV-25 is confirmed.)
-            $this->assertInstanceOf(QueryException::class, $e);
+        // V3 — this assertion used to accept either of two "recorded outcomes", both of them the
+        // defect: a QueryException (MySQL 3618, "st_buffer(LINESTRING) has not been implemented
+        // for geographic spatial reference systems"), or zero matches with the note "strategy B
+        // is decorative at best". Both are now fixed. ST_Buffer is legal once the parsed route is
+        // relabelled Cartesian with ST_SRID(..., 0), and the ~2 km offset is inside the 0.05 deg
+        // (~5.5 km) buffer, so strategy B now genuinely matches. A test that accepts "raises" as
+        // a pass is a test that would have hidden a 500 on the live search endpoint.
+        $results = $svc->searchRides([
+            'departure_date' => $date,
+            'seats_required' => 1,
+            'source_lat' => 34.8555, 'source_lng' => 36.7245, // ~2 km off, on neither endpoint
+            'dest_lat' => 34.8555, 'dest_lng' => 36.7245,
+        ]);
 
-            return;
-        }
-
-        // Recording outcome 1: no error, but the 2 km-off point does NOT match,
-        // i.e. 0.05 is not read as ~5 km as documented (meters, or SRID rules
-        // silently excluding it). Strategy B is decorative at best.
         $this->assertCount(
-            0,
+            1,
             $results,
-            'V3: strategy B is expected NOT to match by design intent — if this '
-            .'fails, the buffer works as documented and RV-25 must be re-scoped.'
+            'V3: strategy B must match a point ~2 km off the route within a 0.05 deg buffer'
         );
     }
 

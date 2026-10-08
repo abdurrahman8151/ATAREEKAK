@@ -10513,4 +10513,75 @@ Widened to match any `email` key with any value. That immediately surfaced three
 1. The first ratchet test rebuilt the pattern by regex-extracting the constant, which lost its delimiters (`preg_match(): Delimiter must not be alphanumeric`). It now reads the constant by reflection, so narrowing the pattern fails the test instead of erroring.
 2. The first probe passed only the tail fragment, but the pattern anchors on the login path, so it correctly did not match. A false failure like that can be "fixed" by weakening the assertion; the probe now includes the full `postJson` shape.
 
-**Next audit section number: 127.**
+---
+
+## 127. V3: the route search raised on every ride that had a route, and nobody noticed for two audit rounds
+
+**Row 3 -> VERIFIED FIX.** Recorded since R1 sec 3 / sec 9 and never touched. The row was
+titled "Route-buffer units (`ST_Buffer`)"; the evidence line already told the real story -
+"error 3618 on LINESTRING; strategy B 500s" - and the units were never really the problem.
+
+### Why it was live P0 and not a curiosity
+
+`applyRouteMatching()` is an `orWhere` on **every** `searchRides()` call, not behind a flag.
+And `route_geometry` is client-settable: `CreateRideRequest:41` accepts it and
+`RideRepository:147` persists it. So one ride saved with a route turned the entire ride-search
+endpoint into a 500, for everyone, on every subsequent search.
+
+### Root cause: an SRID nobody chose on purpose
+
+`ST_Buffer` is not implemented for a LINESTRING in a **geographic** reference system (error
+3618). `ST_GeomFromGeoJSON()` returns **SRID 4326 by default**, so
+
+    ST_Buffer(ST_GeomFromGeoJSON(route), 0.05)
+
+was always a geographic buffer, and always an error. Proved both halves on the scratch server
+rather than assuming: `ST_SRID(ST_GeomFromGeoJSON(g), 0)` = 0, and the original expression still
+raises today.
+
+### Two designs were considered and one was wrong
+
+Reassembling the LINESTRING with `GROUP_CONCAT` + `JSON_TABLE` also worked, and was verified
+correct first - but `group_concat_max_len` defaults to **1024**, which would silently truncate
+every real polyline past ~50 vertices. The `ST_SRID(..., 0)` relabel needs no string
+reassembly at all, so long routes cannot be corrupted. A test drives an 801-vertex route
+(12.7 kB) to prove it.
+
+### The axis-order trap, and the one lng-first string in the codebase
+
+Relabelling to Cartesian SRID 0 removes the EPSG axis-order rule, so ordinate order becomes
+literal `x, y` - and `ST_GeomFromGeoJSON` keeps GeoJSON as-is, `x = lng, y = lat`. The probe
+point therefore has to be `POINT(lng lat)`, the opposite of everywhere else in this codebase
+(RV-25 is lat-first because 4326 demands it). This was verified empirically, not reasoned
+about: my first attempt used lat-first and produced *exactly inverted* results - every correct
+point missed and the transposed point matched. That inversion is now a test
+(`test_the_transposed_probe_point_does_not_match`), because the failure mode is a query that
+still looks valid and simply matches nothing.
+
+### A test that would have hidden the 500
+
+`WaveZeroVerificationTest::test_v3_...` accepted **either** of two recorded outcomes: a
+`QueryException`, or zero matches ("strategy B is decorative at best"). Both were the defect.
+A test that treats "raises a 500" as an acceptable outcome is exactly what let this survive
+two audit rounds. It now asserts the ride is found.
+
+Its fixture was also wrong, and that mattered: it assigned `route_geometry` as a JSON **string**
+into a column cast to `array`, storing a JSON string instead of a JSON object. The row still
+parsed through `ST_GeomFromGeoJSON`, but strategy B's own guard
+(`JSON_EXTRACT(route_geometry, '$.coordinates') IS NOT NULL`) rejected it - so the fixture was
+testing a code path production never takes. Fixture corrected to assign a real array, matching
+`RideRepository`.
+
+### Verification
+
+- New `tests/Feature/Review/V3RouteBufferTest.php`: 8 tests covering the allowed path, the
+  denied path, the axis-order inversion, the unit (degrees), and an 801-vertex route.
+- Floor (`Rides`, `Bookings`, `Unit/Domain`, `RideSearchService` referrers, geo review files):
+  292 tests, 4 failures - **the same 4 that fail with this fix reverted**, confirmed by
+  stashing the fix and re-running. They are pre-existing and unrelated (completion-confirmation
+  500s and a fee assertion), not introduced here.
+- Needle: reverting the app change fails 6 of the 8 new tests. The 2 that still pass are
+  strategy-A-only and the test that documents MySQL's own behaviour, both intentionally
+  independent of the fix.
+
+**Next audit section number: 128.**
