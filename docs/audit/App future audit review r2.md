@@ -9427,3 +9427,132 @@ Scratch DB `127.0.0.1:3399`, pinged before the run, variables set in the same sh
 
 **AF-6 itself: `OPEN` -> `PARTIAL`.** One criterion met, two met only in a corrected form with their
 stated mechanisms refuted, one not met. The remainder is a money-type design decision and is the owner's.
+
+## 113. The rule was never empty - `BACKLOG.md` said `OPEN` on a row whose own Evidence said "Row closed"
+
+`sec 111` (T4-10) found that the `Blocked by` column was stale and unblocked a row. Two sessions and one
+correction later, the rule was still dead-ending at "none unblocked". That conclusion was **wrong**, and it
+was wrong for a reason no amount of re-reading the prose would have found: the table the rule reads is
+structurally corrupt in seven places, and one of them made the rule's answer unreadable.
+
+Everything here is documentation. No application code was changed.
+
+### What the rule actually said, read mechanically
+
+The previous sessions counted "all 6 `OPEN` rows carry a gate" and stopped. Parsing the table against its
+own header instead of by eye:
+
+| Order | ID | `Status` | `Blocked by` | qualifies? |
+|---|---|---|---|---|
+| 91 | T3-10 | `OPEN` | owner actions (T1-3 rotation, RV-08 deletion approval) | no |
+| 108 | T4-9 | `OPEN` | owner decision (client-visible Arabic text) | no |
+| **110** | **AF-7b** | **`OPEN`** | **`none`** | **YES - lowest Order** |
+| 111 | RV-04b | `OPEN` | owner decision (auth rules vs test) | no |
+| 112 | RV-04c | `OPEN` | owner decision (migration vs factory) | no |
+
+Row 110's `Blocked by` cell reads `**none**`. It is the one row the rule can legally select. It was never
+looked at, because the `Status` cell that should have been `VERIFIED FIX` was not - and it said `OPEN`
+because the row carries a **ninth cell** against an eight-column header, so any reader taking field 4 as
+`Status` read one column to the left of the truth.
+
+So the honest statement is not "no row qualifies". It is **"the row that qualified had already been
+finished, and the table was lying about it"** - which is what `AGENTS.md` step 3 anticipates: *"If it is
+already done or gated, correct its `BACKLOG.md` row and take the next one."*
+
+### The full extent: seven malformed rows, and the scan could not see the worst one
+
+A cell-count scan of the section-2 table against the header found 7 rows wrong:
+
+| Order | Cells | Defect |
+|---|---|---|
+| 35 (RV-40) | 9 | `Evidence` split by a stray delimiter |
+| 44 (RV-17) | 9 | same |
+| 45 (RV-12) | 9 | same |
+| 64 (AF-5) | **10** | `Evidence` split into three cells |
+| 109 (T4-10) | 9 | a literal `\|` inside a code span, cut in half mid-sentence |
+| **110 (AF-7b)** | 9 | **a ninth cell injected after `Status` - the decision-relevant one** |
+| 112 (RV-04c) | 9 | **the section-3 heading swallowed into the row** |
+
+Two further defects the scan could not see, found only while repairing:
+
+- **Orders 110, 111 and 112 had `ID` and `Title` transposed** by the same splice - the long prose sat in
+  `ID` and the short code (`AF-7b`, `RV-04b`, `RV-04c`) sat in `Title`.
+- **`## 3. Commit verification` had no heading at all.** Its text was the last cell of row 112, so rows
+  113-115 sat below a heading that should have *ended* the table. Restored on its own line after the last
+  table row; sections now read 1, 2, 3, 4, 5, 6, 7 in order.
+
+`sec 100` already recorded that this file had been corrupted once; `sec 111` that its columns went stale
+twice. This is the same document, a third time, and this time it cost three sessions.
+
+### Row 110 re-verified before being closed
+
+Not assumed from its own Evidence cell - checked against the code:
+
+- `UserRideStatsService` exists (`app/Services/Ride/UserRideStatsService.php:32`) and **both** former
+  duplication sites delegate to it: `ProfileController:413` (imports at `:10`, `:58`) and
+  `StaffOperationsController:134` (imports at `:15`, `:44`).
+- `BoundaryDependencyTest` **9 tests / 36 assertions, OK** at baseline 20 (commit `732dfc7`).
+- Both `sec 95` dismissals re-checked and still correct: `PassengerProfileController:685` is
+  `complaintCounts()` over `Complaint`, and `RideController:254` is `COALESCE(SUM(seats), 0)` - seats, not
+  counts. Both were regex false positives, exactly as recorded.
+
+So the row's acceptance set (re-measurement + triage) was genuinely complete, and closing it is a
+correction of the record rather than a decision.
+
+### A mistake of my own, caught by my own ratchet, twice
+
+Worth recording because both were the same trap the task is about:
+
+1. **The row I filed for this defect took `Order 113 - which was already AF-13's.** Renumbered to **116**
+   rather than left as a duplicate. This is the mistake `sec 106` already recorded once (it reused
+   `RV-34`). The table has now had it twice, by me.
+2. **Row 116 then contained a literal `\|` in its own prose**, splitting it into 9 cells - and after
+   fixing that, a literal `## 3.` heading pattern, which the new ratchet flagged. Both times the fix was
+   to **reword the prose**, not to loosen the detector.
+
+The detector is strict on purpose: a table cell containing a heading pattern is exactly how section 3 was
+eaten, and the rule cannot distinguish "describing a heading" from "swallowing one".
+
+### The ratchet
+
+New `tests/Feature/Review/BacklogTableShapeTest.php` - 6 tests / 133 assertions:
+
+- every section-2 row parses to exactly the header's column count;
+- no `Order` value is used twice;
+- no section heading is swallowed into a table row;
+- sections 1-7 are present exactly once each and in order;
+- **a self-test** proving the detector reports a 9-cell and a 10-cell row, so the ratchet cannot pass on a
+  table it is unable to read. `sec 64.3` recorded a ratchet that was over-broad hiding real defects; the
+  guard here is against the opposite failure, a detector too narrow to bite.
+
+The first run of the new test **failed on 34 rows it should never have seen** - the section-1a
+owner-decision index and the section-7 coverage table also start with `| N |`. The scan was scoped to the
+section-2 table, addressed from the headings rather than by line number.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` on the new test | no syntax errors |
+| `pint --test` on the new test | PASS |
+| new test alone | OK - 6 tests, 133 assertions |
+| **needle 1** - 9th cell injected after `Status` (row 110's shape) | FAILS, caught by `cellcount` |
+| **needle 2** - section-3 heading glued into a row (row 112's shape) | FAILS, caught by `cellcount` + `swallowed` |
+| **needle 3** - duplicate `Order 1` | FAILS, caught by `duporder` |
+| restore after all three needles | SHA256-identical (`79607262...`) |
+| Review floor **at HEAD** (new test removed) | 467 tests, 1540 assertions, Skipped 2, Incomplete 1 |
+| Review floor **with** the new test | 473 tests, 1673 assertions, Skipped 2, Incomplete 1 |
+| delta | **+6 tests, +133 assertions, same skips and incompletes - zero regressions** |
+| section-2 cell-count rescan | 116 rows, **0** mismatched (was 7) |
+| rule re-applied after the repair | 4 `OPEN` rows, all owner-gated; **no row qualifies** |
+
+Scratch DB `127.0.0.1:3399`, pinged first, variables set in the same shell, guard asserted.
+
+### Final state
+
+**VERIFIED FIX.** Row 110 closed on evidence. Rows 35, 44, 45, 64, 109, 111, 112 repaired. Section 3
+heading restored. Row 116 (the follow-up filed mid-task) closed, because leaving 6 of 7 instances of one
+defect unrepaired is a partial fix. The table's shape is now pinned by a test.
+
+**The rule now returns nothing, and this time that is a fact rather than a misreading**: the four
+remaining `OPEN` rows are T3-10, T4-9, RV-04b and RV-04c, and every one names an owner decision.
