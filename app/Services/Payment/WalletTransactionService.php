@@ -2,6 +2,7 @@
 
 namespace App\Services\Payment;
 
+use App\Domain\ValueObjects\Money;
 use App\Enums\WalletKind;
 use App\Models\Booking;
 use App\Models\Ride;
@@ -1226,7 +1227,9 @@ use App\Models\Booking;
      */
     public function releaseEscrowToDriver(Booking $booking, Ride $ride, User $driver): void
     {
-        $total = round((float) ($booking->seats * $ride->price_per_seat), 2);
+        // `R2 sec 117`: seats x price is a MONEY product, so it is computed in integer minor units.
+        // Multiplying the float first and rounding after could land on the wrong side of a half-fils.
+        $total = Money::from((float) $ride->price_per_seat)->multiply((float) $booking->seats)->amount();
         // RV-19: routed through the same helper as the other two sites. This one already
         // subtracted, which is why it was the only path that worked for the affected totals.
         ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);

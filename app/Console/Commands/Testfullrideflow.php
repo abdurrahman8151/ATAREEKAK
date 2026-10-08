@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\Employee;
@@ -207,9 +208,11 @@ class Testfullrideflow extends Command
                     true,
                     $pBalanceAfter > $pBalanceBefore
                 );
+                // `R2 sec 117`: both sides normalised through `Money` so the comparison is in minor
+                // units, matching how the ledger itself decides whether a transfer balances.
                 $this->check('Refund amount matches booking cost',
-                    round($escrowAmount, 2),
-                    round($pBalanceAfter - $pBalanceBefore, 2)
+                    Money::from((float) $escrowAmount)->amount(),
+                    Money::from($pBalanceAfter - $pBalanceBefore)->amount()
                 );
                 $this->check('Driver score −15', -15, $this->score($driver) - $dScoreBefore);
                 $this->check('Booking = no_show', 'no_show', $booking->fresh()->status);

@@ -2,6 +2,7 @@
 
 namespace App\Services\Payment;
 
+use App\Domain\ValueObjects\Money;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
@@ -340,7 +341,9 @@ final class CashRideFeeService
         //   Elapsed ≥ 30% + no passengers      → 100%
         $elapsedPct = $this->calculateElapsedPct($ride);
         $refundPct = ($elapsedPct < 30.0 || ! $hadActiveBookings) ? 100 : 0;
-        $refundAmount = round($feeAmount * $refundPct / 100, 2);
+        // `R2 sec 117`: the percentage of a fee is `Money`'s own operation now, so this is decided in
+        // integer minor units instead of `round($feeAmount * $pct / 100, 2)` in float. Same value.
+        $refundAmount = Money::from($feeAmount)->percentage((float) $refundPct)->amount();
 
         // RV-02 L2: a ride is cancelled once, so each of the three outcomes below is a once-only
         // posting. Distinct keys, because a ride takes exactly one of them.
@@ -385,7 +388,9 @@ final class CashRideFeeService
         }
 
         // ── Paid fee: money movement from Primary Admin → Driver wallet ───────
-        $platformKeeps = round($feeAmount - $refundAmount, 2);
+        // `R2 sec 117`: subtraction as well. Signed `Money` means this is allowed to be negative if it
+        // ever were - the old float `round()` did not check either, so behaviour is unchanged.
+        $platformKeeps = Money::from($feeAmount)->subtract(Money::from($refundAmount))->amount();
 
         if ($refundAmount <= 0) {
             // Audit record only — no money movement

@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Domain\ValueObjects\Money;
 use App\Enums\LedgerType;
 use App\Models\Booking;
 use App\Models\Photo;
@@ -414,11 +415,12 @@ final class AdminDriverService
                 'cancelled_rides' => $cancelledRides,
                 'cancel_rate' => $cancelRate,                        // e.g. 2.4 (%)
                 // AUTHORITATIVE: real settled money paid to this driver for rides.
-                'ledger_earnings' => round((float) $ledgerEarnings, 2),
+                // `R2 sec 117`: money figures are rounded once, in `Money`.
+                'ledger_earnings' => Money::from((float) $ledgerEarnings)->amount(),
                 // A projection off CURRENT ride prices, not a payout.
-                'estimated_gross' => round((float) $estimatedGross, 2),
+                'estimated_gross' => Money::from((float) $estimatedGross)->amount(),
                 // ALIAS of `ledger_earnings`, kept so the admin front-end does not break (D5 = C).
-                'total_earnings' => round((float) $ledgerEarnings, 2),
+                'total_earnings' => Money::from((float) $ledgerEarnings)->amount(),
             ],
 
             'vehicle' => [

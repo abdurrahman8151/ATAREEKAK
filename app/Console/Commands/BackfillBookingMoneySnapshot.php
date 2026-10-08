@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +90,12 @@ class BackfillBookingMoneySnapshot extends Command
                     continue;
                 }
 
-                $unitPrice = $booking->seats > 0 ? round($paid / $booking->seats, 2) : $paid;
+                // `R2 sec 117`: dividing money is a money operation. `divide()` rounds once, in minor
+                // units; the `$booking->seats > 0` guard is what makes its `divisor must be positive`
+                // precondition hold.
+                $unitPrice = $booking->seats > 0
+                    ? Money::from((float) $paid)->divide((float) $booking->seats)->amount()
+                    : $paid;
 
                 if (! $dry) {
                     $booking->forceFill([

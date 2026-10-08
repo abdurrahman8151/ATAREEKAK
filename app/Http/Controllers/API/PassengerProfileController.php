@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Domain\ValueObjects\Money;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
 use App\Http\Controllers\Controller;
@@ -476,9 +477,11 @@ final class PassengerProfileController extends Controller
 
         return [
             'total_rides' => $totalRides,
-            'total_spending' => round((float) $totalSpending, 2),
+            // `R2 sec 117`: money figures are rounded once, in `Money`. `avg_rating` below is a RATING
+            // at 1dp and is deliberately NOT money - do not "fix" it.
+            'total_spending' => Money::from((float) $totalSpending)->amount(),
             'avg_rating' => round((float) $avgRating, 1),
-            'wallet_balance' => round((float) $walletBalance, 2),
+            'wallet_balance' => Money::from((float) $walletBalance)->amount(),
         ];
     }
 
@@ -510,7 +513,7 @@ final class PassengerProfileController extends Controller
                 'month' => $date->locale('ar')->isoFormat('MMMM'),
                 'month_key' => $key,
                 'trips' => $row ? (int) $row->trips : 0,
-                'total_cost' => $row ? round((float) $row->total_cost, 2) : 0.0,
+                'total_cost' => $row ? Money::from((float) $row->total_cost)->amount() : 0.0,
             ];
         }
 
@@ -540,7 +543,9 @@ final class PassengerProfileController extends Controller
                     : null,
                 'seats' => $b->seats,
                 'price_per_seat' => (float) ($b->ride?->price_per_seat ?? 0),
-                'total_cost' => round($b->seats * (float) ($b->ride?->price_per_seat ?? 0), 2),
+                'total_cost' => Money::from((float) ($b->ride?->price_per_seat ?? 0))
+                    ->multiply((float) $b->seats)
+                    ->amount(),
                 'status' => $b->status,
                 'departure_time' => $b->ride?->departure_time?->toIso8601String(),
             ])

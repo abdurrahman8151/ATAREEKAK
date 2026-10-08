@@ -2,6 +2,7 @@
 
 namespace App\Services\Payment;
 
+use App\Domain\ValueObjects\Money;
 use App\Models\LedgerEntry;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -47,18 +48,21 @@ class LedgerService
             );
         }
 
-        // Normalise to 2dp before summing. Comparing floats that have not been rounded is how a
-        // transfer of 10.005 + (-10.005) gets rejected for "not balancing" when it does.
-        $sum = 0.0;
+        // `R2 sec 117`: the balance check is the whole point of this class, and it used to be decided
+        // in FLOAT - each leg `round()`ed to 2dp and the running total compared to `0.0` with `!==`.
+        // That is a float sum being trusted to answer "is this exactly zero?". Summing in integer minor
+        // units via `Money` asks the question in the representation money actually has, so the check is
+        // exact rather than approximately exact. Rounding is no longer decided per call site either: it
+        // happens once, inside `Money::from()`.
+        $sum = Money::zero();
         foreach ($legs as $leg) {
-            $sum += round((float) $leg['amount'], 2);
+            $sum = $sum->add(Money::from((float) $leg['amount']));
         }
-        $sum = round($sum, 2);
 
-        if ($sum !== 0.0) {
+        if (! $sum->isZero()) {
             throw new RuntimeException(
-                'Refusing to post an unbalanced ledger transfer: legs sum to '.$sum
-                .' (expected 0.00). Money is only conserved if every credit has a matching debit; '
+                'Refusing to post an unbalanced ledger transfer: legs sum to '.$sum->formatted()
+                .' (expected 0.00 SYP). Money is only conserved if every credit has a matching debit; '
                 .'an unbalanced entry is either a bug or a half-written movement, and recording it '
                 .'would make the ledger lie.'
             );
@@ -78,7 +82,9 @@ class LedgerService
                 $entry = LedgerEntry::create([
                     'wallet_id' => $leg['wallet_id'],
                     'wallet_transaction_id' => $transaction?->id,
-                    'amount' => round((float) $leg['amount'], 2),
+                    // Same normalisation as the balance check above, and for the same reason: what is
+                    // stored is what was checked. Rounding to 2dp happens once, in `Money::from()`.
+                    'amount' => Money::from((float) $leg['amount'])->amount(),
                     'description' => $leg['description'] ?? null,
                 ]);
 
@@ -104,17 +110,20 @@ class LedgerService
         ?WalletTransaction $transaction = null,
         ?string $description = null,
     ): array {
-        $amount = round($amount, 2);
+        // `R2 sec 117`: the amount is stated once and the two signs are DERIVED from it, in integer
+        // minor units. `negated()` exists for exactly this - the raw unary minus this used is the
+        // reason a signed money type was needed at all.
+        $amount = Money::from($amount);
 
         return $this->postTransfer([
             [
                 'wallet_id' => $from->id,
-                'amount' => -$amount,
+                'amount' => $amount->negated()->amount(),
                 'description' => $description ? "debit: {$description}" : null,
             ],
             [
                 'wallet_id' => $to->id,
-                'amount' => $amount,
+                'amount' => $amount->amount(),
                 'description' => $description ? "credit: {$description}" : null,
             ],
         ], $transaction);
@@ -140,24 +149,26 @@ class LedgerService
         ?WalletTransaction $transaction = null,
         ?string $description = null,
     ): array {
-        $amount = round($amount, 2);
+        // `R2 sec 117`: signed `Money` replaces the raw unary minus, so the two legs cannot disagree
+        // about a sign - the second is the negation OF the first, not a second independent expression.
+        $amount = Money::from($amount);
 
         // $inbound: money ARRIVES at $target, so it leaves the external account.
         // !$inbound: a withdrawal leaves $target for the outside world.
-        $externalLeg = $inbound ? -$amount : $amount;
-        $targetLeg = -$externalLeg;
+        $externalLeg = $inbound ? $amount->negated() : $amount;
+        $targetLeg = $externalLeg->negated();
 
         $direction = $inbound ? 'inbound' : 'outbound';
 
         return $this->postTransfer([
             [
                 'wallet_id' => $external->id,
-                'amount' => $externalLeg,
+                'amount' => $externalLeg->amount(),
                 'description' => $description ? "{$direction} external: {$description}" : "{$direction} external",
             ],
             [
                 'wallet_id' => $target->id,
-                'amount' => $targetLeg,
+                'amount' => $targetLeg->amount(),
                 'description' => $description ? "{$direction} wallet: {$description}" : "{$direction} wallet",
             ],
         ], $transaction);
@@ -173,6 +184,7 @@ class LedgerService
         $sum = LedgerEntry::where('wallet_transaction_id', $transaction->id)
             ->sum('amount');
 
-        return round((float) $sum, 2);
+        // `R2 sec 117`: exact in minor units, same as the check that produced it.
+        return Money::from((float) $sum)->amount();
     }
 }

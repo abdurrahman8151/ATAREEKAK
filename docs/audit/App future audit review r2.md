@@ -9820,3 +9820,99 @@ half is replacing raw decimal arithmetic across the 7 services / ~66 sites with 
 type can express the values those sites compute. Nothing gates it any more - it is approved, possible,
 and simply large. Recorded as the next session's candidate; the next-task rule will not select it on
 its own because the row is `PARTIAL`.
+
+## 117. AF-6 criterion 1 step 2: the raw decimal math is gone - and this was a substitution, not a fix
+
+The remainder `sec 116` left open. `Money` is signed, so the value object can now express the values the
+money paths actually compute.
+
+**First, the census was re-derived from `sec 112:9367-9371` rather than recalled, and the headline number
+in the acceptance criterion is stale.** It says "7 services / 66 sites". That counted the
+`round($x * 0.95, 2)` sites that `sec 71` consolidated into `FeeSplit`. What remained was **14 sites in 7
+files**, and they are not all the same kind of thing.
+
+### The sites are not interchangeable, so they were classified before any of them was touched
+
+| tier | what it is | sites |
+|---|---|---|
+| 1 | arithmetic that **decides** money | `LedgerService:52-58`, `:81`, `:107`, `:143`, `:147-148`, `:176`; `CashRideFeeService:343`, `:388`; `WalletTransactionService:1229`; `BackfillBookingMoneySnapshot:92`; `PassengerProfileController:543`; `Testfullrideflow:211-212` |
+| 2 | `round()` on an already-decimal DB value for a JSON response | `AdminDriverService:417,419,421`; `PassengerProfileController:479,481,513` |
+| — | **NOT MONEY, DELIBERATELY NOT CONVERTED** | `PassengerProfileController:480` is `round($avgRating, 1)` - a **RATING at 1dp**. Converting it would be wrong. It is named here and pinned by a test so a later reader does not "fix" it. |
+
+### The one that mattered: the invariant itself was decided in float
+
+`LedgerService::postTransfer` is the reason the ledger is trustworthy, and its balance check was:
+
+```php
+$sum = 0.0;
+foreach ($legs as $leg) { $sum += round((float) $leg['amount'], 2); }
+$sum = round($sum, 2);
+if ($sum !== 0.0) { throw ... }
+```
+
+A float running sum, compared to `0.0` with `!==`, **correct only because of the trailing `round()`**.
+It is now a sum of integer minor units via `Money`, so it is exact in the representation money has. The
+per-leg `round()` at write time went the same way, so **what is stored is what was checked**. The signs
+in `postTwoPartyTransfer` and `postExternalTransfer` are now derived with `negated()`, so the second leg
+cannot disagree with the first about a sign.
+
+### The honest part: this fixed no live bug
+
+A controlled probe ran the OLD form (reproduced verbatim, trailing `round()` and all) against the NEW
+one over seven leg sets - two-party, `0.1 + 0.2 - 0.3`, ten 0.01 legs, the 95/5 remainder of 1000.50, an
+external transfer, a one-cent imbalance, and a one-**fil** imbalance:
+
+**0 of 7 cases disagree.**
+
+The first probe I wrote dropped the old trailing `round()` and produced a dramatic-looking table. That
+probe was wrong about the code it was describing, so it was rewritten before anything was concluded from
+it. There was no defect here. What changed is the **mechanism**: rounding is now decided once, inside
+`Money::from()`, instead of at 14 call sites, and the balance check is exact rather than rescued.
+
+### What holds it in place
+
+New `tests/Feature/Review/MoneyRoundingIsDecidedInOnePlaceTest.php`, 5 tests / 24 assertions, in three
+parts:
+
+1. **The ratchet.** No converted file may call `round()` over a money token. Comments are stripped
+   with a quote-aware pass, because the conversion left comments that *name* the old `round()` calls and
+   a ratchet matching inside a comment would forbid documenting the change it enforces.
+2. **The negative control.** Every converted file must still use `Money::` - otherwise a file that simply
+   deleted its arithmetic would satisfy rule 1 and prove nothing.
+3. **Non-money rounding must survive** - `elapsed_pct`, `avg_rating`, and the 1dp rating in
+   `PassengerProfileController`, so the ratchet reads as "round money in the value object" and not
+   "delete the round calls".
+
+Plus two behavioural tests: legs balancing exactly in minor units are accepted *and stored exactly*, and
+a one-cent imbalance is still refused, records nothing, and names `0.01 SYP`.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` + `pint --test` on all 8 changed files | clean, PASS |
+| money floor + `Review` + `Admin` + `Unit/Services/{Admin,Payment}` + `RateLimiterIdentityKeyTest` + `BoundaryDependencyTest` | **986 tests, 2729 assertions, 4 errors, 27 failures** |
+| the same selection **at HEAD with all 7 app files reverted** | **986 / 2729 / 4 errors / 27 failures - the identical 31 test names** |
+| delta | **zero behavioural change, zero new failures** |
+| what those 31 are | 4 `AdminWalletServiceTest` (missing `SystemWalletSeeder`), 3 `WalletTest` OTP, 9 `AdminDashboardControllerTest`, 10 `AdminDriverServiceTest` rating, 5 `CashRideFeeServiceTest` refund-tier. **All pre-existing at HEAD**, left alone. |
+| new ratchet file alone | OK - 5 tests, 24 assertions |
+| **NEEDLE 1** - remove the `postTransfer` balance check entirely | **exactly 1 test fails**: `an_unbalanced_transfer_is_refused_rather_than_recorded` |
+| **NEEDLE 2** - put a per-call `round()` over money back in `LedgerService` | the ratchet fails and reports `LedgerService.php:87` with the offending line |
+| **NEEDLE 3** - revert `BackfillBookingMoneySnapshot` to raw float math | **2 tests fail**: the ratchet *and* the negative control - which is the control doing its job |
+| restore after all three needles | all touched files SHA256-identical |
+
+### A defect in my own previous task, found and fixed
+
+The `sec 116` close-out left a duplicated fragment in this very criterion: line 640 read
+`reserves for the owner.` and line 641 repeated it. The slice that appended the new text kept the anchor
+line *and* re-added it. It sat inside the acceptance criteria for two commits. Removed.
+
+### Status
+
+**AF-6 criterion 1 is MET.** The other three were already met (criterion 2 as `LedgerType`, criterion 3 by
+`sec 114` + `sec 115`), so three of four are now met.
+
+**AF-6 stays `PARTIAL`,** and the only remaining gap is criterion 4's seventh alias, **RV-10, which is
+`BLOCKED` on owner window W** - an action, not a decision. No code task remains on this row.
+
+**Next audit section number: 118.**
