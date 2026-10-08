@@ -9916,3 +9916,89 @@ line *and* re-added it. It sat inside the acceptance criteria for two commits. R
 `BLOCKED` on owner window W** - an action, not a decision. No code task remains on this row.
 
 **Next audit section number: 118.**
+
+## 118. RV-08: the deploy workflow named a compose service that does not exist
+
+Owner decision, 2026-10-11: **keep the superseded VPS/compose files, do not delete them; fix the known
+bug.** Not started until now.
+
+### The defect
+
+`deploy-to-vps.yml:94,97` ran:
+
+```yaml
+docker compose exec -T app php artisan migrate --force
+docker compose exec -T app php artisan optimize
+```
+
+`docker-compose.yml` defines **no `app` service**. The services are `app1`-`app5`
+(`:23,56,86,116,146`), `nginx`, `redis`, `mysql`, `mysql_replica`, `minio`, `queue`, `scheduler`.
+`docker compose exec` against an undefined service fails, so the deploy could never have completed past
+the migration step.
+
+### Why it survived for so long, and why that matters
+
+The workflow was disarmed on 2026-10-03 (decision 7 moved production to Render) and is
+`workflow_dispatch`-only. Nothing runs it, so nothing noticed. **That is the real lesson, and it is why
+the two-line edit is not the deliverable.** A deprecated path is exactly where a latent defect hides,
+and the owner ruled to keep the file rather than delete it - so something has to hold the line.
+
+### Why `app1`, and not one of the other app services
+
+`app1` is the **only** service carrying a `build:` block (`docker-compose.yml:24-26`), so
+`docker compose up -d --build` guarantees it exists and it holds the image that was just built.
+`app2`-`app5`, `queue` and `scheduler` name `image: syride_octane:latest` with no `build:` section -
+they exist *only* because `app1`'s build produced that tag. Exec'ing into one of those would tie the
+migration step to a consumer of the build rather than to its owner, which is a subtler thing to get
+wrong than the original bug.
+
+### The deliverable is the ratchet
+
+New `tests/Feature/Review/DeployWorkflowServiceRatchetTest.php`, 3 tests / 10 assertions:
+
+1. **The assertion.** Parse `docker-compose.yml` with `symfony/yaml`, collect every
+   `docker compose exec|run [-T] <service>` target across all six workflows, and require each to be a
+   service the compose file defines. The failure message names the workflow, the bad target, and lists
+   what does exist.
+2. **The negative control** - the scanner must actually find `app1` and must NOT find `app`. Without it
+   the ratchet could pass on a parse that found nothing, which is the difference between "no bug" and
+   "no test".
+3. **The premise guard.** `deploy-to-vps.yml` must still be `workflow_dispatch`-only, with no `push` or
+   `schedule` trigger. If a push trigger is ever re-added, production behaviour changes silently and
+   this row's premise - that fixing this file cannot affect production - stops being true. Worth pinning
+   because it is the assumption the whole "hygiene on a dead path" argument rests on.
+
+Deliberately **not** claimed: that the VPS deploy path works. It cannot be verified here - there is no
+VPS, production is on Render, and the sandbox has no docker daemon. The ratchet asserts the one thing
+that is checkable and was wrong.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` + `pint --test` on the new test | clean, PASS |
+| new test file alone | **OK - 3 tests, 10 assertions, 0.031s** (no app boot, no database: a pure unit test by design) |
+| every workflow parses as YAML | **6 of 6 OK** - the cheap static check for a CI-only file |
+| Review floor | 492 tests, 1738 assertions, **no failures** |
+| **NEEDLE** - reintroduce `exec -T app` | **2 of 3 tests fail**: the ratchet and its negative control; the trigger test correctly stays green |
+| needle message | `execs/runs against "app", which docker-compose.yml does not define (it has: app1, app2, app3, app4, app5, nginx, redis, mysql, mysql_replica, queue, scheduler)` |
+| restore | `deploy-to-vps.yml` SHA256-identical |
+
+### One implementation note
+
+The first run of this test errored on `base_path()` - `Illuminate\Container\Container::basePath()` is
+undefined under a plain `PHPUnit\Framework\TestCase`. Rather than boot the framework, the test resolves
+the repository root with `dirname(__DIR__, 3)`. It reads two YAML files and makes no assertion that
+needs Laravel, so staying a pure unit test is both correct and 40x cheaper.
+
+### Status
+
+**RV-08 stays `BLOCKED`.** The owner's decision resolved the *only* question this row carried - the files
+are kept, and the known bug is fixed - but the row's `Blocked by` column names the superseded deploy
+target, and this task did not change what production runs on. There is now **one decision-free
+remainder: none.** The row is done as far as code goes and is waiting on the same thing it was always
+waiting on.
+
+The other approved, unstarted decision-free item is now **RV-04c** (`UserFactory` `token_version` 0 -> 1).
+
+**Next audit section number: 119.**

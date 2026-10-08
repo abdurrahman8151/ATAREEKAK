@@ -91,10 +91,17 @@ jobs:
             docker compose up -d --build
 
             echo "Running migrations inside the container..."
-            docker compose exec -T app php artisan migrate --force
+            # R2 sec 118: this was `exec -T app`, and `docker-compose.yml` defines NO `app` service -
+            # the step could not succeed if this workflow was ever dispatched. `app1` is the target
+            # because it is the only service carrying a `build:` block (docker-compose.yml:24-26), so
+            # `docker compose up -d --build` guarantees it exists and it holds the image just built.
+            # `app2`-`app5`, `queue` and `scheduler` name `image: syride_octane:latest` with no build
+            # section: they exist only because `app1`'s build produced that tag, so exec'ing into one
+            # would tie the migration step to a consumer of the build rather than its owner.
+            docker compose exec -T app1 php artisan migrate --force
 
             echo "Optimizing Laravel..."
-            docker compose exec -T app php artisan optimize
+            docker compose exec -T app1 php artisan optimize
 
             echo "Cleaning up old images..."
             docker image prune -f
