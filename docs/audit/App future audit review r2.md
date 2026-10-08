@@ -8785,3 +8785,69 @@ Only the two channels this test actually writes are visible, and nothing process
 - `SharedTestSupportTest::test_system_wallets_are_seeded_by_phone_and_are_idempotent`
 
 Nothing pushed.
+## 104. RV-39: `SyrideSeeder::TRUNCATE_TABLES` orphaned every `ledger_entries` row on every seed
+
+Second red test in `tests/Feature/Review`. The completeness ratchet derives the truncate list from
+`information_schema` and requires that **any table with an FK into a truncated table is itself truncated**:
+
+```
+ledger_entries references truncated wallets but is not truncated
+ledger_entries references truncated wallet_transactions but is not truncated
+```
+
+### Impact
+
+`TRUNCATE_TABLES` truncated `wallet_transactions` and `wallets` but not `ledger_entries`, which carries FKs
+into both. Every seeded run therefore deleted the parent rows while leaving the child rows behind:
+
+- **orphaned ledger entries** pointing at wallets that no longer exist, and
+- **stale balances** from the previous seed still sitting in `ledger_entries`.
+
+Any test or manual check that reads the ledger after seeding was reading rows describing a wallet graph
+that had just been destroyed underneath them.
+
+### Fix
+
+`'ledger_entries'` added to `TRUNCATE_TABLES`, placed **after** its parents, matching the children-first
+ordering the rest of the list already uses so a truncate never trips a foreign key.
+
+This is seeder/fixture hygiene and changes no ledger semantics: no balance, type, or invariant is touched,
+and the test dictated the fix exactly. (The sibling test in the same file is a different matter - see below.)
+
+### Verification
+
+| check | result |
+|---|---|
+| `RV39SeederHygieneTest` | 14 tests / 95 assertions, **the truncate test now passes** |
+| NEEDLE - drop `ledger_entries` again | ratchet red, both FK violations reported, SHA256 restore |
+
+`php -l` clean; `pint --test` PASS. One file changed.
+
+### STOP-AND-ASK raised here: ledger type vocabulary (NOT fixed, deliberately)
+
+The same file's other red test is a **money/ledger semantics** question, which `AGENTS.md` reserves for the
+owner, so it is reported rather than guessed:
+
+```
+wallet_transactions.type must come from the shared LedgerType vocabulary
+  PassengerProfileController.php:386  'type' => 'external_inbound'
+  AdminWalletService.php:109          'type' => 'external_inbound'
+  WalletTransactionService.php:545    'type' => 'staff_cancellation_refunds'
+  WalletTransactionService.php:567    'type' => 'staff_cancellation_refund'
+```
+
+A fifth live writer the scanner did not flag: `AdminWalletRequestController.php:200` writes
+`'external_inbound'` **or** `'external_outbound'` from a ternary.
+
+`LedgerType` has **no case** for any of these four/five values. Note the enum already carries the same
+singular/plural drift elsewhere on purpose - `DRIVER_CANCELLATION_REFUNDS` (ride-wide, plural) alongside
+`DRIVER_CANCELLATION_REFUND` (per-passenger, singular) - and `WalletTransactionService` writes
+`staff_cancellation_refunds` and `staff_cancellation_refund` at lines 545 and 567, which looks like exactly
+that pairing being reproduced for a different actor. That is an inference, not a decision.
+
+The enum's own rule is "do NOT add new cases here without a live writer" - these **are** live writers, so
+adding cases is permitted by that rule. But two things need an owner call: whether these four names become
+new `LedgerType` cases or are renamed to existing ones, and whether rows already written under the current
+strings need a data migration (which is ask-first).
+
+Nothing pushed.

@@ -197,7 +197,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 53 | RV-31 | Dead code wave (grep-confirm each before deleting) | P3 | VERIFIED FIX | n/a | RV-16 (mailers), T4-7, AF-4c | R2 sec 33 VF + recorded classification; 09c5c58 |
 | 54 | RV-32 | README / docs corrections | P3 | VERIFIED FIX | n/a | T4-6 | R2 sec 30; e878f25 (+23/-10) |
 | 55 | RV-33 | Ratchet additions (`BoundaryDependencyTest`) | P2 | VERIFIED FIX | n/a | AF-2', AF-7 (Larastan baseline) | R2 sec 30; 97792b6 (`RV33BoundaryDependencyTest`, 6 ceilings) |
-| 56 | RV-39 | Seeders (prod guard, filename/class, truncate, vocabulary) | P2 | VERIFIED FIX | n/a | AF-4f (trait), RV-21 (escrow seeder), T3-9 | R2 sec 38 VF; 094479a |
+| 56 | RV-39 | Seeders (prod guard, filename/class, truncate, vocabulary) | P2 | VERIFIED FIX | n/a | AF-4f (trait), RV-21 (escrow seeder), T3-9 | R2 sec 38 VF; 094479a `R2 sec 104`: the completeness ratchet was RED - `ledger_entries` carries FKs into both `wallets` and `wallet_transactions`, both truncated, so every seeded run left orphaned ledger rows and stale balances. Added to TRUNCATE_TABLES (children first); NEEDLED|
 | 57 | AF-1 | TLS honesty + Octane upload hygiene | P0 | VERIFIED FIX | n/a | **-> RV-22** (absorbed, 2/3 landed) | A sec J AF-1 VF; b9643f1 - R1 sec 2 A3.3 re-scoped it into RV-22 |
 | 58 | AF-2 | CI gates: Pint + Larastan + tests-required | P1 | SUPERSEDED | n/a | renamed/extended as **AF-2'** | A sec D7, line 518 (`Next: AF-2`), sec F.5 |
 | 59 | AF-2' | Modularity foundation: context map + ratchet + CI gates | P1 | VERIFIED FIX | n/a | **-> RV-18/V6**, RV-33, AF-7 | A sec J AF-2' VF; 92f454e - `ARCHITECTURE_MAP.md` + `BoundaryDependencyTest` |

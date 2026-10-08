@@ -43,6 +43,13 @@ class SyrideSeeder extends Seeder
         'wallet_transactions', 'wallets', 'bookings', 'rides',
         'score_transactions', 'user_scores', 'photos', 'profiles', 'otps',
         'refresh_tokens', 'password_reset_tokens', 'users',
+        // RV-39 (sec 104): `ledger_entries` carries FKs into BOTH `wallets` and
+        // `wallet_transactions`, and both of those are truncated above. Without it here the seeder
+        // deleted the parent rows while leaving the child rows behind, so every seeded run started
+        // with orphaned ledger entries pointing at wallets that no longer exist - and with stale
+        // balances from the previous seed still sitting in the table. Order is children first,
+        // matching the rest of this list, so a truncate never trips a foreign key.
+        'ledger_entries',
     ];
 
     private const VERIFIED_DRIVERS = 250;
