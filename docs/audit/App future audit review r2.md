@@ -10707,5 +10707,53 @@ It now asserts one index per column and keeps the full regression history in its
 - Genuinely unverified: behaviour against the **production** `rides` table, which has real row
   counts and may hold geometry shapes this scratch database never saw. Before deploying, sample a
   few rows' `ST_AsText` before and after the ALTER. That is a deploy-time action, not a test.
+---
 
-**Next audit section number: 130.**
+## 130. V4: one finding, two halves, only one of which was ever a defect
+
+**Row 4 -> SUPERSEDED (by RV-05, row 21).** No code change. Third row found to duplicate a later
+row, after V1 (`sec 128`) and RV-43 (`sec 126`).
+
+### The evidence line reads like one bug but contains two claims
+
+`collapse CONFIRMED, spoof REFUTED` is a finding and its own refutation. Only the first is a
+defect; the second records that the obvious escalation - "and a client could forge its own IP key,
+so rate limiting is spoofable" - was investigated and does not hold. Nothing needed closing on
+that half, and nothing was ever opened on it either.
+
+The collapse was real: `TrustProxies::$proxies` was null, so behind nginx every request resolved
+to the proxy container's address and every `ip:`-keyed rate-limit bucket collapsed into one bucket
+shared by every user. One abusive client could exhaust the budget for everyone, and the allow-list
+could never match a real client.
+
+### Re-verified, both halves
+
+`ClientIpBehindProxyTest` - 8 tests, 14 assertions, all passing:
+
+    With no trusted proxies configured the header is ignored
+    An explicit zero also means trust nobody
+    A configured proxy makes the real client ip visible
+    A cidr range is supported
+    An untrusted source cannot spoof its own address
+    Two clients get separate ip keys
+    The middleware parses the configuration
+    Nginx overwrites the forwarded header instead of appending
+
+Two clients getting separate IP keys is the direct answer to "collapse". An untrusted source not
+being able to spoof is the answer to "spoof REFUTED". Together they are the two coupled halves:
+trusting the header only helps if nginx overwrites it rather than appending, which is the eighth
+test.
+
+### The residual is an ops value, and it was not tracked as one
+
+RV-05's own evidence says "`TRUSTED_PROXIES` value is ops". The code is correct and defaults to
+**trusting nobody** - deliberately, so it cannot widen trust by accident - but that means any
+deployment which does not set `TRUSTED_PROXIES` still gets the original collapse, silently and
+safely. `TRUSTED_PROXIES` appeared in STATE.md only in passing prose, never as an actionable
+outstanding item, so a deploy could ship looking fine while rate limiting stayed globally shared.
+
+It is now listed under **Owner actions outstanding**, with the reason it matters stated next to it
+rather than left implicit. A fix that is inert until configured should be visibly inert, not
+invisibly inert.
+
+**Next audit section number: 131.**
