@@ -18,7 +18,8 @@ namespace App\Enums;
  * its writer). RV-39 moves the SEEDER onto it and pins the drift with
  * tests/Feature/Review/RV39SeederHygieneTest; the services still pass literals, and
  * converting them is AF-6's `LedgerEvent` job (Wave 3, owner-paused) — AF-6 will absorb
- * or rename this enum, so do NOT add new cases here without a live writer.
+ * or rename this enum. Do NOT add a new case here without a live writer that already
+ * writes the string. (RV-39 sec 105 added four such cases; see their block below.)
  *
  * The column itself is varchar(255), not a DB enum: the migration intended an ENUM but
  * Laravel's renameColumn() rebuilt it as VARCHAR (measured in T1-2, S P2 sec T1-2), so
@@ -31,6 +32,29 @@ enum LedgerType: string
     case ADMIN_CREDIT = 'admin_credit';                       // AdminWalletService::chargeWallet
     case ADMIN_CHARGE = 'admin_charge';                       // AdminWalletRequestController + PassengerProfileController top-ups
     case WITHDRAWAL = 'withdrawal';                           // AdminWalletRequestController:135; ORPHAN (no reader) - AF-6 decides its name
+
+    // ── External top-up / payout (RV-39 sec 105, owner-approved 2026-10-08) ───────
+    // These four names were already being WRITTEN to wallet_transactions.type by live
+    // services; they were simply absent from this enum, which is the exact drift the enum
+    // exists to pin. Owner decision: add them as first-class cases rather than rename the
+    // writers onto existing cases, so no historical row needs a data migration and every
+    // existing value stays valid. The enum's own rule - "do NOT add new cases here without
+    // a live writer" - is satisfied: each case below names its writer.
+    //
+    // NOTE these are DISTINCT from ADMIN_CREDIT / ADMIN_CHARGE above, which record a
+    // charge the admin applied to a wallet. These record money entering or leaving the
+    // platform from outside the ride lifecycle (a cash top-up at a branch, a manual payout).
+    // Merging the two vocabularies would make the admin dashboards unable to tell an
+    // operational adjustment from an external cash movement.
+    case EXTERNAL_INBOUND = 'external_inbound';               // AdminWalletService:109; PassengerProfileController:386; AdminWalletRequestController:200
+    case EXTERNAL_OUTBOUND = 'external_outbound';             // AdminWalletRequestController:200 (the negative arm of its ternary)
+
+    // Staff-initiated cancellation. The singular/plural PAIR mirrors DRIVER_CANCELLATION_
+    // REFUND(S) above on purpose: the plural is the ride-wide ledger leg, the singular the
+    // per-passenger credit. Keeping the same shape means the reader logic written for the
+    // driver pair applies unchanged here.
+    case STAFF_CANCELLATION_REFUNDS = 'staff_cancellation_refunds'; // WalletTransactionService:545 - ride-wide leg
+    case STAFF_CANCELLATION_REFUND = 'staff_cancellation_refund';    // WalletTransactionService:567 - per-passenger credit
 
     // ── Booking charge and escrow (WalletTransactionService) ───────────────────
     case RIDE_BOOKING_PAYMENT = 'ride_booking_payment';       // passenger debit on booking

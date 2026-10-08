@@ -8851,3 +8851,62 @@ new `LedgerType` cases or are renamed to existing ones, and whether rows already
 strings need a data migration (which is ask-first).
 
 Nothing pushed.
+## 105. RV-39: four live `wallet_transactions.type` values were not `LedgerType` cases - owner decision applied
+
+Owner decision, 2026-10-08, on the question raised in `sec 104`: **add them as new `LedgerType` cases**, do not
+rename the writers onto existing cases. That choice has a concrete consequence - **no data migration is needed**,
+because every value already written to the column stays valid.
+
+### What was wrong
+
+`RV39SeederHygieneTest::test_every_wallet_transaction_type_written_anywhere_is_a_shared_ledger_type` scans
+`app/` for every place that writes `wallet_transactions.type` and requires each literal to be a
+`LedgerType` value. Four were not, plus one the scanner itself did not flag:
+
+| writer | literal |
+|---|---|
+| `AdminWalletService:109` | `external_inbound` |
+| `PassengerProfileController:386` | `external_inbound` |
+| `AdminWalletRequestController:200` | `external_inbound` / `external_outbound` (ternary) |
+| `WalletTransactionService:545` | `staff_cancellation_refunds` |
+| `WalletTransactionService:567` | `staff_cancellation_refund` |
+
+The column is `varchar(255)`, not a DB `ENUM` - `renameColumn()` rebuilt it as VARCHAR back in T1-2 - so an
+unknown value never fails at the database. It fails only at the readers, which is precisely why the drift had
+to be pinned in code rather than in the schema.
+
+### The four cases, and why they are distinct from the neighbours
+
+`EXTERNAL_INBOUND` / `EXTERNAL_OUTBOUND` are **not** `ADMIN_CREDIT` / `ADMIN_CHARGE`. The admin pair records a
+charge an operator *applied to* a wallet; these record money entering or leaving the platform from outside the
+ride lifecycle - a cash top-up at a branch, a manual payout. Merging the vocabularies would make the admin
+dashboards unable to tell an operational adjustment from an external cash movement, which is the same
+conflation that produced the `escrow_release` vs `escrow_released` defect class T1-2 found in production data.
+
+`STAFF_CANCELLATION_REFUNDS` / `STAFF_CANCELLATION_REFUND` keep the singular/plural **pair** deliberately, because
+`DRIVER_CANCELLATION_REFUNDS` (ride-wide leg) alongside `DRIVER_CANCELLATION_REFUND` (per-passenger credit)
+already exists at lines 45-46. Same shape, different actor, so reader logic written for the driver pair applies
+unchanged.
+
+Each case names its writer inline, which satisfies the enum's own rule - *"do NOT add a new case here without
+a live writer that already writes the string"* - rather than working around it. AF-6's `LedgerEvent` will still
+absorb or rename this enum; these cases do not pre-empt that, they just stop the drift being invisible until
+then.
+
+### Verification
+
+| check | result |
+|---|---|
+| `RV39SeederHygieneTest` (both previously-red tests) | **fully green**, 14 tests / 95 assertions |
+| Money floor: `RV39SeederHygieneTest` + `Wallet` + `Payment` + `Unit/Domain` | 186 tests / 311 assertions, **0 new failures** (3 failures are the pre-existing `WalletTest` OTP trio from row 111, an owner-decision row) |
+| NEEDLE - remove the four cases | ratchet red on all four literals, SHA256 restore |
+
+`app/Enums` is shared kernel, so the money floor was run rather than the single file. `php -l` clean;
+`pint --test` PASS. One file changed.
+
+### Still red in `tests/Feature/Review` (2, pre-existing)
+
+- `KycActionGateTest::an_unverified_user_cannot_book_a_ride`
+- `SharedTestSupportTest::test_system_wallets_are_seeded_by_phone_and_are_idempotent`
+
+Nothing pushed.
