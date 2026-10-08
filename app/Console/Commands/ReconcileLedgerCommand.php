@@ -24,16 +24,20 @@ use Illuminate\Console\Command;
  * mattered: it told the operator to EXPECT unexplained movement here, which would have had them
  * dismissing a real defect on a money path.
  *
- * What this command still does NOT do is fail the job on per-wallet drift - it warns and returns
- * SUCCESS. The exit code is what decides whether the daily schedule reports an error, and that
- * is a deliberate owner call rather than a silent default, so it is left alone here.
+ * What this command DOES with per-wallet drift changed at `R2 sec 115`, and not for a technical reason.
+ * It used to warn and return SUCCESS, because whether a daily job should fail the schedule is an
+ * alerting decision, not a code one, and `AGENTS.md` reserves it for the owner. The owner has now
+ * answered: FAIL. Every money path is ledgered, so unexplained movement has no remaining legitimate
+ * cause, and a job whose entire purpose is to be an alarm should not exit 0 while reporting one.
+ *
+ * The exit code is the guard. Everything else here is the message.
  */
 class ReconcileLedgerCommand extends Command
 {
     protected $signature = 'ledger:reconcile
                             {--threshold=0.01 : Absolute per-wallet drift (in SYP) tolerated before reporting}';
 
-    protected $description = 'Report whether every wallet balance change is explained by its ledger legs';
+    protected $description = 'Report whether every wallet balance change is explained by its ledger legs; exit non-zero if any is not';
 
     public function handle(): int
     {
@@ -104,6 +108,10 @@ class ReconcileLedgerCommand extends Command
             $this->comment('  without posting legs. Every money path is double-entry now, the admin');
             $this->comment('  and external flows included (R2 sec 57-60.1), so no flow is left for which');
             $this->comment('  unexplained movement is expected.');
+            $this->newLine();
+
+            // Owner decision (AF-6a, R2 sec 115). The report above is the diagnosis; this is the alarm.
+            return self::FAILURE;
         }
 
         return self::SUCCESS;

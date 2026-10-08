@@ -33,11 +33,12 @@ use Tests\TestCase;
  * the reconciler's side. That is also the only shape that leaves the system-level conservation check
  * green, so these tests pin the PER-WALLET path specifically rather than tripping the coarser guard.
  *
- * NOTHING HERE changes the command's behaviour. The exit code on drift is owner call (a) at `R2 sec
- * 112` - with every money path now ledgered, warning-and-returning-SUCCESS has no defence left, but
- * whether a daily job should fail the schedule is an alerting decision. These tests record what the
- * command PRINTS so that decision can be made on evidence, and they deliberately do not assert an exit
- * code on drift.
+ * THE EXIT CODE IS NOW ASSERTED. Up to `R2 sec 114` these tests deliberately asserted only what the
+ * command PRINTS, because whether a daily job should fail the schedule was owner call (a) at `R2 sec
+ * 112`. The owner has now answered: **FAIL**. A job whose entire purpose is to be an alarm must not
+ * exit 0 while reporting drift, and with every money path ledgered there is no legitimate cause left
+ * for unexplained movement. `R2 sec 115` therefore asserts the exit code on every case - 0 when the
+ * wallets are explained, 1 when any is not - so the decision cannot be quietly reverted.
  *
  * The expected strings are the command's REAL output. An earlier draft asserted a formatted amount the
  * command never prints and a captured-output helper that returned nothing at all on the clean path; both
@@ -167,7 +168,28 @@ class LedgerReconcileDetectsDriftTest extends TestCase
 
         $this->reconcile()
             ->expectsOutputToContain(self::REPORTED)
-            ->assertExitCode(0);
+            ->assertExitCode(1);
+    }
+
+    /**
+     * OWNER DECISION AF-6a (`R2 sec 115`), stated as its own test so it cannot be reverted by accident.
+     *
+     * Before this, drift produced a full, correct report and exit code 0 - so the daily job logged
+     * "here is a wallet the ledger cannot explain" every morning and reported success. The report was
+     * never an alert; it was a line in a logfile. The exit code is what turns it into one.
+     *
+     * This is the needle target: reverting the command to `self::SUCCESS` fails this test and the other
+     * exit-code assertions, while the output assertions stay green - proving the tests pin the decision
+     * and not merely the printing.
+     */
+    public function test_per_wallet_drift_fails_the_daily_job(): void
+    {
+        $this->chargedBooking();
+        $this->injectUnledgeredMovement(1.0);
+
+        $this->reconcile()
+            ->expectsOutputToContain(self::REPORTED)
+            ->assertExitCode(1);
     }
 
     /**
@@ -188,7 +210,7 @@ class LedgerReconcileDetectsDriftTest extends TestCase
 
         $this->reconcile()
             ->expectsOutputToContain(sprintf('wallet #%d (%s)', $this->passengerWallet->id, $this->passengerWallet->wallet_number))
-            ->assertExitCode(0);
+            ->assertExitCode(1);
     }
 
     /**
@@ -203,7 +225,7 @@ class LedgerReconcileDetectsDriftTest extends TestCase
 
         $this->reconcile()
             ->expectsOutputToContain('drift -777.00 SYP')
-            ->assertExitCode(0);
+            ->assertExitCode(1);
     }
 
     /**
@@ -224,7 +246,7 @@ class LedgerReconcileDetectsDriftTest extends TestCase
             ->expectsOutputToContain(self::BALANCED)
             ->doesntExpectOutputToContain('SYSTEM DOES NOT BALANCE')
             ->expectsOutputToContain(self::REPORTED)
-            ->assertExitCode(0);
+            ->assertExitCode(1);
     }
 
     /**
@@ -247,12 +269,17 @@ class LedgerReconcileDetectsDriftTest extends TestCase
 
         $this->reconcile(0.01)
             ->expectsOutputToContain(self::REPORTED)
-            ->assertExitCode(0);
+            ->assertExitCode(1);
     }
 
     /**
      * And the inverse, pinned so `--threshold` is not mistaken for a mute button and nobody "fixes" a
      * noisy schedule by turning it up.
+     *
+     * With the job now failing on drift (`R2 sec 115`), this pair becomes load-bearing rather than
+     * cosmetic: a tolerance set ABOVE the real drift returns exit 0, so raising the threshold is
+     * exactly how someone would silence the alarm the previous change installed. It is an explicit
+     * operator choice and it is documented here so it cannot be discovered by accident.
      */
     public function test_a_threshold_raised_above_the_drift_hides_it(): void
     {
@@ -261,7 +288,7 @@ class LedgerReconcileDetectsDriftTest extends TestCase
 
         $this->reconcile(0.01)
             ->expectsOutputToContain(self::REPORTED)
-            ->assertExitCode(0);
+            ->assertExitCode(1);
 
         $this->reconcile(100.0)
             ->doesntExpectOutputToContain(self::REPORTED)

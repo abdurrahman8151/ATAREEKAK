@@ -9644,3 +9644,86 @@ should fail the schedule is an alerting decision.
 **AF-6 remains `PARTIAL`.** Criterion 1 (the `Money` sweep) is still gated on the signed-money design call,
 and RV-10 is still `BLOCKED` on the owner window W. What changed is that criterion 3 is no longer
 unproven - it is now demonstrated, not asserted.
+
+## 115. Owner call AF-6a: `ledger:reconcile` now FAILS the daily job on drift
+
+The owner answered the four decisions that were blocking the backlog. This section records the first one
+taken, and the other three are recorded in `STATE.md` so they are not re-litigated.
+
+**AF-6a - should `ledger:reconcile` fail the daily job on per-wallet drift, instead of warning?**
+**ANSWERED: FAIL.**
+
+### Why the question existed at all
+
+`sec 112` raised it precisely because it was not a code question. The command detected drift perfectly
+well - it printed a full, correct, actionable report naming the wallet and the amount. What it did *not*
+do was **exit non-zero**. So at 04:30 every morning the scheduler logged
+
+```
+  Unexpected on ANY wallet: a converted money path moved a balance without posting legs
+```
+
+and then reported **success**. The report was never an alarm. It was a line in a logfile nobody reads.
+
+That is not a defect in the detection - which is why `sec 114` could ship it as `VERIFIED FIX` and be
+right to. It is a defect in the *response*, and the response is an alerting decision. The argument for
+failing, once every money path is ledgered (`sec 57-60.1`), is simply that unexplained movement has no
+remaining legitimate cause: there is no flow left for which it is expected.
+
+### The change
+
+`app/Console/Commands/ReconcileLedgerCommand.php`, three edits and nothing else:
+
+| edit | what |
+|---|---|
+| `handle()` | `return self::FAILURE` inside the `$unexplained !== []` branch, after the report is printed |
+| `$description` | now says it exits non-zero if any wallet is not explained |
+| docblock | the paragraph that documented the old permissiveness is replaced with the decision and its reason |
+
+The system-level guard (`SYSTEM DOES NOT BALANCE`) already returned `FAILURE` and is untouched. **The
+report is unchanged** - diagnosis first, then the alarm.
+
+### The tests were built for exactly this
+
+`sec 114` deliberately asserted only what the command PRINTS and said nothing about the exit code, so
+this decision could be applied without rewriting the file. `sec 115` converts that silence into
+assertions: exit `0` when every wallet is explained, exit `1` when any is not, asserted in all nine
+tests.
+
+One consequence is worth naming rather than burying. `test_a_threshold_raised_above_the_drift_hides_it`
+already existed to prove `--threshold` is not a mute button. With the job now failing on drift, that
+pair becomes **load-bearing**: a tolerance set above the real drift returns exit `0`, which is exactly
+how someone would silence the alarm this change installs. It remains a legitimate operator choice and it
+is now documented as one.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` both changed files | no syntax errors |
+| `pint --test` both changed files | PASS |
+| new file alone | OK - **9 tests, 25 assertions** |
+| new file + `DoubleEntryLedgerTest` | OK - 19 tests, 68 assertions |
+| money floor `Wallet` + `Payment` + `Unit/Domain` | 172 tests, 216 assertions, **3 failures** |
+| those 3 | the same pre-existing `tests/Feature/Wallet/WalletTest.php` OTP baseline items. **Zero new.** |
+| `DoubleEntryLedgerTest::the_reconcile_command_runs_against_real_data_and_reports_success` | **still green, untouched.** Clean data must exit 0; if it had failed, that would have been a finding, not something to edit. |
+| **NEEDLE** - owner decision reverted, `FAILURE` back to `SUCCESS` | **7 of 9 tests FAIL** |
+| which 2 survived | `clean_data_is_reported_as_fully_explained` and `drift_smaller_than_a_cent_is_invisible...` - the two that assert exit `0` either way. Exactly the right survivors. |
+| money floor **under the needle** | byte-identical result, so the change touches no other money path |
+| restore | `ReconcileLedgerCommand.php` SHA256-identical |
+
+The needle is the load-bearing row. A test that cannot fail when the decision is reverted does not pin
+the decision; here every test that asserts the alarm fails, and only the tests that assert silence stay
+green.
+
+### Status
+
+**VERIFIED FIX.** Owner call (a) is answered and applied.
+
+**AF-6 stays `PARTIAL`**, and the reason is now different from `sec 112`'s. Criterion 3 is met and
+demonstrated; the exit-code sub-decision is settled. What remains is **criterion 1 - the signed-money
+sweep - which the owner has now APPROVED in principle ("widen `Money` to signed") but which is not
+implemented.** That is a large change to money semantics with real call-site blast radius, so it is its
+own task, not something to fold into an alerting change.
+
+RV-10 remains `BLOCKED` on the owner window W, which is an action rather than a decision.
