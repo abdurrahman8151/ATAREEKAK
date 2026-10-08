@@ -11158,5 +11158,86 @@ them is already resolved as RV-46 and three are visibly mechanical.
 - `tests/Unit/Services`: 360 tests, 560 assertions, 39 errors, 28 failures - the scope finding.
 - `tests/Feature/Rides`: 90 tests, 182 assertions, **0 failures** (from section 135).
 - No app or test files changed by this task; it is measurement and recording.
+---
 
-**Next audit section number: 137.**
+## 137. RV-47 triaged: the "possible aggregation defect" was 14 stale tests - and the cause is a 3.0 rating nobody chose
+
+**RV-47 remains OPEN** with its remaining groups. **New row 123 (RV-48, P2, OPEN)** files the
+product finding the triage exposed. No app code changed.
+
+### The suspicion was wrong, and measuring it was the right call
+
+Section 136 flagged `AdminDriverService`'s 14 failures as *"the shape of a real reporting defect,
+not of stale expectations"* - `suspended 0 vs 2`, `rating 4.0 vs 5.0`, `average 4.0 vs 4.5`. That
+was a reasonable read of the failure text and it was **wrong**. Both causes are later intentional
+changes that the tests were never updated for.
+
+### Cause 1: `status = 0` stopped meaning "suspended" (10 tests)
+
+`getStats()` counts `$suspendedDrivers = User::bannedNow()->count()` - and `bannedNow()` is
+`status = -1` (`User.php:136`). RV-42a changed this deliberately, and the comment at
+`AdminDriverService:100-105` explains why well: `status = 0` is **LOGGED_OUT**, every
+self-registration starts there, and `unban()` writes it back - so counting `status = 0` as
+"suspended" counted every signed-out and every unbanned driver, in the stat card *and* in the
+table filter.
+
+The tests still build users with `status => 0` and expect them to be suspended. They describe the
+pre-RV-42a world. **The service is right.**
+
+### Cause 2: every user has a synthetic 3.0 rating (4 tests) - this one is a real finding
+
+The probe is the whole story:
+
+```
+=== rows in user_ratings ===
+  id=1 rater=(null) rated=1 rating='3.0'
+  id=4 rater=2     rated=1 rating='4.0'
+  id=5 rater=3     rated=1 rating='5.0'
+  raw avg (no filter) = '3.60000'
+  getStats average_rating = 4.0
+```
+
+A temporary probe (`ZzProbeAvgTest`, created and deleted for this) built exactly what the test
+builds - one verified driver rated 4.0 and 5.0 - and the service returned 4.0. Because a row the
+test never created is already there:
+
+```php
+// app/Observers/UserObserver.php:27-35
+UserRating::firstOrCreate(
+    ['rater_id' => null, 'rated_user_id' => $user->id],
+    ['rating' => 3.0]
+);
+```
+
+(3.0 + 4.0 + 5.0) / 3 = 4.0, exactly what was observed. The tests' 4.5 and 5.0 are arithmetically
+correct for the fixture they *thought* they had.
+
+**This is filed as RV-48 rather than dismissed, because it is not only a test problem.** Every
+account in the system carries a platform-assigned 3.0 rating from signup, and
+`AdminDriverService::getStats()` averages every row for verified drivers **including those**. So
+the admin dashboard's average rating is anchored by synthetic data: a driver with a single 5-star
+review reads 4.0 on the dashboard. Whether the seed row exists so a new user is not "unrated", or
+because a rating was needed for the unique-pair constraint, is not recorded anywhere - and the
+difference matters, because only the second reason justifies counting it in an average of real
+reviews.
+
+That question is a product decision, so it is filed rather than guessed.
+
+### What this says about grouping
+
+The grouping from section 136 was worth doing precisely because it produced a *wrong* hypothesis
+that cost one probe to refute. Fourteen failures that looked like a live reporting bug were
+stale tests - and the actual defect was hiding in the second cause, where nobody thought to look
+because the visible symptom was arithmetic.
+
+### State
+
+- `AdminDriverService` 14 -> **explained, stale tests, service correct**. NOT edited: the owner has
+  been updating them a batch at a time, and a row whose Status is not OPEN is not mine to take.
+- RV-47 stays OPEN with the remaining groups: `StaffComplaintService` signature drift 20,
+  `GeocodingServiceTest` 13, `AdminWalletService` missing External Capital wallet seed 4,
+  `ImageMessageType` undefined key 4, misc 7.
+- RV-48 (row 123) filed: the 3.0 signup rating averaged into `average_rating`.
+- Probe deleted; `git status` clean apart from the owner's `phpunit.xml`.
+
+**Next audit section number: 138.**
