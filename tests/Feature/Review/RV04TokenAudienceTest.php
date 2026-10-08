@@ -130,38 +130,67 @@ class RV04TokenAudienceTest extends TestCase
     }
 
     /**
-     * `token_version` is the other half of the `sub`+`ver` pair, and the criterion requires it to be
-     * identical in the schema default, the factory and the staff path.
+     * CONTRACT CHANGE (`R2 sec 119`, owner decision 2026-10-11) - this test used to be named
+     * `token_version_parity_across_schema_factory_and_staff_path`, asserted that a factory user and a
+     * fresh employee start on the SAME `token_version`, and then `markTestIncomplete`d to record the
+     * divergence it could not close.
      *
-     * This currently FAILS on the schema-vs-factory comparison, and that is recorded deliberately:
-     * `users.token_version` defaults to **1** in its migration while `UserFactory` sets **0** and
-     * `employees` defaults to **0**. Reconciling it means either a migration (ask-first) or editing
-     * every fixture, so the divergence is surfaced here rather than silently closed.
+     * **Both halves of that are now wrong, deliberately.** The owner ruled that the FACTORY is wrong and
+     * the migrations are right: `users.token_version` defaults 1, `employees.token_version` defaults 0,
+     * and the two tables are not supposed to agree. `JwtService:87` fails closed on a missing `ver` and
+     * `:91` compares against the claim minted at `:270`, so each table is self-consistent on its own
+     * default - parity was never the invariant, and asserting it would have pinned a false one.
+     *
+     * So the parity assertion is REPLACED by two per-schema assertions, which are STRICTER rather than
+     * weaker: previously nothing held the factory to the schema at all, and now it does, on both tables.
      *
      * @test
      */
-    public function token_version_parity_across_schema_factory_and_staff_path(): void
+    public function each_table_matches_its_own_schema_default(): void
     {
-        $schemaDefault = $this->schemaDefault('users', 'token_version');
-        $factoryDefault = $this->factoryDefault();
-
-        $employee = $this->makeEmployee();
-        $staffDefault = (int) Employee::where('id', $employee->id)->value('token_version');
+        $userSchemaDefault = $this->schemaDefault('users', 'token_version');
+        $employeeSchemaDefault = $this->schemaDefault('employees', 'token_version');
 
         $this->assertSame(
-            $factoryDefault,
-            $staffDefault,
-            'a factory user and a fresh employee must start on the same token_version'
+            $userSchemaDefault,
+            $this->factoryDefault(),
+            'UserFactory must produce the value the users column actually defaults to'
         );
 
-        // Recorded rather than closed: the two disagree today. Closing it means a migration
-        // (ask-first) or editing every fixture, so it is measured on every run and surfaced here.
-        $this->markTestIncomplete(
-            sprintf(
-                'DIVERGENCE: users.token_version defaults to %d in the migration but UserFactory sets %d.',
-                $schemaDefault,
-                $factoryDefault
-            )
+        $employee = $this->makeEmployee();
+        $staffActual = (int) Employee::where('id', $employee->id)->value('token_version');
+
+        $this->assertSame(
+            $employeeSchemaDefault,
+            $staffActual,
+            'a fresh employee must start on the employees column default'
+        );
+    }
+
+    /**
+     * The property the change could have broken, and the one that actually matters: a token minted for
+     * a factory user must validate, whatever the starting value is. This is why `token_version` is
+     * self-consistent rather than globally uniform, and it is asserted against the REAL row rather than
+     * a literal so it keeps holding if the schema default ever moves again.
+     *
+     * @test
+     */
+    public function a_factory_users_token_round_trips_at_whichever_version_the_row_holds(): void
+    {
+        $user = User::factory()->create();
+        $rowVersion = (int) $user->fresh()->token_version;
+
+        $payload = $this->decode($this->userJwt->generateTokenPair($user)['access_token']);
+
+        $this->assertArrayHasKey('ver', $payload, 'a user token must always carry the version claim');
+        $this->assertSame(
+            $rowVersion,
+            (int) $payload['ver'],
+            'the claim is minted from the row, not from a constant'
+        );
+        $this->assertTrue(
+            $this->userJwt->validateTokenVersion($payload, $user),
+            'and the token therefore validates against its own user'
         );
     }
 

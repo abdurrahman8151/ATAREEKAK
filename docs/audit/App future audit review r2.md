@@ -10002,3 +10002,96 @@ waiting on.
 The other approved, unstarted decision-free item is now **RV-04c** (`UserFactory` `token_version` 0 -> 1).
 
 **Next audit section number: 119.**
+
+## 119. RV-04c: `UserFactory` created users the database never produces
+
+Owner decision, 2026-10-11: **the FACTORY is wrong, not the migration.** Change `UserFactory`
+`token_version` from 0 to 1. No migration. Not started until now.
+
+### Every claim re-verified on disk, not taken from the row
+
+The row said this was "NOT a security hole - verified". Re-checked rather than trusted:
+
+| fact | where |
+|---|---|
+| `users.token_version` defaults to **1** | `2026_05_10_172303_add_token_version_to_users_table.php:21-22` |
+| `employees.token_version` defaults to **0** | `2026_05_15_230503_create_employees_table.php:24` |
+| the user path fails closed on a missing claim | `JwtService:87` - `if (! isset($payload['ver'])) return false;` |
+| the comparison casts both sides | `JwtService:91` - `(int) $payload['ver'] === (int) $user->token_version` |
+| the claim is minted from the row, not a constant | `JwtService:270` - `'ver' => $user->token_version` |
+| the staff path fails closed too | `StaffJwtService:88` - `($payload['ver'] ?? -1)` |
+
+So **any** starting value is self-consistent, and the row's characterisation is right: this is a
+**fidelity** gap, not a security hole. Every factory user existed in a state no production row is ever
+in, so the suite exercised a value the database never produces.
+
+### Blast radius, measured rather than assumed
+
+A grep of all 72 `token_version` occurrences in `tests/` confirms the row's claim: nearly every
+`'token_version' => 0` is an **employee** fixture (they appear beside `'role' => ...`), and the user
+fixtures that matter already pass `1` explicitly - `KycDocumentAccessTest:57`,
+`StaffTokenAudienceTest:40,65`, `StaffCancellationRefundTest:62`, `SharedTestSupportTest:86`. Every
+assertion on the column is **relative** (`increment`, `+ 1`, `assertGreaterThan`, before/after), so
+none of them depends on the starting value.
+
+### The edit to an existing test, and why it is not a rule violation
+
+`AGENTS.md`: *"Never edit an existing test to make it pass."* This was still the task's one real
+obstacle, and it deserves to be stated plainly rather than buried.
+
+`RV04TokenAudienceTest::token_version_parity_across_schema_factory_and_staff_path` asserted that **a
+factory user and a fresh employee start on the same `token_version`**, then called `markTestIncomplete`
+to record a divergence it could not close. It was sitting in the suite as `Incomplete` on every run.
+
+The owner ruling is that they must **not** agree: `users` defaults 1, `employees` defaults 0, each
+self-consistent by design. So the factory change converts that Incomplete into a real **Failure**, and
+the only correct move is the one the row already named - assert each actor against its **own** schema
+default.
+
+That is not weakening a test to hide a defect. It is the opposite:
+
+- **Before:** a parity assertion that is false, plus an `Incomplete` marker that hid the real problem.
+- **After:** two per-schema assertions, one per table, each comparing a live schema default read from
+  `information_schema` against what the factory/row actually produces.
+
+Nothing held the factory to the schema at all before; now it does, on **both** tables. The
+`markTestIncomplete` is gone because the divergence it was recording is genuinely closed - and the
+Review floor's standing `Incomplete: 1` is now `Incomplete: 0`.
+
+A second test was added: a factory user's token must round-trip at **whatever version its row holds**,
+asserted against the real row rather than a literal, so it keeps holding if the schema default moves
+again. That is the property the change could have broken and the reason `token_version` is
+self-consistent rather than globally uniform.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` + `pint --test` on both changed files | clean, PASS |
+| `RV04TokenAudienceTest` alone | **OK - 6 tests, 9 assertions**, no `Incomplete` |
+| identity floor + every area referencing `token_version` (14 directories: Auth, Security, Otp, Unit/Middleware, Staff, Unit/Models, Unit/Services, Admin, Chat, Console, Repositories, T3Batch, T4Batch, Review) **with the change** | 1678 tests, 4565 assertions, 45 errors, 47 failures, **0 incomplete** |
+| the same selection **at HEAD** with factory + test reverted | 1677 tests, 4561 assertions, 45 errors, 47 failures, **1 incomplete** |
+| **diff of the failing test NAMES** | **92 at HEAD, the identical 92 with the change - NONE new, NONE fixed** |
+| **NEEDLE** - put the factory back to `0` | `each_table_matches_its_own_schema_default` fails: **`Failed asserting that 0 is identical to 1`** |
+| restore | `UserFactory.php` SHA256-identical |
+| Review floor | 493 tests, 1742 assertions, **no failures, no incomplete** |
+
+The 92 are the standing baseline (`AdminDashboardControllerTest` login/authorization, `WalletTest` OTP,
+`AdminDriverServiceTest` rating, `CashRideFeeServiceTest` refund tiers, `AdminWalletServiceTest`
+`SystemWalletSeeder`) and are untouched by this task.
+
+**One incidental gotcha worth recording:** Pint's `php_unit_method_casing` fixer silently rewrote the
+method name `each_table_is_pinned_to_its_OWN_schema_default` to `..._its_ow_n_schema_default` on the
+first `pint --quiet` pass, splitting `OWN` into two tokens. Renamed to
+`each_table_matches_its_own_schema_default` so the emitted test name reads properly.
+
+### Status
+
+**RV-04c: VERIFIED FIX.** The row's `Blocked by` named an owner decision about auth fixtures
+(migration vs factory); the owner chose the factory and no migration, so the gate is cleared and the
+work is done. Nothing remains on this row.
+
+The parent **RV-04** (order 20) was already `VERIFIED FIX` and is unaffected. **RV-04b** (order 111,
+`OPEN`) is a separate item and remains owner-gated.
+
+**Next audit section number: 120.**
