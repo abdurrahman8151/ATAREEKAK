@@ -10755,5 +10755,40 @@ outstanding item, so a deploy could ship looking fine while rate limiting stayed
 It is now listed under **Owner actions outstanding**, with the reason it matters stated next to it
 rather than left implicit. A fix that is inert until configured should be visibly inert, not
 invisibly inert.
+---
 
-**Next audit section number: 131.**
+## 131. V5: the errors bag was thrown away by a catch-all that was only meant to shape 500s
+
+**Row 5 -> SUPERSEDED (by RV-13, row 27).** No code change. Fourth row found to duplicate a later
+row, after V1 (`sec 128`), RV-43 (`sec 126`) and V4 (`sec 130`).
+
+### A missing `errors` key is a much worse bug than a 500
+
+The catch-all in `Handler.php` matched `Throwable`, which includes `ValidationException`. It mapped
+that to 422 - the correct status - and then **rebuilt the body** as
+`{"status":"error","message":â€¦,"code":422}`, throwing away `$e->errors()`. A client could see that
+their request failed and nothing about *which field* failed or *why*. For a form with fifteen
+fields that is close to unusable: correct status, no information.
+
+The subtle part is that the catch-all was not wrong about 500s. It did the job it was written for
+and picked up a case it was never meant to handle, in the one place where it had to reconstruct a
+response rather than return an exception's own.
+
+### Why the fix was small
+
+`Handler.php` now registers a `ValidationException` renderable **ahead** of the catch-all, and
+restores Laravel's own default shape - `message` plus `errors` keyed by field. Returning null for
+non-`api/*`, non-JSON requests leaves normal HTML rendering alone. Everything else the catch-all
+does - status mapping, contract-header preservation, generic 500s - is untouched, which is why this
+was a four-line change to close a P0 rather than a refactor of the error model.
+
+### Verified
+
+- `ValidationErrorBagTest` (the dedicated file added with the fix), `WaveZeroVerificationTest`'s V5
+  recorder, `CreateRideRouteTest`, and `RV13DomainExceptionMaskingTest`: **25 tests / 62
+  assertions, all passing**.
+- The WaveZero V5 recorder asserts the bag is present and its comment states it was flipped as part
+  of this fix and **must not be flipped back**. That is the right shape for a recorder that was
+  documenting a defect: once fixed, it guards the fix instead of the bug.
+
+**Next audit section number: 132.**
