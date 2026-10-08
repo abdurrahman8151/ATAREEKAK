@@ -10181,3 +10181,195 @@ what the app sends and matches on could not be checked here. If the client still
 client-visible change the owner should know about. The migration converts existing rows either way.
 
 **Next audit section number: 121.**
+
+## 121. RV-08: the row said BLOCKED while its own Evidence said the work was finished
+
+Found while recounting the backlog for `docs/audit/backlog-status.png`. No code changed in this
+entry; it is a status correction to the authority file.
+
+### The contradiction, quoted
+
+Row 34 (RV-08, "Deploy pipeline is broken") had Status `BLOCKED`, while the same row's Evidence cell
+read, in its own words:
+
+> **THE KNOWN BUG IS FIXED (`R2 sec 118`) - the owner decision (keep the files, fix the defect) is now
+> fully carried out.**
+
+> **Zero decision-free code remainder remains on this row.**
+
+and yet further down the same cell:
+
+> **Row stays `BLOCKED`**: the owner decision resolved the only question it carried, and the
+> `Blocked by` column names the superseded deploy target, which this task did not change.
+
+Three cells in one row, disagreeing. The `Blocked by` cell was still posing the question the owner
+had already answered on 2026-10-11 - *delete the superseded VPS/compose files?* - and quoting
+`AGENTS.md`'s reservation of "deleting code or tests" as the reason it stayed open.
+
+### Why it was wrong
+
+The decision was **keep the files and fix the defect on the chosen target**. That is exactly what
+`R2 sec 118` did: `deploy-to-vps.yml:94,97` now target `app1`, the only service carrying a `build:`
+block, plus `DeployWorkflowServiceRatchetTest` so the dead path cannot rot silently. The remaining
+files existing in the repo is the owner's deliberate end state, not an open gate.
+
+The argument for staying BLOCKED was self-defeating: it justified the status by pointing at the
+`Blocked by` column, which only mattered while the row still had a question in it.
+
+### Changes
+
+- Status `BLOCKED` -> `VERIFIED FIX`.
+- `Blocked by` -> **none. The gate is discharged**, recording decision 7 (Render, `2114308`) and the
+  2026-10-11 answer, and noting that the row read `BLOCKED` only because it was stale.
+- Aliases cell -> **ANSWERED 2026-10-11 - DO NOT RE-ASK**, so the deleted-files question is not put
+  to the owner a second time.
+- The withdrawn "Row stays `BLOCKED`" sentence was **corrected in place, not deleted** - the original
+  reasoning is preserved and then answered, so the next reader can see why the status was wrong.
+
+### Verification
+
+- Census recomputed from the parsed table: BLOCKED 3 -> 2, VERIFIED FIX 84 -> 85 - reconciling with
+  the figure recorded earlier in the audit, which had assumed RV-08 was closed.
+- All 116 rows still parse; 0 malformed.
+
+**Not claimed:** that the VPS path works. There is no VPS, production is Render, and there is no
+docker daemon in this environment. That limitation is unchanged and still recorded on the row.
+
+**Next audit section number: 122.**
+## 122. Six PARTIAL rows: one is genuinely done, five were mislabelled
+
+Owner instruction 2026-10-12: "verify them fixed and just remove them from partial".
+
+**I did not do that, and the reason is the whole entry.** Four of the six cannot be VERIFIED FIX
+because the thing each needs is not a code task. Marking them anyway would have written six false
+VERIFICATIONS into the one file the next session reads to decide what to do next - which is a worse
+defect than the mislabelling I was fixing. The owner accepted the alternative (close what is done,
+BLOCK the rest), so this entry records what was actually done instead.
+
+Census moved **PARTIAL 6 -> 0**, VERIFIED FIX 85 -> 86, BLOCKED 2 -> 7. All 116 rows still parse,
+0 malformed, every row exactly 8 columns.
+
+| row | was | now | the single thing that closes it |
+|---|---|---|---|
+| AF-5 | PARTIAL | **VERIFIED FIX** | nothing - done |
+| RV-10 | PARTIAL | BLOCKED | owner runs `php artisan escrow:stuck-report` in production to name window W |
+| RV-17 | PARTIAL | BLOCKED | a production-shaped load-test host |
+| RV-12 | PARTIAL | BLOCKED | owner approval - decision D7 was answered and **never built** |
+| RV-29 | PARTIAL | BLOCKED | owner decision 5, deferred deliberately |
+| AF-6 | PARTIAL | BLOCKED | RV-10's window W - no code task of its own |
+
+### AF-5: closed, and the boundary of the claim is stated
+
+Re-verified on disk before closing, not taken from the row: `config/filesystems.php` defines `s3`
+(`:47`) and `minio` (`:84`), `uploads_disk`/`documents_disk` are config-driven (`:148`), and all four
+call sites read the config (`FileUploadService`, `ComplaintService`, `ImageMessageType`,
+`MigrateKycDocumentsCommand`). The **only** surviving `disk('public')` literals are
+`StaffDocumentController:99,102`, and they are correct: a deliberately documented READ-ONLY legacy
+fallback so rows written before `kyc:migrate-disk` stay readable, with nothing ever written back to
+`public`, so exposure can only shrink.
+
+**What is NOT claimed:** the data has not been migrated to S3/MinIO, and it does not need to be. No
+privacy requirement depends on it (`R2 sec 102`, RV-01 closed the privacy half on local disk). The
+verified deliverable is that the storage layer is correctly **switchable**.
+
+### RV-12: the finding that mattered
+
+The row's `Blocked by` said "**D7 = A ANSWERED 2026-10-04**", which reads as done. **Neither half of
+D7 has ever been built:**
+
+- *"stop persisting status=0"* - **not done.** `SignupController:144` still writes `'status' => 0` at
+  sign-up, and `:141-143` explicitly defends it as "a second layer of defence". That is the exact
+  behaviour D7=A ordered removed.
+- *"migrate 0 rows to 1"* - **no migration exists.** The only migration in `database/migrations`
+  that updates rows on the `users` table is the mojibake repair from `R2 sec 120`.
+
+The audit log agrees with the disk: its own line 6723 lists `D7/RV-12 (drop status=0)` among the
+2026-10-04 decisions "still open ... with their answers recorded and unblocked". So "ANSWERED" had
+been read as "DONE". It needs owner approval - a data migration plus an auth behaviour change, both
+reserved by `AGENTS.md`.
+
+### AF-6: its blocker was asking a question already answered
+
+The `Blocked by` cell still asked the owner to decide whether `Money` should be widened to signed
+money. That decision was made and implemented - `R2 sec 115` (`ledger:reconcile` fails the daily job
+on drift), `sec 116`/`117` (Money is signed), commits `058adb0` + `89d2b58` - and criterion 1 is MET.
+The cell also carried two smaller owner calls; (a) was answered and shipped, (b) is RV-10's window W,
+still open. Its own Evidence already said "No code task remains on this row".
+
+### The pattern worth naming
+
+Three of these rows were not unfinished work; they were **finished or blocked work wearing a status
+that implied neither**. `PARTIAL` had become a parking space for "there is a gate here" without
+saying what the gate was. `BLOCKED` names the gate, which is the only thing that makes the row
+actionable. This is the second time one session found this (RV-08, `R2 sec 121`), and both were rows
+whose Evidence contradicted their own Status - worth checking Status against Evidence as routine.
+
+### Verification
+
+| check | result |
+|---|---|
+| table integrity | **116 rows, 0 malformed, every row exactly 8 columns** |
+| census | PARTIAL **6 -> 0**; VERIFIED FIX 85 -> 86; BLOCKED 2 -> 7 |
+| AF-5 closure evidence | re-verified on disk: `config/filesystems.php:47,84,148`; 4 call sites; the 2 surviving `public` literals proven read-only by `:90-102` |
+| RV-12 non-closure evidence | `SignupController:144`; no `users.status` migration; audit line 6723 |
+| `backlog-status.png` | re-rendered from the parsed table (86/16/7/2/2/2/2/1) |
+
+**Not claimed:** that the four BLOCKED rows are closeable by me. Each names the owner action or the
+missing environment. `BACKLOG.md` now says so instead of implying code work remains.
+
+### Three further findings an independent audit pass added
+
+A second, independent read of rows 45 and 65 (delegated, read-only, no tests run) reproduced both
+conclusions above and added three things this entry initially missed. All three were then verified on
+disk directly before being recorded.
+
+**(1) RV-12 is not "unstarted work" - it is TWO SAME-DAY RULINGS IN CONFLICT.** `D7=A` (owner,
+2026-10-04: drop `status=0`) and `R2 sec 61.2` / commit `7ab1eff` (**also 2026-10-04**:
+`createUser` must honour `status => 0` as a deliberate sign-up defence) are **mutually exclusive**,
+and the shipped one is pinned by tests. So the owner does not face "build D7=A" - they face "decide
+which 2026-10-04 ruling governs, then build it or withdraw it". Note also that `un13=A` (`sec 55`,
+commit `8b939cf`) is a *different* decision that WAS implemented, and it made no schema change - the
+"drop status=0" half was never part of it.
+
+**(2) D7=A cannot be implemented literally.** It would break four tests that pin `status = 0` as
+correct behaviour: `SignupPasswordOverwriteTest:184-185`, `AccountStatusBanServiceTest:152`,
+`AdminBanControllerTest:249` and `:308`. Implementing the owner ruling means editing those tests,
+which `AGENTS.md` reserves. That consequence has to be surfaced, not discovered mid-task.
+
+**(3) A real defect, filed as row 117 (RV-42a) - see below.**
+
+Also unfulfilled and previously unflagged anywhere: acceptance bullet 2 ("every reader goes through
+one `BanService`/`Ban` value object instead of 9 scattered `status` comparisons"). `BanService`
+unified the **writes** only. The **readers** still compare raw integers in 8 places
+(`User.php:214`, `AdminBanController:78,161,240,252,256`, `PassengerProfileController:626`,
+`StaffOperationsController:174`), and `R2 sec 55` itself already flagged
+`AdminBanController::formatUserStatus()` and `PassengerProfileController` as "genuinely unverified".
+
+### Row 117 (RV-42a): admin "suspended" means two different things
+
+**Filed rather than fixed.** It is a live public reporting field and an auth-semantics call, both
+reserved by `AGENTS.md`, and it collides with the unresolved D7=A conflict above.
+
+`status = 0` is `AccountStatus::LOGGED_OUT` - registered, signed out, not yet verified - and it is
+also what `BanService::unban()` writes (`BanService.php:86`). Yet:
+
+- `AdminUserService.php:99` reports `User::where('status', 0)->count()` as **`suspended_users`**
+- `AdminDriverService.php:99` reports the same count as **`suspendedDrivers`**
+- `StaffOperationsController.php:174` renders `status == 1 ? 'active' : 'suspended'`, which calls every
+  **BANNED** account (`-1`) suspended as well
+- `User::getIsBannedAttribute()` (`User.php:214`) says banned is **`-1`**
+
+So the admin cards count *logged-out and unbanned* accounts, while the staff screen labels *banned*
+accounts - different populations, same word. `AdminDriverService:96-98` even documents deliberately
+making its card agree with its own filter; the filter is the thing that is wrong.
+
+**Widen, not caused, by `7ab1eff`:** before that commit `createUser` hardcoded `status => 1`, so
+**no self-registered account was ever counted as suspended**; `SignupController:144` writes
+`status => 0` and now every signup lands in those counts. `unban()` writing 0 predates it. D7=A's
+fourth clause ("admin 'suspended' must mean BANNED") exists precisely to fix this and was never
+built.
+
+**Not verified by execution** - the finding is static reading of the four sites plus the tests that
+pin the behaviour. No test was run and no database was touched.
+
+**Next audit section number: 123.**
