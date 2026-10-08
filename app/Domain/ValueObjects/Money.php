@@ -17,6 +17,27 @@ use InvalidArgumentException;
  * Example:
  *   $price = Money::from(100.50); // Stored as 10050 fils
  *   $total = $price->multiply(3); // 301.50 SYP (30150 fils)
+ *
+ * SIGNED, since `R2 sec 116` (owner decision, AF-6 criterion 1).
+ *
+ * This constructor used to reject negatives, and that made `Money` unusable for the one job it most
+ * obviously has: describing the ledger. A debit IS a negative amount. `postTwoPartyTransfer` emits
+ * `-amount`, `postExternalTransfer` emits `-amount` on the external leg, and `FeeSplit::releaseLegs`
+ * emits the negated escrow leg - so a type that cannot hold a negative cannot represent half the
+ * system's money movements, and the arithmetic had to stay as raw floats outside this class.
+ *
+ * THE PROTECTION DID NOT DISAPPEAR; IT MOVED. The old guard was a side effect of construction: any
+ * caller who accidentally computed a negative got an exception, and any caller who legitimately needed
+ * one was stuck. That is the wrong place for a domain rule - the rule belongs to the caller that has
+ * the rule. `assertNotNegative()` now states it explicitly, and the two places that genuinely require a
+ * non-negative amount call it: `FeeSplit::driverAndPlatform` (a negative escrow release would split
+ * into two negative shares that still sum correctly, which is arithmetic that is right and nonsense
+ * money) and `AdminWalletService::chargeWallet` (a "charge" is a credit; a negative one is a debit
+ * wearing the wrong label and would post an `admin_credit` for it).
+ *
+ * Note that `multiply()`, `divide()` and `percentage()` still reject a negative OPERAND. That is a
+ * different rule and it survives: a negative multiplier or a 110% divisor is a caller mistake whatever
+ * the sign of the receiver, whereas the sign of the RESULT is now data.
  */
 class Money
 {
@@ -28,10 +49,6 @@ class Money
 
     private function __construct(int $amountInMinorUnits, string $currency = 'SYP')
     {
-        if ($amountInMinorUnits < 0) {
-            throw new InvalidArgumentException('Amount cannot be negative');
-        }
-
         $this->amountInMinorUnits = $amountInMinorUnits;
         $this->currency = $currency;
     }
@@ -101,22 +118,25 @@ class Money
     }
 
     /**
-     * Subtract another money amount
+     * Subtract another money amount.
+     *
+     * The result may be negative (`R2 sec 116`). It used to throw instead, which made it impossible to
+     * express "50 minus 100" - the shape every ledger debit has. A caller that must not overdraw now
+     * says so with `assertNotNegative()` on the result, or checks `isNegative()`, instead of relying on
+     * an exception nobody documented.
      */
     public function subtract(Money $other): self
     {
         $this->ensureSameCurrency($other);
-        $result = $this->amountInMinorUnits - $other->amountInMinorUnits;
 
-        if ($result < 0) {
-            throw new InvalidArgumentException('Subtraction would result in negative amount');
-        }
-
-        return new self($result, $this->currency);
+        return new self($this->amountInMinorUnits - $other->amountInMinorUnits, $this->currency);
     }
 
     /**
-     * Multiply by a number
+     * Multiply by a number.
+     *
+     * A negative MULTIPLIER is still rejected - that is a caller mistake whatever the receiver's sign -
+     * but the result now inherits the receiver's sign, so a negative amount stays negative.
      */
     public function multiply(float $multiplier): self
     {
@@ -220,6 +240,70 @@ class Money
     public function isPositive(): bool
     {
         return $this->amountInMinorUnits > 0;
+    }
+
+    /**
+     * Check if amount is negative (`R2 sec 116`).
+     *
+     * The ledger needs this constantly: a leg is negative or it is not, and there is no third answer.
+     */
+    public function isNegative(): bool
+    {
+        return $this->amountInMinorUnits < 0;
+    }
+
+    /**
+     * This amount with its sign flipped (`R2 sec 116`).
+     *
+     * This is the operation the ledger paths were missing and worked around with raw unary minus on
+     * floats. `FeeSplit::releaseLegs` builds its negated escrow leg with `-$split['platform'] -
+     * $split['driver']`; expressed in `Money` it is exact in integer minor units like the rest.
+     */
+    public function negated(): self
+    {
+        return new self(-$this->amountInMinorUnits, $this->currency);
+    }
+
+    /**
+     * This amount with any sign removed (`R2 sec 116`).
+     *
+     * `AdminReportService` already calls `abs()` on two ledger sums purely because `Money` could not
+     * hold the value it was formatting; with a signed type the caller decides whether the sign is
+     * meaningful rather than hiding it.
+     */
+    public function absolute(): self
+    {
+        return new self(abs($this->amountInMinorUnits), $this->currency);
+    }
+
+    /**
+     * Assert this amount is not negative (`R2 sec 116`).
+     *
+     * THIS is the rule that used to live in the constructor. It is now stated by the caller that
+     * actually has the rule, which is both testable on its own and impossible to trip accidentally from
+     * arithmetic that legitimately needs to go negative.
+     *
+     * @param  string  $what  what is being asserted, used verbatim in the message
+     *
+     * @throws InvalidArgumentException
+     */
+    public function assertNotNegative(string $what = 'Amount'): void
+    {
+        if ($this->amountInMinorUnits < 0) {
+            throw new InvalidArgumentException($what.' cannot be negative, got '.$this->formatted());
+        }
+    }
+
+    /**
+     * Assert this amount is strictly positive (`R2 sec 116`).
+     *
+     * @throws InvalidArgumentException
+     */
+    public function assertPositive(string $what = 'Amount'): void
+    {
+        if ($this->amountInMinorUnits <= 0) {
+            throw new InvalidArgumentException($what.' must be positive, got '.$this->formatted());
+        }
     }
 
     /**

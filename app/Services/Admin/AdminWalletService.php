@@ -59,6 +59,14 @@ class AdminWalletService
      */
     public function chargeWallet(string $phoneNumber, Money $amount, array $adminConfig): array
     {
+        // `R2 sec 116`: `Money` is signed, and the constructor guard that used to keep a negative out
+        // of here is gone - so the rule is stated where it belongs. A "charge" is a CREDIT. A negative
+        // one would post `type = admin_credit` for a debit, move the target wallet DOWN, and move the
+        // External Capital account UP, while every label in the ledger said money was arriving.
+        // The HTTP entry point validates `min:1` already (`AdminDashboardController:253`); this is the
+        // service-level guarantee, because the service is reachable from more than that one route.
+        $amount->assertPositive('Wallet charge amount');
+
         return DB::transaction(function () use ($phoneNumber, $amount, $adminConfig) {
             $wallet = Wallet::where('phone_number', $phoneNumber)
                 ->lockForUpdate()

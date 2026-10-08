@@ -9727,3 +9727,96 @@ implemented.** That is a large change to money semantics with real call-site bla
 own task, not something to fold into an alerting change.
 
 RV-10 remains `BLOCKED` on the owner window W, which is an action rather than a decision.
+
+## 116. AF-6 criterion 1, step 1: `Money` is signed, and the protection moved instead of vanishing
+
+Owner decision, 2026-10-11: **widen `Money` to signed; do not add a second money type.**
+
+`sec 112` established why this had to be a decision at all - `Money` refuses negatives in its
+constructor (`:29-37`) and in `subtract()` (`:111-116`), while the money paths are built **on**
+negatives: `postTwoPartyTransfer` emits `-amount`, `postExternalTransfer` emits `-amount` on the
+external leg, and `FeeSplit::releaseLegs` emits the negated escrow leg. A money type that cannot hold a
+negative cannot describe half the system's movements.
+
+**This task changes the TYPE only.** Converting the ledger services off raw float arithmetic is the
+large remaining half of criterion 1 and AF-6 stays `PARTIAL` afterwards. Doing both at once would have
+made neither verifiable.
+
+### The part that was not obvious: the throw was doing real work
+
+The constructor's `$amountInMinorUnits < 0` guard is not decorative. Two callers genuinely depend on a
+non-negative amount, and they depended on it **by accident** - they never asked for the rule, they
+inherited it:
+
+1. **`FeeSplit::driverAndPlatform()`** (`FeeSplit.php:55`) calls `$money->subtract($driver)` where
+   `$driver = round($total x 0.95)`, so the platform share is the **remainder**. With a signed `Money`
+   and no stated precondition, a negative escrow release would split into two negative shares that
+   still add up to the total exactly - arithmetic that is correct and nonsense money, and nothing
+   downstream would catch it.
+2. **`AdminWalletService::chargeWallet()`** takes a `Money` and posts `type = 'admin_credit'`. A
+   negative amount would move the target wallet **down**, move External Capital **up**, and record it
+   all under a label saying money was arriving.
+
+So the guard did not disappear; it **moved** to the two callers that have the rule, where it is named,
+stateable and testable instead of being a side effect of construction:
+
+```php
+$money->assertNotNegative('Escrow amount to split');   // FeeSplit::driverAndPlatform
+$amount->assertPositive('Wallet charge amount');      // AdminWalletService::chargeWallet
+```
+
+`assertPositive` rather than `assertNotNegative` for the wallet charge: a zero-amount "charge" writes a
+zero-value `admin_credit` row and moves nothing, which is never what the caller meant.
+
+The HTTP entry point already validated `amount` with `min:1` (`AdminDashboardController:253`); the
+service-level guard is there because the service is reachable from more than that one route.
+
+### What was added
+
+`isNegative()`, `negated()`, `absolute()`, `assertNotNegative()`, `assertPositive()`.
+
+`negated()` is the operation the ledger was missing and worked around with raw unary minus on floats -
+`FeeSplit::releaseLegs` builds its escrow leg with `-$split['platform'] - $split['driver']`.
+`absolute()` is what `AdminReportService` hand-rolled with `abs()` on two ledger sums *only because*
+`Money` could not hold the value it was formatting.
+
+**The operand guards stay.** `multiply()`, `divide()` and `percentage()` still reject a negative
+OPERAND. That is a different rule: a negative multiplier is a caller mistake whatever the receiver's
+sign, whereas the sign of the RESULT is now data. Only the receiver's sign was widened.
+
+### The two tests that pinned the old contract
+
+`MoneyTest` had `test_cannot_create_negative_amount` and `test_subtract_cannot_go_negative`. The owner
+changed the spec deliberately, so they were **replaced with tests of the new contract**, not quietly
+deleted and not edited to make a fix pass. Both replacements say in their docblock that the contract
+changed by owner decision and name `R2 sec 116`, so the next reader knows this was a ruling and not a
+regression.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` on all 5 changed files | no syntax errors |
+| `pint --test` on all 5 | PASS |
+| `MoneyTest` + `RV19FeeSplitTest` + `AdminWalletServiceTest` **with the change** | 82 tests, 153 assertions, 4 errors |
+| the same selection **at HEAD**, all 5 files reverted | 69 tests, 123 assertions, **the same 4 errors** |
+| delta | **+13 tests, +30 assertions, zero new failures** |
+| what those 4 errors are | `AdminWalletServiceTest::test_charge_wallet_*` - `External Capital wallet not found ... run db:seed --class=SystemWalletSeeder`. **PRE-EXISTING at HEAD**, unrelated to this change, left alone. |
+| money floor + `RV19FeeSplitTest` + `BoundaryDependencyTest` | **221 tests, 321 assertions, 3 failures** - the same three `WalletTest` OTP baseline items |
+| **NEEDLE 1** - restore the old `Amount cannot be negative` throw | **12 of the new tests fail** |
+| **NEEDLE 2** - delete `assertNotNegative` from `FeeSplit` | **exactly 1 test fails: `a_negative_escrow_release_is_rejected`** |
+| restore after both needles | `Money.php` and `FeeSplit.php` SHA256-identical |
+
+**NEEDLE 2 is the one that matters.** NEEDLE 1 only proves the widening is load-bearing. NEEDLE 2 proves
+the thing a reviewer actually needs to know: the non-negative precondition was **not simply deleted**
+when the constructor stopped enforcing it. Remove the moved guard and a test fails immediately.
+
+### Status
+
+**VERIFIED FIX** for the type change.
+
+**AF-6 stays `PARTIAL`**, and the remainder is now concrete rather than blocked: criterion 1's remaining
+half is replacing raw decimal arithmetic across the 7 services / ~66 sites with `Money`, now that the
+type can express the values those sites compute. Nothing gates it any more - it is approved, possible,
+and simply large. Recorded as the next session's candidate; the next-task rule will not select it on
+its own because the row is `PARTIAL`.

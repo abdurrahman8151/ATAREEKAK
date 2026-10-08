@@ -3,6 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Support\FeeSplit;
+use InvalidArgumentException;
 use Tests\TestCase;
 
 /**
@@ -132,6 +133,38 @@ class RV19FeeSplitTest extends TestCase
         // ...and the helper does not.
         $fixed = FeeSplit::driverAndPlatform($total);
         $this->assertSame(0.0, round(-$total + $fixed['driver'] + $fixed['platform'], 2));
+    }
+
+    /**
+     * `R2 sec 116`: `Money` is signed, so the non-negative precondition this class relied on is no
+     * longer a side effect of `Money::from()`. This test is the proof that it MOVED rather than
+     * disappeared - and it is the reason this file, not just `MoneyTest`, is touched.
+     *
+     * Without the explicit assert, a negative escrow release would split into two negative shares that
+     * still add up to the total exactly: arithmetic that is correct and nonsense money, which no
+     * downstream check would catch.
+     *
+     * @test
+     */
+    public function a_negative_escrow_release_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Escrow amount to split cannot be negative');
+
+        FeeSplit::driverAndPlatform(-100.50);
+    }
+
+    /**
+     * Zero is still a legal split - it is negative that is refused, not "nothing to do".
+     *
+     * @test
+     */
+    public function a_zero_escrow_release_splits_to_zero(): void
+    {
+        $split = FeeSplit::driverAndPlatform(0.0);
+
+        $this->assertSame(0.0, $split['driver']);
+        $this->assertSame(0.0, $split['platform']);
     }
 
     /**

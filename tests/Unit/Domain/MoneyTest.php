@@ -21,10 +21,29 @@ class MoneyTest extends TestCase
         $this->assertEquals(0.0, $money->amount());
     }
 
-    public function test_cannot_create_negative_amount(): void
+    /**
+     * CONTRACT CHANGE (`R2 sec 116`, owner decision, AF-6 criterion 1).
+     *
+     * This test used to be `test_cannot_create_negative_amount` and asserted that `Money::from(-1)`
+     * throws. That was the contract until the owner widened the type, because a money type that cannot
+     * hold a negative cannot describe a ledger debit. The spec changed deliberately, so the test was
+     * replaced rather than deleted - it now pins the NEW contract, which is the thing that must not
+     * silently drift back.
+     */
+    public function test_can_create_a_negative_amount(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        Money::from(-1);
+        $money = Money::from(-1);
+
+        $this->assertEquals(-1.0, $money->amount());
+        $this->assertEquals(-100, $money->amountInMinorUnits());
+        $this->assertTrue($money->isNegative());
+        $this->assertFalse($money->isPositive());
+        $this->assertFalse($money->isZero());
+    }
+
+    public function test_can_create_a_negative_amount_from_minor_units(): void
+    {
+        $this->assertEquals(-250.0, Money::fromMinorUnits(-25_000)->amount());
     }
 
     public function test_stores_currency(): void
@@ -47,10 +66,96 @@ class MoneyTest extends TestCase
         $this->assertEquals(150.0, $a->subtract($b)->amount());
     }
 
-    public function test_subtract_cannot_go_negative(): void
+    /**
+     * CONTRACT CHANGE (`R2 sec 116`) - see `test_can_create_a_negative_amount`. `subtract()` used to
+     * throw rather than produce a negative, which made "50 minus 100" inexpressible.
+     */
+    public function test_subtract_can_go_negative(): void
+    {
+        $result = Money::from(50)->subtract(Money::from(100));
+
+        $this->assertEquals(-50.0, $result->amount());
+        $this->assertTrue($result->isNegative());
+    }
+
+    /**
+     * THE GUARD THAT REPLACED IT. The constructor used to reject negatives as a side effect of
+     * building the object, so every caller inherited a rule none of them had asked for and no caller
+     * could test on its own. `assertNotNegative()` is the same rule, stated by the caller that has it.
+     */
+    public function test_assert_not_negative_rejects_a_negative_amount(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        Money::from(50)->subtract(Money::from(100));
+        $this->expectExceptionMessage('Escrow amount cannot be negative');
+
+        Money::from(-0.01)->assertNotNegative('Escrow amount');
+    }
+
+    public function test_assert_not_negative_accepts_zero_and_positive(): void
+    {
+        Money::zero()->assertNotNegative('Escrow amount');
+        Money::from(0.01)->assertNotNegative('Escrow amount');
+
+        // No exception is the assertion; reaching here is the pass.
+        $this->assertTrue(true);
+    }
+
+    public function test_assert_positive_rejects_zero_where_only_a_credit_is_meaningful(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Wallet charge amount must be positive');
+
+        Money::zero()->assertPositive('Wallet charge amount');
+    }
+
+    public function test_negated_flips_the_sign_exactly(): void
+    {
+        $this->assertEquals(-777.0, Money::from(777.0)->negated()->amount());
+        $this->assertEquals(777.0, Money::from(-777.0)->negated()->amount());
+        $this->assertTrue(Money::from(777.0)->negated()->negated()->equals(Money::from(777.0)),
+            'negation must be exactly reversible');
+    }
+
+    public function test_absolute_drops_the_sign(): void
+    {
+        $this->assertEquals(777.0, Money::from(-777.0)->absolute()->amount());
+        $this->assertTrue(Money::from(-777.0)->absolute()->isPositive());
+    }
+
+    /**
+     * The operand guards are a DIFFERENT rule from the sign rule and must survive the widening: a
+     * negative multiplier is a caller mistake whatever this amount's sign is.
+     */
+    public function test_multiply_rejects_a_negative_multiplier(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Multiplier cannot be negative');
+
+        Money::from(-100)->multiply(-2);
+    }
+
+    public function test_multiply_keeps_the_receivers_sign(): void
+    {
+        $this->assertEquals(-200.0, Money::from(-100)->multiply(2)->amount());
+        $this->assertEquals(200.0, Money::from(100)->multiply(2)->amount());
+    }
+
+    public function test_add_keeps_the_signs(): void
+    {
+        $this->assertEquals(-50.0, Money::from(-100)->add(Money::from(50))->amount());
+    }
+
+    public function test_comparisons_work_across_zero(): void
+    {
+        $this->assertTrue(Money::from(-100)->isLessThan(Money::from(0)));
+        $this->assertTrue(Money::from(-100)->isLessThan(Money::from(100)));
+        $this->assertTrue(Money::from(-100)->isGreaterThan(Money::from(-200)));
+    }
+
+    public function test_formatted_keeps_the_minus_sign(): void
+    {
+        $this->assertEquals('-777.00 SYP', Money::from(-777.0)->formatted());
+        $this->assertEquals('-777.00', Money::from(-777.0)->formattedWithoutCurrency());
     }
 
     public function test_multiply(): void

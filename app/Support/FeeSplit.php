@@ -47,6 +47,15 @@ final class FeeSplit
     {
         $money = Money::from($total);
 
+        // `Money` is signed as of `R2 sec 116`, so this precondition is now STATED rather than implied
+        // by `Money::from()` throwing. It has to be: a negative escrow release would split into two
+        // negative shares that still add up to the total exactly - arithmetic that is correct and
+        // nonsense money - and nothing downstream would notice. All three callers
+        // (`WalletTransactionService:234,822,1232`) release escrow that is already guarded
+        // non-negative by `RV02EscrowDerivationTest`, so this asserts an invariant rather than
+        // introducing a new rejection.
+        $money->assertNotNegative('Escrow amount to split');
+
         // Integer minor units (fils): 1000.50 -> 100050 fils.
         $driver = $money->multiply((float) config('fees.driver_share_rate', 0.95));
 
