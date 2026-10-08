@@ -20,6 +20,25 @@ use Tests\TestCase;
  * The read config is resolved with `array_merge($config, $config['read'])`, which is exactly what
  * `Illuminate\Database\Connectors\ConnectionFactory::mergeReadWriteConfig()` does (vendor line 153).
  * Asserting on that merge is asserting on what Laravel will really connect with.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * CORRECTION (found while closing RV-01). `read.host` IS an array and that is correct - Laravel
+ * treats it as a replica list to choose from. `read.port` is NOT, and these assertions used to read
+ * `$resolved['read']['port'][0]` - they indexed INTO the array and therefore passed on the exact
+ * shape that breaks at runtime. The paragraph above was wrong for `port`: `array_merge` does not
+ * turn an array port into a scalar, and `MySqlConnector` then interpolates it straight into the DSN
+ * ("mysql:host=...;port={$config['port']}"), producing
+ *
+ *     Array to string conversion (Connection: mysql, SQL: select count(*) as aggregate from `photos`)
+ *     SQLSTATE[HY000] [2002] No connection could be made because the target machine actively
+ *     refused it
+ *
+ * The test mirrored the implementation instead of validating the contract, so it confirmed the bug.
+ * Every assertion now reads the port as a SCALAR, and `DBReplicaPortShapeTest` covers the runtime
+ * side by purging the connection so a SELECT actually travels the read path. The RV-08 INTENT is
+ * unchanged and still fully asserted: production reads must use DB_REPLICA_PORT, writes must stay on
+ * the primary, and local/testing must ignore the replica port entirely.
+ * ---------------------------------------------------------------------------------------------
  */
 class RV08ReplicaPortTest extends TestCase
 {
@@ -119,7 +138,7 @@ class RV08ReplicaPortTest extends TestCase
         $this->assertSame('replica.example', $resolved['read']['host'][0]);
         $this->assertSame(
             '4406',
-            $resolved['read']['port'][0],
+            $resolved['read']['port'],
             'In production a read must use DB_REPLICA_PORT, not the primary port.'
         );
     }
@@ -154,7 +173,7 @@ class RV08ReplicaPortTest extends TestCase
 
         $this->assertSame(
             '3306',
-            $resolved['read']['port'][0],
+            $resolved['read']['port'],
             'An operator who never sets DB_REPLICA_PORT must keep exactly today\'s behaviour.'
         );
     }
@@ -173,7 +192,7 @@ class RV08ReplicaPortTest extends TestCase
             $this->assertSame('127.0.0.1', $resolved['read']['host'][0], "$appEnv reads locally");
             $this->assertSame(
                 '3399',
-                $resolved['read']['port'][0],
+                $resolved['read']['port'],
                 "$appEnv must ignore DB_REPLICA_PORT so the suite keeps one transactional connection."
             );
         }
@@ -195,7 +214,7 @@ class RV08ReplicaPortTest extends TestCase
         ]);
 
         $this->assertSame('replica.example', $prod['read']['host'][0]);
-        $this->assertSame('4406', $prod['read']['port'][0]);
+        $this->assertSame('4406', $prod['read']['port']);
 
         $local = $this->resolve([
             'APP_ENV' => 'testing',
@@ -206,6 +225,6 @@ class RV08ReplicaPortTest extends TestCase
         ]);
 
         $this->assertSame('127.0.0.1', $local['read']['host'][0]);
-        $this->assertSame('3399', $local['read']['port'][0]);
+        $this->assertSame('3399', $local['read']['port']);
     }
 }

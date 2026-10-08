@@ -54,12 +54,34 @@ class AF5ConfigurableDiskTest extends TestCase
     /**
      * @test
      */
-    public function the_default_disk_is_still_public_so_nothing_moves_today(): void
+    public function uploads_stay_public_by_default_but_identity_documents_do_not(): void
     {
-        // The deployment-safety guarantee. If this ever becomes non-public by default, uploads
-        // start failing on any host that has no object storage configured.
+        // SPLIT, deliberately (RV-01, owner instruction 2026-10-08).
+        //
+        // This assertion used to require BOTH defaults to be `public`, on the deployment-safety
+        // argument that a non-public default breaks uploads on a host with no object storage. That
+        // argument was sound for *uploads* and wrong for *identity documents*: profile photos and
+        // chat images are meant to be public, whereas a national ID being readable by anyone who
+        // guesses `/storage/<path>` is the defect RV-01 exists to close.
+        //
+        // The two concerns now have different defaults, which is why they are two keys at all.
+        // `documents_disk` defaults to the PRIVATE `local` disk; `kyc:migrate-disk` moves the
+        // already-written files and `StaffDocumentController` falls back so nothing 404s.
         $this->assertSame('public', config('filesystems.uploads_disk'));
-        $this->assertSame('public', config('filesystems.documents_disk'));
+        $this->assertSame('local', config('filesystems.documents_disk'));
+
+        // `local` must actually be private, or this change buys nothing. The config value is
+        // already the RESOLVED absolute root (config/filesystems.php calls storage_path() at load
+        // time), so the check is containment, not the literal helper name.
+        $this->assertSame('local', config('filesystems.disks.local.driver'));
+
+        $normalise = static fn (string $p): string => rtrim(str_replace('\\', '/', $p), '/');
+
+        $this->assertStringNotContainsString(
+            $normalise(config('filesystems.disks.public.root')),
+            $normalise(config('filesystems.disks.local.root')),
+            'the private root must not sit underneath the web-reachable public root'
+        );
     }
 
     /**

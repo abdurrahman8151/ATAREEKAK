@@ -78,9 +78,10 @@ class VerificationController extends Controller
                     $upload = $request->file($inputName);
                     $filename = Str::uuid().'.'.$upload->guessExtension();
                     // AF-5: these are identity documents, so they share the `documents_disk` key that
-                    // `DocumentController` writes to and `StaffDocumentController` reads from. Default
-                    // is unchanged; the point is that all three now name the same disk.
-                    $path = $upload->storeAs("verifications/{$enumType}", $filename, config('filesystems.documents_disk', 'public'));
+                    // `DocumentController` writes to and `StaffDocumentController` reads from. RV-01:
+                    // that key now defaults to the PRIVATE `local` disk, and the fallback here is
+                    // 'local' to match so a missing config key cannot re-open the public exposure.
+                    $path = $upload->storeAs("verifications/{$enumType}", $filename, config('filesystems.documents_disk', 'local'));
 
                     $this->photoRepo->deleteDocumentsByType($user->id, $enumType);
                     $this->photoRepo->storeDocument($user->id, $enumType, $path);
@@ -175,7 +176,7 @@ class VerificationController extends Controller
                     // passenger branch above for the rationale).
                     $upload = $request->file($inputName);
                     $filename = Str::uuid().'.'.$upload->guessExtension();
-                    $path = $upload->storeAs("verifications/{$folder}", $filename, config('filesystems.documents_disk', 'public'));
+                    $path = $upload->storeAs("verifications/{$folder}", $filename, config('filesystems.documents_disk', 'local'));
 
                     if (in_array($inputName, ['face_id_pic', 'back_id_pic', 'driving_license_pic', 'mechanic_card_pic'], true)) {
                         $this->photoRepo->deleteDocumentsByType($userId, $map[$inputName]);

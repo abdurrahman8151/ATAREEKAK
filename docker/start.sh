@@ -70,6 +70,25 @@ if ($connected) {
 }
 '
 
+echo "=== Retiring publicly-reachable KYC documents (RV-01) ==="
+# `documents_disk` now defaults to the PRIVATE `local` disk, so every document written before that
+# switch is still sitting on `public` and readable by anyone who guesses /storage/<path>. New uploads
+# are already private; this retires the pre-existing copies.
+#
+# Idempotent, so running it on every boot is safe: each row is copied to the destination disk, the
+# size is verified, and only then is the public copy deleted. Once the migration is complete every
+# subsequent run finds nothing to do.
+#
+# `--to` is deliberately NOT passed so the destination follows DOCUMENTS_DISK. Hard-coding `local`
+# here would move files off `public` and leave them on a disk the app is not reading whenever an
+# operator points DOCUMENTS_DISK at object storage - turning a cleanup into an outage.
+#
+# Deliberately NON-FATAL: a storage hiccup must not stop the app from booting. The exposure is
+# pre-existing rather than being worsened by a failed cleanup, and `|| true` keeps `set -e` from
+# turning a warning into an outage. It retries on the next boot.
+php artisan kyc:migrate-disk --from=public --force 2>&1 || \
+    echo "WARNING: KYC document migration did not complete; will retry on next boot."
+
 echo "=== Checking Redis readiness ==="
 php -r '
 try {

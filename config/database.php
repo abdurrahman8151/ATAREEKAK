@@ -97,9 +97,27 @@ return [
                  * DB_PORT when unset - so local and testing are provably unchanged and an
                  * operator who never sets DB_REPLICA_PORT keeps today's behaviour.
                  */
-                'port' => [($_SERVER['APP_ENV'] ?? null) === 'production'
+                // BUG FIX (found by running `kyc:migrate-disk --dry-run`, which is the first thing
+                // in this app that issues a SELECT before any write): this was
+                // `'port' => [ ... ]`.
+                //
+                // Laravel supports an ARRAY for `host` on a read replica - a replica list is a set
+                // of hosts to choose from. `port` is not one of them and must be a scalar.
+                // `ConnectionFactory::mergeReadWriteConfig()` does array_merge($config, $read), so
+                // the array REPLACED the base `port` outright, and `MySqlConnector` then
+                // interpolated an array straight into the DSN: "Array to string conversion"
+                // followed by "No connection could be made because the target machine actively
+                // refused it".
+                //
+                // WHY NO TEST CAUGHT IT: `RefreshDatabase` runs migrations FIRST, which sets
+                // Laravel's `recordsModified`, and `sticky => true` then pins every later query to
+                // the WRITE PDO. The broken `read` config is never exercised - 900+ passing tests
+                // all take the write path. In production the first query on a fresh connection is
+                // frequently a READ (looking up the user to log them in), so this was live on every
+                // read-before-write path.
+                'port' => ($_SERVER['APP_ENV'] ?? null) === 'production'
                     ? env('DB_REPLICA_PORT', env('DB_PORT', '3306'))
-                    : env('DB_PORT', '3306')],
+                    : env('DB_PORT', '3306'),
             ],
             'write' => [
                 'host' => [env('DB_HOST', '127.0.0.1')],

@@ -103,15 +103,27 @@ return [
     | KYC document disk (decision un1)
     |--------------------------------------------------------------------------
     |
-    | Which disk `DocumentController` stores identity documents on. Defaults to
-    | `public` - the historical behaviour - so deploying un1 cannot break uploads on
-    | a host with no object storage yet. Setting it to `minio` is the one-line deploy
-    | change that moves identity documents off the public disk, which is the half of
-    | RV-01 that decision 1b left open.
+    | Which disk `DocumentController` stores identity documents on, and which disk
+    | `StaffDocumentController` reads them from.
+    |
+    | RV-01: this used to default to `public`, which left every identity document world-readable
+    | at `/storage/<path>` for anyone who guessed or harvested the path. The default is now the
+    | PRIVATE `local` disk (`storage/app`), so a fresh deploy writes identity documents somewhere
+    | only the staff-authenticated route in `routes/api.php` can reach. That is the whole fix:
+    | privacy should be the default, not a deploy ritual someone has to remember.
+    |
+    | Existing documents written before the switch are still on `public`. They stay readable -
+    | `StaffDocumentController` falls back to the legacy disk - and
+    | `php artisan kyc:migrate-disk --from=public --to=local` moves them and deletes the publicly
+    | reachable copy. That command is what retires the pre-existing exposure; nothing new is exposed
+    | in the meantime, and the fallback never writes back to `public`.
+    |
+    | Set `DOCUMENTS_DISK=minio` (or any configured disk) when the app runs on more than one host
+    | and the files need to be shared. The disk choice is orthogonal to the privacy fix.
     |
     */
 
-    'documents_disk' => env('DOCUMENTS_DISK', 'public'),
+    'documents_disk' => env('DOCUMENTS_DISK', 'local'),
 
     /*
      * ------------------------------------------------------------------

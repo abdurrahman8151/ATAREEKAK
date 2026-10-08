@@ -47,8 +47,15 @@ class MigrateKycDocumentsCommand extends Command
 
     public function handle(): int
     {
-        $from = (string) ($this->option('from') ?: config('filesystems.documents_disk', 'public'));
-        $to = (string) ($this->option('to') ?: 'minio');
+        $from = (string) ($this->option('from') ?: 'public');
+
+        // RV-01: `documents_disk` now defaults to the PRIVATE `local` disk, so the destination
+        // default follows it rather than hard-coding `minio`. The SOURCE default is `public`
+        // because that is the legacy disk holding the already-exposed documents - defaulting
+        // `--from` to `documents_disk` would now resolve to `local` and make this a no-op that
+        // quietly reports success without moving anything, which is the worst possible default for
+        // a data-migration command.
+        $to = (string) ($this->option('to') ?: config('filesystems.documents_disk', 'local'));
         $dryRun = (bool) $this->option('dry-run');
 
         if ($from === $to) {

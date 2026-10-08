@@ -82,7 +82,25 @@ class StaffDocumentController extends Controller
         // hard-coded 'public' while the write side already used `documents_disk`, so the
         // documented switch to a private disk would have written every document somewhere the
         // reader never looks - a 404 for all of them. Default matches the write side exactly.
-        $disk = Storage::disk(config('filesystems.documents_disk', 'public'));
+        //
+        // RV-01: with `documents_disk` now defaulting to the PRIVATE `local` disk, every document
+        // written before that switch is still sitting on `public`. Rather than 404 those - which is
+        // what a bare `exists()` on the configured disk did, and which would have taken the staff
+        // verification queue offline the moment the config changed - fall back to the legacy public
+        // disk. That keeps existing rows readable while `kyc:migrate-disk` retires the publicly
+        // reachable copies. The fallback is strictly READ-ONLY: nothing is ever written back to
+        // `public`, so that exposure can only shrink as the migrator runs, never grow.
+        $configured = config('filesystems.documents_disk', 'local');
+
+        $disk = Storage::disk($configured);
+
+        if (! $disk->exists($photo->path)
+            && $configured !== 'public'
+            && Storage::disk('public')->exists($photo->path)) {
+            // Still on the legacy public disk: readable to staff, still publicly reachable. The
+            // migrator removes the second problem; this branch only avoids taking the first offline.
+            $disk = Storage::disk('public');
+        }
 
         if (! $disk->exists($photo->path)) {
             return response()->json([

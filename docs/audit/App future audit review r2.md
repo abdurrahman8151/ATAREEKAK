@@ -8634,3 +8634,99 @@ A bisect whose baseline and treatment have the same test count has measured noth
 line and would have caught this immediately.
 
 Nothing pushed.
+## 102. RV-01 CLOSED (privacy by default), and a P0 found on the way: every production READ was broken
+
+Owner instruction, 2026-10-08: *"I do not want to see them again, finish them all together."*
+
+### RV-01, closed rather than handed over
+
+RV-01 had been parked on an owner action: create a MinIO bucket, run the migrator, set `DOCUMENTS_DISK`. That
+is the worst shape for a privacy defect - it stays open until somebody remembers a deploy ritual. The fix
+inverts it: **privacy is the default, not an opt-in.**
+
+`config/filesystems.php` - `documents_disk` now defaults to the PRIVATE `local` disk (`storage/app`), not
+`public` (`storage/app/public`, served by the `/storage` symlink).
+
+Making the default private introduces a second-order failure that the tests exist to pin. Every document
+written before the switch is still on `public`, and a bare `exists()` against the configured disk would 404
+all of them - taking the staff KYC review queue offline the moment the config changed. So
+`StaffDocumentController::serve()` now falls back to the legacy disk, **read-only**: nothing is ever written
+back to `public`, so the pre-existing exposure can only shrink as the migrator runs and can never grow.
+
+`uploads_disk` deliberately STAYS `public`. Profile photos and chat images are meant to be public; the two
+keys differ because mixing them would either expose a face ID or strand every avatar on a disk nobody reads.
+The existing `AF5ConfigurableDiskTest` assertion that pinned *both* defaults to `public` was updated
+deliberately, with the reasoning recorded inline - it encoded the old contract, and the owner has overridden
+it.
+
+Two related corrections fell out:
+
+- `kyc:migrate-disk` defaulted `--from` to `config('documents_disk')`. After this change that resolves to
+  `local`, which would have made the migration a **silent no-op that reports success while moving nothing** -
+  the worst possible default for a data-migration command. `--from` now defaults to `public`.
+- The dead `'public'` fallbacks in `DocumentController` and both `VerificationController` call sites now read
+  `'local'`, so a missing config key cannot silently re-open the exposure.
+
+**Retiring the already-published files.** Deleting them requires touching the host's filesystem, so the
+migrator is wired into `docker/start.sh`, which already runs `migrate --force` on every boot. It is
+idempotent, deliberately non-fatal (`|| true` under `set -e`, so a storage hiccup cannot turn a warning into an
+outage), and `--to` is intentionally NOT passed so the destination follows `DOCUMENTS_DISK` - hard-coding
+`local` would strand files on a disk the app is not reading whenever an operator points it at object storage.
+
+**RV-01 is now VERIFIED FIX with no owner action remaining.** AF-5 narrows to an optional scaling step: no
+privacy requirement depends on MinIO any more, so the bucket is no longer a gate.
+
+### RV-34 (P0, new): `read.port` was an ARRAY, breaking every read in production
+
+Running `kyc:migrate-disk --dry-run` - the first thing in this application that issues a SELECT before any
+write - failed:
+
+```
+Array to string conversion (Connection: mysql, SQL: select count(*) as aggregate from `photos`)
+SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+```
+
+`config/database.php:100` was `'port' => [ ... ]`. Laravel supports an array for `host` on a read replica,
+because a replica list is a set of hosts to choose from. `port` is not one of them:
+`ConnectionFactory::mergeReadWriteConfig()` does `array_merge($config, $read)`, so the array **replaced** the
+base port outright, and `MySqlConnector` interpolated it straight into the DSN.
+
+**Why 900+ passing tests never saw it.** `RefreshDatabase` runs migrations *before* each test, which sets
+Laravel's `recordsModified` flag, and `'sticky' => true` then routes every subsequent query to the WRITE PDO.
+The `read` config is merged only for reads, so it is never exercised - the whole suite takes the write path.
+In production the first query on a fresh connection is very often a read (looking up the user to log them in),
+so this was live on every read-before-write path.
+
+**`RV08ReplicaPortTest` had codified the bug.** Its assertions read `$resolved['read']['port'][0]` - they
+indexed *into* the array and so passed on exactly the shape that breaks at runtime. Its docblock claimed
+"asserting on that merge is asserting on what Laravel will really connect with"; that claim is false for
+`port`, and the runtime error above falsifies it. The test mirrored the implementation instead of validating
+the contract. All four assertions now read the port as a scalar. **The RV-08 intent is unchanged and still
+fully asserted** - production reads use `DB_REPLICA_PORT`, writes stay on the primary, local/testing ignore the
+replica port entirely.
+
+### Verification
+
+| check | result |
+|---|---|
+| `RV01DocumentsPrivateByDefaultTest` | **OK**, 7 tests |
+| `DBReplicaPortShapeTest` | **OK**, 5 tests / 10 assertions |
+| `RV08ReplicaPortTest` + `DBReplicaPortShapeTest` | **OK**, 10 tests / 23 assertions |
+| NEEDLE - restore `DOCUMENTS_DISK=public` | **5 failures**, SHA256 restore |
+| NEEDLE - restore `'port' => [ ... ]` | **2 errors + 2 failures**; `kyc:migrate-disk --dry-run` reproduces `Array to string conversion` verbatim |
+| Bisect (identity floor, 8 paths) | 914 tests / **7 errors** / 12 failures -> **926** / **5 errors** / 12 failures |
+
+**Zero new failures, and two pre-existing errors FIXED** - `RV30DataModelHygieneTest::user_ratings_keeps_unique_rater_rated_user_pair`
+and `::wallet_transactions_reference_is_indexed_for_reconciliation_reads` were failing *because of* the broken
+read path. A fix that repairs existing failures as well as adding none is the strongest evidence available that
+the diagnosis was right.
+
+`php -l` and `pint --test` clean on all 10 changed PHP files; `bash -n docker/start.sh` clean.
+
+### Genuinely unverified
+
+`docker/start.sh` is a container entrypoint and cannot be executed here. It is shell-syntax-checked and the
+command it invokes was run directly against the scratch DB (exit 0), but the boot-time integration is untested.
+Worth one look on the next deploy.
+
+Nothing pushed.
