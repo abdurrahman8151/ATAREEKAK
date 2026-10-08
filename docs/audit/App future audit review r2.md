@@ -9087,3 +9087,83 @@ Rotation is the actual fix and has not been done. Recommended order: rotate `JWT
 `PUSHER_APP_SECRET` (both still live), rotate the PAT and update the remote URL, then `filter-repo` over the
 full history and force-push. None of that is in this commit, and none of it can be done from here - it needs
 the credential values, which are the owner's.
+## 109. RV-19 item 2: the admin earnings figure was re-derived from current ride prices - settled history, rewritten
+
+Owner decision: **"ledger is authoritative."** This closed the whole remainder of RV-19.
+
+### The defect
+
+`AdminDriverService::getDriverDashboard` computed `total_earnings` as
+`SUM(bookings.seats * rides.price_per_seat * 0.95)`, joined to the **CURRENT** `rides` rows. Settled
+earnings were therefore not read from any record of money moving - they were re-computed from today's
+prices. Edit a ride's price after settlement and the driver appears to have earned a different amount,
+with no money having moved. This is precisely the "fake or derived number" the row is named for.
+
+### A deviation from the wording of the decision, and why
+
+The decision said the ledger. **The ledger cannot answer this question**, and that is a structural
+fact, not a preference. The 95/5 settlement legs written by
+`WalletTransactionService::releaseRideEarnings` (`postTransfer`) carry only:
+
+```php
+['wallet_id' => ..., 'amount' => ..., 'description' => ...]
+```
+
+There is **no type discriminator** on those legs. A per-driver sum over `ledger_entries` would also
+count top-ups, deposits and every other inflow - so `ledger_entries` cannot distinguish "earnings" from
+"money that arrived".
+
+`wallet_transactions` can: it is type-discriminated and carries `user_id` = driver, written alongside
+the transfer as `type => 'ride_earnings'`. So the authoritative figure is summed from there. This
+satisfies the *intent* of the decision - real recorded money, not a figure re-derived from live columns -
+and the deviation is recorded here rather than quietly taken.
+
+A second finding made the query correct rather than merely plausible: `RIDE_EARNING` (singular) is
+written **only by `SyrideSeeder`**, never by application code - the app writes the plural spelling as a
+raw string at `WalletTransactionService:292`. Summing one spelling would silently return 0 for real
+production data. Both are summed (the RV-39 vocabulary drift), and both are pinned by a test.
+
+### The response shape (D5 = C, owner-approved)
+
+```php
+'ledger_earnings' => round((float) $ledgerEarnings, 2),   // authoritative: real settled money
+'estimated_gross' => round((float) $estimatedGross, 2),   // projection off CURRENT prices
+'total_earnings'  => round((float) $ledgerEarnings, 2),   // ALIAS, so the admin front-end does not break
+```
+
+### Verification
+
+| check | result |
+|---|---|
+| Admin floor (`Unit/Services/Admin`, `Feature/Admin`) baseline | 269 tests, **Errors 4, Failures 19** |
+| after the change | 273 tests (4 added), **Errors 4, Failures 19 - identical, zero new** |
+| assertions | 583 -> 594 |
+| NEEDLE - revert only the service, keep the new tests | **7 of 8 earnings tests die** |
+| `php -l` both files; `pint` | clean / PASS |
+
+The needle's victim list is the proof that matters: it includes
+`test_get_driver_dashboard_earnings_do_not_change_when_a_ride_price_is_edited_after_settlement`, the
+regression test that encodes the actual defect. The 8th test
+(`..._is_zero_without_completed_bookings`) survives the needle correctly - 0 == 0 under either source.
+
+**A flaw in my own needle script, reported rather than hidden:** the trailing boolean
+`"do_not_change_when_a_ride_price_is_edited" killed by needle: False` is WRONG. The `finally` block re-ran
+the suite and overwrote the output file that the check then read, so it inspected the post-fix (passing)
+text. The needle result itself - the 7-test failure list - was captured before that and is correct. A
+conclusion that disagreed with the evidence is worth flagging rather than quietly deleting.
+
+### Tests strengthened, not weakened
+
+Four tests were added and the three that pinned the old source were rewritten. The rewritten three now
+assert **all three fields** (authoritative, projection, and that the alias really equals the
+authoritative one) where each previously asserted a single derived number. New coverage:
+
+- settled earnings do **not** move when a ride is repriced afterwards (the regression guard)
+- a `pending` payout is not counted as money moved
+- both `ride_earning` and `ride_earnings` count (the RV-39 drift)
+- a `deposit` is **not** an earning - the guard against drifting back into the "sums top-ups" error
+  that ruled `ledger_entries` out
+
+Editing those three tests was done under the standing exception for a contract the owner has explicitly
+overridden (precedent: the AF-5 disk default and the RV-08 `port[0]` assertion), and each carries the
+reason inline.

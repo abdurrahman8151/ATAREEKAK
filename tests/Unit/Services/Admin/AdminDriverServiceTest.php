@@ -7,6 +7,8 @@ use App\Models\Photo;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
 use App\Services\Admin\AdminDriverService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -1000,14 +1002,28 @@ class AdminDriverServiceTest extends TestCase
         $this->assertEquals(0.0, $this->service->getDriverDashboard($driver->id)['stats']['total_earnings']);
     }
 
+    // CORRECTED (R2 sec 109, owner decision: "ledger is authoritative"). These three pinned the OLD
+    // source - a figure re-derived from the CURRENT rides columns. They now pin the NEW contract,
+    // and assert BOTH fields plus the alias, which is strictly stronger than what they replaced:
+    //   ledger_earnings  = real recorded WalletTransaction credits (authoritative)
+    //   estimated_gross  = the old arithmetic, kept and honestly relabelled as a projection
+    //   total_earnings   = ALIAS of ledger_earnings, so the admin front-end does not break
     public function test_get_driver_dashboard_earnings_applies_five_percent_commission(): void
     {
         $driver = $this->makeUser();
         $ride = $this->makeRide($driver->id, ['price_per_seat' => 50000]);
-        $this->makeBooking($ride, $this->makeUser(), 2, 'completed');
-        // 2 seats * 50000 * 0.95 = 95000
+        $this->makeBooking($ride, $this->makeUser(), 2, 'completed'); // 2 * 50000 * 0.95 = 95000
 
-        $this->assertEquals(95000.0, $this->service->getDriverDashboard($driver->id)['stats']['total_earnings']);
+        $stats = $this->service->getDriverDashboard($driver->id)['stats'];
+
+        // No settlement has run, so no money has moved: the authoritative figure is ZERO. This is
+        // the whole point of the change - the old code reported 95000 for a driver who had been
+        // paid nothing, purely from what the ride currently costs.
+        $this->assertEquals(0.0, $stats['ledger_earnings']);
+        $this->assertEquals(0.0, $stats['total_earnings'], 'total_earnings is an alias of ledger_earnings');
+
+        // The projection survives, relabelled as a projection.
+        $this->assertEquals(95000.0, $stats['estimated_gross']);
     }
 
     public function test_get_driver_dashboard_earnings_sum_across_multiple_completed_bookings(): void
@@ -1017,8 +1033,14 @@ class AdminDriverServiceTest extends TestCase
         $ride2 = $this->makeRide($driver->id, ['price_per_seat' => 20000]);
         $this->makeBooking($ride1, $this->makeUser(), 1, 'completed'); // 47500
         $this->makeBooking($ride2, $this->makeUser(), 3, 'completed'); // 57000
+        $this->makeEarning($driver->id, 47500.0);
+        $this->makeEarning($driver->id, 57000.0);
 
-        $this->assertEquals(104500.0, $this->service->getDriverDashboard($driver->id)['stats']['total_earnings']);
+        $stats = $this->service->getDriverDashboard($driver->id)['stats'];
+
+        $this->assertEquals(104500.0, $stats['ledger_earnings']);
+        $this->assertEquals(104500.0, $stats['total_earnings'], 'alias must equal the authoritative figure');
+        $this->assertEquals(104500.0, $stats['estimated_gross']);
     }
 
     public function test_get_driver_dashboard_earnings_ignores_other_drivers_rides(): void
@@ -1030,8 +1052,78 @@ class AdminDriverServiceTest extends TestCase
 
         $this->makeBooking($ownRide, $this->makeUser(), 1, 'completed');
         $this->makeBooking($otherRide, $this->makeUser(), 1, 'completed');
+        $this->makeEarning($driver->id, 47500.0);
+        $this->makeEarning($otherDriver->id, 47500.0);
 
-        $this->assertEquals(47500.0, $this->service->getDriverDashboard($driver->id)['stats']['total_earnings']);
+        $stats = $this->service->getDriverDashboard($driver->id)['stats'];
+
+        $this->assertEquals(47500.0, $stats['ledger_earnings'], "another driver's payout is not this driver's earnings");
+        $this->assertEquals(47500.0, $stats['estimated_gross']);
+    }
+
+    // RV-19 regression guard, and the reason the source had to move at all: editing a ride's price
+    // AFTER settlement must NOT rewrite what the driver was actually paid. Under the old derived
+    // figure this test fails; under the ledger it cannot.
+    public function test_get_driver_dashboard_earnings_do_not_change_when_a_ride_price_is_edited_after_settlement(): void
+    {
+        $driver = $this->makeUser();
+        $ride = $this->makeRide($driver->id, ['price_per_seat' => 50000]);
+        $this->makeBooking($ride, $this->makeUser(), 2, 'completed');
+        $this->makeEarning($driver->id, 95000.0); // what was actually paid
+
+        $before = $this->service->getDriverDashboard($driver->id)['stats'];
+        $ride->update(['price_per_seat' => 999999]);
+
+        $after = $this->service->getDriverDashboard($driver->id)['stats'];
+
+        $this->assertEquals(95000.0, $before['ledger_earnings']);
+        $this->assertEquals(
+            95000.0,
+            $after['ledger_earnings'],
+            'settled earnings are a historical fact and must not move when a ride is repriced'
+        );
+        $this->assertNotEquals(
+            $after['ledger_earnings'],
+            $after['estimated_gross'],
+            'the projection SHOULD drift - that is the honest difference between the two fields'
+        );
+    }
+
+    // A pending payout is not money that moved, and must not be counted as earnings.
+    public function test_get_driver_dashboard_earnings_ignore_pending_transactions(): void
+    {
+        $driver = $this->makeUser();
+        $this->makeEarning($driver->id, 1000.0, 'pending');
+
+        $stats = $this->service->getDriverDashboard($driver->id)['stats'];
+
+        $this->assertEquals(0.0, $stats['ledger_earnings']);
+    }
+
+    // RV-39: the vocabulary has drifted - the app writes 'ride_earnings', seeded/legacy rows use
+    // 'ride_earning'. Summing only one would silently drop the other, so both are counted.
+    public function test_get_driver_dashboard_earnings_count_both_ride_earning_spellings(): void
+    {
+        $driver = $this->makeUser();
+        $this->makeEarning($driver->id, 100.0, 'completed', 'ride_earnings');
+        $this->makeEarning($driver->id, 250.0, 'completed', 'ride_earning');
+
+        $stats = $this->service->getDriverDashboard($driver->id)['stats'];
+
+        $this->assertEquals(350.0, $stats['ledger_earnings'], 'both spellings are real money and both count');
+    }
+
+    // A top-up is money INTO the driver's wallet but is NOT earnings. If this ever fails, the sum
+    // has started counting deposits - the same class of error as summing ledger_entries, which is
+    // exactly why ledger_entries was rejected as the source.
+    public function test_get_driver_dashboard_earnings_exclude_wallet_top_ups(): void
+    {
+        $driver = $this->makeUser();
+        $this->makeEarning($driver->id, 500.0, 'completed', 'deposit');
+
+        $stats = $this->service->getDriverDashboard($driver->id)['stats'];
+
+        $this->assertEquals(0.0, $stats['ledger_earnings'], 'a deposit is not an earning');
     }
 
     public function test_get_driver_dashboard_recent_rides_limited_to_ten(): void
@@ -1629,6 +1721,35 @@ class AdminDriverServiceTest extends TestCase
             'seats' => $seats,
             'status' => $status,
             'communication_number' => '0911111111',
+        ]);
+    }
+
+    /**
+     * RV-19: a settled payout recorded the way `WalletTransactionService::releaseRideEarnings`
+     * writes one - type-discriminated, user_id = the driver, carrying running balances.
+     */
+    private function makeEarning(
+        int $driverId,
+        float $amount,
+        string $status = 'completed',
+        string $type = 'ride_earnings'
+    ): WalletTransaction {
+        $wallet = Wallet::firstOrCreate(
+            ['user_id' => $driverId],
+            ['balance' => 0, 'phone_number' => '09'.str_pad((string) $driverId, 9, '0', STR_PAD_LEFT)]
+        );
+
+        return WalletTransaction::create([
+            'wallet_id' => $wallet->id,
+            'user_id' => $driverId,
+            'type' => $type,
+            'amount' => $amount,
+            'previous_balance' => $wallet->balance,
+            'new_balance' => $wallet->balance + $amount,
+            'description' => 'test earning',
+            'transaction_id' => 'T'.uniqid(),
+            'status' => $status,
+            'reference' => 'ride:1',
         ]);
     }
 }

@@ -2,12 +2,14 @@
 
 namespace App\Services\Admin;
 
+use App\Enums\LedgerType;
 use App\Models\Booking;
 use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
+use App\Models\WalletTransaction;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
@@ -329,10 +331,35 @@ final class AdminDriverService
             ? round(($cancelledRides / $totalRides) * 100, 1)
             : 0.0;
 
-        // Earnings = SUM(seats × price_per_seat × driver share) across completed bookings.
-        // RV-19: the rate is bound from config instead of written into the SQL, so the platform's
-        // cut is defined in exactly one place. The arithmetic is unchanged.
-        $totalEarnings = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
+        // ── RV-19 item 2 (owner: ledger is authoritative) ──────────────────────
+        // `ledger_earnings` reads REAL RECORDED MONEY, not a number re-derived from today's
+        // columns. The old derivation (`seats * rides.price_per_seat * rate`, joined to the CURRENT
+        // rides rows) is the defect this row is named for: editing a ride's price after the booking
+        // silently rewrites what the driver appears to have earned, and a cancelled-then-rebooked
+        // ride changes history without any money moving.
+        //
+        // SOURCE, and why not `ledger_entries`: the 95/5 settlement legs written by
+        // `WalletTransactionService::releaseRideEarnings` carry only (wallet_id, amount, description)
+        // - NO type discriminator - so a per-driver sum over `ledger_entries` would also count
+        // top-ups and deposits. `ledger_entries` structurally cannot answer "earnings".
+        // `wallet_transactions` CAN: it is type-discriminated and carries `user_id` = driver, so the
+        // sum is exactly the credits actually paid out for rides.
+        //
+        // Both spellings are summed because the vocabulary has drifted (RV-39): the application
+        // writes RIDE_EARNINGS ('ride_earnings'), while seeded/legacy rows use RIDE_EARNING
+        // ('ride_earning'). Summing one would silently drop the other. 'completed' only - a
+        // pending row is not money that moved.
+        $ledgerEarnings = WalletTransaction::where('user_id', $driverId)
+            ->whereIn('type', [LedgerType::RIDE_EARNINGS->value, LedgerType::RIDE_EARNING->value])
+            ->where('status', 'completed')
+            ->sum('amount');
+
+        // `estimated_gross` is the SAME arithmetic as before, kept and RELABELLED honestly: it is a
+        // projection off current ride prices, not a settled amount. Nothing is lost by renaming it,
+        // and everything is gained: a reader can no longer mistake a projection for a payout.
+        // The rate is bound from config instead of written into the SQL, so the platform's cut is
+        // defined in exactly one place.
+        $estimatedGross = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->where('rides.driver_id', $driverId)
             ->where('bookings.status', 'completed')
             ->selectRaw('SUM(bookings.seats * rides.price_per_seat * ?) as total', [(float) config('fees.driver_share_rate', 0.95)])
@@ -386,7 +413,12 @@ final class AdminDriverService
                 'completed_rides' => $completedRides,
                 'cancelled_rides' => $cancelledRides,
                 'cancel_rate' => $cancelRate,                        // e.g. 2.4 (%)
-                'total_earnings' => round((float) $totalEarnings, 2),  // after 5% commission
+                // AUTHORITATIVE: real settled money paid to this driver for rides.
+                'ledger_earnings' => round((float) $ledgerEarnings, 2),
+                // A projection off CURRENT ride prices, not a payout.
+                'estimated_gross' => round((float) $estimatedGross, 2),
+                // ALIAS of `ledger_earnings`, kept so the admin front-end does not break (D5 = C).
+                'total_earnings' => round((float) $ledgerEarnings, 2),
             ],
 
             'vehicle' => [
