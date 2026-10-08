@@ -10790,5 +10790,64 @@ was a four-line change to close a P0 rather than a refactor of the error model.
 - The WaveZero V5 recorder asserts the bag is present and its comment states it was flipped as part
   of this fix and **must not be flipped back**. That is the right shape for a recorder that was
   documenting a defect: once fixed, it guards the fix instead of the bug.
+---
 
-**Next audit section number: 132.**
+## 132. Six rows, six different answers, none of them "unfixed"
+
+**Rows 8, 9, 10, 11, 12, 16 -> SUPERSEDED.** No code change. These were batch-verified together
+because they were the RECORDED rows with no obvious later owner, and the point of the pass was to
+find out the real remaining workload rather than assume it.
+
+Six rows produced **six different resolutions**, which is the useful result:
+
+| Row | Question | Answer |
+|---|---|---|
+| V8 | does `config/system_admin.php` exist? | no - and never did; `config/admin.php` is wallet-routing only |
+| V9 | `user_ratings` unique key? | present - composite `UNIQUE(rater_id, rated_user_id)` |
+| V10 | `POST /api/rides` method mismatch | fixed - pointed at a method that does not exist, 500 for every caller |
+| V11 | GET vs POST on `rides/search` | both registered; nothing to decide |
+| V12 | `auth()->id()` null under JWT | **refuted** - it was never null |
+| V16 | all-seats cancel vs `cancelBooking` | equivalent, measured on money and score |
+
+### The two that were questions rather than defects
+
+**V8 asked whether a credentials file exists.** It does not, and the honest answer is better than
+the finding assumed: admin auth moved onto the `employees` table, and `config/admin.php` keeps only
+wallet phone numbers. A grep for the filename would have "confirmed" a leak that is not there; the
+value came from reading what the file actually holds now.
+
+**V12 is the one that must not be recorded as a fix.** Its premise was that the JWT middleware
+never populates the default guard, so `auth()->id()` returns null. That was never true -
+`JwtAuthMiddleware` calls both `setUserResolver()` and `Auth::setUser()`. Closing it as "superseded
+by a later fix" would imply something was repaired that never was. `AuthFacadeRatchetTest` is
+explicit that it asserts no live bug: it enforces the house rule of taking the user from
+`$request->user()` rather than the stateless `auth()` helper, driven to zero. The real defects in
+that method were different - an ownership-scoping gap that made it an existence oracle - and were
+fixed on their own merits.
+
+### V16 is the only one of the six that needed measuring
+
+A recording test already existed for it, which is the strongest form of evidence available: rather
+than asserting the two cancellation paths *look* the same, `CancelSeatsEquivalenceCheck` books real
+money through both, on both payment branches, and compares wallet movements and score. E-pay and
+cash are compared separately because they take different code paths, and the expected values are
+recorded in the file itself. 2 tests, 7 assertions, green.
+
+### What this says about the rest of the table
+
+Of the rows examined so far, only **V3** (a live 500 on every routed ride search) and **V2**
+(no spatial indexes, SRID misdeclared) turned out to be unfixed defects that mattered. Nine
+round-1 rows in a row have turned out to be either already repaired by a later RV row, or findings
+that were never defects. Recording that here is the point of the pass - the remaining RECORDED rows
+should be assumed resolved until verified, not assumed broken.
+
+### Verified
+
+- Live route table: `POST api/rides -> create`; `GET` and `POST api/rides/search` both present.
+- `SHOW INDEX FROM user_ratings`: `NON_UNIQUE = 0` on both columns of the composite index.
+- `RV30DataModelHygieneTest` + `WaveZeroVerificationTest` + `CancelSeatsEquivalenceCheck` +
+  `AuthFacadeRatchetTest`: **17 tests / 40 assertions, green**.
+- `CreateRideRouteTest` + `RideSearchServiceTest` + `RV14DegenerateRouteFieldsTest`: **23 tests /
+  43 assertions, green**.
+
+**Next audit section number: 133.**
