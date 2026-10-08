@@ -165,20 +165,20 @@ final class AdminReportService
     {
         // English display names mapped from Arabic stored values
         $nameMap = [
-            'Ø¯Ù…Ø´Ù‚' => 'Damascus',
-            'Ø­Ù„Ø¨' => 'Aleppo',
-            'Ø­Ù…Øµ' => 'Homs',
-            'Ø§Ù„Ù„Ø§Ø°Ù‚ÙŠØ©' => 'Latakia',
-            'Ø¯Ø±Ø¹Ø§' => 'Daraa',
-            'Ø­Ù…Ø§Ø©' => 'Hama',
-            'Ø±ÙŠÙ Ø¯Ù…Ø´Ù‚' => 'Rural Damascus',
-            'Ø·Ø±Ø·ÙˆØ³' => 'Tartus',
-            'Ø§Ù„Ø³ÙˆÙŠØ¯Ø§Ø¡' => 'As-Suwayda',
-            'Ø§Ù„Ù‚Ù†ÙŠØ·Ø±Ø©' => 'Quneitra',
-            'Ø§Ø¯Ù„Ø¨' => 'Idlib',
-            'Ø§Ù„Ø­Ø³ÙƒØ©' => 'Al-Hasakah',
-            'Ø§Ù„Ø±Ù‚Ø©' => 'Ar-Raqqah',
-            'Ø¯ÙŠØ± Ø§Ù„Ø²ÙˆØ±' => 'Deir ez-Zor',
+            'دمشق' => 'Damascus',
+            'حلب' => 'Aleppo',
+            'حمص' => 'Homs',
+            'اللاذقية' => 'Latakia',
+            'درعا' => 'Daraa',
+            'حماة' => 'Hama',
+            'ريف دمشق' => 'Rural Damascus',
+            'طرطوس' => 'Tartus',
+            'السويداء' => 'As-Suwayda',
+            'القنيطرة' => 'Quneitra',
+            'إدلب' => 'Idlib',
+            'الحسكة' => 'Al-Hasakah',
+            'الرقة' => 'Ar-Raqqah',
+            'دير الزور' => 'Deir ez-Zor',
         ];
 
         $rows = User::select('address', DB::raw('COUNT(*) as count'))
@@ -240,10 +240,10 @@ final class AdminReportService
                 ],
                 'driver' => $driver
                     ? trim("{$driver->first_name} {$driver->last_name}")
-                    : 'â€”',
+                    : '—',
                 'route' => $ride
-                    ? "{$ride->pickup_address} â† {$ride->destination_address}"
-                    : 'â€”',
+                    ? "{$ride->pickup_address} ← {$ride->destination_address}"
+                    : '—',
                 'date' => [
                     'raw' => $booking->created_at->toIso8601String(),
                     'human' => $booking->created_at->isToday()

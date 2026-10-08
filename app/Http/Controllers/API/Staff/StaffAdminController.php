@@ -223,9 +223,9 @@ final class StaffAdminController extends Controller
                 app(NotificationService::class)->createNotification(
                     $user,
                     'verification_rejected',
-                    'Ø·Ù„Ø¨ Ø§Ù„ØªÙˆØ«ÙŠÙ‚ Ù…Ø±ÙÙˆØ¶',
-                    'ØªÙ… Ø±ÙØ¶ Ø·Ù„Ø¨ ØªÙˆØ«ÙŠÙ‚ Ø­Ø³Ø§Ø¨Ùƒ.'
-                    .($request->input('reason') ? ' Ø§Ù„Ø³Ø¨Ø¨: '.$request->input('reason') : ' ÙŠÙ…ÙƒÙ†Ùƒ Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„ØªÙ‚Ø¯ÙŠÙ… Ø¨Ø¹Ø¯ ØªØµØ­ÙŠØ­ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª.'),
+                    'طلب التوثيق مرفوض',
+                    'تم رفض طلب توثيق حسابك.'
+                    .($request->input('reason') ? ' السبب: '.$request->input('reason') : ' يمكنك إعادة التقديم بعد تصحيح البيانات.'),
                     ['user_id' => $user->id],
                     'high',
                     'system'

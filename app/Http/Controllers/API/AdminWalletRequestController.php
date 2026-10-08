@@ -278,7 +278,7 @@ final class AdminWalletRequestController extends Controller
                 app(NotificationService::class)->createNotification(
                     $walletRequest->user,
                     'wallet_request_approved',
-                    $label.' - Ù…ÙˆØ§ÙÙ‚',
+                    $label.' - موافق',
                     $msg,
                     ['wallet_request_id' => $walletRequest->id],
                     'high',

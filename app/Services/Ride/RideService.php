@@ -80,7 +80,7 @@ final class RideService
             $this->notificationService->createNotification(
                 $driver,
                 'ride_created',
-                'Ride Created Ã¢Å“â€œ',
+                'Ride Created ✓',
                 "Your ride from {$ride->pickup_address} to {$ride->destination_address} is now live.",
                 ['ride_id' => $ride->id],
                 'normal',
@@ -303,7 +303,7 @@ final class RideService
                     'ride_finished_no_passengers',
                     'Ride Finished',
                     "Ride from {$ride->pickup_address} to {$ride->destination_address} finished. "
-                    .'No passengers booked Ã¢â‚¬â€ creation fee refunded.',
+                    .'No passengers booked — creation fee refunded.',
                     ['ride_id' => $ride->id],
                     'normal', 'ride'
                 );
@@ -312,7 +312,7 @@ final class RideService
 
                 return [
                     'status' => RideStatus::FINISHED->value,
-                    'message' => 'Ride finished. No passengers booked Ã¢â‚¬â€ creation fee refunded.',
+                    'message' => 'Ride finished. No passengers booked — creation fee refunded.',
                     'requires_confirmation' => false,
                 ];
             });
@@ -447,7 +447,7 @@ final class RideService
             $this->notificationService->createNotification(
                 $ride->driver,
                 'ride_completed',
-                'Ride Completed Ã¢Å“â€œ',
+                'Ride Completed ✓',
                 "Your ride from {$ride->pickup_address} to {$ride->destination_address} is complete. Earnings released.",
                 ['ride_id' => $ride->id],
                 'high',
@@ -459,7 +459,7 @@ final class RideService
                 $this->notificationService->createNotification(
                     $booking->user,
                     'ride_completed',
-                    'Ride Completed Ã¢Å“â€œ',
+                    'Ride Completed ✓',
                     "Your ride from {$ride->pickup_address} to {$ride->destination_address} is complete. Thank you!",
                     ['ride_id' => $ride->id, 'booking_id' => $booking->id],
                     'high',
@@ -576,7 +576,7 @@ final class RideService
             $refundAmount = $booking->seats * $ride->price_per_seat;
             $detail = $isEpay
                 ? 'A full refund of '.number_format($refundAmount, 0).' SYP has been issued to your wallet.'
-                : 'Cash ride Ã¢â‚¬â€ no wallet transaction needed.';
+                : 'Cash ride — no wallet transaction needed.';
 
             $this->notificationService->createNotification(
                 $booking->user,
@@ -598,7 +598,7 @@ final class RideService
                 'ride_cancelled_by_driver',
                 'Ride Cancelled by Driver',
                 "The ride from {$ride->pickup_address} to {$ride->destination_address} was cancelled. "
-                .'Your pending booking request has been cancelled Ã¢â‚¬â€ no payment was taken.',
+                .'Your pending booking request has been cancelled — no payment was taken.',
                 ['ride_id' => $ride->id, 'booking_id' => $booking->id],
                 'normal', 'ride'
             );

@@ -422,9 +422,9 @@ final class PassengerProfileController extends Controller
                 $this->notificationService->createNotification(
                     $user,
                     'wallet_charged',
-                    'ØªÙ… Ø´Ø­Ù† Ù…Ø­ÙØ¸ØªÙƒ',
-                    "ØªÙ… Ø¥Ø¶Ø§ÙØ© {$amount} Ø±.Ø³ Ø¥Ù„Ù‰ Ù…Ø­ÙØ¸ØªÙƒ Ø¨ÙˆØ§Ø³Ø·Ø© Ø§Ù„Ø¥Ø¯Ø§Ø±Ø©.".
-                    ($request->input('admin_notes') ? ' Ù…Ù„Ø§Ø­Ø¸Ø©: '.$request->input('admin_notes') : ''),
+                    'تم شحن محفظتك',
+                    "تم إضافة {$amount} ر.س إلى محفظتك بواسطة الإدارة.".
+                    ($request->input('admin_notes') ? ' ملاحظة: '.$request->input('admin_notes') : ''),
                     ['amount' => $amount],
                     'normal',
                     'system'
@@ -635,15 +635,15 @@ final class PassengerProfileController extends Controller
     private function formatComplaint(Complaint $c): array
     {
         $typeLabels = [
-            'trip_safety' => 'Ø£Ù…Ø§Ù† Ø§Ù„Ø±Ø­Ù„Ø©',
-            'driver_behavior' => 'Ø³Ù„ÙˆÙƒ Ø§Ù„Ø³Ø§Ø¦Ù‚',
-            'passenger_behavior' => 'Ø³Ù„ÙˆÙƒ Ø§Ù„Ø±Ø§ÙƒØ¨',
-            'ride_cancellation' => 'Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø±Ø­Ù„Ø©',
-            'financial_issue' => 'Ù…Ø´ÙƒÙ„Ø© Ù…Ø§Ù„ÙŠØ©',
-            'account_issue' => 'Ù…Ø´ÙƒÙ„Ø© ÙÙŠ Ø§Ù„Ø­Ø³Ø§Ø¨',
-            'technical_issue' => 'Ø¹Ø·Ù„ ØªÙ‚Ù†ÙŠ',
-            'no_show' => 'ØªØ¹Ø§Ø±Ø¶ ØªÙ‚Ø§Ø±ÙŠØ± Ø§Ù„ØºÙŠØ§Ø¨',
-            'other' => 'Ø£Ø®Ø±Ù‰',
+            'trip_safety' => 'أمان الرحلة',
+            'driver_behavior' => 'سلوك السائق',
+            'passenger_behavior' => 'سلوك الراكب',
+            'ride_cancellation' => 'إلغاء الرحلة',
+            'financial_issue' => 'مشكلة مالية',
+            'account_issue' => 'مشكلة في الحساب',
+            'technical_issue' => 'عطل تقني',
+            'no_show' => 'تعارض تقارير الغياب',
+            'other' => 'أخرى',
         ];
 
         $typeValue = $c->type instanceof ComplaintType

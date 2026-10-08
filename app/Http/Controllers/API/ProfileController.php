@@ -118,7 +118,7 @@ class ProfileController extends Controller
             'first_name' => 'sometimes|string|max:255',
             'last_name' => 'sometimes|string|max:255',
             'description' => 'nullable|string|max:500',
-            'address' => 'nullable|in:Ø¯Ù…Ø´Ù‚,Ø¯Ø±Ø¹Ø§,Ø§Ù„Ù‚Ù†ÙŠØ·Ø±Ø©,Ø§Ù„Ø³ÙˆÙŠØ¯Ø§Ø¡,Ø±ÙŠÙ Ø¯Ù…Ø´Ù‚,Ø­Ù…Øµ,Ø­Ù…Ø§Ø©,Ø§Ù„Ù„Ø§Ø°Ù‚ÙŠØ©,Ø·Ø±Ø·ÙˆØ³,Ø­Ù„Ø¨,Ø§Ø¯Ù„Ø¨,Ø§Ù„Ø­Ø³ÙƒØ©,Ø§Ù„Ø±Ù‚Ø©,Ø¯ÙŠØ± Ø§Ù„Ø²ÙˆØ±',
+            'address' => 'nullable|in:دمشق,درعا,القنيطرة,السويداء,ريف دمشق,حمص,حماة,اللاذقية,طرطوس,حلب,إدلب,الحسكة,الرقة,دير الزور',
             'gender' => 'nullable|in:M,F',
             'type_of_car' => 'nullable|string|max:255',
             'color_of_car' => 'nullable|string|max:50',

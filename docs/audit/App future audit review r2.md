@@ -10095,3 +10095,89 @@ The parent **RV-04** (order 20) was already `VERIFIED FIX` and is unaffected. **
 `OPEN`) is a separate item and remains owner-gated.
 
 **Next audit section number: 120.**
+
+## 120. T4-9: the Arabic the API actually returns to users was double-encoded
+
+Owner decision, 2026-10-11: **repair in place.** Owner choice, 2026-10-12: **Idlib is
+spelled with the hamza (إدلب).** Not started until now.
+
+### The defect
+
+89 Windows-1252 mojibake runs across six files, in **user-visible string literals** this time, not
+comments: `AdminWalletRequestController` (1), `AdminReportService` (19), `PassengerProfileController`
+(13), `RideService` (7), `ProfileController` (1), `StaffAdminController` (4). Every one recovered
+cleanly to correct Arabic in one or two inverse passes; none was unrecoverable.
+
+### The part that is not a text fix
+
+The garbled strings were not only display text. They were **stored data and validation rules**:
+
+- `ProfileController:121` validates `address` with `in:` against the garbled list.
+- `AdminReportService:168-181` uses the garbled names as the keys that match `User.address` rows.
+
+So repairing the source alone would have rejected the values existing users already have and dropped
+every affected user out of the city report. The repair is therefore **three things that must agree**:
+the stored rows, the validator, and the report. That is what the new test pins.
+
+### Files changed
+
+- Six application files, 41 distinct literals rewritten (diff: 41 insertions, 41 deletions).
+- **NEW** `database/migrations/2026_10_12_120000_repair_mojibake_user_addresses.php` - rewrites only
+  the 14 exact garbled `users.address` values, 1:1 and reversible. Match is **BINARY** so a collation
+  cannot fold two distinct garbled strings together. The map is written with `\u{...}` escapes so the
+  file is ASCII-only and cannot itself be re-corrupted by an editor.
+- **NEW** `tests/Feature/Review/T49MojibakeRepairTest.php` - 8 tests / 14 assertions.
+
+### One thing only the owner could settle
+
+The bug **dropped the hamza** from Idlib: the source bytes reverse to the bare alef (ادلب), not
+إدلب. No byte-level method can restore a mark that was never encoded. The owner chose the standard
+hamza spelling. The generator applies that as a single explicit override - and it must be applied to
+the **literal rewrite**, not only to the migration, or the source keeps the bare alef while the
+migration writes the hamza and the two disagree about what a valid city is.
+
+### Verification
+
+| check | result |
+|---|---|
+| `php -l` on all 8 changed files | clean |
+| `pint --test` on all 8 | **PASS** |
+| `T49MojibakeRepairTest` | **OK - 8 tests, 14 assertions** |
+| Review floor | 501 tests, 1756 assertions, **no failures** |
+| controlled bisect, 8 directories (Profile, Auth, Admin, Rides, Bookings, Wallet, Unit/Domain, Review) with the repair vs at HEAD | 957 tests both; **19 failures identical either way, NONE new** |
+| **NEEDLE 1** - revert `ProfileController`'s validator to the garbled HEAD list | **2 tests caught**: `..._shipped_validator_rule_is_exactly_the_fourteen_repaired_cities` and `..._shipped_validator_accepts_the_correct_arabic_and_refuses_the_garbled_form`; restore SHA256-identical |
+| **NEEDLE 2** - empty the migration's MAP | **6 of 8 tests caught**; restore SHA256-identical |
+| residual mojibake markers across the six files + migration | **none** |
+| every non-ASCII literal is valid UTF-8, no C1 controls | **43/43** |
+| migration targets equal the 14 expected cities; `down()` present; BINARY in both directions | YES |
+
+The 19 baseline failures are the standing ones (`AdminWalletServiceTest` `SystemWalletSeeder`,
+`AdminDashboardControllerTest` login, `WalletTest` OTP, `AdminDriverServiceTest` rating) and are
+untouched by this task.
+
+### Two fake tests the needles caught
+
+Worth recording, because both looked like passing tests:
+
+1. The first validator test **built its own `in:` rule** from the migration map instead of reading the
+   one that ships in `ProfileController`. Reverting the file changed nothing, so the test passed
+   against a broken validator. It now parses the shipped rule out of the source.
+2. The first report test asserted `assertNotContains('Unknown', ...)` - but `AdminReportService:196`
+   falls back with `?? $row->address`, so the literal `Unknown` never appears and the assertion could
+   not fail. It now asserts the report exposes the repaired Arabic and that **no garbled value
+   survives**.
+
+Also recorded: a hand-typed garbled literal in the test was wrong (`\u{00D8}\u{0304}...` versus the
+real `\u{D8}\u{AF}\u{D9}\u{2026}\u{D8}\u{B4}\u{D9}\u{201A}`), so the tests now read the garbled keys
+from the migration file and never type mojibake by hand.
+
+### Status
+
+**T4-9: VERIFIED FIX.**
+
+**Deliberately NOT claimed:** the Flutter client. There is no `pubspec.yaml` in this repository, so
+what the app sends and matches on could not be checked here. If the client still sends the **garbled**
+`address` values, it will now be rejected by the validator - which is the correct behaviour, but is a
+client-visible change the owner should know about. The migration converts existing rows either way.
+
+**Next audit section number: 121.**
