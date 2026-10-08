@@ -8969,3 +8969,70 @@ copy - the edits only shifted line numbers by four.
 The fix requires editing `app/Http/Controllers/API/RideController.php`, which is **owner-owned with
 uncommitted work** and has been on the never-touch list for this whole audit. So it is reported, not applied.
 Raised with the owner rather than guessed at.
+## 107. RV-42: `bookRide` refused with a generic apology, so a caller could not tell WHICH rule stopped them
+
+The last red test in `tests/Feature/Review`. Owner approved editing the owner-owned `RideController.php`,
+with the condition that the uncommitted RV-38 edits be preserved.
+
+### The defect
+
+`KycActionGateTest::an_unverified_user_cannot_book_a_ride` failed like this:
+
+```
+testing.ERROR: RideController: request failed {"error":"You must be verified as a passenger to book rides"}
+the refusal must be the VERIFICATION gate, not a validation error - decision 11
+Failed asserting that 'the request could not be completed. please try again.' contains "verified"
+```
+
+The refusal was **correct** - the log proves the verification gate is what stopped the request - but the
+client got `'The request could not be completed. Please try again.'`, a string that appears twelve times in
+`RideController`. The caller learns nothing about which rule applied, so "you are not verified", "this ride
+is full", and "you already have an active booking" are indistinguishable at the API boundary. **Owner
+decision 11** requires the specific message.
+
+First verified this was **pre-existing**, not collateral damage from the owner's uncommitted RV-38 edits: the
+generic string is present at the same twelve places in `git show HEAD:...RideController.php` as in the
+working copy, and the edits only shifted line numbers by four.
+
+### The fix
+
+A dedicated `\InvalidArgumentException` branch **before** the `\Throwable` catch-all, surfacing
+`$e->getMessage()`; everything else still returns the generic string.
+
+The safety argument, which is the part that actually mattered: **every** `InvalidArgumentException` thrown by
+the ride/booking domain carries a curated, user-facing sentence - `RideValidationService` ("You must be
+verified as a passenger to book rides", "Must request at least 1 seat"), `BookingService` ("Only pending
+bookings can be accepted", "You already have an active booking for this ride"), `RideService`,
+`Noshowservice`. The type is therefore precisely the "refused on purpose" signal. The technical
+`InvalidArgumentException`s in this codebase live in *unrelated* services (`RouteCalculationService` - "Missing
+lat or lng"; `FileUploadService`) and are not on the booking path.
+
+**RV-13 still holds.** `QueryException` carries SQL and table names; it is not an `InvalidArgumentException`,
+so it falls straight through to the generic branch and never reaches the client. The specific branch logs
+under a different message ("request refused" vs "request failed") so the two are distinguishable in logs.
+
+Scope was deliberately kept to `bookRide` only - the one method the failing test exercises - rather than
+sweeping all twelve catch blocks, which would be a much larger behavioural change than the defect warrants.
+
+### Verification
+
+| check | result |
+|---|---|
+| `tests/Feature/Review` (457 tests) | **OK - 0 failures**, 1523 assertions, 2 skipped, 1 incomplete |
+| NEEDLE - remove the new branch | 5 failures; with it, 4 - **1 fixed, 0 new** |
+| Ride floor (`Rides`, `Bookings`, `Unit/Domain`, `KycActionGateTest`) | 214 tests, 5 -> 4 failures |
+
+The 4 still-failing ride-floor tests (`RideControllerFullTest` x3, `RideTest::test_ride_creation_does_not_charge_any_fee`)
+fail **identically in both needle runs**, so they are pre-existing and untouched by this change.
+
+`php -l` clean; `pint --test` PASS.
+
+### The file is deliberately NOT committed
+
+`app/Http/Controllers/API/RideController.php` is owner-owned and carries the owner's uncommitted RV-38
+eager-load work. Committing it would land *their* work inside this task's commit, which is exactly what the
+never-touch rule exists to prevent. So the fix sits in the working tree beside their edits, and **only the
+audit documents are committed**. The owner's eager-load additions are confirmed intact at lines 72, 250, 305,
+496.
+
+Nothing pushed.
