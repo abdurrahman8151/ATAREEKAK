@@ -80,21 +80,73 @@ class RideTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_ride_creation_does_not_charge_any_fee(): void
+    /**
+     * Creating a cash ride DOES charge a creation fee. This test previously asserted the
+     * opposite and had been failing since before the audit sweep began.
+     *
+     * Its old comment claimed "ride creation fees were removed from RideService (see the
+     * skipped chargeRideCreationFee() tests in WalletTransactionServiceTest)". Those tests were
+     * SKIPPED, not deleted, and the feature was then fully implemented around them:
+     * RideService::create charges 5% of (price_per_seat x available_seats), CashRideFeeService
+     * implements the charge, the refund and the deferred-debt path,
+     * `LedgerType::CASH_RIDE_CREATION_FEE` exists, and the `cash_creation_fee` /
+     * `cash_fee_deferred` columns carry the state.
+     *
+     * So the application was right and this test encoded an obsolete contract. It now pins the
+     * behaviour that actually runs, INCLUDING THE DIRECTION OF THE MONEY, which the old version
+     * could not have detected either way.
+     *
+     * 10,000 x 4 seats = 40,000 total value; the fee is 5% of that = 2,000. The driver's wallet
+     * holds 1,000,000 and CashRideFeeService::canCreateCashRide checks the BALANCE FIRST (:137),
+     * so a driver who can afford the fee is charged immediately rather than deferred.
+     */
+    public function test_ride_creation_charges_the_5_percent_creation_fee(): void
     {
-        // FIX: ride creation fees were removed from RideService (see the
-        // skipped chargeRideCreationFee() tests in WalletTransactionServiceTest).
-        // Creating a ride should leave the driver's wallet balance untouched.
-        $walletBefore = (float) Wallet::where('user_id', $this->driver->id)->value('balance');
+        $feeExpected = 10_000 * 4 * 0.05;
 
-        $this->withToken($this->token)
+        $driverWallet = Wallet::where('user_id', $this->driver->id)->firstOrFail();
+        $platformWallet = Wallet::where(
+            'phone_number',
+            config('admin.system_admin.phone')
+        )->firstOrFail();
+
+        $driverBefore = (float) $driverWallet->balance;
+        $platformBefore = (float) $platformWallet->balance;
+
+        $this->assertEquals(2000.0, $feeExpected, 'fee is 5% of price_per_seat x available_seats');
+
+        $response = $this->withToken($this->token)
             ->postJson('/api/rides/create-with-route', array_merge($this->validRidePayload(), [
                 'price_per_seat' => 10_000,
                 'available_seats' => 4,
-            ]))->assertStatus(201);
+            ]));
+        $response->assertStatus(201);
 
-        $walletAfter = (float) Wallet::where('user_id', $this->driver->id)->value('balance');
-        $this->assertEquals($walletBefore, $walletAfter);
+        // The driver's wallet is debited by exactly the fee...
+        $this->assertEquals(
+            $feeExpected,
+            $driverBefore - (float) $driverWallet->fresh()->balance,
+            'driver wallet must be debited by the creation fee'
+        );
+
+        // ...and the platform wallet credited by the same amount: money is conserved.
+        $this->assertEquals(
+            $feeExpected,
+            (float) $platformWallet->fresh()->balance - $platformBefore,
+            'platform wallet must receive the creation fee'
+        );
+
+        // The ride records the fee it was charged, and was charged rather than deferred.
+        $ride = Ride::findOrFail($response->json('data.id') ?? $response->json('ride.id'));
+        $this->assertEquals(2000.0, (float) $ride->cash_creation_fee);
+        $this->assertFalse((bool) $ride->cash_fee_deferred, 'balance covers the fee, so it is charged');
+
+        // And the movement is a real ledger posting, not just a balance tweak.
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $this->driver->id,
+            'type' => 'cash_ride_creation_fee',
+            'amount' => -2000,
+        ]);
     }
 
     public function test_ride_creation_fails_with_past_departure_time(): void

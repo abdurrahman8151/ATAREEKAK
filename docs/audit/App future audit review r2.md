@@ -11025,5 +11025,83 @@ scope**, not on any missing information.
 - Scratch table `zz_v2_srid_probe` confirmed absent after the run (0 matching tables in
   `information_schema`), so the repair leaves nothing behind.
 - Pint clean; `php -l` clean.
+---
 
-**Next audit section number: 135.**
+## 135. Two money divergences, opposite errors - one fixed, one filed for consideration
+
+**Finding B -> VERIFIED FIX.** **Finding A -> new row 121 (RV-46, P0, DEFERRED, to be considered).**
+
+These came from finally chasing the last red test in the Ride floor, and they turned out to be
+**opposite errors**. That is the part worth recording: in one case the test was right and the
+application was wrong; in the other the test was stale and the application was right. The pattern
+found five times in this sweep - "a test recording a contract as if it were settled" - does not
+have a single direction, so none of them could be closed by inspection alone.
+
+### Finding B (FIXED): the creation fee is real, and the test said it was not
+
+`RideTest::test_ride_creation_does_not_charge_any_fee` had failed since before this sweep began.
+It asserts that creating a ride leaves the driver's wallet untouched, citing "ride creation fees
+were removed from RideService (see the skipped `chargeRideCreationFee()` tests)".
+
+Those tests were **skipped, not deleted**. The feature was then fully built around them:
+
+- `RideService.php:41-44` - "Create a new ride and immediately charge the driver the creation fee.
+  Fee: 5% of (price_per_seat x available_seats)".
+- `CreateRideDTO::calculateRideCreationFee()` - `calculateTotalValue()->percentage(5)`.
+- `CashRideFeeService::chargeCashRideCreationFee` - the charge, the deferred-debt branch, both
+  `wallet_transactions` rows and the double-entry legs.
+- `LedgerType::CASH_RIDE_CREATION_FEE`, the `cash_creation_fee` / `cash_fee_deferred` columns and
+  their migration, the cancellation refund path, and dashboard reporting.
+
+The observed 2,000 debit is exactly 5% of 10,000 x 4 = 40,000, and it is **not** the deferral path:
+`canCreateCashRide` checks the BALANCE FIRST (`:137`), so a driver holding 1,000,000 is charged
+immediately. Verified rather than assumed - the deferral grace period applies only to drivers who
+cannot pay.
+
+**The new test strictly dominates the old one.** The old version asserted only "the balance did not
+change", which would still have passed if the fee were charged at the wrong rate or credited to
+the **wrong wallet**. The replacement pins four exact facts: the driver is debited 2,000, the
+platform wallet is credited 2,000, the ride records `cash_creation_fee = 2000` with
+`cash_fee_deferred = false`, and a `cash_ride_creation_fee` ledger row of `-2000` exists. It
+cannot tell the right answer from the wrong one if the money moves the wrong way.
+
+`tests/Feature/Rides` is now **90 tests, 182 assertions, 0 failures** - the whole directory is
+green, which it was not at any earlier point in this sweep.
+
+### Finding A (FILED, unchanged): the refund tiers
+
+`refundCashRideCreationFee` (`:342-343`):
+
+```php
+$refundPct = ($elapsedPct < 30.0 || ! $hadActiveBookings) ? 100 : 0;
+```
+
+`CashRideFeeServiceTest` asserts elapsed tiers: 0-30% -> 100%, 30-50% -> 70%, 50-70% -> 50%,
+70-100% -> 0%. Three of those four fail; the first passes only by coincidence, because a full
+refund happens to be what both policies say below 30%.
+
+These are **two different product designs**, not a slip. The service docblock documents the binary
+rules; the audit pins "four elapsed refund tiers exact (100/70/50/0)" and records these 5 tests as
+a known baseline left alone. Owner decision 2026-10-12: **mark to be considered, change nothing** -
+so nothing was changed, and the divergence is recorded with both policies verbatim so the decision
+can be made with the evidence in front of it.
+
+The direction of the error is recorded because it is the part that costs money: under the tier
+reading, a cancelled 5.00 fee at 40% elapsed returns 5.00 where the policy would return 3.50, and
+the platform loses the 1.50 it was meant to keep. Today's behaviour is what the code says.
+
+**One clarification worth keeping, because it decides whether this is real:** the fare on a cash
+ride never touches the platform - the passenger pays the driver in physical cash - but the
+**creation fee is a genuine wallet-to-wallet transfer** (`:246-247` moves both balances, `:252`
+and `:267` write the debit and credit rows). So "cash means no money in the system" is true of the
+fare and false of the fee, which is exactly why the refund tiers matter at all.
+
+### Verified
+
+- `tests/Feature/Rides`: **90 tests, 182 assertions, 0 failures**, 2 skipped.
+- The rewritten fee test alone: 1 test, 7 assertions, green.
+- Pint applied and clean; `php -l` clean.
+- `CashRideFeeServiceTest` left untouched and still red at 5 - its failures are the content of
+  RV-46, not a regression from this task.
+
+**Next audit section number: 136.**
