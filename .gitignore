@@ -42,7 +42,7 @@ frankenphp-worker.php
 !.env.example
 
 
-
+AGENTS.local.md
 # Log and dump files
 wstderr.txt
 wstdout.txt

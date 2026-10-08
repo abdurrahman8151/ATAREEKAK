@@ -9036,3 +9036,54 @@ audit documents are committed**. The owner's eager-load additions are confirmed 
 496.
 
 Nothing pushed.
+## 108. Owner tree committed and pushed to `Agentic`; STATE.md's `phpunit.xml` warning is stale
+
+Owner instruction 2026-10-08: *"commit everything and push to agentic, not just the work you did."*
+
+### What was committed
+
+The files that had been deliberately left uncommitted because they are owner-owned, plus the RV-42
+controller fix that sat in the working tree for the same reason:
+
+| file | why it was held back |
+|---|---|
+| `.gitignore`, `AGENTS.md` | owner edits |
+| `app/Http/Controllers/API/RideController.php` | owner RV-38 eager-load work **+** the sec 107 catch branch |
+| `docs/audit/APP_FUTURE_AUDIT.md`, `APP_FUTURE_SONNET.md`, `SYRIDE_COMPREHENSIVE_AUDIT.md` | owner |
+| `docs/audit/ROADMAP.md` | previously untracked, owner |
+
+`phpunit.xml` was **held back** - `AGENTS.md` and `STATE.md` both carry an explicit "never commit" rule and
+the owner confirmed that choice when asked.
+
+### The stale warning, recorded rather than silently edited
+
+`STATE.md` says *"phpunit.xml in the working tree points at the Aiven database (R2 section 17.5). Never
+commit it."* The first half is **no longer true**. Checked before acting rather than trusted:
+
+```
+DB_HOST     = 127.0.0.1
+DB_PASSWORD = set, 3 characters   (the local scratch password from AGENTS.local.md)
+```
+
+So it points at the **local scratch database**, not production Aiven. The "never commit" rule is kept -
+config files carrying credentials do not belong in history whatever the credentials are worth - but its
+*stated reason* is out of date.
+
+This is recorded in the audit rather than fixed in place on purpose: a rule whose written justification has
+gone stale tends to get "corrected" by whoever notices the discrepancy, and the correction belongs in the
+record where it can be reasoned about. **No credential value was printed, logged, or written to any
+committed file** - only the host and the length were checked.
+
+### T1-3 is still open, and this push makes it slightly worse
+
+Stating it plainly rather than letting the push read as a clean bill of health:
+
+1. `origin` still carries a **personal access token embedded in the remote URL**. Pushing uses it, and it
+   is recoverable from `.git/config` by anyone with filesystem access.
+2. The known-committed secrets - `JWT_SECRET`, `PUSHER_APP_SECRET` - are **still in git history**. A push
+   publishes all 244 commits, so every one of them goes to the remote.
+
+Rotation is the actual fix and has not been done. Recommended order: rotate `JWT_SECRET` and
+`PUSHER_APP_SECRET` (both still live), rotate the PAT and update the remote URL, then `filter-repo` over the
+full history and force-push. None of that is in this commit, and none of it can be done from here - it needs
+the credential values, which are the owner's.

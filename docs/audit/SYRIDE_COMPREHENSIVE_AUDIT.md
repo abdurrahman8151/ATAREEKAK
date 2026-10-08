@@ -54,7 +54,7 @@
 | T4-5 | NOT STARTED — ROLLED BACK (deferred on owner instruction; hazard proven) |
 | T4-6 | VERIFIED FIX (dead artifacts deleted, misfiled test relocated, k6 names cleaned) |
 | T4-7 | VERIFIED FIX (no-op job and success-reporting upload endpoint removed) |
-| **Next** | none — 33 of 39 closed; 6 open, all BLOCKED/deferred/not-started |
+| **Next** | see docs/audit/STATE.md |
 
 Last updated: after the T4 batch (T4-2/3/4/6/7) reached VERIFIED FIX. T1-3 remains BLOCKED; T4-5 rolled back on owner instruction.
 
@@ -629,7 +629,7 @@ audit, the correction is recorded here — the Part 1 text is left untouched on 
 | T4-5 | NOT STARTED — ROLLED BACK (deferred on owner instruction; hazard proven) |
 | T4-6 | VERIFIED FIX (dead artifacts deleted, misfiled test relocated, k6 names cleaned) |
 | T4-7 | VERIFIED FIX (no-op job and success-reporting upload endpoint removed) |
-| **Next** | none — 33 of 39 closed; 6 open, all BLOCKED/deferred/not-started |
+| **Next** | see docs/audit/STATE.md |
 
 ## Verification environment (used for T1-1 and T1-2)
 

@@ -66,6 +66,10 @@ class RideController extends Controller
         try {
             $dto = CreateRideDTO::fromRequest($request->validated(), $request->user()->id);
             $ride = $this->rideService->createRide($dto, $request->user());
+            // RV-38: RideResource reads $this->driver (and ->driver->profile). Eager-load them
+            // here — a freshly created ride carries no relation, so rendering it lazy-loaded the
+            // driver (one extra query per response, and a lazy-load violation under strictness).
+            $ride->load(['driver', 'driver.profile']);
             $score = app(ScoreService::class)->getScore($request->user());
 
             return response()->json([
@@ -172,6 +176,27 @@ class RideController extends Controller
                 'message' => 'Ride booked successfully',
             ], 201);
 
+        } catch (\InvalidArgumentException $e) {
+            // Decision 11 (owner): a refusal must name its own gate. "The request could not be
+            // completed" tells the caller nothing about WHICH rule stopped them.
+            //
+            // Every InvalidArgumentException thrown by the ride/booking domain is a curated,
+            // user-facing sentence - see RideValidationService ("You must be verified as a passenger
+            // to book rides"), BookingService ("Only pending bookings can be accepted"),
+            // RideService, Noshowservice - so this type is precisely the "the user did something we
+            // are refusing on purpose" signal, distinct from a fault.
+            //
+            // RV-13 STILL HOLDS: everything else, and above all QueryException with its SQL and
+            // table names, falls through to the generic branch below and never reaches the client.
+            Log::error('RideController: request refused', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+
         } catch (\Throwable $e) {
             // RV-13: the exception text goes to the LOG, not to the client - a
             // QueryException carries the SQL and the table names.
@@ -220,6 +245,9 @@ class RideController extends Controller
     {
         try {
             $ride = $this->rideService->getRideById($rideId);
+            // RV-38: getRideById does not eager-load the driver, but RideResource reads it
+            // (and driver.profile) — load them so rendering costs no lazy query.
+            $ride->load(['driver', 'driver.profile']);
 
             // Only aggregate seat totals — no booking rows, no passenger data
             $seatsByStatus = $ride->bookings()
@@ -275,6 +303,8 @@ class RideController extends Controller
 
             // ── Eager-load bookings with passenger profile ────────────────────
             $ride->load([
+                'driver',           // RV-38: RideResource reads driver + driver.profile
+                'driver.profile',
                 'bookings' => fn ($q) => $q
                     ->with([
                         'user:id,first_name,last_name',
@@ -669,7 +699,6 @@ class RideController extends Controller
         // waiting on. Both endpoints now validate identically, so a rule can only be changed once.
         $validated = $request->validated();
 
-
         try {
             if (empty($validated['pickup_address'])) {
                 $validated['pickup_address'] = $this->geocodingService->reverseGeocode(
@@ -724,16 +753,20 @@ class RideController extends Controller
     }
 
     // =========================================================================
-    // =========================================================================
     // FINISH / CONFIRM - REMOVED (un5, owner ruling 2026-10-02, R2 sec 40.1)
     // =========================================================================
     //
-    // The `finishRide` / `driverConfirmCompletion` endpoints are gone. There is no
-    // driver finish step in the product: each passenger confirms their own booking,
-    // their money moves to the driver, and the ride finishes automatically when every
-    // booking is confirmed or terminal. The RideService methods of the same names still
-    // exist (seeders use them); only the HTTP surface was removed.
+    // `finishRide()` and `driverConfirmCompletion()` are gone from the API. They never did anything:
+    // both returned a static info message and changed no state, which made it look as though a
+    // driver had to call them. The real flow has no driver finish step - each passenger confirms
+    // their own booking, their money moves to the driver, and the ride finishes automatically when
+    // every booking is confirmed or terminal (BookingService::passengerConfirmCompletion).
+    //
+    // The RideService methods of the same names still exist and still do real work; they are used by
+    // the seeders (empty-ride cash-fee refund, checkAndCompleteRide). Only the HTTP surface is gone.
 
+    // =========================================================================
+    // PASSENGER CONFIRM COMPLETION
     // =========================================================================
 
     /**

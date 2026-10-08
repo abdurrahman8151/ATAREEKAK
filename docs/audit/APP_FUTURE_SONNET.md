@@ -1,3 +1,5 @@
+> SUPERSEDED for status/next steps by docs/audit/BACKLOG.md. History only.
+
 # SyRide — Principal Review of `APP_FUTURE_AUDIT.md` + Addendum Backlog
 
 Review date: 2026-09-29. Scope: the uploaded snapshot (app/, config/, routes/, partial database/migrations, docker/, CI workflows, k6-load/, perf-results/, README, AGENTS.md).

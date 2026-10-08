@@ -382,9 +382,11 @@ because their Status is not `OPEN`. No answer to this rule is cached here on pur
   rotation-tracking work is to be scheduled for these two. (Values are never written here.)
 
 ## Owner actions outstanding (not code)
-- `phpunit.xml` in the working tree points at the Aiven database (R2 section 17.5). Never
-  commit it. Replace its values with the local scratch database. Its two credential values are
-  burned/testing-only per the settled decision above, so rotation is NOT required.
+- `phpunit.xml` - NEVER COMMIT IT (this rule still stands). **CORRECTED `R2 sec 108`:** the
+  reason recorded here was wrong. It does NOT point at the Aiven database any more - it resolves to
+  DB_HOST 127.0.0.1 with the local scratch password, i.e. the scratch database. The rule is kept
+  anyway, because a config file carrying credentials does not belong in history regardless of how
+  low-value those credentials are. Verified by inspection, not trusted; no value was printed.
 - A failed connection may have written the Aiven password into `storage/logs/laravel.log`.
   Rotation is declined by the settled decision above; clearing the log is housekeeping only.
 - T1-3 and T2-8: git-history purge remains open. The two burned test credentials are excluded
