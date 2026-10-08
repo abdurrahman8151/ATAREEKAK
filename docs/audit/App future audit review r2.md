@@ -9167,3 +9167,78 @@ authoritative one) where each previously asserted a single derived number. New c
 Editing those three tests was done under the standing exception for a contract the owner has explicitly
 overridden (precedent: the AF-5 disk default and the RV-08 `port[0]` assertion), and each carries the
 reason inline.
+## 110. RV-20 refund half: a strategy method whose shape made every correct call unsafe
+
+Owner choice: **re-shape to `(Ride, Collection, $reason)`** rather than splitting the method.
+
+### The real defect, which was larger than "unwired"
+
+`PaymentStrategy::processRefund` was `processRefund(Booking, Ride, User)`. The implementation:
+
+```php
+$bookings = new EloquentCollection([$booking]);
+$this->walletService->refundPassengersForDriverCancellation($ride, $bookings);
+```
+
+So it wrapped one booking in a one-element collection and called the **driver-cancellation** path -
+the one that refunds **100% of every confirmed passenger**. Routing a *staff* cancellation through this
+would have refunded one passenger in full instead of the policy amount off the `amount_paid` snapshot.
+
+It had **no production caller**, which is the only reason that never cost anyone money. But it was not
+merely dead code: it was a method whose only correct-looking call was wrong, and the charge half had
+already made the factory a live dispatch point.
+
+### The reshape
+
+```php
+public function processRefund(Ride $ride, EloquentCollection $bookings, string $reason): RefundResult
+```
+
+`$reason` selects the path and is **required, not a hint**:
+
+| reason | path | semantics |
+|---|---|---|
+| `driver_cancellation` | `refundPassengersForDriverCancellation` | 100% of every confirmed passenger |
+| `staff_cancellation` | `refundPassengersForStaffCancellation` | policy portion off the `amount_paid` snapshot |
+| anything else | **throws** | refuses rather than guessing |
+
+An unrecognised reason **throws `InvalidArgumentException`**. Defaulting to the driver path would refund
+100% of someone's money on the wrong basis if a reason string ever drifted - and RV-39 has already shown
+this vocabulary drifting repeatedly. Refusing is the only safe default.
+
+The staff path's return is a summary (`refunded`, `bookings`, `needs_review`), not a single success, so
+the strategy surfaces the amount and booking count, and explicitly reports rows needing manual review -
+rows charged before the `amount_paid` snapshot existed, which must not be refunded by fabricating an
+amount from today's price (the RV-40 failure).
+
+`processDriverNoShowRefund` was deliberately **not** folded in: a no-show penalty is per-booking by
+nature and is not a cancellation.
+
+`CashPaymentStrategy` stays a recorded no-op (cash was never escrowed, so nothing was ever taken), but
+now logs the **set** - ride id, reason, booking ids - because the unit of cancellation is the set.
+
+### Verification
+
+| check | result |
+|---|---|
+| New `RV20RefundReasonRoutingTest` | 10 tests, 17 assertions, **OK** |
+| NEEDLE - restore the pre-RV-20 behaviour (reason ignored, always driver path) | **kills exactly 5**: the two `never()` routing guards, the typo guard, the manual-review surfacing, and the staff amount/count |
+| needle survivors | the 5 that *should* survive - driver-path routing, set pass-through, empty-set no-op, cash, interface shape |
+| Money floor (`Payment`, `Wallet`, `Unit/Domain`, `Review`) | 639 tests, **3 failures - all the known pre-existing `WalletTest` OTP ones (RV-04b)** |
+| `php -l` 7 files; `pint --test` | clean / PASS |
+
+The needle survivors are the honest part of the result: a needle that killed everything would prove
+nothing about *which* behaviour the tests pin. These five fail only if the driver path or the interface
+shape itself breaks, and the needle changes neither.
+
+The routing tests use a **mocked** wallet service and assert **which method was called**, not what money
+moved. That is deliberate: the money arithmetic belongs to `WalletTransactionService`, is already pinned
+there by `sec 87`, and re-deriving it here would be a second, weaker copy of the same rules.
+
+### Files
+
+`app/Domain/Payment/Strategies/{PaymentStrategy,EPayPaymentStrategy,CashPaymentStrategy}.php`,
+`tests/Feature/Review/RV20RefundReasonRoutingTest.php` (new),
+and the three existing tests repointed at the new signature.
+
+`phpunit.xml` was left out of this commit: it is the owner's local scratch config.

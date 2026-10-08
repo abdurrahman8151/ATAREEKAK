@@ -5,6 +5,7 @@ namespace App\Domain\Payment\Strategies;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -57,14 +58,24 @@ final class CashPaymentStrategy implements PaymentStrategy
 
     // ── Refund ───────────────────────────────────────────────────────────────
 
+    /**
+     * RV-20: set-level, matching the real refund flows. Cash was never escrowed, so there is nothing
+     * to move back - the passenger's money was never taken - and this stays a recorded no-op.
+     *
+     * It logs the SET, not a single booking, because the unit of cancellation is the set: logging one
+     * booking id per call would have implied this ran per-passenger, which is exactly the shape
+     * `R2 sec 87` pinned as wrong.
+     */
     public function processRefund(
-        Booking $booking,
         Ride $ride,
-        User $passenger,
+        EloquentCollection $bookings,
+        string $reason,
     ): RefundResult {
         Log::info('Cash refund recorded – will be processed offline', [
-            'booking_id' => $booking->id,
-            'passenger_id' => $passenger->id,
+            'ride_id' => $ride->id,
+            'reason' => $reason,
+            'booking_ids' => $bookings->pluck('id')->all(),
+            'booking_count' => $bookings->count(),
         ]);
 
         return RefundResult::success('Cash refund will be processed offline');

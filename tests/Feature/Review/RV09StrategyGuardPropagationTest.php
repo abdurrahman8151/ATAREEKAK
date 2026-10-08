@@ -13,6 +13,7 @@ use App\Models\WalletTransaction;
 use App\Services\Payment\LedgerService;
 use App\Services\Payment\WalletTransactionService;
 use App\Support\PostingKey;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Concerns\SeedsSystemWallets;
@@ -222,12 +223,12 @@ class RV09StrategyGuardPropagationTest extends TestCase
     {
         $booking = $this->chargedBooking(1, 'confirmed');
 
-        $this->strategy->processRefund($booking, $this->ride, $this->passenger);
+        $this->strategy->processRefund($this->ride, $this->set($booking), 'driver_cancellation');
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/already posted/i');
 
-        $this->strategy->processRefund($booking, $this->ride, $this->passenger);
+        $this->strategy->processRefund($this->ride, $this->set($booking), 'driver_cancellation');
     }
 
     /**
@@ -239,7 +240,7 @@ class RV09StrategyGuardPropagationTest extends TestCase
 
         // RV-09(a) removes the swallow, NOT the result object. The happy path is unchanged, so
         // RV-20 can still route through the factory without changing any caller contract.
-        $result = $this->strategy->processRefund($booking, $this->ride, $this->passenger);
+        $result = $this->strategy->processRefund($this->ride, $this->set($booking), 'driver_cancellation');
 
         $this->assertTrue($result->success);
         $this->assertInstanceOf(RefundResult::class, $result);
@@ -276,5 +277,17 @@ class RV09StrategyGuardPropagationTest extends TestCase
         }
 
         $this->assertSame(2, LedgerEntry::where('description', 'RV-09(a) retry-safety probe')->count());
+    }
+
+    /**
+     * RV-20: refunds are SET-level, so the old tests that passed a single Booking now pass a
+     * one-element set. Kept as a named helper rather than `new EloquentCollection([$b])` at each
+     * call site so the unit of cancellation is obvious at every use.
+     *
+     * @return EloquentCollection<int,Booking>
+     */
+    private function set(Booking ...$bookings): EloquentCollection
+    {
+        return new EloquentCollection($bookings);
     }
 }

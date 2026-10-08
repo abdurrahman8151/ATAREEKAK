@@ -70,15 +70,76 @@ final class EPayPaymentStrategy implements PaymentStrategy
     }
     // ── Refund ───────────────────────────────────────────────────────────────
 
+    /**
+     * RV-20. Dispatched on an EXPLICIT reason, because the two real refund paths have genuinely
+     * different money semantics and picking the wrong one moves the wrong amount:
+     *
+     *   driver_cancellation → refund 100% of every confirmed passenger
+     *   staff_cancellation  → refund the policy portion off the `amount_paid` snapshot, and return
+     *                          the needs-review count for rows charged before that snapshot existed
+     *
+     * The previous shape wrapped ONE booking in a one-element collection and called the driver path -
+     * so a staff cancellation routed through here would have refunded a single passenger in full
+     * instead of the policy amount. It was never called in production, which is the only reason the bug
+     * never cost anyone money. An unrecognised reason is REFUSED, not defaulted: defaulting to the
+     * driver path would over-refund anyone whose reason string drifted.
+     */
     public function processRefund(
-        Booking $booking,
         Ride $ride,
-        User $passenger,
+        EloquentCollection $bookings,
+        string $reason,
     ): RefundResult {
-        $bookings = new EloquentCollection([$booking]);
+        if ($bookings->isEmpty()) {
+            return RefundResult::success('No bookings to refund');
+        }
+
+        return match ($reason) {
+            'driver_cancellation' => $this->refundForDriverCancellation($ride, $bookings),
+            'staff_cancellation' => $this->refundForStaffCancellation($ride, $bookings),
+            default => throw new \InvalidArgumentException(
+                "Unknown refund reason '{$reason}'. Expected 'driver_cancellation' or "
+                ."'staff_cancellation'. Refusing rather than guessing which money path to run."
+            ),
+        };
+    }
+
+    /**
+     * Driver cancellation refunds 100% of every confirmed passenger, so there is no per-booking
+     * arithmetic to summarise: the set path already did the whole set in one combined movement.
+     */
+    private function refundForDriverCancellation(Ride $ride, EloquentCollection $bookings): RefundResult
+    {
         $this->walletService->refundPassengersForDriverCancellation($ride, $bookings);
 
-        return RefundResult::success('Refund processed successfully');
+        return RefundResult::success(sprintf(
+            'Refunded %d booking(s) in full (driver cancellation)',
+            $bookings->count(),
+        ));
+    }
+
+    /**
+     * Staff cancellation is the POLICY path, so the per-booking refund amounts are not a constant
+     * fraction of the total and cannot be reduced to a single "success". The summary is returned in
+     * the result so the caller can see how much moved and how many rows need manual review.
+     */
+    private function refundForStaffCancellation(Ride $ride, EloquentCollection $bookings): RefundResult
+    {
+        $summary = $this->walletService->refundPassengersForStaffCancellation($ride, $bookings);
+
+        $message = sprintf(
+            'Refunded %.2f across %d booking(s)',
+            (float) $summary['refunded'],
+            (int) $summary['bookings'],
+        );
+
+        if (($summary['needs_review'] ?? 0) > 0) {
+            $message .= sprintf(
+                '; %d booking(s) need manual review (charged before the money snapshot existed)',
+                (int) $summary['needs_review']
+            );
+        }
+
+        return RefundResult::success($message);
     }
 
     // ── Meta ─────────────────────────────────────────────────────────────────

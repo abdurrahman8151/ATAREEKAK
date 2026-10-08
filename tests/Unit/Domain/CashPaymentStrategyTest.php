@@ -10,6 +10,7 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -92,21 +93,21 @@ class CashPaymentStrategyTest extends TestCase
     public function test_process_refund_returns_refund_result_instance(): void
     {
         [$user, $booking, $ride] = $this->makeScenario();
-        $result = $this->strategy->processRefund($booking, $ride, $user);
+        $result = $this->strategy->processRefund($ride, $this->set($booking), 'driver_cancellation');
         $this->assertInstanceOf(RefundResult::class, $result);
     }
 
     public function test_process_refund_returns_success(): void
     {
         [$user, $booking, $ride] = $this->makeScenario();
-        $result = $this->strategy->processRefund($booking, $ride, $user);
+        $result = $this->strategy->processRefund($ride, $this->set($booking), 'driver_cancellation');
         $this->assertTrue($result->success);
     }
 
     public function test_process_refund_message_mentions_offline(): void
     {
         [$user, $booking, $ride] = $this->makeScenario();
-        $result = $this->strategy->processRefund($booking, $ride, $user);
+        $result = $this->strategy->processRefund($ride, $this->set($booking), 'driver_cancellation');
         $this->assertStringContainsString('offline', strtolower($result->message));
     }
 
@@ -114,7 +115,7 @@ class CashPaymentStrategyTest extends TestCase
     {
         [$user, $booking, $ride] = $this->makeScenario();
         $before = WalletTransaction::count();
-        $this->strategy->processRefund($booking, $ride, $user);
+        $this->strategy->processRefund($ride, $this->set($booking), 'driver_cancellation');
         $this->assertEquals($before, WalletTransaction::count());
     }
 
@@ -149,5 +150,17 @@ class CashPaymentStrategyTest extends TestCase
         $ride->booking_type = 'direct';
 
         return [$user, $booking, $ride];
+    }
+
+    /**
+     * RV-20: refunds are SET-level, so the old tests that passed a single Booking now pass a
+     * one-element set. Kept as a named helper rather than `new EloquentCollection([$b])` at each
+     * call site so the unit of cancellation is obvious at every use.
+     *
+     * @return EloquentCollection<int,Booking>
+     */
+    private function set(Booking ...$bookings): EloquentCollection
+    {
+        return new EloquentCollection($bookings);
     }
 }

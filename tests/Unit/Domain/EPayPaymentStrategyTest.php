@@ -10,6 +10,7 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
@@ -202,7 +203,7 @@ class EPayPaymentStrategyTest extends TestCase
         // First charge so escrow (sycash) has funds
         $this->strategy->processBookingPayment($booking, $this->ride, $this->passenger);
 
-        $result = $this->strategy->processRefund($booking, $this->ride, $this->passenger);
+        $result = $this->strategy->processRefund($this->ride, $this->set($booking), 'driver_cancellation');
 
         $this->assertInstanceOf(RefundResult::class, $result);
     }
@@ -212,7 +213,7 @@ class EPayPaymentStrategyTest extends TestCase
         $booking = $this->makeBooking(1, 'confirmed');
         $this->strategy->processBookingPayment($booking, $this->ride, $this->passenger);
 
-        $result = $this->strategy->processRefund($booking, $this->ride, $this->passenger);
+        $result = $this->strategy->processRefund($this->ride, $this->set($booking), 'driver_cancellation');
 
         $this->assertTrue($result->success);
     }
@@ -255,5 +256,17 @@ class EPayPaymentStrategyTest extends TestCase
             'status' => $status,
             'communication_number' => '0912345678',
         ]);
+    }
+
+    /**
+     * RV-20: refunds are SET-level, so the old tests that passed a single Booking now pass a
+     * one-element set. Kept as a named helper rather than `new EloquentCollection([$b])` at each
+     * call site so the unit of cancellation is obvious at every use.
+     *
+     * @return EloquentCollection<int,Booking>
+     */
+    private function set(Booking ...$bookings): EloquentCollection
+    {
+        return new EloquentCollection($bookings);
     }
 }
