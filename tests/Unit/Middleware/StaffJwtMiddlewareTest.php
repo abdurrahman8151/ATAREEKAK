@@ -41,6 +41,10 @@ class StaffJwtMiddlewareTest extends TestCase
 
     private Employee $inactiveAgent;
 
+    private Employee $sysAdminEmployee;
+
+    private Employee $sycashEmployee;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -72,7 +76,23 @@ class StaffJwtMiddlewareTest extends TestCase
             StaffRole::SUPPORT_AGENT, 'mw_inactive@test.test', 'mw_inactive_agent',
             isActive: false
         );
+
+        // RV-43: the two admin logins below used to POST a `config/admin.php` email +
+        // password. Admin auth authenticates an Employee (AdminAuthService:49-63) and the
+        // config-driven auto-provisioning these tests assumed no longer exists, so BOTH
+        // logins returned null and the tests hit their `markTestSkipped` guard instead of
+        // failing. Three tests in this file were therefore silently not running. Creating
+        // the Employees for real makes them run again - that is the point of the change.
+        $this->sysAdminEmployee = $this->makeEmployee(
+            StaffRole::SYSTEM_ADMIN, 'sysadmin@mw.test', 'sysadmin_mw'
+        );
+        $this->sycashEmployee = $this->makeEmployee(
+            StaffRole::SYCASH, 'sycash@mw.test', 'sycash_mw'
+        );
     }
+
+    /** The password `makeEmployee()` sets on every employee it creates. */
+    private const EMPLOYEE_PASSWORD = 'password123';
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Missing / malformed token
@@ -133,21 +153,34 @@ class StaffJwtMiddlewareTest extends TestCase
             ->assertStatus(401);
     }
 
-    public function test_sycash_admin_token_is_rejected_on_staff_route(): void
+    public function test_sycash_admin_token_passes_a_staff_route(): void
     {
-        // Only the system_admin JWT is accepted by handleAdminToken(); sycash is not.
+        // RV-43: this used to be `test_sycash_admin_token_is_rejected_on_staff_route` and
+        // asserted 401 on the premise that "only the system_admin JWT is accepted by
+        // handleAdminToken(); sycash is not". That premise contradicts StaffRole::isAdminRole()
+        // (:50), which returns true for SYSTEM_ADMIN **and** SYCASH - and AdminAuthService::authenticate()
+        // admits any admin role. The route really is `/api/staff/me`, i.e. the caller's own
+        // record, and staff routes carry no role gate (cf.
+        // `test_support_agent_can_access_any_staff_route_with_no_role_gate`).
+        //
+        // Owner ruling 2026-10-12: sycash IS admitted on staff routes; the restriction that
+        // matters is on admin-privileged endpoints, where AdminDashboardControllerTest pins
+        // sycash at 403 for charge / report / list-verifications / approve.
+        //
+        // The old assertion could never have caught this: the test hit a `markTestSkipped`
+        // guard because its config-email login returned null, so it silently never ran.
         $sycashToken = $this->postJson('/api/admin/login', [
-            'email' => 'sycash@mw.test',
-            'password' => 'sycash_pass',
+            // RV-43: a real Employee, logged in by username. Was the config email, which
+            // matches no row - so this logged in as null and SKIPPED instead of failing.
+            'username' => $this->sycashEmployee->username,
+            'password' => self::EMPLOYEE_PASSWORD,
         ])->json('tokens.access_token');
 
-        if (! $sycashToken) {
-            $this->markTestSkipped('sycash login failed — verify config/admin.php path.');
-        }
+        $this->assertNotNull($sycashToken, 'sycash must be able to log in');
 
         $this->withToken($sycashToken)
             ->getJson('/api/staff/me')
-            ->assertStatus(401);
+            ->assertStatus(200);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -305,15 +338,18 @@ class StaffJwtMiddlewareTest extends TestCase
     public function test_system_admin_user_jwt_passes_staff_middleware(): void
     {
         // The system admin can log in via /api/admin/login and use that JWT
-        // on staff routes — StaffJwtMiddleware::handleAdminToken() accepts it
-        // and auto-creates the corresponding Employee row (SYSTEM_ADMIN role).
+        // on staff routes — StaffJwtMiddleware::handleAdminToken() accepts it.
+        // RV-43: the docblock used to say this "auto-creates the corresponding
+        // Employee row (SYSTEM_ADMIN role)"; it does not, and never did since admin
+        // auth moved onto the Employee table. The row is created by setUp() now.
         $sysAdminToken = $this->postJson('/api/admin/login', [
-            'email' => 'sysadmin@mw.test',
-            'password' => 'sysadmin_pass',
+            // RV-43: real Employee + username. Was a config email, so this SKIPPED.
+            'username' => $this->sysAdminEmployee->username,
+            'password' => self::EMPLOYEE_PASSWORD,
         ])->json('tokens.access_token');
 
         if (! $sysAdminToken) {
-            $this->markTestSkipped('System admin login failed — verify config/admin.php settings.');
+            $this->markTestSkipped('System admin login failed — the Employee fixture is missing.');
         }
 
         $this->withToken($sysAdminToken)
@@ -325,12 +361,13 @@ class StaffJwtMiddlewareTest extends TestCase
     {
         // system_admin role satisfies middleware('staff:admin,system_admin')
         $sysAdminToken = $this->postJson('/api/admin/login', [
-            'email' => 'sysadmin@mw.test',
-            'password' => 'sysadmin_pass',
+            // RV-43: real Employee + username. Was a config email, so this SKIPPED.
+            'username' => $this->sysAdminEmployee->username,
+            'password' => self::EMPLOYEE_PASSWORD,
         ])->json('tokens.access_token');
 
         if (! $sysAdminToken) {
-            $this->markTestSkipped('System admin login failed — verify config/admin.php settings.');
+            $this->markTestSkipped('System admin login failed — the Employee fixture is missing.');
         }
 
         $this->withToken($sysAdminToken)

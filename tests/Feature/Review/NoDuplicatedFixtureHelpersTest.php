@@ -57,8 +57,34 @@ class NoDuplicatedFixtureHelpersTest extends TestCase
      * by USERNAME, so any test posting an email to an auth door gets a null token and
      * errors its whole file. Banning the pattern catches a future copy under ANY name,
      * which is exactly how StaffAdminControllerTest got missed in the first place.
+     *
+     * RV-43: the trailing `\$` was a HOLE. It required the value to be a variable, so
+     * the pattern missed the literal shape - `'email' => 'primary@admin.test'` - which
+     * is precisely how `AdminDashboardControllerTest` slipped through. That file then sat
+     * red (9 tests) while this ratchet stayed green. The `\$` is gone: an `'email' =>`
+     * key followed by ANY value is now a violation.
      */
-    private const FORBIDDEN_LOGIN = '/api\/(?:admin|staff)\/login[\'"]?\s*,\s*\[?\s*[\'"]email[\'"]\s*=>\s*\$/';
+    private const FORBIDDEN_LOGIN = '/api\/(?:admin|staff)\/login[\'"]?\s*,\s*\[?\s*[\'"]email[\'"]\s*=>/';
+
+    /**
+     * Files allowed to post an email to an auth door, each with the reason it must.
+     *
+     * One entry only. It does not log in with a config email that matches no Employee
+     * (the defect this ratchet exists for) - it asserts that an auth door ACCEPTS an
+     * email identifier for an Employee that exists, because `AdminAuthService:51-53`
+     * does `where('username', $identifier)->orWhere('email', $identifier)`. That is a
+     * supported capability, not a stale fixture.
+     *
+     * `test_the_email_login_exemptions_are_still_needed` fails if an entry stops matching,
+     * so this list cannot rot into a silent blanket exemption.
+     */
+    private const FORBIDDEN_LOGIN_EXEMPT = [
+        'tests\Feature\Review\RV43AdminLoginEmployeeTest.php' => 'RV-43: asserts that an auth door accepts an email identifier for an Employee '
+            .'that exists (AdminAuthService:51-53). Not a config-email fixture.',
+        'tests\Feature\Admin\AdminDashboardControllerTest.php' => 'RV-43: the only email logins left here are the deliberate NEGATIVE ones '
+            .'(unknown email, malformed email, missing fields) that assert 401/422. The '
+            .'positive logins were converted to real Employees.',
+    ];
 
     /** @test */
     public function test_no_test_file_declares_its_own_fixture_helper(): void
@@ -123,6 +149,11 @@ class NoDuplicatedFixtureHelpersTest extends TestCase
             if (strtolower(str_replace('/', '\\', $file)) === $self) {
                 continue;
             }
+            // RV-43: skip only the explicitly justified exemptions. `$file` is absolute
+            // here, so compare on the relative form the exemption keys are written in.
+            if (array_key_exists($this->relative($file), self::FORBIDDEN_LOGIN_EXEMPT)) {
+                continue;
+            }
             $source = (string) file_get_contents($file);
             if (preg_match(self::FORBIDDEN_LOGIN, $source)) {
                 $violations[] = $this->relative($file);
@@ -138,6 +169,29 @@ class NoDuplicatedFixtureHelpersTest extends TestCase
             ."Tests\\Support\\Concerns\\ActsAsStaff (adminToken / staffToken):\n  "
             .implode("\n  ", $violations)
         );
+    }
+
+    /**
+     * RV-43: the exemption list must not rot. If an exempt file stops containing the
+     * pattern (someone removed its email login, or renamed it away), the exemption is
+     * dead weight and this fails rather than letting the list grow unnoticed.
+     */
+    /** @test */
+    public function test_the_email_login_exemptions_are_still_needed(): void
+    {
+        $this->assertNotEmpty(self::FORBIDDEN_LOGIN_EXEMPT, 'the exemption list must not be emptied silently');
+
+        foreach (array_keys(self::FORBIDDEN_LOGIN_EXEMPT) as $file) {
+            $path = base_path(str_replace('\\', '/', $file));
+            $this->assertFileExists($path, "exempted file no longer exists: $file");
+
+            $this->assertSame(
+                1,
+                preg_match(self::FORBIDDEN_LOGIN, (string) file_get_contents($path)),
+                "exemption for $file is STALE - the file no longer posts an email to an auth "
+                .'door. Remove the entry from FORBIDDEN_LOGIN_EXEMPT.'
+            );
+        }
     }
 
     /** @test */

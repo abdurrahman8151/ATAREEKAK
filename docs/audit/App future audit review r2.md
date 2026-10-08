@@ -10462,4 +10462,55 @@ The subtle part: `ban_type` is a **nullable enum** and `ban_expires_at` is nulla
 
 Filed, not fixed. 9 failures, all in `tests/Feature/Admin/AdminDashboardControllerTest.php`, all **pre-existing at HEAD** (confirmed by the bisect above with all changes stashed). `test_admin_can_login_with_correct_credentials` posts `{email: primary@admin.test, password: primary_pass}` to `/api/admin/login` and gets **401 where 200 is expected**; the other 8 are downstream of the same login, which is consistent with one broken path rather than nine defects. `setUp()` only calls `Config::set("admin.system_admin", ...)` and `seedSystemWallets()`, so whether the admin user is created lazily at login or by a seeder is the open question. **It is not yet known whether the app or the test is wrong**, and that must be settled before anyone edits the test.
 
-**Next audit section number: 126.**
+---
+
+## 126. RV-43: the 9 red admin-login tests were FOUR defects, and the app was right in every one
+
+**Row 118 -> VERIFIED FIX.** Filed by the RV-42a bisect, which found 9 failures that exist at HEAD. This section is the diagnosis the row said was not yet done, plus the fix.
+
+### It was never one defect
+
+Running the file alone produced nine mismatches that share a file but not a cause:
+
+| # | Cause | Test expected | App did | Whose fault |
+|---|---|---|---|---|
+| 1 | Stale fixture - admin auth moved to the `employees` table | 200 | 401 | test |
+| 2 | The `adminConfig` 500 gap | 500 | 200 | app was FIXED |
+| 3 | `fail()` conflated 401 and 403 | 401 | 403 | app was FIXED |
+| 4 | `national_id` now required to approve | 200 | 422 | test |
+
+Causes 2 and 3 are the uncomfortable ones. Those endpoints used to crash, and permission denials used to answer "not authenticated" even for an authenticated principal. Both are fixed. **These tests were recording the old broken behaviour as if it were the contract.**
+
+### Cause 1: the migration that missed this file
+
+`AdminAuthService` moved from "look up a User by email and check `config/admin.php`" to "look up an Employee by username or email; the DB is the source of truth" (class docblock `:16-21`). Six other test files were updated for it and each says so in its own comments (`ActsAsStaff:11-23`, `StaffAdminControllerTest:313`, `EmployeeManagementControllerTest:275`, `AdminBanControllerTest:406`, `StaffAuthControllerTest:228`, `DeletedArtifactsBatchTest:18`). `AdminDashboardControllerTest` was missed: its `setUp()` only called `Config::set(...)` and `seedSystemWallets()`, and nothing provisions an Employee from config any more.
+
+**The diagnosis was proven before a single edit**, with `RV43AdminLoginEmployeeTest`: a real Employee logs in and gets 200 plus a token; an email identifier is accepted (`AdminAuthService:51-53` does `username OR email`); and the denied paths still fail closed - non-admin role 401, wrong password 401.
+
+### The fifth problem the row did not know about
+
+`tests/Unit/Middleware/StaffJwtMiddlewareTest.php` had the **same** stale fixture in three tests, each behind a `markTestSkipped` guard. The suite was reporting green for tests that never executed. Fixing the fixture made them run, which is the only reason anything was found.
+
+### A permission rule, escalated rather than assumed
+
+With the fixture fixed, `test_sycash_admin_token_is_rejected_on_staff_route` ran and got **200**, not 401. Its premise - "only the system_admin JWT is accepted; sycash is not" - contradicts `StaffRole::isAdminRole()` (`:50`), which returns true for `SYSTEM_ADMIN` **and** `SYCASH`. Because this is a permission rule it was escalated rather than flipped quietly. Owner ruling 2026-10-12: sycash IS admitted on staff routes. The route is `/api/staff/me`, the caller's own record; staff routes carry no role gate; and the restriction that actually matters is on admin-privileged endpoints, where four tests pin sycash at 403. Test renamed to `..._passes_a_staff_route`.
+
+### The ratchet hole
+
+`NoDuplicatedFixtureHelpersTest::FORBIDDEN_LOGIN` required the value to start with a variable. This file used a **literal**, so the pattern did not match it - the guard written for this exact class of defect was blind to the one real instance of it.
+
+Widened to match any `email` key with any value. That immediately surfaced three files, which is how the three silently-skipped tests were found. Two now carry explicit, reasoned exemptions (`RV43AdminLoginEmployeeTest`, which asserts email identifiers are accepted; `AdminDashboardControllerTest`, whose remaining email logins are deliberate negative cases), and `test_the_email_login_exemptions_are_still_needed` fails if either stops matching - so the allowlist cannot rot into a blanket pass.
+
+### Verification
+
+- New `tests/Feature/Review/RV43AdminLoginEmployeeTest.php`: 8 tests, covering allowed AND denied paths.
+- `AdminDashboardControllerTest`: 24 tests with 9 failures -> **33 tests, 0 failures**.
+- **Floor: 1000 tests, 2892 assertions, 0 failures** (skips 3 -> 2, because the sycash test runs now).
+- Needle: re-narrowing the ratchet pattern reproduces `test_the_rv35_ratchet_now_catches_a_literal_email_login` failing. Restored SHA256-verified.
+
+### Two mistakes of my own, recorded so they are not repeated
+
+1. The first ratchet test rebuilt the pattern by regex-extracting the constant, which lost its delimiters (`preg_match(): Delimiter must not be alphanumeric`). It now reads the constant by reflection, so narrowing the pattern fails the test instead of erroring.
+2. The first probe passed only the tail fragment, but the pattern anchors on the login path, so it correctly did not match. A false failure like that can be "fixed" by weakening the assertion; the probe now includes the full `postJson` shape.
+
+**Next audit section number: 127.**

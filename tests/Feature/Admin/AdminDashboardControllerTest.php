@@ -11,20 +11,35 @@ use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
 /**
- * Two known app-side gaps affect this file (not fixed here — tests reflect
- * current actual behavior):
+ * RV-43. This file asserted THREE app behaviours that have since been FIXED, plus one
+ * stale fixture. In every case the app is correct and this file was frozen at the old,
+ * broken snapshot. The owner ruled on 2026-10-12 that the app stands and these tests
+ * are updated to match it.
  *
- * 1. Admin routes run through StaffJwtMiddleware, not AdminJwtMiddleware.
- *    StaffJwtMiddleware::handleAdminToken() never sets $request->attributes
- *    ->set('adminConfig', ...), but AdminDashboardController::getAdminWallet()
- *    and chargeWallet() both read that attribute via
- *    AdminAuthService::getAdminConfigFromRequest(). It's always null, so both
- *    endpoints 500 for every request. Fix: have handleAdminToken() populate
- *    'adminConfig' the same way AdminJwtMiddleware::resolveAdminConfig() does.
+ * 1. ADMIN AUTH READS THE DATABASE (fixture was stale).
+ *    These tests posted a `config('admin.system_admin.email')` + password to
+ *    `/api/admin/login`. Admin auth now authenticates an Employee by username or email
+ *    (`AdminAuthService:49-63`, class docblock :16-21) and the DB is the source of truth;
+ *    the config-driven auto-provisioning these tests relied on was removed in the
+ *    RV-29/RV-34 migration. The posted address matched no row, so `authenticate()`
+ *    returned null and the route answered 401. Proof that the app is fine:
+ *    tests/Feature/Review/RV43AdminLoginEmployeeTest.php.
  *
- * 2. StaffJwtMiddleware::fail() always returns 401, so sycash — which can
- *    never pass handleAdminToken()'s email check — gets 401 on every /admin/*
- *    route, never 403, regardless of which specific permission it lacks.
+ * 2. THE "currently 500s" ENDPOINTS NOW RETURN 200.
+ *    `StaffJwtMiddleware::handleAdminToken()` used to leave the `adminConfig` request
+ *    attribute null, which `getAdminWallet()` and `chargeWallet()` read through
+ *    `AdminAuthService::getAdminConfigFromRequest()`, so both 500'd. That is fixed; both
+ *    now return 200. The tests below asserted the 500.
+ *
+ * 3. PERMISSION FAILURES NOW RETURN 403, NOT 401.
+ *    `StaffJwtMiddleware::fail()` used to answer 401 for everything, so a sycash admin
+ *    that legitimately lacked a permission got 401 - indistinguishable from
+ *    "not authenticated". That conflation is fixed: an authenticated principal that lacks
+ *    the permission now gets 403, and 401 means no/invalid credentials. The sycash denial
+ *    tests below asserted 401.
+ *
+ * Every one of those three is a case where the code got BETTER and this file recorded the
+ * old worse behaviour as if it were the contract.
  */
 class AdminDashboardControllerTest extends TestCase
 {
@@ -69,11 +84,19 @@ class AdminDashboardControllerTest extends TestCase
     // ─── LOGIN ──────────────────────────────────────────────────────────
     public function test_admin_can_login_with_correct_credentials(): void
     {
+        // RV-43: log in as a REAL Employee. The old body posted the config
+        // email/password, which admin auth stopped accepting when credentials moved to the
+        // `employees` table (AdminAuthService:49-63), so it 401'd on a valid account.
+        $employee = $this->employee('system_admin');
+
         $this->postJson('/api/admin/login', [
-            'email' => 'primary@admin.test', 'password' => 'primary_pass',
+            'username' => $employee->username,
+            'password' => $this->rv34Password,
         ])->assertStatus(200)
             ->assertJsonPath('status', 'success')
-            ->assertJsonPath('admin.type', 'system_admin');
+            // `role`, not `type`: `AdminAuthService::formatAdmin()` (:137-148) returns
+            // `role` and `role_label`, and never had a `type` key.
+            ->assertJsonPath('admin.role', 'system_admin');
     }
 
     public function test_login_fails_with_wrong_password(): void
@@ -109,9 +132,13 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_sycash_admin_can_login(): void
     {
+        // RV-43: same real-Employee login as above; `role`, not `type`.
+        $employee = $this->employee('sycash');
+
         $this->postJson('/api/admin/login', [
-            'email' => 'sycash@admin.test', 'password' => 'sycash_pass',
-        ])->assertStatus(200)->assertJsonPath('admin.type', 'sycash');
+            'username' => $employee->username,
+            'password' => $this->rv34Password,
+        ])->assertStatus(200)->assertJsonPath('admin.role', 'sycash');
     }
 
     // ─── LOGOUT ─────────────────────────────────────────────────────────
@@ -128,12 +155,16 @@ class AdminDashboardControllerTest extends TestCase
         $this->postJson('/api/admin/logout')->assertStatus(401);
     }
 
-    // ─── WALLET (own) — known 500, see class docblock ──────────────────
-    public function test_authenticated_admin_get_own_wallet_currently_500s(): void
+    // ─── WALLET (own) — the old 500 is FIXED, see class docblock ─────────
+    public function test_authenticated_admin_gets_own_wallet(): void
     {
+        // RV-43: this asserted 500. `handleAdminToken()` used to leave `adminConfig` null
+        // and both wallet endpoints 500'd; that is fixed, so it now returns 200. The old
+        // test name said "currently_500s" and is renamed, because the name would otherwise
+        // document a bug that no longer exists.
         $this->withToken($this->adminToken(null, 'system_admin'))
             ->getJson('/api/admin/wallet')
-            ->assertStatus(500);
+            ->assertStatus(200);
     }
 
     public function test_unauthenticated_request_to_wallet_returns_401(): void
@@ -156,16 +187,18 @@ class AdminDashboardControllerTest extends TestCase
         $this->getJson('/api/admin/wallets')->assertStatus(401);
     }
 
-    // ─── CHARGE WALLET — known 500, see class docblock ─────────────────
-    public function test_charging_a_wallet_currently_500s(): void
+    // ─── CHARGE WALLET — the old 500 is FIXED, see class docblock ────────
+    public function test_charging_a_wallet_succeeds(): void
     {
+        // RV-43: this asserted 500 for the same reason as the wallet read above. It now
+        // returns 200, so this test is no longer "a known crash" - it is the happy path.
         $user = User::factory()->create(['password' => bcrypt('password123')]);
         $wallet = Wallet::create(['user_id' => $user->id, 'phone_number' => '0911111111', 'balance' => 0]);
         $user->update(['wallet_id' => $wallet->id]);
 
         $this->withToken($this->adminToken(null, 'system_admin'))
             ->postJson('/api/admin/wallet/charge', ['phone_number' => '0911111111', 'amount' => 5000])
-            ->assertStatus(500);
+            ->assertStatus(200);
     }
 
     public function test_charge_wallet_fails_validation_with_missing_fields(): void
@@ -186,9 +219,12 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_sycash_admin_cannot_charge_wallet(): void
     {
+        // RV-43: 403, not 401. sycash is AUTHENTICATED here - it simply lacks the permission.
+        // The old 401 conflated "wrong credentials" with "not allowed", which is what made
+        // every permission denial indistinguishable from a failed login.
         $this->withToken($this->sycashToken())
             ->postJson('/api/admin/wallet/charge', ['phone_number' => '0911111111', 'amount' => 5000])
-            ->assertStatus(401);
+            ->assertStatus(403);
     }
 
     public function test_unauthenticated_admin_cannot_charge_wallet(): void
@@ -263,11 +299,10 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_sycash_admin_cannot_access_report(): void
     {
-        // sycash fails handleAdminToken()'s email check before it ever
-        // reaches the nested system_admin-only gate — 401, not 403.
+        // RV-43: 403, not 401 - authenticated but not permitted. See the class docblock.
         $this->withToken($this->sycashToken())
             ->getJson('/api/admin/reports')
-            ->assertStatus(401);
+            ->assertStatus(403);
     }
 
     // ─── VERIFICATIONS — route is /admin/verifications (no /pending) ───
@@ -283,31 +318,52 @@ class AdminDashboardControllerTest extends TestCase
 
     public function test_sycash_admin_cannot_list_pending_verifications(): void
     {
+        // RV-43: 403, not 401 - authenticated but not permitted.
         $this->withToken($this->sycashToken())
             ->getJson('/api/admin/verifications')
-            ->assertStatus(401);
+            ->assertStatus(403);
     }
 
     public function test_primary_admin_can_approve_verification(): void
     {
+        // RV-43: `national_id` is REQUIRED to approve (`AdminDashboardController:466`,
+        // `'national_id' => 'required|string|max:50'`), so this 422'd. Same precondition
+        // RV-04b found at `StaffAdminController:115`.
         $user = User::factory()->create([
             'verification_status' => 'pending',
             'password' => bcrypt('password123'),
         ]);
 
         $this->withToken($this->adminToken(null, 'system_admin'))
-            ->postJson("/api/admin/verifications/{$user->id}/approve")
+            ->postJson("/api/admin/verifications/{$user->id}/approve", ['national_id' => 'N-998877665'])
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
     }
 
+    /** The requirement itself: approval without a national ID is refused and the row stays pending. */
+    public function test_approve_verification_requires_a_national_id(): void
+    {
+        $user = User::factory()->create(['verification_status' => 'pending']);
+
+        $this->withToken($this->adminToken(null, 'system_admin'))
+            ->postJson("/api/admin/verifications/{$user->id}/approve")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('national_id');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'verification_status' => 'pending',
+        ]);
+    }
+
     public function test_sycash_admin_cannot_approve_verification(): void
     {
+        // RV-43: 403, not 401 - authenticated but not permitted.
         $user = User::factory()->create(['verification_status' => 'pending']);
 
         $this->withToken($this->sycashToken())
             ->postJson("/api/admin/verifications/{$user->id}/approve")
-            ->assertStatus(401);
+            ->assertStatus(403);
     }
 
     public function test_primary_admin_can_reject_verification(): void
