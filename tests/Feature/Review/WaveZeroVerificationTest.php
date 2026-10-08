@@ -59,23 +59,39 @@ class WaveZeroVerificationTest extends TestCase
         $this->assertGreaterThan(40, $correct - $asWritten);
     }
 
-    public function test_v2_rides_has_no_spatial_index(): void
+    public function test_v2_rides_has_one_spatial_index_per_geometry_column(): void
     {
         if (env('DB_CONNECTION', 'sqlite') !== 'mysql') {
             $this->markTestSkipped('V2 reads MySQL information_schema.');
         }
 
         $spatial = DB::select(
-            "SELECT INDEX_NAME FROM information_schema.STATISTICS
+            "SELECT INDEX_NAME, COLUMN_NAME FROM information_schema.STATISTICS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rides'
                AND INDEX_TYPE = 'SPATIAL'"
         );
 
-        // The audit's "2 spatial indexes" is stale: migration
-        // 2025_05_20_143208 dropped the point() columns (taking their spatial
-        // indexes with them) and recreated plain geometry columns; nothing
-        // re-added an index. RV-25's cost claims change accordingly.
-        $this->assertCount(0, $spatial);
+        // This test USED TO assert zero spatial indexes, which recorded the defect as if it were
+        // the contract - the same failure mode as the V3 test below. The history, which the
+        // assertion above used to explain and which is still true:
+        //
+        //   2025_05_19_135630_create_rides_table  declared `point()` columns NOT NULL and added a
+        //   spatialIndex() to each. 2025_05_20_143208_fix_ride_spatial_columns then DROPPED those
+        //   columns and recreated them as plain `geometry()`, silently taking both indexes with
+        //   them. Nothing re-added them, so the audit's "2 spatial indexes" was the pre-drop state
+        //   and had been stale ever since.
+        //
+        // Restored by migration 2026_10_12_000001_v2_restore_rides_spatial_indexes (R2 sec 129).
+        // See V2SpatialIndexTest for the regression set, including the check that declaring the
+        // SRID did not reorder stored coordinates.
+        $columns = array_column($spatial, 'COLUMN_NAME');
+        sort($columns);
+
+        $this->assertSame(
+            ['destination_location', 'pickup_location'],
+            $columns,
+            'V2: rides must carry one SPATIAL index per geometry column'
+        );
     }
 
     public function test_v3_route_buffer_strategy_matches_a_point_2km_off_the_line(): void

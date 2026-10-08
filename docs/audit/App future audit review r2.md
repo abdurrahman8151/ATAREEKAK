@@ -10628,5 +10628,84 @@ not a self-consistent internal check.
 - Ground truth re-measured on MySQL 8.2.0: 309.00 km correct / 257.93 km transposed.
 - `RV25GeometryAxisOrderTest`: 4 tests, passing, with `WaveZeroVerificationTest` green (14 tests).
 - No app or test files changed. This row is a status correction only.
+---
 
-**Next audit section number: 129.**
+## 129. V2: an index that was deleted the day after it was created, and what it will NOT fix
+
+**Row 2 -> VERIFIED FIX.** Schema change, owner-approved 2026-10-12. Migration
+`2026_10_12_000001_v2_restore_rides_spatial_indexes`.
+
+### The regression is two migrations apart
+
+    2025_05_19_135630_create_rides_table
+        $table->point('pickup_location');            // NOT NULL by default
+        $table->spatialIndex('pickup_location');
+        $table->spatialIndex('destination_location');
+
+    2025_05_20_143208_fix_ride_spatial_columns
+        $table->dropColumn(['pickup_location', 'destination_location']);
+        $table->geometry('pickup_location')->after('destination_address');
+
+Dropping a column takes its index with it. The recreate used `geometry()` and re-added nothing.
+So the audit's "2 spatial indexes" was the pre-drop state and has been stale ever since, and every
+ride search has full-scanned `rides` on `ST_Distance_Sphere` ever since.
+
+### The declared SRID disagreed with the stored one
+
+The column declared **no** SRID (so SRID 0) while every writer uses `ST_GeomFromText(..., 4326)`.
+Verified on the scratch server: an SRID-0 column accepts a 4326 value and stores it as 4326. The
+schema has been misdescribing its own data for its whole life, which matters because it makes the
+axis-order contract (RV-25) an unwritten convention instead of something enforced at the schema.
+
+### The real risk, tested where it actually lives
+
+Declaring an SRID is a statement about how MySQL reads every stored ordinate, so the question was
+whether `ALTER ... MODIFY ... SRID 4326` would re-interpret the data. Verified before writing the
+migration on a throwaway table: `POINT(33.5138 36.2765)` read back byte-identical before and after.
+
+**Then the first needle did not fail, and that mattered.** Injecting
+`UPDATE rides SET pickup_location = ST_SwapXY(pickup_location)` into the migration left all five
+`V2SpatialIndexTest` tests green. The reason is structural: `RefreshDatabase` migrates an EMPTY
+schema, so those tests write their own row *after* the migration ran and the corruption never
+touched anything they look at. **A test suite cannot catch a migration that damages rows which
+existed before it ran** - and production is exactly that case.
+
+So the real guard is `V2SridAlterSafetyTest`, which does not use `RefreshDatabase`: it creates a
+table with the pre-migration column definition, populates it, runs the real ALTER against
+populated rows, and compares WKT before and after (plus the 309 km distance). Needled by swapping
+the ordinates after the ALTER - it fails with a readable `POINT(33.5138 36.2765)` vs
+`POINT(36.2765 33.5138)` diff. It cannot use `RefreshDatabase` because DDL commits implicitly in
+MySQL and would break the surrounding transaction.
+
+### What this does NOT fix, stated plainly
+
+A spatial index does not automatically speed up this application's search. Measured on 20 000 rows:
+
+    ST_Distance_Sphere(g, pt) <= 5000     key=NULL  possible_keys=          <- not even a candidate
+    MBRContains(ST_Buffer(pt, 0.05), g)   key=NULL  possible_keys=sp        <- eligible
+
+`ST_Distance_Sphere` is not an index-accelerated function in MySQL; the MBR predicates are. So this
+row closes real schema debt and enables a future MBR bounding-box prefilter, but **the search cost
+is unchanged today**. Recording that here rather than letting "spatial index added" imply a speedup
+that was not measured.
+
+### Also fixed: a test asserting the defect
+
+`WaveZeroVerificationTest::test_v2_rides_has_no_spatial_index` asserted **zero** spatial indexes.
+That is the same failure mode as the V3 test: a test that records the broken state as the contract.
+It now asserts one index per column and keeps the full regression history in its comment.
+
+### Verified
+
+- `up()` and `down()` both executed via `migrate` then `migrate:rollback --step=1` then `migrate`.
+- New `V2SpatialIndexTest` (5 tests): index per column, declared SRID, stored ordinates unchanged,
+  the 309 km distance still true through the indexed column.
+- New `V2SridAlterSafetyTest` (2 tests): the ALTER against populated rows, and idempotency.
+- Floor (`Rides`, `Bookings`, `Unit/Domain`, geo review files): 286 tests, 4 failures - the same 4
+  pre-existing ones (completion-confirmation 500s, a fee assertion), unrelated to this row.
+- Needles: migration removed -> 4 failures; ordinates transposed -> the safety guard fails.
+- Genuinely unverified: behaviour against the **production** `rides` table, which has real row
+  counts and may hold geometry shapes this scratch database never saw. Before deploying, sample a
+  few rows' `ST_AsText` before and after the ALTER. That is a deploy-time action, not a test.
+
+**Next audit section number: 130.**
