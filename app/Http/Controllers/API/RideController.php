@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\DTOs\Ride\BookRideDTO;
 use App\DTOs\Ride\CreateRideDTO;
+use App\Exceptions\Domain\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BookRideRequest;
 use App\Http\Requests\CreateRideRequest;
@@ -836,6 +837,21 @@ class RideController extends Controller
                 'ride_finished' => $result['ride_finished'],
             ]);
 
+        } catch (DomainException|\InvalidArgumentException $e) {
+            // A refusal is a CLIENT error, not a server fault. BookingService raises
+            // InvalidArgumentException for every "you cannot confirm this" case and
+            // DomainException for the typed subclasses. Both are mapped by RV-13's
+            // shared error model in App\Exceptions\Handler (422 / 403 / 409, with the
+            // `errors` bag preserved).
+            //
+            // Before this branch existed, the catch-all below swallowed them and
+            // answered every refusal with a bare 500 and "please try again", so a
+            // passenger who tapped confirm before the ride had departed was told the
+            // server was broken rather than that they were early.
+            //
+            // Genuine internal faults (payment release failures, DB errors) still fall
+            // through to the catch-all below and are logged and reported as 500.
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Passenger confirmation failed', [
                 'booking_id' => $booking,

@@ -27,6 +27,15 @@ use Tests\TestCase;
  *
  * NOTE: the rides table uses SPATIAL indexes, so this suite requires MySQL —
  * it cannot run on the SQLite connection configured in phpunit.xml.
+ *
+ * REFUSAL STATUS CHANGED 500 -> 422 (2026-10-12). The five tests below asserted
+ * 500 for "cannot confirm" cases. That was not a deliberate contract: it was the
+ * controller's catch-all swallowing the InvalidArgumentException that
+ * BookingService raises, so every refusal reported itself as a server fault and
+ * told the passenger "please try again" instead of explaining the refusal. The
+ * catch-all now re-throws domain errors so RV-13's shared error model maps them
+ * (422, with the `errors` bag). These assertions were updated to match the FIXED
+ * behaviour and must not be reverted to 500.
  */
 class PassengerConfirmCompletionTest extends TestCase
 {
@@ -206,7 +215,7 @@ class PassengerConfirmCompletionTest extends TestCase
         $b1 = $this->book($ride, $this->p1);
 
         $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(200);
-        $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(500);
+        $this->withToken($this->p1Token)->postJson("/api/bookings/{$b1->id}/passenger-confirm")->assertStatus(422);
 
         $this->assertEquals(47_500.0, (float) $this->driverWallet->fresh()->balance);
         $this->assertEquals(1, $this->ledgerCount($b1->id, 'ride_earning'));
@@ -250,7 +259,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
         $this->withToken($this->p2Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
-            ->assertStatus(500);
+            ->assertStatus(422);
 
         $this->assertEquals(0.0, (float) $this->driverWallet->fresh()->balance);
         $this->assertEquals(50_000.0, (float) $this->syCash->fresh()->balance);
@@ -263,7 +272,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
-            ->assertStatus(500);
+            ->assertStatus(422);
 
         $this->assertEquals(0.0, (float) $this->driverWallet->fresh()->balance);
     }
@@ -275,7 +284,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
-            ->assertStatus(500);
+            ->assertStatus(422);
 
         $this->assertEquals(0.0, (float) $this->driverWallet->fresh()->balance);
     }
@@ -287,7 +296,7 @@ class PassengerConfirmCompletionTest extends TestCase
 
         $this->withToken($this->p1Token)
             ->postJson("/api/bookings/{$b1->id}/passenger-confirm")
-            ->assertStatus(500);
+            ->assertStatus(422);
 
         $this->assertEquals(0.0, (float) $this->driverWallet->fresh()->balance);
     }

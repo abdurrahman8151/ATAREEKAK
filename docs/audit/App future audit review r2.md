@@ -10849,5 +10849,95 @@ should be assumed resolved until verified, not assumed broken.
   `AuthFacadeRatchetTest`: **17 tests / 40 assertions, green**.
 - `CreateRideRouteTest` + `RideSearchServiceTest` + `RV14DegenerateRouteFieldsTest`: **23 tests /
   43 assertions, green**.
+---
 
-**Next audit section number: 133.**
+## 133. RV-44: a catch-all that reported every passenger refusal as a server fault
+
+**Row 119 (RV-44), new, P0 -> VERIFIED FIX.** Owner ruling 2026-10-12: follow RV-13 (422), and
+this endpoint only.
+
+### Where this came from
+
+Not a backlog row - the last four RED tests in the project. Three completion-confirmation tests and
+one money test had been failing since before this sweep began. The money one is untouched and still
+red; this section is about the other three.
+
+### The defect
+
+`RideController::passengerConfirmCompletion` wrapped its whole body in
+
+```php
+} catch (\Throwable $e) {
+    Log::error('Passenger confirmation failed', [...]);
+    return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 500);
+}
+```
+
+`BookingService::passengerConfirmCompletion` signals every refusal by throwing
+`\InvalidArgumentException` - not the owner, not the passenger, booking not `confirmed`, a pending
+no-show report, the ride has not departed, the ride is in a state that forbids confirmation. All of
+them are **client** errors, and RV-13 already maps them to 422 with the `errors` bag.
+
+The catch-all caught them first and answered `500 "please try again"`. So a passenger who tapped
+"confirm arrival" twenty minutes early was told the server was broken. And because RV-13's mapping
+lives in `App\Exceptions\Handler`, the controller was silently opting this endpoint out of the
+project's whole error model - the same defect RV-13 fixed everywhere else, reintroduced one layer up.
+
+### The fix
+
+A single branch ahead of the catch-all that re-throws domain errors so RV-13's mapping applies:
+
+```php
+} catch (DomainException|\InvalidArgumentException $e) {
+    throw $e;
+} catch (\Throwable $e) { /* unchanged: log + 500 */ }
+```
+
+Genuine internal faults still fall through and are logged as 500 - payment release failures and DB
+errors were never the problem, and that behaviour is deliberately unchanged.
+
+### Five tests had pinned the bug
+
+`PassengerConfirmCompletionTest` asserted **500** in five places: confirming twice, another
+passenger confirming someone else's booking, confirming before departure, a cancelled ride, a
+finished ride. Those assertions were not a deliberate contract - they were the defect, written down
+as an expectation. They now assert 422, with the change recorded in the class docblock and marked as
+not-to-be-reverted.
+
+This is the fourth time this project has found a test recording a defect as the contract (after V3,
+the V2 `WaveZero` test, and the RV-43 admin tests). It is now a pattern rather than a coincidence.
+
+### A test whose premise was simply false
+
+`test_passenger_confirm_fails_for_active_ride` expected 400 because the ride was `active`. It was
+failing at `BookingService:539`, the **departure** guard, because `makeRide` defaults
+`departure_time` to `now()->addHours(3)` - so it never reached the status logic it was named for.
+
+Fixing that fixture alone would not have saved it: `ACTIVE` is in `RideStatus::canBeBooked()`
+(`RideStatus.php:46`) and `BookingService:544-550` deliberately treats bookable states as
+confirmable, normalising ACTIVE/FULL to LAUNCHED. The premise contradicted the design. It is
+replaced by `test_passenger_confirm_fails_for_finished_ride` (FINISHED is terminal, so it reaches
+the real refusal branch at `:557`) plus `test_passenger_can_confirm_an_active_ride_after_it_departs`,
+which pins the rule that invalidated the original test so it cannot be "fixed" back.
+
+### Blast radius: 40 more of the same, deliberately not touched
+
+41 controllers return a hard-coded 5xx from a catch block. Only this one was in scope by owner
+ruling. The rest are a real systemic finding and belong to their own row, not to this fix.
+
+### Verified
+
+- Floor for `RideController` (`tests/Feature/Rides` + `tests/Feature/Bookings` + `tests/Unit/Domain`):
+  **223 tests, 352 assertions, 1 failure, 2 skipped**. The one failure is
+  `RideTest::test_ride_creation_does_not_charge_any_fee`, which reproduces identically with this
+  change stashed (`998000.0` vs `1000000.0`) - pre-existing and unrelated.
+- `BoundaryDependencyTest` (a `use` line was added): **9 tests, 36 assertions**, green.
+- `AdminFinancialReportEscrowTest` (the only other test naming `passengerConfirmCompletion`) plus
+  `RV13DomainExceptionMaskingTest`, `DomainExceptionMappingTest`, `ValidationErrorBagTest`,
+  `CancelSeatsEquivalenceCheck`: **24 tests, 73 assertions**, green.
+- Pint clean on all three changed files. The needle is the change itself: five tests asserted 500
+  and went red the instant the catch stopped swallowing.
+- Money assertions around the changed tests were left untouched and still hold (driver paid once,
+  exactly one `ride_earning` and one `escrow_release` ledger row).
+
+**Next audit section number: 134.**

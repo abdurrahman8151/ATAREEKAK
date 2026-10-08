@@ -332,7 +332,14 @@ class RideControllerFullTest extends TestCase
 
     public function test_passenger_can_confirm_completion(): void
     {
-        $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
+        // The ride must have DEPARTED. `makeRide` defaults departure_time to
+        // now()+3h, so the previous fixture built a ride that had not left yet and
+        // BookingService refused it with "The ride has not departed yet" - the test
+        // could never reach the completion path it is named for.
+        $ride = $this->makeRide([
+            'status' => 'awaiting_confirmation',
+            'departure_time' => now()->subHours(1),
+        ]);
         $booking = $this->makeBooking('confirmed', $ride);
 
         $this->withToken($this->passengerToken)
@@ -341,14 +348,51 @@ class RideControllerFullTest extends TestCase
             ->assertJsonPath('status', 'success');
     }
 
-    public function test_passenger_confirm_fails_for_active_ride(): void
+    /**
+     * REFUSAL for a ride in a state that genuinely forbids confirmation.
+     *
+     * This replaces `test_passenger_confirm_fails_for_active_ride`, whose premise was
+     * false. ACTIVE is in `RideStatus::canBeBooked()` (RideStatus.php:46) and
+     * BookingService:544-550 deliberately treats bookable states as confirmable - the
+     * first confirmation normalises ACTIVE/FULL to LAUNCHED. The old test built an
+     * `active` ride with the default future departure_time, so it actually tripped
+     * the DEPARTURE guard at BookingService:539 and never reached the status logic it
+     * claimed to test. FINISHED is terminal and not confirmable, so it exercises the
+     * real refusal branch at BookingService:557.
+     *
+     * 422, not 400: RV-13 maps InvalidArgumentException to 422 with the `errors` bag.
+     */
+    public function test_passenger_confirm_fails_for_finished_ride(): void
     {
-        $ride = $this->makeRide(['status' => 'active']);
+        $ride = $this->makeRide([
+            'status' => 'finished',
+            'departure_time' => now()->subHours(1),
+        ]);
         $booking = $this->makeBooking('confirmed', $ride);
 
         $this->withToken($this->passengerToken)
             ->postJson("/api/bookings/{$booking->id}/passenger-confirm") // was /api/rides/...
-            ->assertStatus(400);
+            ->assertStatus(422);
+    }
+
+    /**
+     * Pins the rule that invalidated the old test: an ACTIVE ride IS confirmable once
+     * it has departed. This is deliberate (BookingService:544-550), so it is recorded
+     * as a test rather than left to be rediscovered as a bug.
+     */
+    public function test_passenger_can_confirm_an_active_ride_after_it_departs(): void
+    {
+        $ride = $this->makeRide([
+            'status' => 'active',
+            'departure_time' => now()->subHours(1),
+        ]);
+        $booking = $this->makeBooking('confirmed', $ride);
+
+        $this->withToken($this->passengerToken)
+            ->postJson("/api/bookings/{$booking->id}/passenger-confirm")
+            ->assertStatus(200);
+
+        $this->assertSame('completed', $booking->fresh()->status);
     }
 
     public function test_non_passenger_cannot_confirm_completion(): void
@@ -356,9 +400,12 @@ class RideControllerFullTest extends TestCase
         $ride = $this->makeRide(['status' => 'awaiting_confirmation']);
         $booking = $this->makeBooking('confirmed', $ride);
 
+        // 422, not 400: RV-13 maps InvalidArgumentException to 422 with the `errors` bag.
+        // Ownership is checked at BookingService:505, before the departure guard, so
+        // this needs no departure_time fixture.
         $this->withToken($this->driverToken)
             ->postJson("/api/bookings/{$booking->id}/passenger-confirm") // was /api/rides/...
-            ->assertStatus(400);
+            ->assertStatus(422);
     }
 
     // ── getMyBookings ─────────────────────────────────────────────────────────────
