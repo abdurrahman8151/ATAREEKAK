@@ -11443,5 +11443,25 @@ No row has Status OPEN with Blocked by `none`, so the selection rule returns **n
 Applying one rethrow across all sites would change status codes on many endpoints at once, without checking each catch body and its client contract. That breaks the one-problem rule and the public-response rule.
 
 **Plan.** Work one controller per verified step, following the RV-44 pattern: rethrow `DomainException` and `\InvalidArgumentException` as 422 ahead of the catch-all, update only the tests that pinned the old 500 (with justification), verify allowed and denied paths through the real endpoints, and commit each controller separately. Row 120 reaches VERIFIED FIX only after all 36 service-wrapping sites are done.
+---
 
-**Next audit section number: 147.**
+## 147. RV-45 step 1 (RideController::create): VERIFIED ROLLBACK; cause found and filed as RV-53
+
+**Terminal state for step 1: VERIFIED ROLLBACK.** Code reverted to HEAD (`git diff` empty for `RideController.php`). Row 120 stays OPEN.
+
+**What was attempted.** A `DomainException|\InvalidArgumentException` branch ahead of the `create` catch-all, copying the 422 shape at `RideController.php:180`.
+
+**What verification showed.**
+- Lint and Pint: PASS.
+- Denied case (unverified driver, with coordinates): 422 "You must be verified as a driver to create rides". The intended fix worked.
+- Allowed case (verified driver, valid payload): 500, not 201.
+
+**Causality, proven.** The same allowed create returns 500 on clean HEAD with the edit reverted. The 500 predates the change, so the edit did not cause it. The rollback was made for an undiagnosed break, not because the edit regressed the valid path.
+
+**Root cause of the allowed-path 500 (fixture-level, not the branch).** A direct service probe showed `RideService::createRide` throws `Exception: Missing required driver verification documents: Face ID Photo, Back ID Photo, Driving License`. The probe driver had no uploaded documents. `validateDriverCanCreateRide` throws a plain `\Exception` here, which is outside the new 422 branch, so it falls to the generic 500.
+
+**Separate defect, filed as RV-53 (row 128, OPEN, owner decision).** A verified driver who has not uploaded documents gets a generic 500 instead of a curated refusal. This is the same class as RV-45 but a different exception type. Widening RV-45 to cover it would change the exception type and the status of a public response, so it is filed separately for the owner.
+
+**Verification gap.** The allowed create was not proven to return 201, because the probe fixture lacked documents. A valid allowed path needs a driver with all three documents before the sweep can be verified.
+
+**Next audit section number: 148.**
