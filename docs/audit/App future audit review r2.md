@@ -11428,5 +11428,20 @@ No row has Status OPEN with Blocked by `none`, so the selection rule returns **n
 **Backlog effect.** Rows 120, 121, 123, 124, 125, 126 now read OPEN with Blocked by `none`, so the selection rule can take them one per session, lowest order first. Row 91 keeps its pending RV-08 approval, so it stays blocked.
 
 **Not done.** No implementation. Each row is a separate task under the one-task-per-session rule. RV-46 changes money behaviour and RV-51 deletes code and tests; both still need the full explain-first section when taken.
+---
 
-**Next audit section number: 146.**
+## 146. RV-45 (row 120): sweep scoped, not started as a bulk change
+
+**Terminal state: not reached. Row stays OPEN.** No code changed; nothing to roll back.
+
+**Measured.** 46 `catch (\Throwable)` sites in `app/Http/Controllers`, confirmed by grep. Heaviest: `RideController` (about 20), then `AdminBanController`, `AdminWalletRequestController`, `SignupController`, `VerificationController`, `EmployeeManagementController`, `StaffAdminController`, `StaffComplaintController`, `ComplaintController`, `PassengerProfileController`.
+
+**Why not a bulk rethrow.** Two sites read at random show they differ:
+- `RideController::create` (`:83`): a domain error currently returns 500 with a logged message. The owner ruled that domain rules map to 422, so this one changes.
+- `RideController::routeOptions` (`:148`): the catch returns a deliberate generic 500 envelope (`success: false`, fixed message). Clients read that envelope, so this is a public response-shape decision per site, not a mechanical rethrow.
+
+Applying one rethrow across all sites would change status codes on many endpoints at once, without checking each catch body and its client contract. That breaks the one-problem rule and the public-response rule.
+
+**Plan.** Work one controller per verified step, following the RV-44 pattern: rethrow `DomainException` and `\InvalidArgumentException` as 422 ahead of the catch-all, update only the tests that pinned the old 500 (with justification), verify allowed and denied paths through the real endpoints, and commit each controller separately. Row 120 reaches VERIFIED FIX only after all 36 service-wrapping sites are done.
+
+**Next audit section number: 147.**
