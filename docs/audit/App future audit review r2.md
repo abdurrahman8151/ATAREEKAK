@@ -11306,5 +11306,28 @@ Choosing a null contract or changing the country restriction changes what the li
 **Not verified.** The `tests/Unit/Providers/AppServiceProviderTest.php` reference was not run; it is outside this change's floor and only references the service. Flagged as not verified.
 
 **Still open under RV-47 (row 122):** `GeocodingServiceTest` 17 (RV-50, owner decision), `ImageMessageType` 4, `AdminDriverServiceTest` 14-15 (stale tests, sec 137), misc 7. RV-49 (row 124) and RV-50 (row 125) await owner decisions.
+---
 
-**Next audit section number: 141.**
+## 141. ImageMessageType: a retired contract in the tests, not a production defect
+
+**Terminal state: not reached by a code change. Diagnosis complete, no file edited.** The finding is filed as RV-51 (row 126) for an owner decision.
+
+**Problem.** `tests/Unit/Services/ImageMessageTypeTest.php` has 4 failing tests: three `ErrorException: Undefined array key "image"` in `process()`, and one `validate()` returning false where the test expects true.
+
+**Code path, production.** `ChatMessageHandler::handle()` routes an image message with an uploaded file through `sendImageMessage()` (`app/Services/Chat/ChatMessageHandler.php:79-80`, `:105-134`). That method checks `$data['image'] instanceof UploadedFile`, uploads via `FileUploadService::uploadChatImage()`, and stores the resulting path. `ImageMessageType::process()` is only reached on the `else` branch (`:81-83`), which an image message with no file cannot reach, because `validate()` already rejects it.
+
+**Why the tests fail.** The tests pass a stored path string as `content` (for example `images/chat/test.jpg`) with no `image` key. That is the retired contract, where the image was already stored and only its path was posted. `validate()` requires an uploaded `image` (`ImageMessageType.php:16`), so it correctly returns false, and `process()` reads `$data['image']` and fails.
+
+**Why this is not a production defect.** `validate()` and `process()` are consistent with the live upload path. Production does not send path-shaped image content. No caller reaches `process()` with a path.
+
+**Why not fixed.** The two options are not equivalent:
+- Changing the tests to the uploaded-file contract is a test edit, but it raises whether `process()` should exist for image messages at all, since the live path bypasses it.
+- Changing `process()` to accept a path would reintroduce the conflict between `validate()` and `process()` and add an unused second input path to the chat code.
+
+Choosing between these is a design decision, so it is recorded as RV-51 rather than guessed.
+
+**Verified.** Reproduced 4 failures (`Tests: 13, Assertions: 9, Errors: 3, Failures: 1`). Read `ImageMessageType`, `ChatMessageHandler` (both branches and `sendImageMessage`), and the test inputs. The production caller path was traced, not assumed. No code or test change, so no commit of code. Records only.
+
+**Still open under RV-47 (row 122):** `GeocodingServiceTest` (RV-50, row 125), `AdminDriverServiceTest` stale tests (sec 137), misc 7. Owner decisions outstanding: RV-49 (row 124), RV-50 (row 125), RV-51 (row 126).
+
+**Next audit section number: 142.**
