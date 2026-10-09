@@ -221,8 +221,8 @@ class AdminDriverServiceTest extends TestCase
         // hard-coded `$suspendedDrivers = 0; // not implemented yet` while the driver TABLE on the
         // same screen could list suspended drivers (`'suspended' => where('status', 0)`), so one
         // screen contradicted itself. It now counts, using the same predicate as the filter.
-        $this->makeUser(['status' => 0, 'is_verified_driver' => true]);
-        $this->makeUser(['status' => 0, 'is_verified_driver' => true]);
+        $this->makeUser(['status' => -1, 'ban_type' => 'permanent', 'is_verified_driver' => true]);
+        $this->makeUser(['status' => -1, 'ban_type' => 'permanent', 'is_verified_driver' => true]);
         $this->makeUser(['status' => 1, 'is_verified_driver' => true]);
 
         $this->assertEquals(2, $this->service->getStats()['suspended_drivers']);
@@ -232,7 +232,7 @@ class AdminDriverServiceTest extends TestCase
     {
         // The two halves of one screen must not disagree. This is the property the defect broke.
         for ($i = 0; $i < 3; $i++) {
-            $this->makeUser(['status' => 0, 'is_verified_driver' => true]);
+            $this->makeUser(['status' => -1, 'ban_type' => 'permanent', 'is_verified_driver' => true]);
         }
 
         $suspended = $this->service->getDrivers('suspended');
@@ -350,7 +350,7 @@ class AdminDriverServiceTest extends TestCase
 
     public function test_get_drivers_suspended_filter_returns_status_zero_drivers(): void
     {
-        $suspended = $this->makeUser(['is_verified_driver' => true, 'status' => 0]);
+        $suspended = $this->makeUser(['is_verified_driver' => true, 'status' => -1, 'ban_type' => 'permanent']);
         $this->makeUser(['is_verified_driver' => true, 'status' => 1]);
 
         $result = $this->service->getDrivers('suspended');
@@ -573,7 +573,7 @@ class AdminDriverServiceTest extends TestCase
             'pending' => [['verification_status' => 'pending', 'status' => 1], 'pending'],
             'rejected' => [['verification_status' => 'rejected', 'status' => 1], 'rejected'],
             'unverified (status none)' => [['verification_status' => 'none', 'status' => 1], 'unverified'],
-            'suspended overrides verified' => [['is_verified_driver' => true, 'status' => 0], 'suspended'],
+            'suspended overrides verified' => [['is_verified_driver' => true, 'status' => -1, 'ban_type' => 'permanent'], 'suspended'],
         ];
     }
 
@@ -671,7 +671,7 @@ class AdminDriverServiceTest extends TestCase
 
     public function test_get_driver_profile_status_reflects_suspended(): void
     {
-        $driver = $this->makeUser(['is_verified_driver' => true, 'status' => 0]);
+        $driver = $this->makeUser(['is_verified_driver' => true, 'status' => -1, 'ban_type' => 'permanent']);
 
         $this->assertEquals('suspended', $this->service->getDriverProfile($driver->id)['status']);
     }
@@ -901,7 +901,7 @@ class AdminDriverServiceTest extends TestCase
 
     public function test_get_driver_dashboard_status_reflects_suspended(): void
     {
-        $driver = $this->makeUser(['is_verified_driver' => true, 'status' => 0]);
+        $driver = $this->makeUser(['is_verified_driver' => true, 'status' => -1, 'ban_type' => 'permanent']);
 
         $this->assertEquals('suspended', $this->service->getDriverDashboard($driver->id)['status']);
     }

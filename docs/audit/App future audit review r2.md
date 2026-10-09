@@ -11463,5 +11463,23 @@ Applying one rethrow across all sites would change status codes on many endpoint
 **Separate defect, filed as RV-53 (row 128, OPEN, owner decision).** A verified driver who has not uploaded documents gets a generic 500 instead of a curated refusal. This is the same class as RV-45 but a different exception type. Widening RV-45 to cover it would change the exception type and the status of a public response, so it is filed separately for the owner.
 
 **Verification gap.** The allowed create was not proven to return 201, because the probe fixture lacked documents. A valid allowed path needs a driver with all three documents before the sweep can be verified.
+---
 
-**Next audit section number: 148.**
+## 148. Suspended fixtures in AdminDriverServiceTest moved to banned (RV-42a); RV-48 ratings remain
+
+**Terminal state for this step: partial, row 123 stays OPEN.** The suspended half is fixed. The 10 rating expectations are left for RV-48 and are not claimed as done.
+
+**Problem.** Seven `AdminDriverServiceTest` fixtures built a "suspended" driver as `status = 0`. That is LOGGED_OUT, not banned. The owner ruled (RV-42a, row 117, VERIFIED FIX) that "suspended" means banned (`status = -1`).
+
+**Fix.** Changed only those fixtures to `status = -1, ban_type = 'permanent'`. A permanent ban never self-lifts, so it matches `isBannedNow()` (`app/Models/User.php:94-101`) exactly. Test file only, 7 lines changed. No app code changed.
+
+**Verification.**
+- `php -l` clean; Pint PASS.
+- `AdminDriverServiceTest`: failures 15 to 10. All four suspended-as-status-0 failures are gone, and so is `test_format_driver_status_resolution`.
+- `tests/Feature/Admin` plus `RV42aSuspendedMeansBannedTest`: 123 tests, 276 assertions, OK.
+
+**Remaining 10 failures (RV-48, row 123).** All are rating-average expectations. They fail because the synthetic 3.0 signup rating (`UserObserver`) is included in the average, which the owner ruled to keep. Their expectations need updating to that ruling. This is a separate step and is not claimed here.
+
+**Caveat.** A probe wrote output files at the repo root that were staged into the index. They were detected as not in HEAD, unstaged, and deleted. Only the test file and records are in this commit.
+
+**Next audit section number: 149.**
