@@ -11481,5 +11481,27 @@ Applying one rethrow across all sites would change status codes on many endpoint
 **Remaining 10 failures (RV-48, row 123).** All are rating-average expectations. They fail because the synthetic 3.0 signup rating (`UserObserver`) is included in the average, which the owner ruled to keep. Their expectations need updating to that ruling. This is a separate step and is not claimed here.
 
 **Caveat.** A probe wrote output files at the repo root that were staged into the index. They were detected as not in HEAD, unstaged, and deleted. Only the test file and records are in this commit.
+---
 
-**Next audit section number: 149.**
+## 149. RV-51: the approved removal cannot be applied as ruled; row 126 BLOCKED
+
+**Terminal state: not reached by a code change. No file edited.**
+
+**Problem.** The 2026-10-13 ruling said to remove `ImageMessageType::process()` and its 4 tests, because production image uploads never reach it.
+
+**What checking the code showed.**
+- `process()` is declared on `MessageTypeInterface` (`app/Interfaces/MessageTypeInterface.php:15`).
+- `TextMessageType::process()` implements it too (`app/Services/MessageTypes/TextMessageType.php:25`).
+- `ChatMessageHandler::handle()` calls `$handler->process($data)` for every non-image message (`app/Services/Chat/ChatMessageHandler.php:83`).
+
+So `process()` is a required contract method. The earlier conclusion that it was dead held only for uploaded images, not for the method as a whole.
+
+**Why not applied.** Deleting `ImageMessageType::process()` breaks the interface contract, so PHP would reject the class. The fix would need either an interface change (making `process()` optional or moving it), or keeping the method and rewriting its tests. Both are design decisions the ruling did not cover, so I did not guess.
+
+**Correction.** The ruling's premise is partly wrong. Row 126 changes from OPEN to BLOCKED until the owner chooses.
+
+**Options for the owner.**
+1. Keep `ImageMessageType::process()` as the interface requires and rewrite its 4 tests to the uploaded-file contract.
+2. Change `MessageTypeInterface` so `process()` is not required for image messages, then remove it, with the test deletion approved.
+
+**Next audit section number: 150.**
