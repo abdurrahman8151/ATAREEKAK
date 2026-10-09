@@ -11410,5 +11410,23 @@ No row has Status OPEN with Blocked by `none`, so the selection rule returns **n
 **Not verified.** The endpoint probe covered the 1-hour boundary on either side, not the exact minute. `diffInHours` truncates, so a departure 59 minutes out is refused and one 61 minutes out is allowed, as intended, but the exact boundary was not separately probed. Also not run: the full suite (out of policy).
 
 **Files changed:** `app/Services/Ride/RideValidationService.php` only, plus the audit records.
+---
 
-**Next audit section number: 145.**
+## 145. Owner rulings 2026-10-13: seven decisions recorded, nothing implemented
+
+**Terminal state: VERIFIED (records only).** No code, test, or schema changed in this section.
+
+**Rulings** (recorded in STATE.md, "Owner decisions 2026-10-13"):
+- RV-45 (row 120): sweep all 36 service-wrapping catch-alls.
+- RV-46 (row 121): graduated refund tiers 100/70/50/0.
+- RV-48 (row 123): keep synthetic 3.0 ratings in the average.
+- RV-49 (row 124): keep the resolution audit prefix; update the test.
+- RV-50 (row 125): keep Syria scope; use `geocodeAddress()`, `[]` on no match.
+- RV-51 (row 126): remove `ImageMessageType::process()` and its 4 tests.
+- T3-10 (row 91): Render is the target. RV-08 deletion approval is NOT given and stays pending.
+
+**Backlog effect.** Rows 120, 121, 123, 124, 125, 126 now read OPEN with Blocked by `none`, so the selection rule can take them one per session, lowest order first. Row 91 keeps its pending RV-08 approval, so it stays blocked.
+
+**Not done.** No implementation. Each row is a separate task under the one-task-per-session rule. RV-46 changes money behaviour and RV-51 deletes code and tests; both still need the full explain-first section when taken.
+
+**Next audit section number: 146.**

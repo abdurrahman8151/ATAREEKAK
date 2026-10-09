@@ -456,6 +456,16 @@ because their Status is not `OPEN`. No answer to this rule is cached here on pur
   item of the 2026-10-11 batch; all four of those owner decisions are now fully carried out.**
   rotation-tracking work is to be scheduled for these two. (Values are never written here.)
 
+## Owner decisions 2026-10-13 (settled - do not re-litigate)
+
+- **RV-45 (row 120):** sweep ALL 36 service-wrapping `catch (\Throwable)` blocks in controllers. Rethrow domain errors as 422. Each affected test gets a justified update.
+- **RV-46 (row 121):** refund tiers are GRADUATED 100/70/50/0, as the tests state. Changes money behaviour; implement with the money floor.
+- **RV-48 (row 123):** keep the synthetic 3.0 signup ratings in the dashboard average. Update test expectations only.
+- **RV-49 (row 124):** keep the `[RESOLVED by ...]` audit prefix. Update the test.
+- **RV-50 (row 125):** keep the service and its Syria scope. Rename tests to `geocodeAddress()`, expect `[]` on no match, and use Syrian addresses.
+- **RV-51 (row 126):** remove `ImageMessageType::process()` and its 4 tests. Deletion approved here.
+- **T3-10 (row 91):** deploy target is Render. The RV-08 deletion approval is NOT given in this ruling and is still pending.
+
 ## Owner actions outstanding (not code)
 - **Set `TRUSTED_PROXIES` in every real deployment (`R2 sec 130`, surfaced by V4).** `TrustProxies` reads it from `config/trustedproxy.php` and deliberately defaults to trusting NOBODY when unset - correct, because it cannot widen trust by accident. But "trust nobody" is the pre-fix behaviour: behind nginx every request then resolves to the proxy container, so every `ip:`-keyed rate-limit bucket collapses into ONE bucket shared by all users. The app works, rate limiting is globally shared, and nothing warns you. Set it to the nginx container/subnet CIDR (comma-separated). It reads through config, so `config:cache` cannot silently blank it.
 - `phpunit.xml` - NEVER COMMIT IT (this rule still stands). **CORRECTED `R2 sec 108`:** the
