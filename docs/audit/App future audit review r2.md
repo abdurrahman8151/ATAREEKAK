@@ -11329,5 +11329,32 @@ Choosing between these is a design decision, so it is recorded as RV-51 rather t
 **Verified.** Reproduced 4 failures (`Tests: 13, Assertions: 9, Errors: 3, Failures: 1`). Read `ImageMessageType`, `ChatMessageHandler` (both branches and `sendImageMessage`), and the test inputs. The production caller path was traced, not assumed. No code or test change, so no commit of code. Records only.
 
 **Still open under RV-47 (row 122):** `GeocodingServiceTest` (RV-50, row 125), `AdminDriverServiceTest` stale tests (sec 137), misc 7. Owner decisions outstanding: RV-49 (row 124), RV-50 (row 125), RV-51 (row 126).
+---
 
-**Next audit section number: 142.**
+## 142. Misc group in Unit/Services: one new owner decision, one already-tracked item
+
+**Terminal state: not reached by a code change. Triage complete, no file edited.**
+
+**Re-measured.** `tests/Unit/Services` now reports `Tests: 360, Assertions: 595, Errors: 21, Failures: 28`. The earlier fixes removed the signature and seed groups. What remains, with the already-triaged groups filtered out, is 6 tests.
+
+**The 6.**
+
+1. **`CashRideFeeServiceTest` x5** (refund tiers, deferred partial/zero). Same divergence as RV-46 (row 121), already filed and awaiting the owner's tier decision. Not new.
+2. **`RideValidationServiceTest::test_cannot_cancel_ride_less_than_1_hour_before_departure`.** New to the backlog, filed as RV-52 (row 127).
+
+**RV-52 in detail.** `RideValidationService::validateCanCancelRide()` (`app/Services/Ride/RideValidationService.php:98-106`) has its 1-hour check commented out. The method therefore never throws, so a driver can cancel a ride after it has departed. The test is correct to be red. The sibling `validateCanCancelBooking()` still enforces a 2-hour rule (`:108-116`), so the ride-level and booking-level rules now disagree.
+
+The gap was already recorded in `docs/audit/APP_FUTURE_SONNET.md:172` but was not in `BACKLOG.md`, so this is a tracking gap as well as a defect. Filed as a P1 owner decision.
+
+**Why not re-enabled.** Turning the check back on changes which riders and drivers can cancel, and cancellation sits next to the refund tiers that are themselves awaiting an owner decision (RV-46). Restoring the rule without knowing the intended window (1 hour, or the 2 hours the booking rule uses) would be a guess about money-relevant behaviour.
+
+**Verified.** Re-ran `tests/Unit/Services`: 360 tests, 21 errors, 28 failures. Reproduced the RV-52 test alone (1 test, 1 failure). Read the service, the commented-out body, the sibling booking rule, and the test body. Grepped the audit docs and the backlog to confirm the gap was untracked before filing.
+
+**Status of RV-47 (row 122).** Every group is now either a verified fix or an owner-decision row:
+- Verified fixes: signature drift (`708d1ff`), AdminWalletService seed (`9d8ee7b`).
+- Stale tests, explained: AdminDriverServiceTest (sec 137).
+- Owner decisions: RV-46 (row 121), RV-49 (row 124), RV-50 (row 125), RV-51 (row 126), RV-52 (row 127).
+
+No further code work remains under RV-47 without an owner decision.
+
+**Next audit section number: 143.**
