@@ -11387,5 +11387,28 @@ No row has Status OPEN with Blocked by `none`, so the selection rule returns **n
 - T3-10: deploy target, and approval for the RV-08 deletion.
 
 **Verified.** Read the BACKLOG rows for every OPEN, PARTIAL and DEFERRED item to confirm the table before applying the rule. Only the status cell and the evidence cell of row 122 changed.
+---
 
-**Next audit section number: 144.**
+## 144. RV-52 VERIFIED FIX: driver can no longer cancel a ride after departure
+
+**Terminal state: VERIFIED FIX.** Owner ruling: 1 hour before departure.
+
+**Problem.** `RideValidationService::validateCanCancelRide()` had its 1-hour check commented out, so the method never threw. A driver could cancel a ride after it had departed. The sibling `validateCanCancelBooking()` still enforced 2 hours, so the ride-level and booking-level rules disagreed.
+
+**Code path.** `RideService::cancelRide` (`app/Services/Ride/RideService.php:137`) calls `validateCanCancelRide(departure_time)` before any status change, so a refused cancel leaves no partial state.
+
+**Fix.** `app/Services/Ride/RideValidationService.php:98-106`: restored the commented-out body with the same window (`< 1` hour), the same `Asia/Damascus` timezone the sibling rule uses, and the same message. 6 lines changed, no other file. The method is the only change; no route, schema, money or response-shape change.
+
+**Verification.**
+- `php -l` clean; `php vendor/bin/pint --test` PASS.
+- `tests/Unit/Services/RideValidationServiceTest.php`: **17 tests, 11 assertions, OK** (the previously red 30-minute refusal now passes).
+- Service-level probe: departure 3h out allowed; 30m out refused with the expected message; past departure refused.
+- **Endpoint probe through the real route** (`PATCH /api/rides/{id}/cancel`, authenticated via `POST /api/auth/login`): inside the window returned **422** and the ride stayed `active` in the database; 3 hours out returned **200** and the ride became `cancelled`. Probe file created and deleted.
+- Floors: `tests/Feature/Rides` 90 tests / 182 assertions OK; `tests/Feature/Bookings` 11 tests OK; `tests/Unit/Domain` 122 tests OK; `KycActionGateTest` and `RV37ScorePolicyTest` 10 tests OK (both reference the service and were run because the rule now throws).
+- Blast radius checked before the edit: feature cancel tests use a 3-hour default departure and stay green; past-departure fixtures call `/finish` and `/driver-confirm`, not `/cancel`.
+
+**Not verified.** The endpoint probe covered the 1-hour boundary on either side, not the exact minute. `diffInHours` truncates, so a departure 59 minutes out is refused and one 61 minutes out is allowed, as intended, but the exact boundary was not separately probed. Also not run: the full suite (out of policy).
+
+**Files changed:** `app/Services/Ride/RideValidationService.php` only, plus the audit records.
+
+**Next audit section number: 145.**

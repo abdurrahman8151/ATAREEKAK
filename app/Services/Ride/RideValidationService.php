@@ -97,12 +97,12 @@ final class RideValidationService
 
     public function validateCanCancelRide(Carbon $departureTime): void
     {
-        /*   $now = Carbon::now('Asia/Damascus');
-           if ($now->diffInHours($departureTime, false) < 1) {
-               throw new \InvalidArgumentException(
-                   'Cannot cancel ride less than 1 hour before departure time'
-               );
-           }*/
+        $now = Carbon::now('Asia/Damascus');
+        if ($now->diffInHours($departureTime, false) < 1) {
+            throw new \InvalidArgumentException(
+                'Cannot cancel ride less than 1 hour before departure time'
+            );
+        }
     }
 
     public function validateCanCancelBooking(Carbon $rideDepartureTime): void
