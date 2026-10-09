@@ -80,6 +80,20 @@ class RideController extends Controller
                 'driver_score' => ScoreController::formatScore($score),
             ], 201);
 
+        } catch (DomainException|\InvalidArgumentException $e) {
+            // RV-45 (owner ruling): a refused ride creation is a curated domain refusal, not a
+            // fault. Return the curated sentence with 422, matching the branch in
+            // this controller. RV-13 holds: anything else stays generic below.
+            Log::error('Ride creation refused', [
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+
         } catch (\Throwable $e) {
             Log::error('Ride creation failed', [
                 'user_id' => $request->user()->id,

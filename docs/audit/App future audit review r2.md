@@ -11524,5 +11524,36 @@ So `process()` is a required contract method. The earlier conclusion that it was
 **Final state: VERIFIED FIX.**
 
 **Not verified.** The `process()` storage path writes to the public disk in tests, which is faked. Production disk behaviour is not exercised here.
+---
 
-**Next audit section number: 151.**
+## 151. RV-45 step 2: RideController::create domain refusals return 422 (1 of 36 sites; row 120 OPEN)
+
+**Terminal state for this step: VERIFIED FIX for ONE controller site.** Row 120 remains OPEN because the owner ruled a sweep of all 36 service-wrapping catch-alls, and 35 remain.
+
+**Problem.** `RideController::create` caught every `Throwable` and returned a generic 500, including curated domain refusals such as "You must be verified as a driver to create rides". Owner ruling: those are refusals and must be 422 with their message.
+
+**Code path.** `RideController::create` (`app/Http/Controllers/API/RideController.php`, try body `:67-81`, catch `:83`). `RideService::createRide` calls `RideValidationService::validateDriverCanCreateRide`, which throws a curated `\InvalidArgumentException` for an unverified driver.
+
+**Change.** One branch added ahead of the `\Throwable` catch-all: `DomainException|\InvalidArgumentException` returns `success:false` with the curated message and status 422. This copies the shape of the existing branch in the same controller. Everything else stays generic (RV-13). The 201 try body is unchanged.
+
+**Files.** `app/Http/Controllers/API/RideController.php` (one branch); new `tests/Feature/Review/RV45CreateRideStatusTest.php` (3 tests).
+
+**Fixture findings (not code defects in this step).**
+- Step 1 failed its allowed case for a fixture reason, not because of the branch. A verified driver needs all four `Photo` types (`face_id`, `back_id`, `license`, `mechanic_card`) and a driver wallet (`RideService.php:63`). Both are now in the fixture.
+- `rides.distance` and `rides.duration` are NOT NULL. The plain `POST /api/rides` path carries no route data, so a create without them raises 1048. The fixture supplies them, as `RideTest` does. The gap itself is real: the plain endpoint can fail with a database error rather than a curated response. Recorded as a separate finding, NOT fixed here.
+- The earlier "three documents" count was wrong: the required set is four.
+
+**Checks.**
+- `php -l`: clean. Pint `--test`: PASS (controller and test).
+- `RV45CreateRideStatusTest`: 3 tests, 7 assertions, OK.
+  - Denied, unverified driver: 422 with curated message.
+  - Allowed, verified and documented driver: 201.
+  - Genuine fault (verified driver, no documents, plain `\Exception`): generic 500; the internal "Missing required driver verification" text is not in the response.
+- Mutation: removing the domain branch fails exactly `test_denied_unverified_driver_gets_422_with_curated_message`. Controller restored byte-identical.
+- Wider run: Rides floor, Bookings, and the create-ride suites: 113 tests, 234 assertions, 2 skipped, no failures.
+
+**Not verified.** The other 35 catch-alls. The no-route-data database error on the plain endpoint (separate finding). The 60-minute and similar exact boundaries are not applicable here.
+
+**Final state:** row 120 OPEN (1 of 36 done). This step is VERIFIED FIX.
+
+**Next audit section number: 152.**
