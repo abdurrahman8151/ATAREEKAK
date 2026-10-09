@@ -11356,5 +11356,36 @@ The gap was already recorded in `docs/audit/APP_FUTURE_SONNET.md:172` but was no
 - Owner decisions: RV-46 (row 121), RV-49 (row 124), RV-50 (row 125), RV-51 (row 126), RV-52 (row 127).
 
 No further code work remains under RV-47 without an owner decision.
+---
 
-**Next audit section number: 143.**
+## 143. Selection check: RV-47 corrected to PARTIAL; no row qualifies for code work
+
+**Terminal state for the status correction: VERIFIED.** No code, test or schema changed.
+
+**Why.** The selection rule takes the lowest-order OPEN row with Blocked by `none`. Row 122 (RV-47) still read OPEN with Blocked by `none`, so the rule would have picked it again. But every remaining item under it is an owner decision, and section 142 already recorded "no further code work without an owner decision". Leaving it OPEN would have been a status that lies about the next action, so it is corrected to PARTIAL, and the protocol reserves PARTIAL for rows taken only when named.
+
+**Status after the correction.**
+
+| Row | ID | Status | Blocked by | Unblocked by |
+|---|---|---|---|---|
+| 91 | T3-10 | OPEN | owner: deploy target and RV-08 deletion approval | owner choice |
+| 120 | RV-45 | OPEN | owner: approve sweep scope | owner approval |
+| 121 | RV-46 | DEFERRED | owner: tier policy | owner ruling |
+| 122 | RV-47 | PARTIAL | owner decisions below | (none of its own) |
+| 124 | RV-49 | OPEN | owner: keep prefix or drop it | owner ruling |
+| 125 | RV-50 | OPEN | owner: geocoding contract and country scope | owner ruling |
+| 126 | RV-51 | OPEN | owner: keep `ImageMessageType::process()` or not | owner ruling |
+| 127 | RV-52 | OPEN | owner: restore cancellation rule and its window, or retire test | owner ruling |
+
+No row has Status OPEN with Blocked by `none`, so the selection rule returns **none unblocked**.
+
+**Decisions that unlock work.**
+- RV-52 (P1): cancellation window. Highest priority, since it is a live rule gap.
+- RV-46: refund-tier policy. Unlocks 5 `CashRideFeeServiceTest` items.
+- RV-45 (P1): sweep scope for 46 controller catch-alls.
+- RV-49, RV-50, RV-51: each unlocks its own test group.
+- T3-10: deploy target, and approval for the RV-08 deletion.
+
+**Verified.** Read the BACKLOG rows for every OPEN, PARTIAL and DEFERRED item to confirm the table before applying the rule. Only the status cell and the evidence cell of row 122 changed.
+
+**Next audit section number: 144.**
