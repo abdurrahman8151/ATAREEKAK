@@ -11,11 +11,13 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
 class AdminWalletServiceTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private AdminWalletService $service;
 
@@ -59,6 +61,10 @@ class AdminWalletServiceTest extends TestCase
         // throws RuntimeException if no wallet exists. Pre-seed both wallets.
         $this->seedWalletFor($this->primaryConfig);
         $this->seedWalletFor($this->sycashConfig);
+
+        // chargeWallet() posts against the External Capital account and fails loudly without
+        // it (decision un3). Seed it the same way the shared trait does, so the money path runs.
+        $this->seedSystemWallet(config('admin.external.phone'), 0.0);
     }
 
     private function seedWalletFor(array $cfg): Wallet

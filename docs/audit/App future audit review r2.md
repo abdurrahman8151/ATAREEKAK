@@ -11260,5 +11260,51 @@ because the visible symptom was arithmetic.
 **Still open under RV-47 (row 122):** `GeocodingServiceTest` 13 (incl. `PendingRequest::throw()` API misuse), `AdminWalletService` missing External Capital wallet seed 4, `ImageMessageType` undefined key 4, misc 7.
 
 **Not done here:** the `## In progress` block at the top of STATE.md (line 11) still holds stale RV-14 notes from an earlier session. It belongs to the owner's uncommitted RV-38 work and was not cleared, so no in-progress entry is recorded for this task.
+---
 
-**Next audit section number: 139.**
+## 139. GeocodingServiceTest: not a rename - a contract and a country-scope decision
+
+**Terminal state: not reached. Stopped at diagnosis by design.** No app or test file changed.
+
+**Problem.** `tests/Unit/Services/GeocodingServiceTest.php` (17 tests) calls `$this->service->geocode($address)`. `App\Services\Geocoding\GeocodingService` has no `geocode()` method, so 11 tests error with `Call to undefined method`, and the remaining tests fail on the same missing method.
+
+**Code path.** The app's real forward-geocoding entry point is `geocodeAddress(string $address): array` (`GeocodingService.php:30`). It tries `ArabicPlaceNameService::geocodeWithArabicPriority()` first, then `geocodeEnglish()` (`:82`). `reverseGeocode()` is used by `RideRepository` and `RideController` and is untouched.
+
+**Why this is not a rename.** Renaming `geocode` to `geocodeAddress` would make the calls resolve, but three contract differences remain, and two of them change behaviour:
+
+1. **No-result shape.** The test asserts `assertNull($result)` for an address with no matches. `geocodeAddress()` is typed `: array` and the English branch falls through to a non-null value on failure, so the test's null contract is not what the service provides.
+2. **Country scope.** `geocodeEnglish()` sends `countrycodes => 'sy'` (Syria) to Nominatim. The test addresses are in Amman, Jordan. A live Jordan address cannot resolve through the English path at all. Whether Syria-only is intended, or a Jordan address should be supported, is a product decision, and it decides which real users can be geocoded.
+3. **Cache key.** `geocodeAddress()` caches under `geocode:v2:` for `CACHE_TTL`. A unit test that does not clear the cache can pass or fail on prior state. Not verified either way.
+
+Choosing a null contract or changing the country restriction changes what the live service returns to riders, so it is not a test-only fix. It is filed as RV-50 (row 125, OPEN, owner decision) rather than guessed.
+
+**Verified.** Reproduced: `Tests: 17, Assertions: 6, Errors: 11, Failures: 4`. Read the service `geocodeAddress`, `geocodeEnglish` and `reverseGeocode` bodies. Nothing was edited, so there is no rollback to verify and no commit.
+
+**Still open under RV-47 (row 122):** `AdminWalletService` missing External Capital wallet seed (4), `ImageMessageType` undefined key (4), misc (7). RV-49 (row 124) and RV-50 (row 125) await owner decisions.
+---
+
+## 140. AdminWalletService seed gap - VERIFIED FIX (test setup only)
+
+**Terminal state: VERIFIED FIX.**
+
+**Problem.** Four tests in `tests/Unit/Services/Admin/AdminWalletServiceTest.php` errored with `RuntimeException: External Capital wallet not found for phone: 0900000042. Run: php artisan db:seed --class=SystemWalletSeeder`.
+
+**Exact code path.** `AdminWalletService::chargeWallet()` posts a credit against the External Capital account (`app/Services/Admin/AdminWalletService.php:137-139`). With no such wallet it throws, deliberately: a charge with no counter-account would leave the ledger open (decision un3). The service is correct to refuse.
+
+**Root cause.** The test's own `setUp` seeds the Primary and SyCash wallets under test phones, but never the External Capital wallet, which the service requires. The shared `SeedsSystemWallets` trait already documents that the external account must be seeded, and that is the proven pattern across the suite. The test simply did not use it.
+
+**Why not change the service.** Relaxing the throw would let money move with no counter-account, which weakens the ledger guard. The defect is in the fixture, not the service.
+
+**Fix.** `tests/Unit/Services/Admin/AdminWalletServiceTest.php`: add `use \Tests\Support\Concerns\SeedsSystemWallets;` and one `seedSystemWallet(config('admin.external.phone'), 0.0)` call at the end of `setUp()`. 6 added lines, Pint-formatted. No app code, no money semantics, no schema.
+
+**Verification.**
+- `php -l` clean; `php vendor/bin/pint --test` PASS after Pint layout fix.
+- `AdminWalletServiceTest`: before 17 tests with 4 errors; after **17 tests, 67 assertions, OK**.
+- Wallet-referencing files together (`AdminWalletServiceTest`, `AdminFinancialSurfaceAuthorizationTest`, `DoubleEntryLedgerTest`, `SharedTestSupportTest`): **41 tests, 151 assertions, OK**.
+- `tests/Unit/Services/Admin` run: 159 tests, 15 failures, all in `AdminDriverServiceTest` (the stale tests from sec 137), none in `AdminWalletServiceTest`. Not caused by this change.
+
+**Not verified.** The `tests/Unit/Providers/AppServiceProviderTest.php` reference was not run; it is outside this change's floor and only references the service. Flagged as not verified.
+
+**Still open under RV-47 (row 122):** `GeocodingServiceTest` 17 (RV-50, owner decision), `ImageMessageType` 4, `AdminDriverServiceTest` 14-15 (stale tests, sec 137), misc 7. RV-49 (row 124) and RV-50 (row 125) await owner decisions.
+
+**Next audit section number: 141.**
