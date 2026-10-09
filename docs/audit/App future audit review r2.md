@@ -11503,5 +11503,26 @@ So `process()` is a required contract method. The earlier conclusion that it was
 **Options for the owner.**
 1. Keep `ImageMessageType::process()` as the interface requires and rewrite its 4 tests to the uploaded-file contract.
 2. Change `MessageTypeInterface` so `process()` is not required for image messages, then remove it, with the test deletion approved.
+---
 
-**Next audit section number: 150.**
+## 150. RV-51 (row 126): VERIFIED FIX - owner option 1
+
+**Problem.** Four `ImageMessageTypeTest` cases passed a stored path as `content`. That is a retired contract. The live contract is an `UploadedFile` under `image` (`ChatMessageHandler::sendImageMessage`, `:110`).
+
+**Owner ruling.** Option 1: keep `ImageMessageType::process()`, because `MessageTypeInterface` requires it (`app/Interfaces/MessageTypeInterface.php:15`), and rewrite the tests.
+
+**Root cause.** The tests were not updated when the image contract changed.
+
+**Fix.** Test file only: `tests/Unit/Services/ImageMessageTypeTest.php`. Rewrote the path-as-content cases to `UploadedFile::fake()->image(...)`. Added a denied case: `validate()` rejects a stored path string. Added a `process()` storage case that checks `metadata.image_name` and `metadata.image_url`. App code unchanged.
+
+**Checks.**
+- `php -l`: clean. Pint `--test`: PASS.
+- `ImageMessageTypeTest`: 14 tests, 17 assertions, OK. It is the only test file that references the image type (`git grep`).
+- Mutation: dropped the caption from `process()` on a copy, ran `--filter preserves_caption`, the test failed. The app file was restored byte-identical (verified).
+- No probe files left.
+
+**Final state: VERIFIED FIX.**
+
+**Not verified.** The `process()` storage path writes to the public disk in tests, which is faked. Production disk behaviour is not exercised here.
+
+**Next audit section number: 151.**
