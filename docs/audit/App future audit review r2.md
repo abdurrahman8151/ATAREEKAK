@@ -11587,5 +11587,24 @@ So `process()` is a required contract method. The earlier conclusion that it was
 **Checks.** `php -l`: clean. Pint `--test`: PASS after formatting. `StaffComplaintServiceTest`: 45 tests, 54 assertions, OK. `git diff` for `app/`: 0 lines.
 
 **Final state: VERIFIED FIX.**
+---
 
-**Next audit section number: 154.**
+## 154. RV-50: BLOCKED, the recorded ruling does not match the code (row 125)
+
+**Owner ruling on record.** Keep the Syria scope, rename callers to `geocodeAddress()`, expect `[]` on no match.
+
+**Problem found.** The premise is wrong in two ways, so no code was changed.
+1. The test file calls `$this->service->geocode(...)` in 11 places. The method is `geocodeAddress()` (`GeocodingService.php:30`, and `GeocodingServiceInterface:7`). `geocode()` does not exist, so those are undefined-method errors, not logic failures. 15 of 17 tests fail.
+2. On no match the service does NOT return `[]`. `geocodeEnglish` throws `\Exception("No location found for: {$address}")` at `GeocodingService.php:112`, catches and rethrows at `:113-119`. `geocodeAddress()` therefore throws; the test's `assertNull` (`:65`) never matched reality either.
+
+**Why this is not a mechanical fix.** Making the test expect `[]` requires changing the service, and the service's result is consumed as an array by `RideRepository.php:61,91` and `RideController.php:433,437`. Changing throw -> `[]` changes what those callers see on an unresolved address. That is a behaviour change to a shared service, so it needs the full explain-first section and its own decision, not a test edit.
+
+**Files.** None changed. Test file left exactly as found.
+
+**Decision required (owner).**
+- (1) Return `[]` on a miss: change `geocodeEnglish` to return `[]` instead of throwing, and handle the empty array at both call sites. Behaviour change; needs its own explained plan.
+- (2) Keep the throw: update the test to expect the exception. No production change, but it contradicts the ruling as written.
+
+**Final state: BLOCKED (owner decision).**
+
+**Next audit section number: 155.**

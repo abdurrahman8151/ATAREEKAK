@@ -377,6 +377,7 @@ because their Status is not `OPEN`. No answer to this rule is cached here on pur
 "next task" is exactly what went stale in the four audit files.
 
 ## Blocked on owner (do not guess; each needs a decision)
+- **RV-50 (row 125) is BLOCKED, not started (`R2 sec 154`).** The recorded ruling ("rename to `geocodeAddress()`, expect `[]` on no match, Syrian addresses") does not match the code. The test calls `geocode()`; the method is `geocodeAddress()`, so 15 of 17 tests fail. On a no match `geocodeEnglish` THROWS `Exception("No location found")` (`GeocodingService.php:112`) instead of returning `[]`, and `RideRepository:61,91` + `RideController:433,437` consume the result as an array. **No code changed.** Needs one owner decision: (1) change the service to return `[]` on a miss, which also requires the two callers to handle an empty array - behaviour change, needs its own explained plan; or (2) keep the throw and change the test to expect it, which contradicts the ruling as written. Recommend (2) if the throw is intended, (1) if a miss should be an empty result.
 - Wave 3 money/lifecycle is PAUSED (R2 section 26.14): RV-11 tier bands + ride double-count,
   RV-10 auto-confirm hours + driver-cancel window, RV-02 L2 (95/5 split, derived SyCash),
   RV-20, RV-09 remainder, RV-21 remainder. AF-6 (money module) overlaps this, so it is gated too.
