@@ -11606,5 +11606,31 @@ So `process()` is a required contract method. The earlier conclusion that it was
 - (2) Keep the throw: update the test to expect the exception. No production change, but it contradicts the ruling as written.
 
 **Final state: BLOCKED (owner decision).**
+---
 
-**Next audit section number: 155.**
+## 155. RV-50: unresolved addresses return [] and are refused (row 125 VERIFIED FIX)
+
+**Owner ruling, decision 1.** Return `[]` on no match. Owner chose this over keeping the throw.
+
+**Problem.** `GeocodingService::geocodeEnglish` threw `Exception("No location found")` on a miss (`:112`). The ruling needs `[]`. The unsafe part: an unresolved address must never become a (0,0) search or stored coordinate, so the callers need a guard, not just a return value.
+
+**Change.**
+1. `app/Services/Geocoding/GeocodingService.php` `geocodeEnglish`: successful lookup with no match returns `[]`. A failed HTTP response or connection error still throws, now with an accurate "API error" message, so an outage is not reported as "not found".
+2. `app/Repositories/RideRepository.php` `createRide` (pickup and destination): an empty result throws `\InvalidArgumentException` with a curated message before any write.
+3. `app/Http/Controllers/API/RideController.php` search: the same guard for source and destination. The refusal stays inside the existing `\Throwable` catch, so the public response is unchanged (generic 500 "Search failed."). No response-shape change.
+4. `tests/Unit/Services/GeocodingServiceTest.php`: method renamed to `geocodeAddress()`, Syrian addresses, Nominatim fixture shape. Faults now expect an exception, not null.
+5. New `tests/Feature/Review/RV50UnresolvedAddressTest.php` (2 tests): the repository refuses an unresolved pickup and destination, and writes no ride row.
+
+**Verification.**
+- `php -l`: clean on all changed PHP files. Pint `--test`: PASS on all five.
+- `RV50UnresolvedAddressTest`: 2/2 pass with the guard on. Mutation: with the guards disabled, 2/2 fail, and the file was restored byte-identical. So the test catches a broken guard.
+- `GeocodingServiceTest`: at HEAD, 11 errors and 4 failures. Now every `geocodeAddress` test passes. 5 reverse-geocode tests still fail; they are pre-existing and not in this ruling.
+- Rides floor (`tests/Feature/Rides`): 223 tests, 357 assertions, 2 skipped, no failures.
+
+**Not verified / out of scope.**
+- The 5 reverse-geocode tests (`test_reverse_geocode_returns_null_*`, `..._correct_address`, `..._makes_exactly_one_http_request`). They use `Http::throw(new ...)`, which is a mock misuse, and expect null where `reverseGeocode` returns a string fallback. Separate stale-test finding, not part of RV-50.
+- Search still returns a generic 500 for an unresolved address. Promoting that to a curated 422 is a public response-shape change and needs the owner's decision.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 156.**

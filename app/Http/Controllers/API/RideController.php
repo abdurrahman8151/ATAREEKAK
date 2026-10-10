@@ -432,10 +432,18 @@ class RideController extends Controller
             $source = $request->filled('source_address')
                 ? $this->geocodingService->geocodeAddress($validated['source_address'])
                 : ['lat' => (float) $validated['source_lat'], 'lng' => (float) $validated['source_lng']];
+            // RV-50: an unresolved address must not search from (0,0). Refusal stays inside the
+            // catch below, so the public response is unchanged.
+            if ($source === []) {
+                throw new \InvalidArgumentException("Could not find a location for the source address: {$validated['source_address']}");
+            }
 
             $destination = $request->filled('destination_address')
                 ? $this->geocodingService->geocodeAddress($validated['destination_address'])
                 : ['lat' => (float) $validated['dest_lat'], 'lng' => (float) $validated['dest_lng']];
+            if ($destination === []) {
+                throw new \InvalidArgumentException("Could not find a location for the destination address: {$validated['destination_address']}");
+            }
 
             $rides = $this->rideService->searchRides([
                 'departure_date' => $validated['departure_date'],

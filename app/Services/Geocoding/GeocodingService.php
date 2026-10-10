@@ -99,17 +99,24 @@ final class GeocodingService
                 ->timeout(10)
                 ->get($url, $params);
 
-            if ($response->successful() && ! empty($response->json())) {
-                $data = $response->json()[0];
-
-                return [
-                    'lat' => (float) $data['lat'],
-                    'lng' => (float) $data['lon'],
-                    'label' => $data['display_name'],
-                ];
+            if (! $response->successful()) {
+                // A failed lookup is a fault, not a "not found" answer: keep it an exception.
+                throw new \Exception("Geocoding API error (HTTP {$response->status()}) for: {$address}");
             }
 
-            throw new \Exception("No location found for: {$address}");
+            if (empty($response->json())) {
+                // RV-50 (owner ruling): a successful lookup with no match returns [] so callers can
+                // refuse the address explicitly instead of catching an exception.
+                return [];
+            }
+
+            $data = $response->json()[0];
+
+            return [
+                'lat' => (float) $data['lat'],
+                'lng' => (float) $data['lon'],
+                'label' => $data['display_name'],
+            ];
         } catch (\Exception $e) {
             Log::error('Geocoding failed', [
                 'address' => $address,

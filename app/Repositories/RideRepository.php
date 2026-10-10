@@ -59,6 +59,10 @@ class RideRepository implements RideRepositoryInterface
             } elseif (! empty($data['pickup_address'])) {
                 // ✅ NEW: Use GeocodingService
                 $pickupResult = $this->geocodingService->geocodeAddress($data['pickup_address']);
+                if ($pickupResult === []) {
+                    // RV-50: a miss is a curated refusal, never a null-island (0,0) coordinate.
+                    throw new \InvalidArgumentException("Could not find a location for the pickup address: {$data['pickup_address']}");
+                }
                 $pickup = [
                     'lat' => (float) $pickupResult['lat'],
                     'lng' => (float) $pickupResult['lng'],
@@ -89,6 +93,10 @@ class RideRepository implements RideRepositoryInterface
             } elseif (! empty($data['destination_address'])) {
                 // ✅ NEW: Use GeocodingService
                 $destResult = $this->geocodingService->geocodeAddress($data['destination_address']);
+                if ($destResult === []) {
+                    // RV-50: a miss is a curated refusal, never a null-island (0,0) coordinate.
+                    throw new \InvalidArgumentException("Could not find a location for the destination address: {$data['destination_address']}");
+                }
                 $destination = [
                     'lat' => (float) $destResult['lat'],
                     'lng' => (float) $destResult['lng'],
