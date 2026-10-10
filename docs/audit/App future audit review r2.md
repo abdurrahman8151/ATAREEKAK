@@ -11659,4 +11659,31 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: VERIFIED FIX (RV-46, RV-47).**
 
-**Next audit section number: 157.**
+---
+
+## 157. RV-53: missing driver documents return a curated 422 (row 128 VERIFIED FIX)
+
+**Owner ruling:** a missing-document refusal returns 422 with a curated message.
+
+**Problem.** A verified driver with no uploaded documents got a generic 500 on ride create, even though the user can fix it by uploading.
+
+**Code path.** `RideController::create` → `RideService` → `RideValidationService::validateDriverCanCreateRide` (`:35`) → `DocumentVerificationService::validateDriverDocuments` (`:93-95`). The throw was a plain `\Exception`, which the controller's curated branch does not catch, so it reached the generic `\Throwable` branch and returned 500.
+
+**Fix.** `app/Services/Verification/DocumentVerificationService.php`: throw `BusinessRuleViolation` (project domain type, 422 by default) with the message unchanged, and import it.
+
+**Correction made during the change.** The first attempt threw the global `\DomainException`. The controller catches the project `App\Exceptions\Domain\DomainException`, not the global one, so the global class still fell through to 500. The log line confirmed `class: DomainException` reached the generic branch. Corrected to `BusinessRuleViolation`, which extends the project class.
+
+**Test defect corrected.** `RV45CreateRideStatusTest::test_genuine_fault_stays_generic_500_and_does_not_leak` pinned the missing-document case as a 500, which the owner overturned. Replaced with `test_missing_documents_is_a_curated_422_refusal`. Also replaced a mock on the `final` class `RideValidationService` (Mockery cannot mock it) with a real database fault: omitting `distance` raises SQLSTATE 1048, and the test asserts it stays generic with no leak. Added `test_generic_fault_still_returns_500_and_does_not_leak` for that case.
+
+**Verification.**
+- `php -l` clean; Pint PASS on both changed PHP files.
+- `RV45CreateRideStatusTest`: 4 tests, 11 assertions, OK.
+- Mutation: reverting the throw to global `\DomainException` fails only the 422 test. File restored byte-identical.
+- Rides floor (`tests/Feature/Rides`, `Bookings`, `tests/Unit/Domain`): 223 tests, 357 assertions, 2 skipped, OK.
+- Identity floor (`tests/Feature/Staff`, `Auth`, `tests/Unit/Middleware`): 367 tests, 838 assertions, OK.
+
+**Not changed.** `validatePassengerDocuments` (`:111`) throws the same plain `\Exception`, but it has no caller in `app`, so it is unreachable from the API and was left as is.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 158.**

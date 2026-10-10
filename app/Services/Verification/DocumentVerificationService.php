@@ -2,6 +2,7 @@
 
 namespace App\Services\Verification;
 
+use App\Exceptions\Domain\BusinessRuleViolation;
 use App\Models\Photo;
 use App\Models\User;
 
@@ -90,7 +91,10 @@ final class DocumentVerificationService
         if (! empty($missing)) {
             $missingNames = $this->formatDocumentNames($missing);
 
-            throw new \Exception(
+            // RV-53 (owner ruling): a missing document is a curated refusal the user can act on,
+            // not a fault. BusinessRuleViolation (422) is the project domain type the ride-create
+            // controller maps; the global \DomainException is NOT caught there.
+            throw new BusinessRuleViolation(
                 'Missing required driver verification documents: '.implode(', ', $missingNames)
             );
         }

@@ -90,20 +90,40 @@ class RV45CreateRideStatusTest extends TestCase
             ->assertJsonPath('message', 'You must be verified as a driver to create rides');
     }
 
-    public function test_genuine_fault_stays_generic_500_and_does_not_leak(): void
+    public function test_missing_documents_is_a_curated_422_refusal(): void
     {
-        // A non-domain fault must fall through to the catch-all: 500, and the internal
-        // message must never reach the client (RV-13). A verified driver with NO documents
-        // raises a plain \Exception ("Missing required driver verification documents ...")
-        // from DocumentVerificationService, which is not a domain refusal. The message is
-        // internal wording, so the client must still get only the generic sentence.
+        // RV-53 (owner ruling): a verified driver with NO documents is a curated refusal the user
+        // can act on. DocumentVerificationService throws DomainException, so the create branch
+        // returns 422 with the curated sentence, not the generic 500.
+        // This replaces the earlier assertion that pinned the missing-document case as a 500.
         $driver = $this->driverWith(['is_verified_driver' => true], withDocuments: false);
 
         $response = $this->withToken($this->tokenFor($driver))->postJson('/api/rides', $this->payload());
 
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false);
+        $this->assertStringStartsWith(
+            'Missing required driver verification documents: ',
+            (string) $response->json('message')
+        );
+    }
+
+    public function test_generic_fault_still_returns_500_and_does_not_leak(): void
+    {
+        // RV-13 still holds for genuine faults: a non-domain exception returns the generic 500
+        // and never leaks the internal message to the client.
+        // A real database fault, not a mock: omitting distance violates the NOT NULL column and
+        // raises SQLSTATE 1048. That is a genuine \Throwable and must stay generic.
+        $driver = $this->driverWith(['is_verified_driver' => true], withDocuments: true);
+        $payload = $this->payload();
+        unset($payload['distance']);
+
+        $response = $this->withToken($this->tokenFor($driver))->postJson('/api/rides', $payload);
+
         $response->assertStatus(500)
             ->assertJsonPath('message', 'The request could not be completed. Please try again.');
-        $this->assertStringNotContainsString('Missing required driver verification', $response->getContent());
+        $this->assertStringNotContainsString('1048', $response->getContent());
+        $this->assertStringNotContainsString('distance', $response->getContent());
     }
 
     public function test_allowed_verified_documented_driver_gets_201(): void
