@@ -253,7 +253,9 @@ class AdminDriverServiceTest extends TestCase
         $this->rate($rater, $verified, 5.0);
         $this->rate($rater, $unverified, 1.0);
 
-        $this->assertEquals(5.0, $this->service->getStats()['average_rating']);
+        // The verified driver's rows: synthetic 3.0 base (RV-48, UserObserver) + 5.0 = 4.0.
+        // The unverified driver's 1.0 must not count.
+        $this->assertEquals(4.0, $this->service->getStats()['average_rating']);
     }
 
     public function test_get_stats_average_rating_averages_multiple_ratings(): void
@@ -262,7 +264,8 @@ class AdminDriverServiceTest extends TestCase
         $this->rate($this->makeUser(), $driver, 4.0);
         $this->rate($this->makeUser(), $driver, 5.0);
 
-        $this->assertEquals(4.5, $this->service->getStats()['average_rating']);
+        // Synthetic 3.0 base (RV-48) + 4.0 + 5.0 = 12 / 3 = 4.0.
+        $this->assertEquals(4.0, $this->service->getStats()['average_rating']);
     }
 
     public function test_get_stats_average_rating_rounds_to_two_decimals(): void
@@ -271,16 +274,21 @@ class AdminDriverServiceTest extends TestCase
         $this->rate($this->makeUser(), $driver, 5.0);
         $this->rate($this->makeUser(), $driver, 4.0);
         $this->rate($this->makeUser(), $driver, 4.0);
-        // 13 / 3 = 4.3333... -> 4.33
+        $this->rate($this->makeUser(), $driver, 5.0);
+        $this->rate($this->makeUser(), $driver, 4.0);
+        // Ratings 5, 4, 4, 5, 4 plus the synthetic 3.0 base (RV-48) = 25 / 6 = 4.1666...
+        // which must round to 4.17. A terminating mean (e.g. 4.0) would not test rounding.
 
-        $this->assertEquals(4.33, $this->service->getStats()['average_rating']);
+        $this->assertEquals(4.17, $this->service->getStats()['average_rating']);
     }
 
-    public function test_get_stats_average_rating_is_zero_when_no_ratings_exist(): void
+    public function test_get_stats_average_rating_is_the_synthetic_base_when_no_real_ratings_exist(): void
     {
+        // RV-48: every new user carries the synthetic 3.0 base, so a verified driver with NO real
+        // ratings still averages to 3.0, not 0.0. The old 0.0 expectation contradicted the ruling.
         $this->makeUser(['is_verified_driver' => true]);
 
-        $this->assertEquals(0.0, $this->service->getStats()['average_rating']);
+        $this->assertEquals(3.0, $this->service->getStats()['average_rating']);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -441,14 +449,17 @@ class AdminDriverServiceTest extends TestCase
         $driver = $this->makeUser(['is_verified_driver' => true]);
         $this->rate($this->makeUser(), $driver, 4.0);
 
-        $this->assertEquals(4.0, $this->service->getDrivers()->items()[0]->avg_rating);
+        // Synthetic 3.0 base (RV-48) + 4.0 = 7.0 / 2 = 3.5.
+        $this->assertEquals(3.5, $this->service->getDrivers()->items()[0]->avg_rating);
     }
 
-    public function test_get_drivers_avg_rating_is_null_when_no_ratings(): void
+    public function test_get_drivers_avg_rating_is_the_synthetic_base_when_no_real_ratings(): void
     {
+        // RV-48: a driver with no real ratings still has the synthetic 3.0 base row, so the list
+        // average is 3.0, never null. The old null expectation contradicted the ruling.
         $this->makeUser(['is_verified_driver' => true]);
 
-        $this->assertNull($this->service->getDrivers()->items()[0]->avg_rating);
+        $this->assertEquals(3.0, $this->service->getDrivers()->items()[0]->avg_rating);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -727,14 +738,15 @@ class AdminDriverServiceTest extends TestCase
         $this->assertStringContainsString('kia.jpg', $vehicle['photo']);
     }
 
-    public function test_get_driver_profile_rating_average_is_null_without_ratings(): void
+    public function test_get_driver_profile_rating_is_the_synthetic_base_without_real_ratings(): void
     {
+        // RV-48: the synthetic 3.0 base row counts, so there is never a null average.
         $driver = $this->makeUser();
 
         $rating = $this->service->getDriverProfile($driver->id)['rating'];
 
-        $this->assertNull($rating['average']);
-        $this->assertEquals(0, $rating['total_ratings']);
+        $this->assertEquals(3.0, $rating['average']);
+        $this->assertEquals(1, $rating['total_ratings']);
     }
 
     public function test_get_driver_profile_rating_average_rounds_to_two_decimals(): void
@@ -743,11 +755,15 @@ class AdminDriverServiceTest extends TestCase
         $this->rate($this->makeUser(), $driver, 5.0);
         $this->rate($this->makeUser(), $driver, 4.0);
         $this->rate($this->makeUser(), $driver, 4.0);
+        $this->rate($this->makeUser(), $driver, 5.0);
+        // Synthetic 3.0 base (RV-48) + 5, 4, 4, 5 = 21 / 5 = 4.2 terminal. Add one more for 1/3:
+        // 3.0 + 5, 4, 4, 5, 4 = 25 / 6 = 4.1666... -> 4.17. A terminating mean would not test rounding.
+        $this->rate($this->makeUser(), $driver, 4.0);
 
         $rating = $this->service->getDriverProfile($driver->id)['rating'];
 
-        $this->assertEquals(4.33, $rating['average']);
-        $this->assertEquals(3, $rating['total_ratings']);
+        $this->assertEquals(4.17, $rating['average']);
+        $this->assertEquals(6, $rating['total_ratings']);
     }
 
     public function test_get_driver_profile_completed_rides_counts_finished_status_only(): void
@@ -1227,14 +1243,15 @@ class AdminDriverServiceTest extends TestCase
         $this->assertStringContainsString('hyundai.jpg', $vehicle['photo_url']);
     }
 
-    public function test_get_driver_dashboard_rating_defaults_when_no_ratings_exist(): void
+    public function test_get_driver_dashboard_rating_is_the_synthetic_base_when_no_ratings_exist(): void
     {
+        // RV-48: the synthetic 3.0 base row counts, so a driver with no real ratings shows 3.0 (1 row).
         $driver = $this->makeUser();
 
         $rating = $this->service->getDriverDashboard($driver->id)['rating'];
 
-        $this->assertEquals(0, $rating['average']);
-        $this->assertEquals(0, $rating['total_ratings']);
+        $this->assertEquals(3.0, $rating['average']);
+        $this->assertEquals(1, $rating['total_ratings']);
     }
 
     public function test_get_driver_dashboard_rating_reflects_submitted_ratings(): void
@@ -1245,8 +1262,9 @@ class AdminDriverServiceTest extends TestCase
 
         $rating = $this->service->getDriverDashboard($driver->id)['rating'];
 
-        $this->assertEquals(4.0, $rating['average']);
-        $this->assertEquals(2, $rating['total_ratings']);
+        // Synthetic 3.0 base (RV-48) + 5.0 + 3.0 = 11 / 3 = 3.666... -> 3.67 (ROUND in the query).
+        $this->assertEquals(3.67, $rating['average']);
+        $this->assertEquals(3, $rating['total_ratings']);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

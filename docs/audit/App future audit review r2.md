@@ -11555,5 +11555,20 @@ So `process()` is a required contract method. The earlier conclusion that it was
 **Not verified.** The other 35 catch-alls. The no-route-data database error on the plain endpoint (separate finding). The 60-minute and similar exact boundaries are not applicable here.
 
 **Final state:** row 120 OPEN (1 of 36 done). This step is VERIFIED FIX.
+---
 
-**Next audit section number: 152.**
+## 152. RV-48: keep the synthetic 3.0 base in rating averages (row 123 VERIFIED FIX)
+
+**Problem.** Ten `AdminDriverServiceTest` rating expectations assumed a driver's average is only the ratings the test adds. `UserObserver:27-35` writes a synthetic 3.0 base row (`rater_id = NULL`) for every new user, and the stats, list, profile and dashboard averages all include it. Owner ruling: keep the synthetic 3.0 in the average.
+
+**Code path.** `AdminDriverService` stats `:108-111` (`avg('rating')` for verified drivers), list `:172`, profile `:248` and dashboard `:329-331` (`ROUND(AVG(rating),2)`). All read `UserRating` rows including the base.
+
+**Fix (test only).** Each expectation now equals the mean of the real ratings plus the 3.0 base. Two fixtures were changed so the rounding test stays non-terminating (a terminating mean would not test rounding). Two tests were renamed because their names claimed "zero" or "null", which the ruling makes impossible.
+
+**Files.** `tests/Unit/Services/Admin/AdminDriverServiceTest.php` only. No app code.
+
+**Checks.** `php -l`: clean. Pint `--test`: PASS. `AdminDriverServiceTest`: 142 tests, 300 assertions, OK (was 10 failures). `git diff` for `app/`: 0 lines.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 153.**
