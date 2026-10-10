@@ -11570,5 +11570,22 @@ So `process()` is a required contract method. The earlier conclusion that it was
 **Checks.** `php -l`: clean. Pint `--test`: PASS. `AdminDriverServiceTest`: 142 tests, 300 assertions, OK (was 10 failures). `git diff` for `app/`: 0 lines.
 
 **Final state: VERIFIED FIX.**
+---
 
-**Next audit section number: 153.**
+## 153. RV-49: keep the [RESOLVED by ...] prefix and update the test (row 124 VERIFIED FIX)
+
+**Problem.** `test_resolve_escalated_persists_resolution_notes` asserted the stored `resolution_notes` equals the input exactly. The service intentionally appends an audit header.
+
+**Code path.** `StaffComplaintService::resolveEscalated` `:261-269` builds `"\n\n[RESOLVED by Admin {name} at {time}]\n{notes}"` and appends it to the existing notes.
+
+**Owner ruling.** Keep the prefix. Change the test, not the service.
+
+**Fix (test only).** The assertion now checks the stored value contains the `[RESOLVED by Admin` marker and contains the notes.
+
+**Files.** `tests/Unit/Services/Staff/StaffComplaintServiceTest.php` (one test). No app code.
+
+**Checks.** `php -l`: clean. Pint `--test`: PASS after formatting. `StaffComplaintServiceTest`: 45 tests, 54 assertions, OK. `git diff` for `app/`: 0 lines.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 154.**

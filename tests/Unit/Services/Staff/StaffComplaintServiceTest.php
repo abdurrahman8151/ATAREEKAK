@@ -518,10 +518,11 @@ class StaffComplaintServiceTest extends TestCase
             admin: $this->admin,
         );
 
-        $this->assertDatabaseHas('complaints', [
-            'id' => $complaint->id,
-            'resolution_notes' => $notes,
-        ]);
+        // RV-49: the service keeps an audit trail. It appends "[RESOLVED by Admin ... at ...]" and then
+        // the notes, so the stored value contains the notes rather than equalling them.
+        $stored = Complaint::find($complaint->id)->resolution_notes;
+        $this->assertStringContainsString('[RESOLVED by Admin', $stored);
+        $this->assertStringContainsString($notes, $stored);
     }
 
     public function test_resolve_escalated_throws_domain_exception_for_non_escalated_complaint(): void
