@@ -11633,4 +11633,30 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 156.**
+---
+
+## 156. RV-46 graduated refund tiers + RV-47 rollup (rows 121, 122 VERIFIED FIX)
+
+**Owner ruling 2026-10-13:** graduated creation-fee refund tiers 100/70/50/0.
+
+**Problem.** `CashRideFeeService::refundCashRideCreationFee` gave 100% unless elapsed was at least 30% AND bookings existed, then 0%. That is a cliff, not the tiers the owner ruled.
+
+**Code path.** `refundCashRideCreationFee` (`:317`); refund percentage was the single binary expression at `:343`.
+
+**Fix.** `app/Services/Payment/CashRideFeeService.php`: no bookings → 100; otherwise under 30% → 100, under 50% → 70, under 70% → 50, else 0. Docblock updated to match.
+
+**Test defect corrected.** The five tier tests (`test_refund_tier_30_to_50…`, `…50_to_70…`, `…70_to_100…`, `test_deferred_partial_refund…`, `test_deferred_zero_refund…`) called `refundCashRideCreationFee($ride, $driver)` without `hadActiveBookings: true`, though they attach a booking. The flag defaulted to false, so the service always refunded 100%. Corrected those five calls (`tests/Unit/Services/Payment/CashRideFeeServiceTest.php`). The production caller `RideService.php:194` already passes the flag; the empty-ride path (`:298`) correctly passes none.
+
+**Verification.**
+- `php -l` clean; Pint PASS on both changed PHP files.
+- `CashRideFeeServiceTest`: OK, 20 tests, 36 assertions (was 5 failures).
+- Money floor (`tests/Feature/Wallet`, `tests/Feature/Payment`, `tests/Unit/Domain`): 183 tests, 3 failures (`test_initiate_returns_otp_in_testing_mode`, `test_initiate_fails_with_wrong_password`, `test_can_create_wallet_after_otp_verification`). Ran the same floor at HEAD with my edits stashed: the identical 3 fail, so they are pre-existing and unrelated to the refund path.
+- Probe confirmed elapsed % is computed correctly (fixture 40% → 40).
+
+**Rollup, RV-47 (row 122).** Its owner-named blockers RV-46, RV-49, RV-50, RV-51, RV-52 are now all terminal, so it moves from PARTIAL to VERIFIED FIX.
+
+**Not verified / out of scope.** The three Money-floor OTP and wallet-creation failures are pre-existing and not investigated here.
+
+**Final state: VERIFIED FIX (RV-46, RV-47).**
+
+**Next audit section number: 157.**

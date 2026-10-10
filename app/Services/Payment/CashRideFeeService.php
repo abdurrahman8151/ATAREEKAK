@@ -308,8 +308,10 @@ final class CashRideFeeService
      *
      * Refund rules (see class docblock for full policy):
      *   Elapsed < 30%                          → 100% (early cancellation)
-     *   Elapsed ≥ 30% + $hadActiveBookings     →   0% (platform keeps fee)
-     *   Elapsed ≥ 30% + !$hadActiveBookings    → 100% (empty ride, no penalty)
+     *   Elapsed 30–50% + $hadActiveBookings    →  70%
+     *   Elapsed 50–70% + $hadActiveBookings    →  50%
+     *   Elapsed ≥ 70%  + $hadActiveBookings    →   0% (platform keeps fee)
+     *   Any elapsed    + !$hadActiveBookings   → 100% (empty ride, no penalty)
      *
      * Deferred fees: reduce debt by the resolved amount — no actual money movement.
      * Paid fees:     transfer the resolved amount from Primary Admin wallet to driver.
@@ -340,7 +342,17 @@ final class CashRideFeeService
         //   Elapsed ≥ 30% + had passengers     → 0%  (platform keeps fee)
         //   Elapsed ≥ 30% + no passengers      → 100%
         $elapsedPct = $this->calculateElapsedPct($ride);
-        $refundPct = ($elapsedPct < 30.0 || ! $hadActiveBookings) ? 100 : 0;
+        // RV-46 (owner ruling 2026-10-13): graduated tiers. A ride with no bookings is always a full
+        // refund. With bookings: <30% elapsed 100, <50% 70, <70% 50, otherwise 0.
+        if (! $hadActiveBookings || $elapsedPct < 30.0) {
+            $refundPct = 100;
+        } elseif ($elapsedPct < 50.0) {
+            $refundPct = 70;
+        } elseif ($elapsedPct < 70.0) {
+            $refundPct = 50;
+        } else {
+            $refundPct = 0;
+        }
         // `R2 sec 117`: the percentage of a fee is `Money`'s own operation now, so this is decided in
         // integer minor units instead of `round($feeAmount * $pct / 100, 2)` in float. Same value.
         $refundAmount = Money::from($feeAmount)->percentage((float) $refundPct)->amount();

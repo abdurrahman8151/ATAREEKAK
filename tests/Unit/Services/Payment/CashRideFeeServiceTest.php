@@ -267,7 +267,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->attachBooking($ride);
         $this->wallet->update(['balance' => 0.00]);
 
-        $this->service->refundCashRideCreationFee($ride, $this->driver);
+        $this->service->refundCashRideCreationFee($ride, $this->driver, hadActiveBookings: true);
 
         $this->wallet->refresh();
         $this->assertEquals(3.50, $this->wallet->balance);
@@ -280,7 +280,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->attachBooking($ride);
         $this->wallet->update(['balance' => 0.00]);
 
-        $this->service->refundCashRideCreationFee($ride, $this->driver);
+        $this->service->refundCashRideCreationFee($ride, $this->driver, hadActiveBookings: true);
 
         $this->wallet->refresh();
         $this->assertEquals(2.50, $this->wallet->balance);
@@ -293,7 +293,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->attachBooking($ride);
         $this->wallet->update(['balance' => 0.00]);
 
-        $this->service->refundCashRideCreationFee($ride, $this->driver);
+        $this->service->refundCashRideCreationFee($ride, $this->driver, hadActiveBookings: true);
 
         $this->wallet->refresh();
         $this->assertEquals(0.00, $this->wallet->balance);
@@ -323,7 +323,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->attachBooking($ride);
         $this->wallet->update(['balance' => 0.00, 'cash_ride_debt' => 5.00]);
 
-        $this->service->refundCashRideCreationFee($ride, $this->driver);
+        $this->service->refundCashRideCreationFee($ride, $this->driver, hadActiveBookings: true);
 
         $this->wallet->refresh();
         $this->assertEqualsWithDelta(1.50, $this->wallet->cash_ride_debt, 0.01);
@@ -337,7 +337,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->attachBooking($ride);
         $this->wallet->update(['balance' => 0.00, 'cash_ride_debt' => 5.00]);
 
-        $this->service->refundCashRideCreationFee($ride, $this->driver);
+        $this->service->refundCashRideCreationFee($ride, $this->driver, hadActiveBookings: true);
 
         $this->wallet->refresh();
         $this->assertEquals(5.00, $this->wallet->cash_ride_debt);
