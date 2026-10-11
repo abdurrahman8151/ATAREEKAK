@@ -12099,4 +12099,25 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 179.**
+## 179. RV-55 (POST /api/rides without route data -> SQLSTATE 1048) - NOT REPRODUCIBLE on current code; owner: no refusal added
+
+**Owner answers.** First: a 422 refusal when no route can be derived. Second, after the evidence below: record as not reproducible, add no refusal.
+
+**Code path traced.**
+- `RideRepository::createRideWithGeometry` / the route step at `app/Repositories/RideRepository.php:113-123` copies `$route['distance']` and `$route['duration']` into the ride.
+- `RouteCalculationService::getRouteDetails` (`app/Services/Geocoding/RouteCalculationService.php:40-58`) catches every `\Exception` from the live route call and returns `calculateFallbackRoute` (`:182-200`), which always sets a real `distance` (Haversine x 1.3) and `duration`.
+- So on current code the value written to the NOT NULL `rides.distance`/`duration` is never null on this path.
+
+**Why the earlier fix was rolled back (sec 177).** Making `distance`/`duration` required in `CreateRideRequest` broke 7 tests, and `RV14DegenerateRouteFieldsTest` documents that the live client sends neither and the server fills them in. That is a separate reason, not a reproduction of 1048.
+
+**Checks (scratch DB, guard asserted).** `RV14DegenerateRouteFieldsTest`: 3 tests, 16 assertions, OK. The server route fill on create is exercised; a missing route is replaced, not stored as null.
+
+**Decision.** Owner ruled: record as not reproducible, add no refusal. A 422 for a state that cannot occur would be dead code.
+
+**Not verified.** No live request was sent to the production route service, so this is a code-path conclusion, not an observed run. Stated as such.
+
+**Files changed.** `docs/audit/App future audit review r2.md` (this section), `docs/audit/BACKLOG.md` (RV-55 row note). No code change.
+
+**Final state: NOT REPRODUCIBLE (closed, no code change).**
+
+**Next audit section number: 180.**
