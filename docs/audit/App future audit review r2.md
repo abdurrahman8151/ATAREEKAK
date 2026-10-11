@@ -11910,4 +11910,20 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (row 11 and RV-56).**
 
-**Next audit section number: 169.**
+## 169. V6 / row 6 (staff-initiated cancel: full refund, no score impact) - re-verified, no code change (VERIFIED FIX, prior)
+
+**Owner decision (row 6).** Staff-initiated cancel refunds passengers in full and applies no driver score penalty.
+
+**Finding.** Already implemented under decision 6 (R2 sec 47, commit `364cc0c`) and RV-03 (BACKLOG row 23, VERIFIED FIX, role gate in R2 sec 59). Earlier rounds recorded row 6 as "decided, not started"; that was stale.
+
+**Code path (confirmed this round).** Both staff-cancel endpoints (`StaffOperationsController:433` and `:543`) call `WalletTransactionService::refundPassengersForStaffCancellation` (`:487`). It sums the full `amount_paid` snapshot (`:516`) and contains no score adjustment. Bookings without a snapshot are reported `needs_review`, not guessed.
+
+**Checks (scratch DB, guard asserted).**
+- `tests/Feature/Review/StaffCancellationRefundTest.php`: 6 tests, 25 assertions, OK.
+- `RV20RefundReasonRoutingTest`, `RV20ChargeThroughStrategyTest`, `tests/Feature/Staff/StaffOperationsControllerTest.php`: 100 tests, 240 assertions, OK.
+
+**Files changed.** `docs/audit/App future audit review r2.md` (this section) only. No code.
+
+**Final state: VERIFIED FIX (prior work, re-confirmed).**
+
+**Next audit section number: 170.**
