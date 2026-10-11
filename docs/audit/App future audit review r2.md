@@ -11926,4 +11926,18 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (prior work, re-confirmed).**
 
-**Next audit section number: 170.**
+## 170. Row 10 (`users.phone`) - recorded decision is NO column; no migration (no code change)
+
+**Correction.** Earlier rounds listed row 10 as "decided: add `users.phone` column". That was wrong. The owner's recorded decision is **B - no `users.phone`** ("to be reconsidered in future"). Phones stay on wallet and booking, one source of truth each (sec 3954 of the r2 log, BACKLOG row 10 Order 10, STATE.md "10 (no users.phone)").
+
+**Check (scratch DB, read-only, guard asserted).** `SHOW COLUMNS FROM users`: no `phone` and no `phone_number` column. Matches the decision.
+
+**Consequence.** Writing a migration would contradict a recorded owner decision and change schema. Not done. No code change, no migration.
+
+**Note.** The BACKLOG "Blocked by" for this item is RV-19. RV-19 (phone from a real `users.phone`) is therefore closed as "not done by decision"; if the owner reverses decision B, a migration and tests are required, and that needs explicit approval.
+
+**Files changed.** `docs/audit/App future audit review r2.md` (this section) only.
+
+**Final state: VERIFIED FIX (decision B honoured; nothing to build).**
+
+**Next audit section number: 171.**
