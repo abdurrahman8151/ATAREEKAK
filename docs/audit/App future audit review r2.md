@@ -12145,4 +12145,18 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: docs pass complete. Objective remains active, blocked on owner actions (RV-10, T1-3).**
 
-**Next audit section number: 181.**
+## 181. RV-10 owner window W = 24 hours (decision recorded; production report still pending)
+
+**Owner decision.** Window W = 24 hours (1440 minutes): stuck escrow older than 24 hours escalates to the staff queue. Chosen by the owner in the session.
+
+**Command used.** `php artisan escrow:stuck-report --min-age-hours=24` (read-only, moves no money; `ReportStuckEscrowCommand.php:46-48`).
+
+**Run on the scratch DB (checked).** The command runs and exits 0; it reports "No escrow is currently held in SyCash". The scratch DB holds no escrow, so this proves the command works, not the production escrow age.
+
+**Production run: NOT DONE.** Production is not live yet, and the production report needs production data. The `production` boot attempt was refused by `AppServiceProvider::guardOtpTestingModes` because `WALLET_OTP_MODE` and `OTP_BYPASS_ENABLED` are set in the environment. That refusal is correct; those keys must not be on in production.
+
+**Not changed.** No code, config, or `.env` changed. RV-10 stays BLOCKED until the production report is read, because the staff-queue escalation half of RV-10 is still unbuilt and needs W to be wired in.
+
+**Final state: W DECIDED (24 h); RV-10 still BLOCKED on the production report and the escalation build.**
+
+**Next audit section number: 182.**
