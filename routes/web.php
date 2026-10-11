@@ -3,6 +3,7 @@
 use App\Http\Controllers\API\Auth\GoogleController;
 use App\Http\Controllers\API\NotificationController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -21,8 +22,9 @@ use Illuminate\Support\Facades\Route;
 // detail and the exception goes to the log instead.
 Route::get('/up', function () {
     try {
-        // Runs a lightweight query to register activity on Aiven MySQL
-        DB::select('SELECT 1');
+        // T3-17: the Aiven keep-alive ping runs at most once per 60 seconds. A successful
+        // result is cached; a failure is not cached, so an outage shows on the next probe.
+        Cache::remember('health.up.db_ping', 60, fn () => DB::select('SELECT 1'));
 
         return response('OK', 200);
     } catch (Throwable $e) {

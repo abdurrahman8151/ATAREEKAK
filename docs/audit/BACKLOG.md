@@ -240,7 +240,7 @@ Cells marked `NOT re-verified` mean the gate moved but the code was not re-check
 | 95 | T3-14 | Push dispatched synchronously; failure blocks the request | P2 | VERIFIED FIX | n/a | RV-27, T2-8 | S P2 table VF (boot guard); 3443979 |
 | 96 | T3-15 | Pending-withdraw guard subject to a race | P2 | VERIFIED FIX | n/a | RV-09, RV-21 | S P2 table VF (`FOR UPDATE`); 3443979 |
 | 97 | T3-16 | No-show resolution applies penalties without locking the report row | P2 | VERIFIED FIX | n/a | **RV-02 (L1)** (same lock precedent), RV-40 | S P2 table VF; 3443979 |
-| 98 | T3-17 | `/up` runs a real DB query on every health probe | P2 | DEFERRED | owner: deferred | RV-28 | S P2 table `DEFERRED (owner: leave for later)` |
+| 98 | T3-17 | `/up` runs a real DB query on every health probe | P2 | **VERIFIED FIX** | none | RV-28 | Owner choice: keep the Aiven keep-alive, cache the /up ping 60 s (`R2 sec 162`). Test: T317HealthCacheTest 2/6 OK; mutation (no cache) fails the repeat-probe test; Config+Providers+RateLimiting 73/218 OK. |
 | 99 | T4-1 | No test could catch the two critical money bugs | P3 | VERIFIED FIX | n/a | RV-34, RV-33 | S P2 sec T4-1 VF; 3443979 |
 | 100 | T4-2 | `scopeNearLocation` built an unbindable WKT | P3 | VERIFIED FIX | n/a | RV-25, V1 | S P2 sec T4-2 VF; 3443979 |
 | 101 | T4-3 | `cleanupExpiredTokens` DELETE relied on operator precedence | P3 | VERIFIED FIX | n/a | RV-29 | S P2 sec T4-3 VF; 3443979 |

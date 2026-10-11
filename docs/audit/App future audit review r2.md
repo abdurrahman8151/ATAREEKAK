@@ -11759,4 +11759,22 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Note.** This closes RV-12 by owner ruling; it does not claim D7=A was built.
 
-**Next audit section number: 162.**
+## 162. T3-17: /up caches its keep-alive DB ping (row 98 VERIFIED FIX)
+
+**Problem.** `/up` (`routes/web.php:22`) ran `DB::select('SELECT 1')` on every platform health probe. That is a real query each time, with no cache.
+
+**Owner choice.** Keep the `SELECT 1` for the Aiven keep-alive, but cache a successful result for 60 seconds.
+
+**Fix.** `routes/web.php`: the query is wrapped in `Cache::remember('health.up.db_ping', 60, ...)`. A failure throws out of the remember, so it is not cached and an outage shows on the next probe. The 500 path is unchanged. Added the `Cache` import.
+
+**Files changed.** `routes/web.php` (4 insertions, 2 deletions). New test: `tests/Feature/Review/T317HealthCacheTest.php`.
+
+**Verification.**
+- `T317HealthCacheTest`: 2 tests, 6 assertions OK. Healthy probe returns 200; a repeat probe inside 60 s runs zero `SELECT 1`; a failing probe returns 500 and is not cached.
+- Mutation (cache removed): the repeat-probe test fails. Route file restored byte-identical.
+- Config, Providers, RateLimiting floors: 73 tests, 218 assertions OK.
+- Lint clean; Pint PASS on the new test.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 163.**
