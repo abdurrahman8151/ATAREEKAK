@@ -12011,4 +12011,22 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (row 5, both steps).**
 
-**Next audit section number: 174.**
+## 174. Row 12 (delete the stub notification classes and their tests?) - owner: keep; audit premise corrected (VERIFIED FIX, docs only)
+
+**Owner decision 12.** Keep the stub notification classes; do not delete them.
+
+**Correction.** Section 3972 (and the row 12 "MOOT" note) said the stubs were "deleted under AF-4 (a test pins they stay gone)". That is false. On disk `app/Notifications/RideBookedNotification.php`, `RideCancelledNotification.php` and `UserVerifiedNotification.php` still exist, each 54 lines, each a real stub. The "pin" is not a deletion check. The row is not moot; it is answered.
+
+**What the code shows (verified this round).**
+- The three classes are referenced only by their own unit tests (`tests/Unit/Notifications/*`). Production code does not instantiate them.
+- `RideBookedNotificationTest` and `RideCancelledNotificationTest` state in their headers that the classes "are currently stubs".
+
+**Action.** None to code. The decision is to keep them, so nothing is deleted and nothing is wired up. The row is closed as answered, with the premise corrected.
+
+**Checks.** `tests/Unit/Notifications`: 34 tests, 28 assertions, OK. Tree shows no code change (only the owner's `phpunit.xml`).
+
+**Files changed.** `docs/audit/App future audit review r2.md` (this section), `docs/audit/BACKLOG.md` (row 12 note).
+
+**Final state: VERIFIED FIX (decision answered: keep; audit corrected).**
+
+**Next audit section number: 175.**
