@@ -12159,4 +12159,18 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: W DECIDED (24 h); RV-10 still BLOCKED on the production report and the escalation build.**
 
-**Next audit section number: 182.**
+## 182. RV-10 production escrow report run (read-only) - data half DONE
+
+**Run.** `php artisan escrow:stuck-report --min-age-hours=24` against the production database, from the owner's PowerShell with the production read values entered at the prompt (not recorded here).
+
+**Result.** "No escrow is currently held in SyCash. Nothing is stuck." Exit clean. The command moves no money and changed no data.
+
+**Meaning.** Window W = 24 hours (sec 181) is in force, and no held escrow exceeds it today. No amount needs staff escalation now.
+
+**Earlier failures (for the record, not repeated).** Access denied (1045) came from the replica settings still pointing at a different Aiven host from an earlier shell session. Fixed by setting `DB_REPLICA_HOST`/`DB_REPLICA_PORT` to the main host and port. A boot refusal came from `WALLET_OTP_MODE` being unset in the shell; setting it to a non-testing value cleared it.
+
+**Still open for RV-10.** The staff-queue escalation for escrow older than W is not built. It changes how money is flagged, so it needs a design decision before code. Status stays BLOCKED on that design.
+
+**Not changed.** No code, config, `.env`, or data changed.
+
+**Next audit section number: 183.**
