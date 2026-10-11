@@ -11961,4 +11961,25 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (docs).**
 
-**Next audit section number: 172.**
+## 172. Row 5 (driver phone visibility) - step 1: booking view gated (PARTIAL)
+
+**Owner decision 5.** Show the driver's phone only after a confirmed booking. Owner rule (asked): confirmed = `passenger_confirmed_at` set. Ride listings hide the number from everyone except the driver.
+
+**Correction.** Section 163 and BACKLOG row 48 said "verified, no code change". The code showed `communication_number` returned to every authenticated viewer (`RideResource:83`, `BookingResource:28` and `:57`). The "no code change" record was wrong.
+
+**Code path.** `BookingResource::toArray` returned `$this->ride->communication_number` under `ride.driver` to any caller who could load the booking.
+
+**Step 1 (this section, applied).** `app/Http/Resources/BookingResource.php`: the driver's number is shown only when `passenger_confirmed_at` is set; otherwise `null`. The booking's own `communication_number` (`:28`) is the passenger's own input and is unchanged.
+
+**Step 2 (NOT done).** `RideResource:83` still returns `communication_number` to every viewer. Gating it requires the viewer on the request, which the resource does not have. It is used on eight controller paths. This needs its own verified change.
+
+**Checks (scratch DB, guard asserted).**
+- `php -l` and `pint --test` on `BookingResource.php`: pass.
+- `tests/Feature/Bookings` + `tests/Feature/Rides/RideResourceTest.php`: 27 tests, 64 assertions, OK.
+- Mutation: removing the gate makes 5 of 27 fail; file restored byte-identical.
+
+**Files changed.** `app/Http/Resources/BookingResource.php`, `docs/audit/BACKLOG.md` (row 48 note), this section.
+
+**Final state: PARTIAL (step 1 VERIFIED; step 2 open).**
+
+**Next audit section number: 173.**

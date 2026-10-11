@@ -54,7 +54,11 @@ class BookingResource extends JsonResource
                     'avatar' => $this->ride->driver->profile?->profile_photo
                         ? asset('storage/'.$this->ride->driver->profile->profile_photo)
                         : $this->ride->driver->avatar,
-                    'communication_number' => $this->ride->communication_number,
+                    // Row 5 (owner decision): the driver's number is shown to a passenger only
+                    // after they have confirmed the booking (passenger_confirmed_at set).
+                    'communication_number' => $this->passenger_confirmed_at
+                        ? $this->ride->communication_number
+                        : null,
                 ],
             ],
 
