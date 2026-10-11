@@ -12059,4 +12059,22 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (decision A recorded and the code matches it; stale skip flagged for owner).**
 
-**Next audit section number: 177.**
+## 177. RV-55 (POST /api/rides without route data -> SQLSTATE 1048) - VERIFIED ROLLBACK
+
+**Owner choice.** 422 refusal with a clear message.
+
+**Attempted fix.** `app/Http/Requests/CreateRideRequest.php`: make `distance` and `duration` `required` (they are NOT NULL on `rides`, `unsignedInteger`, migration `2025_05_19_135630`).
+
+**Result.** Seven tests failed: four `CreateRideRequestTest` valid-payload tests, `RideValidationParityTest::create_with_route_accepts_a_valid_payload`, `RV45CreateRideStatusTest::test_generic_fault_still_returns_500_and_does_not_leak`, and `RV14DegenerateRouteFieldsTest::an_empty_client_geometry_is_replaced_by_the_server_geometry`.
+
+**Root cause of the rollback.** `RV14DegenerateRouteFieldsTest` documents that the live client sends neither `distance` nor `duration` and expects the server to derive them. Requiring them would refuse every real ride from the client. The original premise (a plain 422) was therefore not the right fix for the live path. The 1048 error only appears when the server cannot derive the route, which is a separate case.
+
+**Rollback.** `CreateRideRequest.php` restored byte-identical to HEAD (`git diff` empty). Baseline `CreateRideRequestTest` + `RideValidationParityTest` + `RV14DegenerateRouteFieldsTest`: 34 tests, 80 assertions, OK.
+
+**Not changed.** No test edited. The seven failing tests were not touched.
+
+**Open (owner decision needed).** The 1048 case needs a choice: refuse the request when the server cannot derive a route (422), or change the insert. Not decided here.
+
+**Final state: VERIFIED ROLLBACK.**
+
+**Next audit section number: 178.**
