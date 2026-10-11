@@ -12029,4 +12029,18 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (decision answered: keep; audit corrected).**
 
-**Next audit section number: 175.**
+## 175. Row 13 (statuses as string + PHP enum instead of DB ENUM?) - owner decision A, already implemented (VERIFIED FIX, docs only)
+
+**Owner decision 13 (Option A).** "PHP enums, drop DB ENUMs". Row 13 in the decision table listed it as open with RV-40, and the older notes said "keep the DB ENUM". Both were wrong: the recorded decision is A.
+
+**Implementation.** Migration `database/migrations/2026_10_03_233000_convert_enum_columns_to_varchar.php` converts the live ENUM columns to varchar, keeping nullability, defaults and length per column. It is recorded as run in the scratch `migrations` table.
+
+**Check on the scratch schema (read-only).** `information_schema.COLUMNS` reports 0 columns with `DATA_TYPE = 'enum'`. Sampled status/type/role columns (for example `bookings.status`, `rides.status`, `wallet_transactions.type`, `employees.role`) are all varchar.
+
+**Tests.** `RV30DataModelHygieneTest`, `RV40NoshowReportUniquenessTest`, `MigrationEffectsBatchTest`: 14 tests, 75 assertions, OK.
+
+**Files changed.** `docs/audit/App future audit review r2.md` (this section), `docs/audit/BACKLOG.md` (row 13 evidence). No code change.
+
+**Final state: VERIFIED FIX (decision A implemented and tested; the open "keep ENUM" note was false).**
+
+**Next audit section number: 176.**
