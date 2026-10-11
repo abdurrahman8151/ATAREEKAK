@@ -94,12 +94,35 @@ class VerificationControllerTest extends TestCase
 
     public function test_driver_cannot_submit_twice_while_pending(): void
     {
-        $this->withToken($this->token)->postJson('/api/profile/verify/driver', []);
+        // Row 11: the first submission must be a complete driver set to become pending.
+        // An empty driver submission is now refused (422), so the setup uploads all four.
+        $complete = [
+            'face_id_pic' => UploadedFile::fake()->image('face.jpg'),
+            'back_id_pic' => UploadedFile::fake()->image('back.jpg'),
+            'driving_license_pic' => UploadedFile::fake()->image('license.jpg'),
+            'mechanic_card_pic' => UploadedFile::fake()->image('mechanic.jpg'),
+        ];
+        $this->withToken($this->token)
+            ->post('/api/profile/verify/driver', $complete, ['Accept' => 'application/json'])
+            ->assertStatus(201);
 
         $response = $this->withToken($this->token)
             ->postJson('/api/profile/verify/driver', []);
 
         $response->assertStatus(409);
+    }
+
+    public function test_driver_submission_with_missing_documents_is_refused_and_not_pending(): void
+    {
+        // Row 11: an incomplete driver set must not reach the admin review queue.
+        $response = $this->withToken($this->token)
+            ->postJson('/api/profile/verify/driver', []);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('missing', ['face_id', 'back_id', 'license', 'mechanic_card']);
+
+        $this->assertNotEquals('pending', $this->user->fresh()->verification_status);
     }
 
     public function test_driver_verification_rejects_invalid_file_type(): void

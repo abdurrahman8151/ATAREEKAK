@@ -11879,4 +11879,35 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 168.**
+## 168. V11 (row 11) reject incomplete driver KYC + RV-56 stale-cache guard (VERIFIED FIX)
+
+**Owner decision.** Reject KYC until every required document is attached.
+
+**Problem (row 11).** `POST /api/profile/verify/driver` (`VerificationController::verifyDriver`) made every document field nullable and set `verification_status = pending` unconditionally. An incomplete driver (no licence, no ID) reached the admin review queue.
+
+**Problem (RV-56, found during row 11).** The 409 "already pending" guard reads the user through `JwtAuthMiddleware` -> `JwtService::findUserCached` (`auth.user.{id}`, 5 min). The driver submit wrote `pending` but did not clear that key, so a re-submit inside 5 minutes returned 201 instead of 409.
+
+**Root cause.** Row 11: no completeness check before the write. RV-56: the write did not invalidate the auth-user cache that the guard reads.
+
+**Fix.**
+- Row 11: before the transaction, the required set (face_id, back_id, license, mechanic_card, the same set ride-create enforces under RV-53) must be on file (`Photo` rows) or uploaded in the request. Otherwise 422 with `missing`. Nothing is written.
+- RV-56: `Cache::forget("auth.user.{$user->id}")` right after the driver `pending` write.
+
+**Files changed.** `app/Http/Controllers/API/VerificationController.php`, `tests/Feature/Verification/VerificationControllerTest.php`, `docs/audit/BACKLOG.md` (rows 11, 131), this section.
+
+**Pinned test changed (owner-approved path).** `test_driver_cannot_submit_twice_while_pending` previously first-submitted an empty body. That is now refused, so its setup uploads all four documents. Its 409 assertion is unchanged. A new test, `test_driver_submission_with_missing_documents_is_refused_and_not_pending`, covers the refusal.
+
+**Checks run (scratch DB, guard asserted each run).**
+- `php -l` on both PHP files: pass. Pint `--test`: pass.
+- `tests/Feature/Verification`: 23 tests, 35 assertions, OK.
+- `tests/Unit/Middleware` + `tests/Feature/Security`: 80 tests, 320 assertions, OK.
+- `tests/Feature/Staff`: 233 tests, 555 assertions, OK.
+- `tests/Feature/Auth`: 74 tests, 196 assertions, OK.
+- Mutation (RV-56): removing the cache bust makes the double-submit test fail; file restored byte-identical.
+- Earlier combined run hit the 180 s cap and was killed as infrastructure; re-run per selection.
+
+**Not verified.** The ride-create rule (`RV45CreateRideStatusTest`) was not re-run after this change; the rule itself is unchanged. The owner's `phpunit.xml` modification is not committed.
+
+**Final state: VERIFIED FIX (row 11 and RV-56).**
+
+**Next audit section number: 169.**

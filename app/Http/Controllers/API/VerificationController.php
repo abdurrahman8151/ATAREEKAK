@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
+use App\Models\Photo;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -156,6 +157,28 @@ class VerificationController extends Controller
             ], 422);
         }
 
+        // Row 11 (owner ruling: reject until every required document is attached). The
+        // required set is the one ride-create already enforces (RV-53). A document counts
+        // if it is on file already OR uploaded in this request. Checked before any write.
+        $required = ['face_id' => 'face_id_pic', 'back_id' => 'back_id_pic',
+            'license' => 'driving_license_pic', 'mechanic_card' => 'mechanic_card_pic'];
+        $storedTypes = $this->storedDocumentTypes($user->id);
+        $missing = [];
+        foreach ($required as $type => $inputName) {
+            $uploadedNow = $request->hasFile($inputName);
+            $storedAlready = in_array($type, $storedTypes, true);
+            if (! $uploadedNow && ! $storedAlready) {
+                $missing[] = $type;
+            }
+        }
+        if (! empty($missing)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Missing required driver verification documents: '.implode(', ', $missing),
+                'missing' => $missing,
+            ], 422);
+        }
+
         return DB::transaction(function () use ($request, $user) {
             $userId = $user->id;
             $profile = $this->profileRepo->getProfileByUserId($userId)
@@ -204,6 +227,10 @@ class VerificationController extends Controller
                 'is_verified_driver' => false,
                 'is_verified_passenger' => false,
             ]);
+
+            // RV-56: the 409 guard reads the user through the auth cache (findUserCached,
+            // key auth.user.{id}, 5 min). Clear it so a re-submit sees 'pending' at once.
+            Cache::forget("auth.user.{$user->id}");
 
             try {
                 $this->notificationService->createNotification(
@@ -305,5 +332,16 @@ class VerificationController extends Controller
                 'message' => 'Failed to retrieve verification status. Please try again.',
             ], 500);
         }
+    }
+
+    /**
+     * Document types already on file for a user. Same source as the ride-create rule
+     * (DocumentVerificationService::getUserDocumentTypes), so both agree on what "on file" means.
+     *
+     * @return array<int, string>
+     */
+    private function storedDocumentTypes(int $userId): array
+    {
+        return Photo::where('user_id', $userId)->pluck('type')->toArray();
     }
 }
