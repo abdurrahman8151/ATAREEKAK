@@ -228,8 +228,15 @@ class MoneyAndAuthPathBatchTest extends TestCase
         );
     }
 
-    public function test_user_ttl_default_is_unchanged(): void
+    public function test_user_ttl_default_is_fifteen_minutes(): void
     {
-        $this->assertSame(600, (int) config('jwt.ttl'), 'user access-token default must not move (JWT_TTL unset in this env)');
+        // Assert the SHIPPED FALLBACK literal in config/jwt.php. The evaluated value is not
+        // used: phpunit.xml pins JWT_TTL for the test environment, so env() returns 600 here.
+        $source = file_get_contents(base_path('config/jwt.php'));
+        $this->assertStringContainsString(
+            "'ttl' => (int) env('JWT_TTL', 15),",
+            $source,
+            'shipped user access-token fallback is 15 minutes (row 9 owner decision)'
+        );
     }
 }

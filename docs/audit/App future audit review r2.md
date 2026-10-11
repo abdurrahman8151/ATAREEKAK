@@ -11840,4 +11840,22 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: review complete, fix pending owner approval; RV-55 filed.**
 
-**Next audit section number: 166.**
+## 166. V9 (row 9): access-token TTL 15 min (VERIFIED FIX)
+
+**Owner decision.** Access-token TTL 15 minutes.
+
+**Fix.** `config/jwt.php`: the `ttl` fallback changes from 600 to 15 (`env('JWT_TTL', 15)`). Refresh tokens already exist (14 days), so clients recover. The pinned test `test_user_ttl_default_is_fifteen_minutes` in `tests/Feature/T4Batch/MoneyAndAuthPathBatchTest.php` now asserts the shipped literal in source. It no longer reads the evaluated value.
+
+**Why the assertion changed (owner-approved).** The old pin asserted 600. An assertion on the evaluated `config('jwt.ttl')` returns 600 under the test run, because the owner's local `phpunit.xml` sets `JWT_TTL=600` (`env()` wins over the fallback). The file is not committed and was not edited. Asserting the source literal keeps the pin about the shipped default regardless of local env.
+
+**Verification.**
+- `php -l` and Pint on both files: pass.
+- `MoneyAndAuthPathBatchTest`: 9 tests, 18 assertions, OK.
+- `tests/Feature/Auth`, `tests/Feature/Config`, `tests/Unit/Providers`: 124 tests, 262 assertions, OK.
+- Scratch DB was down once; restarted by the owner, re-pinged, then ran. No DB result was taken from the down period.
+
+**Files changed.** `config/jwt.php`, `tests/Feature/T4Batch/MoneyAndAuthPathBatchTest.php`, `docs/audit/BACKLOG.md` (row 9), this section.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 167.**

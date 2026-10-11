@@ -36,7 +36,7 @@ return [
     | deliberate operator decision, not a silent code change.
     |
     */
-    'ttl' => (int) env('JWT_TTL', 600),
+    'ttl' => (int) env('JWT_TTL', 15),
 
     /*
     |--------------------------------------------------------------------------
