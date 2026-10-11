@@ -76,16 +76,16 @@ class VerifyEmailOtpRequestTest extends TestCase
         $this->assertArrayHasKey('email', $validator->errors()->toArray());
     }
 
-    public function test_fails_when_email_is_not_registered(): void
+    public function test_unregistered_email_passes_validation_for_uniform_errors(): void
     {
-        // No user created — exists:users,email should fail
+        // Row 8 (owner ruling: uniform errors). No existence check in the request, so an
+        // unknown address reaches the controller and gets the same answer as a wrong code.
         $validator = Validator::make([
             'email' => 'nobody@example.com',
             'otp_code' => '123456',
         ], $this->rules());
 
-        $this->assertTrue($validator->fails());
-        $this->assertArrayHasKey('email', $validator->errors()->toArray());
+        $this->assertFalse($validator->fails());
     }
 
     // ─── OTP code failures ────────────────────────────────────────────────────────
@@ -165,15 +165,16 @@ class VerifyEmailOtpRequestTest extends TestCase
     {
         $messages = (new VerifyEmailOtpRequest)->messages();
 
-        $this->assertArrayHasKey('email.exists', $messages);
+        $this->assertArrayNotHasKey('email.exists', $messages);
         $this->assertArrayHasKey('otp_code.size', $messages);
         $this->assertArrayHasKey('otp_code.regex', $messages);
     }
 
-    public function test_email_exists_message_text(): void
+    public function test_no_existence_message_is_exposed(): void
     {
+        // Row 8: the 'No account found' message was the enumeration oracle; it must not exist.
         $messages = (new VerifyEmailOtpRequest)->messages();
-        $this->assertEquals('No account found with this email.', $messages['email.exists']);
+        $this->assertArrayNotHasKey('email.exists', $messages);
     }
 
     public function test_otp_size_message_text(): void

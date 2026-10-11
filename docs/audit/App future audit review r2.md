@@ -11858,4 +11858,25 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 167.**
+## 167. V8 (row 8): uniform errors, no account enumeration (VERIFIED FIX)
+
+**Owner decision.** Uniform errors: an unknown account and a known account with a wrong code must look the same.
+
+**Problem.** `POST /api/email-verification/verify` answered an unknown address with 422 "No account found with this email." (the `exists:users,email` rule in `VerifyEmailOtpRequest`), and a known address with a wrong code with 400. Those two answers told an attacker which addresses are registered.
+
+**Code path.** `EmailVerificationController::verify` -> `VerifyEmailOtpRequest::rules()` (`exists`) -> 422 before the service runs.
+
+**Fix.** Removed the `exists:users,email` rule and its `email.exists` message in `app/Http/Requests/VerifyEmailOtpRequest.php`. An unknown address now reaches `EmailOtpService::verifyOtp`, which returns the same "Invalid or expired verification code." as a wrong code. The other paths (`VerifyPasswordOtpController`, `ForgotPasswordController`, `EmailVerificationController::resend`) already had the uniform fix.
+
+**Pinned tests updated (owner-approved).** `tests/Unit/Http/Requests/VerifyEmailOtpRequestTest.php` (unregistered email now passes validation; the `email.exists` message is asserted absent) and `tests/Feature/Auth/EmailVerificationControllerTest.php` (the unknown-address test now asserts the same status and message as a wrong code).
+
+**Verification.**
+- `php -l` and Pint on changed files: pass.
+- Scoped run: `VerifyEmailOtpRequestTest`, `EmailVerificationControllerTest`, `RV16EnumerationUniformityTest`, and the full `tests/Feature/Auth` floor: 115 tests, 274 assertions, OK.
+- Mutation: restoring the `exists` rule makes the uniform test fail (1 failure); file restored byte-identical.
+
+**Files changed.** `app/Http/Requests/VerifyEmailOtpRequest.php`, two test files, `docs/audit/BACKLOG.md` (row 8), this section.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 168.**

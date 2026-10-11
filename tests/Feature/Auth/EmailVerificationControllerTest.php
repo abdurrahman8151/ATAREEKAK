@@ -114,14 +114,23 @@ class EmailVerificationControllerTest extends TestCase
             ->assertJsonValidationErrors(['email', 'otp_code']);
     }
 
-    public function test_verify_fails_for_unknown_email(): void
+    public function test_verify_fails_for_unknown_email_with_the_same_answer_as_a_wrong_code(): void
     {
-        // FIX: VerifyEmailOtpRequest has 'exists:users,email' rule, so unknown
-        // emails are rejected at validation (422), not at the service level.
-        $this->postJson('/api/email-verification/verify', [
+        // Row 8 (owner ruling: uniform errors). An unknown address must not be distinguishable
+        // from a known address with a wrong code, so both get the same status and message.
+        $unknown = $this->postJson('/api/email-verification/verify', [
             'email' => 'nobody@test.com',
             'otp_code' => '123456',
-        ])->assertStatus(422);
+        ]);
+
+        User::factory()->create(['email' => 'known@test.com']);
+        $wrong = $this->postJson('/api/email-verification/verify', [
+            'email' => 'known@test.com',
+            'otp_code' => '123456',
+        ]);
+
+        $this->assertSame($wrong->getStatusCode(), $unknown->getStatusCode());
+        $this->assertSame($wrong->json('message'), $unknown->json('message'));
     }
 
     public function test_verify_otp_code_must_be_exactly_six_digits(): void
