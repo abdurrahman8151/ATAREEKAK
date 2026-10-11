@@ -12120,4 +12120,29 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: NOT REPRODUCIBLE (closed, no code change).**
 
-**Next audit section number: 180.**
+## 180. Objective status pass: rows 1 and 4-16 against BACKLOG (docs only)
+
+**Scope.** The objective covers rows 1 and 4-16 of the owner-decision list, plus the V-rows they feed.
+
+**Verified terminal state (from BACKLOG, checked this round).**
+- Fixed and verified: row 5 (RV-29, VERIFIED FIX, sec 172-173), row 8 (V8), row 9 (V9), row 11 (V11), row 13 (DB ENUMs, sec 175), row 14 (cancel routes, sec 176).
+- Superseded (fixed by other rows or refuted): V1, V4, V5, V6, V10, V12, V13, V14, V15, V16.
+- Recorded, no code change: row 6 (V6 driver, sec 169), row 7 (Render; V7 owner: no replica), row 10 (no `users.phone`, sec 170), row 12 (keep stubs, sec 174).
+
+**Changes this pass (docs only).**
+- RV-55 (BACKLOG row 130): OPEN -> NOT REPRODUCIBLE (closed, no code), with the evidence reference (sec 179).
+- T3-10 (BACKLOG row 91): gate note corrected. RV-08 is closed (owner keeps the VPS/compose files, sec 118). One gate remains: T1-3, an owner credential-rotation action. Status stays OPEN.
+
+**Still open, owner action required (not decisions I can make).**
+- RV-10 (row 37, BLOCKED): run `php artisan escrow:stuck-report` against production and report the window. AF-6 (row 65) waits on it.
+- T1-3 (BLOCKED): rotate `JWT_SECRET` and `PUSHER_APP_SECRET`, and any history rewrite. You said "not yet".
+- T3-10 (row 91, OPEN): waits on T1-3.
+- T3-3: deferred by owner ("mark for later").
+
+**Checks.** Read-only: BACKLOG rows, RV-29 cell `VERIFIED FIX`, RV-10 `BLOCKED`, T1-3 `BLOCKED`. No code or test changed this pass.
+
+**Files changed.** `docs/audit/BACKLOG.md` (rows 130 and 91), `docs/audit/App future audit review r2.md` (this section).
+
+**Final state: docs pass complete. Objective remains active, blocked on owner actions (RV-10, T1-3).**
+
+**Next audit section number: 181.**
