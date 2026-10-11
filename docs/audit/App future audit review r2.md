@@ -11816,4 +11816,28 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: PARTIAL (limited-environment measurement).**
 
-**Next audit section number: 165.**
+## 165. RideController no-show 422 branches reviewed; RV-55 filed (row 130 OPEN)
+
+**Owner decisions taken here.** Review the RideController generic 422 branches (report only), and file the POST /api/rides NOT NULL finding as a row.
+
+**Part 1, review (no code change).** The two flagged branches are the outer `catch (\Throwable)` of:
+- `reportPassengerNoShow` (`:994`), `POST /rides/{bookingId}/passenger-no-show` (`routes/api.php:230`)
+- `reportDriverNoShow` (`:1029`), `POST /rides/{rideId}/driver-no-show` (`routes/api.php:217`)
+
+Both return the generic message `The request could not be completed. Please try again.` under HTTP **422**.
+
+**Finding.** The message is the same generic fault text every other fault path returns with a **500**, but the status is 422. A 422 tells the client the request was malformed and must be corrected, which is the opposite of the truth here: the request was well formed, a fault occurred, and a retry may succeed. It also contradicts RV-13, which maps generic faults to 500.
+
+**Why it slipped through.** These two methods have no curated refusal branch ahead of the catch, so nothing can legitimately produce a 422 there. That distinguishes them from `:575` and `:946`, where the 422 comes from a real `\InvalidArgumentException` refusal. Both handlers already log the exception text and leak nothing.
+
+**Proposed fix (NOT applied, awaiting owner approval).** Change the status from 422 to 500 on these two branches and keep the message. Same shape as the other fault responses in the file; no new field, no response-shape change.
+
+**Part 2, row filed.** RV-55 (order 130) OPEN, unblocked: `POST /api/rides` with no route data raises SQLSTATE 1048 on the NOT NULL `rides.distance`/`duration` columns, so the client gets a generic 500. Owner choice needed: curate it as a 422 refusal, or validate those fields before the write.
+
+**Files changed.** `docs/audit/BACKLOG.md` (new row 130), this section. No code.
+
+**Verification.** Row anchors matched once each. The backlog row count moved 163 to 164 table rows including note rows. No test run: this section changes no code.
+
+**Final state: review complete, fix pending owner approval; RV-55 filed.**
+
+**Next audit section number: 166.**
