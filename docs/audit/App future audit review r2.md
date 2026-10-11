@@ -11747,4 +11747,16 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Not yet done (other owner decisions, not in this section).** RV-10 (waiting for the production window W), AF-6 (depends on RV-10), RV-12 (ruling chosen: keep `7ab1eff`; the row still needs its own closure), RV-29 (phone visibility chosen: after confirmed booking), RV-17 (accepted on the scratch box), T3-3 and T3-17 (deferral lifted). These are still open.
 
-**Next audit section number: 161.**
+## 161. Owner decision: RV-12 closed as SUPERSEDED by 7ab1eff
+
+**Owner ruling.** Keep the behaviour of commit `7ab1eff`. D7=A (stop writing `status=0`, migrate existing `0` rows to `1`) is NOT applied.
+
+**Evidence.** The behaviour the 2026-10-04 `7ab1eff` ruling chose is what the suite pins: `SignupPasswordOverwriteTest`, `AccountStatusBanServiceTest`, `AdminBanControllerTest` (the filtered run) = 12 tests, 43 assertions OK.
+
+**Files changed.** `docs/audit/BACKLOG.md` (row RV-12 to SUPERSEDED) and this section. No code.
+
+**Verification.** Pinned tests run on the scratch DB, DB guard asserted. Row anchor matched once.
+
+**Note.** This closes RV-12 by owner ruling; it does not claim D7=A was built.
+
+**Next audit section number: 162.**
