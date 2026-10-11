@@ -77,7 +77,7 @@ in section 6. So every number below carries both the text and the row it gates; 
 | 11 | Reject KYC until every required document is attached? | `R2 sec 5` | RV-01 |
 | 12 | Delete the stub notification classes and their tests? | `R2 sec 5`; answered: KEEP (R2 sec 174, the earlier MOOT note was false) | RV-31, RV-35 |
 | 13 | Statuses as `string` + PHP enum instead of DB ENUM? | `R2 sec 5`; answered A and implemented (R2 sec 175) | RV-40 |
-| 14 | Add a whole-booking cancel route, or keep cancel-via-all-seats? | `R2 sec 5` | V16 follow-up, RV-02 L2 |
+| 14 | Add a whole-booking cancel route, or keep cancel-via-all-seats? | `R2 sec 5`; answered A keep both, code and equivalence test verified (R2 sec 176) | V16 follow-up, RV-02 L2 |
 | un1 | MinIO vs a managed bucket for shared object storage | `A sec J` line 693 | AF-5 |
 | un2 | Score policy: tier bands, clamp ceiling, starting score | `R2 sec 26.9` | RV-11 |
 | un3 | `wallets.kind` enum + double-entry + adjustment thresholds | `R2 sec 26.5` | RV-21, AF-6 |

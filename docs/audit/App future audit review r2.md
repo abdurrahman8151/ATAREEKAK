@@ -12043,4 +12043,20 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (decision A implemented and tested; the open "keep ENUM" note was false).**
 
-**Next audit section number: 176.**
+## 176. Row 14 (whole-booking cancel route, or keep cancel-via-all-seats?) - owner: keep both (VERIFIED FIX, docs only)
+
+**Owner decision 14 (Option A).** Keep both cancel routes: "to be reconsidered" (decision log r2 line ~3956; BACKLOG line 117).
+
+**Code (verified this round).** `routes/api.php:227` `POST /{bookingId}/cancel` (booking cancel) and `:228` `POST /{bookingId}/cancel-seats` (all-seats / partial cancel) are both registered.
+
+**Tests (scratch DB, guard asserted).**
+- `tests/Feature/Review/CancelSeatsEquivalenceCheck.php`: 2 tests, 7 assertions, OK. The all-seats path and `cancelBooking` agree on refund and score in both payment branches.
+- `tests/Feature/Rides/RideControllerFullTest.php`: 36 tests, 46 assertions, OK, 2 skipped.
+
+**Stale skip noted (not changed).** The 2 skips in `RideControllerFullTest` (around lines 259 and 264) say "No cancelBooking route registered in api.php", which is no longer true (route at `:227`). Those tests were not run, so the cancel-booking HTTP path is covered by the equivalence check, not by those two tests. I did not edit the skips: changing a test is not allowed without owner approval, and they are not needed for the decision.
+
+**Files changed.** `docs/audit/App future audit review r2.md` (this section), `docs/audit/BACKLOG.md` (row 14). No code change.
+
+**Final state: VERIFIED FIX (decision A recorded and the code matches it; stale skip flagged for owner).**
+
+**Next audit section number: 177.**
