@@ -11777,4 +11777,18 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 163.**
+## 163. RV-29: driver phone visibility (row 48 VERIFIED FIX)
+
+**Owner decision 5.** A driver's phone number is visible only after a confirmed booking.
+
+**Finding.** Checked every route that returns a driver object. `RideResource` and `BookingResource` (the passenger-facing ride and booking responses) carry no `phone` key. A search of all API controllers found no driver-phone key. The one `phone` in a user-facing response, `PassengerProfileController:617`, is the user's own profile, not a driver shown to a passenger.
+
+**Decision.** The owner chose to close RV-29 as already compliant. Adding a phone field after booking would be a new public response shape, which needs separate approval, so it is not added.
+
+**Files changed.** `docs/audit/BACKLOG.md` (row RV-29) and this section. No code.
+
+**Verification.** Searches of `app/Http/Resources` and `app/Http/Controllers/API` for a driver phone key returned none. Row anchor matched once.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 164.**
