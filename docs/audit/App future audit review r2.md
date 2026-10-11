@@ -11791,4 +11791,29 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 164.**
+## 164. RV-17: load-test validity on the scratch box (row 44 PARTIAL, limited-environment)
+
+**Owner decision.** Accept the scratch box as a limited-environment result rather than leaving the row blocked.
+
+**Why PARTIAL and not VERIFIED FIX.** The row exists because a load test must measure the application, not expired tokens or the wrong status codes. That contract is now proven on this box. A production-shaped host is still absent, so this is not evidence that the SLO holds in production, and the row does not claim it.
+
+**Setup (scratch DB only, DB guard asserted 127.0.0.1:3399 before every boot-capable command).**
+- Started `php artisan serve --host=127.0.0.1 --port=8080` as a managed background job with the scratch DB variables set inside the job, so it could not fall back to Aiven. Stopped the job afterwards; port 8080 confirmed closed.
+- Seeded the scratch DB with `PassengerSeeder` and `DriverSeeder` (20 accounts). `DatabaseSeeder` alone does not seed users, which is why `migrate:fresh --seed` produced 0.
+- Seeders read `SEED_USER_PASSWORD`; it was set in the shell only (owner approved a scratch-only password), never written to a file, and never printed.
+- Accounts logged in through the real API before the run (HTTP 200, token present).
+
+**Measured (k6 v2.0.0, `k6-load/perf-3run.js`, 2 distinct accounts).**
+- `syride_auth_rejections` = 0, and no 401/403 across 44 requests. This is the RV-17 contract: the run exercised the application, not the auth path. The original defect (search silently 422-ing) is absent.
+- iterations 42; `syride_search_latency` avg 10.71s, p95 20.13s; `syride_non_success_rate` 4.76% (2/42); `dropped_iterations` 30.
+- Thresholds breached: `syride_search_latency{phase:*}` p(95)<800ms and `syride_non_success_rate` rate<0.02. On this box at 2 concurrent users, so it is an environment bound, not an application defect claim.
+
+**Why only 2 accounts.** `harness.js:115` logs every account in serially inside `setup()`, and k6 v2.0.0 has no `--setup-timeout` flag (only `--no-setup`), so setup is capped at 60s. Measured login latency on this host was 10-20s, so 10 and 4 accounts both exceeded the cap; 2 fit. An earlier 20-account attempt also showed `dropped_iterations` 212 with a null search trend, proving the VU loop had not executed and that run was discarded as invalid rather than reported.
+
+**Files changed.** `docs/audit/BACKLOG.md` (row RV-17 to PARTIAL), this section, and the run evidence `perf-results/rv17-local.json`.
+
+**Not verified.** Any production-shaped capacity or SLO result. That needs a host with real DB pressure.
+
+**Final state: PARTIAL (limited-environment measurement).**
+
+**Next audit section number: 165.**
