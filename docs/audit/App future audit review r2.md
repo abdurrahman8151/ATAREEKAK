@@ -11712,4 +11712,27 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 159.**
+## 159. RV-54: SignupController serverError leaks the exception message in debug (row 129 VERIFIED FIX)
+
+**Owner ruling.** File a row and fix.
+
+**Problem.** `SignupController::serverError` (`:203`) returned `$e->getMessage()` whenever `app.debug` was on. A database fault on signup therefore reached the client with SQL text, which names tables and columns.
+
+**Code path.** `POST /api/auth/signup` (`routes/api.php:105`) to `SignupController::register`. The path-B `createUser` catch (`:148`) calls `serverError($e)`. The path-A resend catch (`:101`) does the same.
+
+**Fix.** `app/Http/Controllers/API/SignupController.php:203`: the `error` field is always `'An error occurred'`. The exception stays in the existing `Log::error` at each call site. JSON keys are unchanged, so the public shape is unchanged. This is the only copy of the pattern: the other controllers use a no-argument `serverError()` with a fixed message.
+
+**Files changed.** `app/Http/Controllers/API/SignupController.php` (1 line). New test: `tests/Feature/Review/RV45SignupServerErrorTest.php`.
+
+**Verification.**
+- Real fault, not a mock: `users.first_name` is VARCHAR(191) NOT NULL in strict mode (probed on the scratch DB). A 200-character first name passes the validator (max 255) and the database rejects it.
+- `RV45SignupServerErrorTest`: 2 tests, 9 assertions OK (debug on and off).
+- Mutation (leak restored): fails only the debug-on test. Controller restored byte-identical.
+- Identity floor (`tests/Feature/Staff`, `Auth`, `Otp`, `Security`, `tests/Unit/Middleware`): 420 tests, 1164 assertions, OK.
+- Lint clean. Pint PASS on the new test.
+
+**Not changed.** `Docker`, `docker-compose*.yml` and `Dockerfile` were not touched. Owner instruction: keep deployment and Docker files.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 160.**

@@ -200,7 +200,7 @@ class SignupController extends Controller
         return response()->json([
             'status' => 'error',
             'message' => 'Registration failed',
-            'error' => config('app.debug') ? $e->getMessage() : 'An error occurred',
+            'error' => 'An error occurred',
         ], 500);
     }
 }
