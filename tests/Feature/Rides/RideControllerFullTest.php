@@ -252,16 +252,28 @@ class RideControllerFullTest extends TestCase
             ->assertStatus(422);
     }
 
-    // ── cancelBooking (skipped — no route registered) ─────────────────────────────
+    // ── cancelBooking (route registered at routes/api.php:227) ───────────────────
 
     public function test_passenger_can_cancel_booking(): void
     {
-        $this->markTestSkipped('No cancelBooking route registered in api.php — route must be added to enable this test.');
+        $booking = $this->makeBooking('confirmed');
+
+        $this->withToken($this->passengerToken)
+            ->postJson("/api/bookings/{$booking->id}/cancel")
+            ->assertStatus(200);
+
+        $this->assertEquals('cancelled', $booking->fresh()->status);
     }
 
     public function test_other_user_cannot_cancel_booking(): void
     {
-        $this->markTestSkipped('No cancelBooking route registered in api.php — route must be added to enable this test.');
+        $booking = $this->makeBooking('confirmed');
+
+        $this->withToken($this->driverToken)
+            ->postJson("/api/bookings/{$booking->id}/cancel")
+            ->assertStatus(422);
+
+        $this->assertEquals('confirmed', $booking->fresh()->status);
     }
 
     // ── acceptBooking ─────────────────────────────────────────────────────────────

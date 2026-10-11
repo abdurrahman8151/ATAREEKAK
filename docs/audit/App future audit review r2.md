@@ -12077,4 +12077,26 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED ROLLBACK.**
 
-**Next audit section number: 178.**
+## 178. Un-skip stale cancelBooking tests (owner approved) - VERIFIED FIX
+
+**Owner decision.** Un-skip the two `RideControllerFullTest` cases whose skip said "No cancelBooking route registered", and make them run against the real route.
+
+**Problem.** The route `POST /api/bookings/{id}/cancel` is registered at `routes/api.php:227`, so the skips were false. The two tests were empty placeholders, so the cancel HTTP path had no test in this file.
+
+**Change.** `tests/Feature/Rides/RideControllerFullTest.php`: the two placeholder bodies are replaced with real tests.
+- `test_passenger_can_cancel_booking`: passenger cancels their confirmed booking, expect 200, status `cancelled`.
+- `test_other_user_cannot_cancel_booking`: driver (not the owner) cancels, expect 422, status stays `confirmed`.
+
+**Contract checked against code.** `RideController::cancelBooking` returns 200 on success and 422 with a generic message on failure (`RideController.php:587-626`). The ownership refusal is `BookingService::cancelBooking` line 302, an `InvalidArgumentException` (422 under RV-13).
+
+**Checks (scratch DB, guard asserted).**
+- `php -l` and `pint --test` on the test file: pass.
+- The two cancel tests: 2 tests, 4 assertions, OK.
+- `RideControllerFullTest` + `CancelSeatsEquivalenceCheck`: 38 tests, 57 assertions, OK, 0 skipped in the file.
+- Mutation: removing the ownership check at `BookingService.php:302` makes `test_other_user_cannot_cancel_booking` fail (1 failure). The passenger test still passes. `BookingService.php` restored byte-identical (`git diff` empty).
+
+**Files changed.** `tests/Feature/Rides/RideControllerFullTest.php` (two test bodies), this audit section, and the BACKLOG row 14 note. No app code changed.
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 179.**
