@@ -11940,4 +11940,25 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: VERIFIED FIX (decision B honoured; nothing to build).**
 
-**Next audit section number: 171.**
+## 171. Row 7 (one deployment target = Render; decision B) - docs corrected, Docker/VPS kept (VERIFIED FIX)
+
+**Owner decision 7.** Render is the deploy target ("we moved to Render to save the cost of the subscription"). Rewrite deploy for Render; the VPS workflow becomes obsolete. Owner ruling (BACKLOG row 34): keep the superseded VPS/compose files.
+
+**Problem.** Code and config already reflected Render (`render.yaml`, `deploy-to-vps.yml` `workflow_dispatch`-only, RV-08 defect fixed in R2 sec 96/118). The README still stated the wrong production path: "Docker (recommended)" with compose, and `deploy-to-vps.yml` "Push to `main`". Both were false.
+
+**Code path.** Documentation only: `README.md` Deployment section (lines 362-383).
+
+**Fix.** Deployment now names Render as production (`render.yaml`, branch `Agentic`, migrations via `docker/start.sh`). Docker and compose are kept and labelled as local/legacy, not the production target. The workflow table now says manual-only, legacy, kept for rollback.
+
+**Verified claims (each checked against the file).**
+- `deploy-to-vps.yml` `on:` is `workflow_dispatch` only (line 22, no push).
+- `render.yaml` `branch: Agentic`.
+- `docker/start.sh` runs `php artisan migrate --force`.
+
+**Files changed.** `README.md` (Deployment section only). `phpunit.xml` is the owner's local file and is not committed. No code, no config, no deletions.
+
+**Checks.** Content verified by reading the referenced files; no test covers README text. Diff stat confirms README only, in this commit.
+
+**Final state: VERIFIED FIX (docs).**
+
+**Next audit section number: 172.**

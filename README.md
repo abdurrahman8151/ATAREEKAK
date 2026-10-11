@@ -361,13 +361,21 @@ Results are stored in `perf-results/` (`A_baseline.json`, `B_indexes.json`, `C_f
 
 ## Deployment
 
-### Docker (recommended)
+**Production target: Render** (owner decision 7, to save the cost of the subscription). `render.yaml`
+is the Render Blueprint: the web service, the Horizon queue worker and the scheduler. Set the
+`sync: false` secrets in the Render dashboard; Render deploys from the `Agentic` branch on push.
+Migrations run from `docker/start.sh` on every deploy.
+
+### Docker and compose (kept, not the production path)
+
+The Docker files are kept on purpose, as a local and legacy path. They are not the production
+target.
 
 ```bash
-# Build production image
+# Build the image locally
 docker build -t syride:latest .
 
-# Start with compose
+# Start the local stack with compose
 docker compose -f docker-compose.yml up -d
 ```
 
@@ -375,11 +383,9 @@ The `Dockerfile` uses a multi-stage build. Nginx (`nginx-docker.conf`) fronts Ro
 
 ### GitHub Actions
 
-Two workflows are preconfigured:
-
 | Workflow | Trigger | Action |
 |---|---|---|
-| `deploy-to-vps.yml` | Push to `main` | SSH deploy to VPS, migrate, restart Octane |
+| `deploy-to-vps.yml` | Manual only (`workflow_dispatch`); push trigger removed | Legacy SSH deploy to a VPS. Not used for production. Kept for rollback. |
 | `sonar.yml` | Pull Request / push | Static analysis via SonarQube |
 
 ### Scheduled Commands
