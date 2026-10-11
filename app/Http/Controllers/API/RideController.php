@@ -285,7 +285,7 @@ class RideController extends Controller
                 // !! NO 'bookings' key — passenger data never leaves this endpoint !!
             ]);
 
-        } catch (\Throwable $e) {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ride not found',
@@ -376,7 +376,7 @@ class RideController extends Controller
                 ],
             ]);
 
-        } catch (\Throwable $e) {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ride not found',
@@ -459,6 +459,17 @@ class RideController extends Controller
                 'data' => $rides,
             ]);
 
+        } catch (\InvalidArgumentException $e) {
+            // RV-50 / owner ruling: an unresolved address is a curated refusal the user can correct,
+            // not a fault. Only the RV-50 "Could not find a location" refusal is curated here; every
+            // other exception still reaches the generic 500 below (RV-13).
+            if (str_starts_with($e->getMessage(), 'Could not find a location for the')) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
+
+            return response()->json(['success' => false, 'message' => 'Search failed.'], 500);
         } catch (\Throwable $e) {
             Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
 

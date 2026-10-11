@@ -11686,4 +11686,30 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 158.**
+## 158. RV-45: controller catch-alls swallowing domain errors (row 120 VERIFIED FIX)
+
+**Problem.** `RideController` and `EmployeeManagementController` wrapped service calls in `catch (\Throwable)` and returned a generic 500 or a 404. A refusal the user can correct (an unresolved address, a restricted account) reached the client as a server error, and two ride reads reported any fault as "Ride not found".
+
+**Scope, measured.** 41 real `catch (\Throwable)` sites in `app/Http/Controllers` (the earlier count of 46 included comment text). Each was classified by reading its try body and catch body. The backlog's "36 service-wrapping" figure predates that measurement.
+
+**Changes (three behaviours, three files).**
+1. `EmployeeManagementController` toggle-active and reset-password: already mapped `\DomainException` to a curated 403. Verified by test (no code change). Restricted-role target returns the real visibility refusal (`getById`, which runs before the `canManage` restricted check).
+2. `RideController::show` (:288) and `driverView` (:379): catch narrowed from `\Throwable` to `ModelNotFoundException`. A real missing ride still returns 404 "Ride not found"; a database fault now reaches the generic 500.
+3. `RideController::searchRides` (:462): owner ruling, curated 422 for the RV-50 "Could not find a location for the ... address" refusal only. Every other exception still returns the generic 500 "Search failed.".
+
+**Sites reviewed, no change needed.** Notification-only, logged and non-fatal (`RideController:594-1011`, `AdminBanController:118,191`, `AdminWalletRequestController:287,365`, `PassengerProfileController:432`, `ComplaintController:51`, `StaffComplaintController:192`, `StaffAdminController:233`, `VerificationController:112,218`). Auto-debt guard (`AdminWalletRequestController:262`). Generic faults returning 500 (`RideController:162,401,498,604,650,692,976,1011`, `SignupController:48,101,148`). Curated 4xx already in place (`RideController:97,215,565,767,877,936`, `EmployeeManagementController` mutating methods).
+
+**Files changed.** `app/Http/Controllers/API/RideController.php` (3 catch sites). New tests: `tests/Feature/Review/RV45RestrictedRoleRefusalTest.php`, `tests/Feature/Review/RV45RideNotFoundTest.php`, `tests/Feature/Review/RV45SearchUnresolvedAddressTest.php`.
+
+**Verification.**
+- `php -l` clean; Pint PASS on new test files. `RideController.php` already fails Pint at HEAD (`line_ending`, `braces_position`, and others, pre-existing). Not reformatted, to keep the diff to the changed lines.
+- `RV45RestrictedRoleRefusalTest`: 3 tests, 11 assertions OK. Mutation (toggle 403 to 500, reset 403 to 500): each fails only its own test. Identity floor 367 OK.
+- `RV45RideNotFoundTest`: 4 tests, 14 assertions OK. The fault is a real dropped `rides.available_seats` inside the request (approved), restored after; schema verified PRESENT. Mutation (catches back to `\Throwable`): both fault tests fail.
+- `RV45SearchUnresolvedAddressTest`: 2 tests, 7 assertions OK. Mutation (gate removed): only the unresolved-address test fails; the fault test stays 500.
+- Rides floor (`tests/Feature/Rides`, `Bookings`, `tests/Unit/Domain`): 223 tests, 357 assertions, 2 skipped, OK.
+
+**Not changed, flagged.** `SignupController::serverError` returns the raw exception message when `APP_DEBUG` is true. Separate exposure, needs its own row. Plain `POST /api/rides` without route data raises SQLSTATE 1048 (earlier finding, not filed).
+
+**Final state: VERIFIED FIX.**
+
+**Next audit section number: 159.**
