@@ -11735,4 +11735,16 @@ So `process()` is a required contract method. The earlier conclusion that it was
 
 **Final state: VERIFIED FIX.**
 
-**Next audit section number: 160.**
+## 160. Owner decisions on the blocked and deferred rows: RV-26 SUPERSEDED, T4-5 ROLLED BACK
+
+**Owner rulings.**
+- **RV-26 (order 46):** close as SUPERSEDED. Its headline was refuted by T2-2's own fix text (`R2 sec 28.1`). No code change.
+- **T4-5 (order 103):** keep `User::$fillable` as it is and keep the ratchet (`R2 sec 34`). Narrowing was rolled back twice. Checked: admin status changes are written through explicit code paths (for example `EmployeeManagementService`, `:404`), not through `$fillable`, so narrowing would not stop admins. Row set to ROLLED BACK by owner instruction.
+
+**Files changed.** `docs/audit/BACKLOG.md` (two rows) and this section. No code.
+
+**Verification.** Anchors matched once each. The tree was clean before the edit, apart from the owner's `phpunit.xml`.
+
+**Not yet done (other owner decisions, not in this section).** RV-10 (waiting for the production window W), AF-6 (depends on RV-10), RV-12 (ruling chosen: keep `7ab1eff`; the row still needs its own closure), RV-29 (phone visibility chosen: after confirmed booking), RV-17 (accepted on the scratch box), T3-3 and T3-17 (deferral lifted). These are still open.
+
+**Next audit section number: 161.**
