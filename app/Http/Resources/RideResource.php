@@ -80,7 +80,12 @@ class RideResource extends JsonResource
             'vehicle_type' => $this->vehicle_type,
             'payment_method' => $this->payment_method,
             'booking_type' => $this->booking_type,
-            'communication_number' => $this->communication_number,
+            // Row 5 (owner decision): the driver's number is shown only to the ride's own driver.
+            // Other viewers (ride listings, ride detail) get null; passengers see it on their
+            // booking after confirmation (BookingResource).
+            'communication_number' => $this->isViewedByDriver($request)
+                ? $this->communication_number
+                : null,
             'notes' => $this->notes,
 
             'route' => [
@@ -91,6 +96,17 @@ class RideResource extends JsonResource
             'created_at' => $this->created_at->toIso8601String(),
             'updated_at' => $this->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * True only when the authenticated viewer is this ride's driver. Anyone else, including an
+     * unauthenticated caller, does not see the driver's communication number (row 5).
+     */
+    private function isViewedByDriver($request): bool
+    {
+        $viewer = $request?->user();
+
+        return $viewer !== null && (int) $viewer->id === (int) $this->driver_id;
     }
 
     /**

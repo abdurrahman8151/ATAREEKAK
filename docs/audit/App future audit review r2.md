@@ -11982,4 +11982,33 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Final state: PARTIAL (step 1 VERIFIED; step 2 open).**
 
-**Next audit section number: 173.**
+## 173. Row 5 step 2 - ride listing and detail gated to the driver (VERIFIED FIX)
+
+**Owner decision 5, with rule.** The driver's phone (`communication_number`) is shown only to the ride's own driver on a ride response. Passengers see it on their own booking after `passenger_confirmed_at` (step 1, sec 172). Other signed-in users and unauthenticated callers do not see it.
+
+**Problem.** `RideResource:83` returned `communication_number` to every viewer. It is reached by `GET /api/rides/{id}` (`show`) and `GET /api/rides` (`index`, the viewer's own rides), so any signed-in user who could load a ride got the driver's number.
+
+**Code path.** `RideController::show:278` and `index:537` -> `RideResource::toArray`. Other `RideResource` builds (`create:78`, `driverView:364`) have the driver as the viewer and keep the number.
+
+**Fix.** `app/Http/Resources/RideResource.php`: the key is the number only when `isViewedByDriver($request)` (authenticated user id equals `driver_id`); otherwise `null`. The helper returns false for an unauthenticated viewer. One place, so every caller follows the rule.
+
+**Correction.** Earlier notes said step 2 needed the viewer on the request, which the resource already had through `toArray($request)`. Step 2 used that, so no controller change was needed.
+
+**Tests (new, `tests/Feature/Review/Row5DriverPhoneVisibilityTest.php`).**
+- Allowed: the driver sees `communication_number` on `GET /api/rides/{id}`.
+- Denied: a stranger signed in sees `null`, and the number is not in the body.
+- Denied: an unauthenticated caller does not see the number.
+
+**Checks (scratch DB, guard asserted).**
+- `php -l` and `pint --test` on changed PHP: pass.
+- `Row5DriverPhoneVisibilityTest` + `RideResourceTest`: 19 tests, 55 assertions, OK.
+- `tests/Feature/Rides` + `tests/Feature/Bookings`: 101 tests, 197 assertions, OK, 2 skipped (pre-existing `markTestSkipped` guards on routes not registered in `api.php`; not caused by this change).
+- Mutation: forcing the gate open makes the denial tests fail (1 failure); file restored byte-identical.
+
+**Files changed.** `app/Http/Resources/RideResource.php`, `tests/Feature/Review/Row5DriverPhoneVisibilityTest.php` (new), `docs/audit/BACKLOG.md` (RV-29 row 48 evidence note), this section. `phpunit.xml` is the owner's local file and is not committed.
+
+**Not verified.** The `index` listing (`GET /api/rides`) was not exercised by a dedicated test; it runs through the same resource and the shared `isViewedByDriver` rule, and the existing `RideResourceTest` passes. Stated so it is not claimed as tested.
+
+**Final state: VERIFIED FIX (row 5, both steps).**
+
+**Next audit section number: 174.**
