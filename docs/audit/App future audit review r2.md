@@ -12173,4 +12173,12 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Not changed.** No code, config, `.env`, or data changed.
 
-**Next audit section number: 183.**
+## 183. RV-19 and RV-20 owner decisions: verified against code
+
+**RV-19 (earnings).** Owner decision: read `ledger_earnings` from the ledger; relabel today's figure `estimated_gross`. Already implemented in `8ee88a8`, and now re-verified: `AdminDriverService` sums recorded settled money from `wallet_transactions` (type-discriminated, both spellings), and `estimated_gross` is the relabelled projection. `total_earnings` stays as an alias. Scoped run, scratch DB, guard asserted: `AdminDriverServiceTest` 142 tests / 300 assertions, OK. Verdict: VERIFIED FIX (decision as stated, code matches).
+
+**RV-20 (refund interface).** Owner first chose "split into two methods". The refund half was already built in `11c4907` as ONE set-level method `processRefund(Ride, Collection, string $reason)` with a required reason (`driver_cancellation` | `staff_cancellation`); an unknown reason is refused. Owner, asked to resolve the conflict, chose to KEEP the reason-argument design. No code change. Verdict: VERIFIED FIX (design: reason argument, not split).
+
+**Not changed.** No code. `phpunit.xml` untouched.
+
+**Next audit section number: 184.**
