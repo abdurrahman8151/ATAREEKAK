@@ -12212,4 +12212,20 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Verdict: VERIFIED FIX (measurement, V7 closed) with the write-load limit and the history incident stated.**
 
-**Next audit section number: 187.**
+## 187. Goal closed; V7 record; Docker stack screenshot
+
+**Goal.** The goal covering V1, V4-V16 (rows 1, 4-16) is complete. Every row is terminal: fixed, superseded, measured, or closed by the owner's decision.
+
+**Owner closures (no code change).** T1-3 closed as an accepted risk: credentials not rotated, history not rewritten. T3-10 closed by owner decision. RV-08 closed: owner kept the VPS and compose files.
+
+**V7 measured.** Replica lag 0 seconds across a 60 s load (section 186).
+
+**Open, outside the goal.**
+- The values of a local compose override accidentally committed in `9ecd202` remain in that commit's history. Reverted from the branch in `e23e6fe`. Removing them needs a history rewrite, which is the owner's decision.
+- RV-10 staff-queue escalation: not built; needs owner design approval.
+
+**Evidence.** Docker stack screenshot saved at `docs/audit/screenshots/docker-stack-2026-10-11.png`. It shows the compose project before the app containers were fixed.
+
+**Not changed.** No code, config, `.env`, or data.
+
+**Next audit section number: 188.**
