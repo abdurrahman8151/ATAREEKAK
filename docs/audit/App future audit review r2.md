@@ -12181,4 +12181,17 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Not changed.** No code. `phpunit.xml` untouched.
 
-**Next audit section number: 184.**
+## 184. Owner closes T1-3, T3-10 and confirms RV-08 (decision, not a fix)
+
+**Owner decision.** Close T1-3 and T3-10 now. Do not rotate any credential. Do not delete the VPS/compose files. RV-08 is confirmed closed (it was already VERIFIED FIX in the record; this removes the stale BLOCKED wording).
+
+**What "closed" means here, stated plainly so the record is not misleading.**
+- **T1-3 is an ACCEPTED RISK, not a fix.** `JWT_SECRET` and `PUSHER_APP_SECRET` (values not recorded here) match historical literals and are still live. The repository history still contains them, and the `origin` remote URL still embeds a personal access token (`R2 sec 98`). The owner has chosen not to rotate or rewrite history. Anyone with read access to the repository history can still read those values.
+- **T3-10 is closed.** Its hygiene half was done earlier (`R2 sec 80`), and decision 7 chose Render. Its remaining gate was T1-3, which is now the accepted risk above.
+- **RV-08 is closed.** Owner ruling: keep the VPS/compose files. The defect on the chosen target was fixed earlier (`R2 sec 96`, `R2 sec 118`).
+
+**Revisit trigger.** If the repository becomes shared, public, or handed to a third party, or if these values are used in production, reopen T1-3. The decision does not cover that case.
+
+**Changed.** `docs/audit/BACKLOG.md` only: rows 69 (T1-3) and 91 (T3-10) status cells. No code, no config, no credential, no git history change. `phpunit.xml` untouched.
+
+**Next audit section number: 185.**
