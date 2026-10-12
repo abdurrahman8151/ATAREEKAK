@@ -12243,4 +12243,14 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Not changed.** No code, config, `.env`, or data. `phpunit.xml` and `docker-compose.local.yml` are not staged.
 
-**Next audit section number: 189.**
+## 189. V4 reopened; dashboard regenerated
+
+**Owner decision.** V4 (client IP behind nginx) is OPEN, not SUPERSEDED. The code fix is in place (`TRUSTED_PROXIES` read from config), but `TRUSTED_PROXIES` is unset in `render.yaml` and `docker-compose.yml`, so a deployment without it still collapses every `ip:`-keyed rate-limit bucket into one. Waiting on Render's proxy address range (owner option A). No range was guessed.
+
+**Checked.** Render's inbound-IP and outbound-IP docs do not give the proxy range. Owner to request it from Render support.
+
+**Dashboard.** `docs/audit/backlog-status.png` regenerated from BACKLOG: 109 VERIFIED FIX, 2 OPEN (V4, T1-3), 2 BLOCKED (RV-10, AF-6), 1 PARTIAL (RV-17), 2 DEFERRED (T3-3, T3-10), 1 ROLLED BACK (T4-5), 14 SUPERSEDED.
+
+**Not changed.** No code, config, or deploy file. `phpunit.xml` and `docker-compose.local.yml` not staged.
+
+**Next audit section number: 190.**
