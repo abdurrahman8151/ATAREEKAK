@@ -12194,20 +12194,4 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Changed.** `docs/audit/BACKLOG.md` only: rows 69 (T1-3) and 91 (T3-10) status cells. No code, no config, no credential, no git history change. `phpunit.xml` untouched.
 
-## 186. V7 run: SHOW REPLICA STATUS under load (measured)
-
-**Setup.** Local Docker compose stack (`docker-compose.yml`): MySQL primary (`mysql`), replica (`mysql_replica`), app containers `app1`-`app5`, queue, Redis, nginx. The app containers were started with the OTP test-mode settings overridden to non-testing values in the shell only; `.env` was not changed. Local MySQL and MinIO passwords were chosen by the owner and set in the shell only.
-
-**Replication before load.** Replica IO and SQL threads both Yes, `Seconds_Behind_Source` 0, no IO or SQL errors, source host `mysql`.
-
-**Load.** k6 v2.0.0, 20 virtual users, 60 s, against `http://localhost:8080/api/test`. Result: 104,675 iterations, about 1,744 req/s, 33 MB received. Target is the no-write web endpoint.
-
-**Replica during load.** 12 samples at 5 s intervals: `Seconds_Behind_Source` 0 in every sample; IO and SQL threads Yes in every sample.
-
-**Limit (stated, not hidden).** The load did not write to the database, so this shows replication keeps up with the web stack. It does not prove lag stays at 0 under heavy write traffic. A write-heavy run would be the stronger test and is not done.
-
-**Not changed.** No code, no config, no `.env`, no data. Compose containers left running for the owner.
-
-**Verdict: VERIFIED FIX (measurement, V7 row closed) with the write-load limit stated.**
-
-**Next audit section number: 187.**
+**Next audit section number: 185.**
