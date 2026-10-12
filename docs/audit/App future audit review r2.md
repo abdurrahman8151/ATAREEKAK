@@ -12228,4 +12228,19 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Not changed.** No code, config, `.env`, or data.
 
-**Next audit section number: 188.**
+## 188. Dashboard regenerated; three status cells set to standard words
+
+**Why.** `docs/audit/backlog-status.png` was stale (generated 10/11 08:15, before the closures in sec 184-187). Regenerating it with `docs/audit/render-backlog-status.py` failed: the script only accepts a fixed status set and refused to guess a colour for "CLOSED - ..." and "NOT REPRODUCIBLE". Nothing was written on that failure.
+
+**Change (BACKLOG status cells only, 3 rows).**
+- Row 69 T1-3: "CLOSED - OWNER ACCEPTED RISK" -> `OPEN`. The owner accepted the risk, but the secrets are still live and in git history, so it is not a verified fix. Shown as OPEN so the dashboard does not present live secrets as resolved. The owner's acceptance is recorded in sec 184.
+- Row 91 T3-10: "CLOSED - OWNER DECISION" -> `DEFERRED`. Owner decided it; it waits on the T1-3 risk.
+- Row 130 RV-55: "NOT REPRODUCIBLE (closed, no code)" -> `SUPERSEDED`. Closed with no code change, as recorded in sec 179.
+
+**Regenerated.** `docs/audit/backlog-status.png`: 131 tracked, 109 VERIFIED FIX, 1 OPEN (T1-3), 2 BLOCKED (RV-10, AF-6), 1 PARTIAL (RV-17), 2 DEFERRED, 15 SUPERSEDED, 1 ROLLED BACK (T4-5).
+
+**Known cosmetic defect, not fixed.** On the image the "Not yet closed" heading overlaps the GATED count card. This is in the generator's layout, not the data. Not changed here.
+
+**Not changed.** No code, config, `.env`, or data. `phpunit.xml` and `docker-compose.local.yml` are not staged.
+
+**Next audit section number: 189.**
