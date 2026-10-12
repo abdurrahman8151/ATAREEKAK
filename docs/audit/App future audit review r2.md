@@ -12194,4 +12194,22 @@ Both return the generic message `The request could not be completed. Please try 
 
 **Changed.** `docs/audit/BACKLOG.md` only: rows 69 (T1-3) and 91 (T3-10) status cells. No code, no config, no credential, no git history change. `phpunit.xml` untouched.
 
-**Next audit section number: 185.**
+## 186. V7 run: SHOW REPLICA STATUS under load (measured)
+
+**Setup.** Local Docker compose stack: MySQL primary, replica, app1-app5, queue, Redis, nginx. App containers ran with OTP test-mode settings overridden in the shell only; `.env` unchanged. Local MySQL and MinIO passwords chosen by the owner, set in the shell only.
+
+**Replication before load.** Replica IO and SQL threads Yes, `Seconds_Behind_Source` 0, no IO/SQL errors, source host `mysql`.
+
+**Load.** k6 v2.0.0, 20 VUs, 60 s, `http://localhost:8080/api/test`: 104,675 iterations, about 1,744 req/s.
+
+**Replica during load.** 12 samples at 5 s: lag 0 every sample; both threads Yes every sample.
+
+**Limit.** The load did not write to the database, so this shows replication keeps up with the web stack, not under heavy write traffic.
+
+**Incident.** A commit (`9ecd202`) accidentally included a local `docker-compose.local.yml` holding credential lines, and it was pushed. It was reverted in `e23e6fe` (remote now has no such file). Reverting does NOT remove it from git history: the values remain in `9ecd202`. Removing them needs a history rewrite, which is the owner's call. Owner has said no rotation.
+
+**Not changed.** No code, config, `.env`, or data. The local compose file is still in the working tree, untracked, and was not committed.
+
+**Verdict: VERIFIED FIX (measurement, V7 closed) with the write-load limit and the history incident stated.**
+
+**Next audit section number: 187.**
