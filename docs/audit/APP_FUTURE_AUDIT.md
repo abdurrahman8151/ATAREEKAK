@@ -718,3 +718,25 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Coverage.** `StaffOperationsControllerTest` has 13 `trips` tests (auth, empty list, every filter, row contents).
 - **Decision.** No code change. Same finding as slices 1 and 2.
 - **Final state: CLOSED, no change needed.**
+
+### L8. Slice 7 - StaffOperationsController::userProfile extraction: VERIFIED FIX
+- **Finding.** `userProfile()` built the whole staff profile in its cache closure (about 100 lines): score, rating stats,
+  ride history split by role, comments, and a 16-key output.
+- **Root cause.** Read logic lived in the HTTP controller. The existing tests pinned only block-level keys, so the comment
+  shape and the cache key were not protected.
+- **Step 1 (characterization, no code change).** NEW `tests/Feature/Review/L8StaffUserProfileCharacterizationTest.php`:
+  10 tests pin the 16 top-level keys, the score and ride-history key sets, the rating counts, the comment shape, the cache key
+  `staff.user-profile.{id}`, the 404 and the 401. Two fixture errors were found and corrected in the test itself (not the app):
+  `UserObserver::created` already creates the profile and seeds a 3.0 base rating, so the test now uses those rows.
+- **Step 2 (extraction).** NEW `app/Services/Staff/StaffUserProfileService.php::build(int $userId): array` holds the build.
+  The controller keeps the cache call (key and 2-minute TTL unchanged, so `StaffAdminController` busting still works), the 404
+  and the envelope. Unused `ScoreService` / `UserRideStatsService` / `Profile` / `UserRating` dependencies removed from the controller.
+- **Files.** NEW `app/Services/Staff/StaffUserProfileService.php`; NEW
+  `tests/Feature/Review/L8StaffUserProfileCharacterizationTest.php`; CHANGED `app/Http/Controllers/API/Staff/StaffOperationsController.php`.
+- **Checks.** `php -l` and Pint PASS on changed PHP files. Characterization + `StaffOperationsControllerTest`: 92 tests, 235
+  assertions OK. Wider (Staff + Admin + the new file + cancellation and suspension files): 374 tests, 892 assertions OK.
+- **Mutation.** Renaming the comment `created_at` key in the service fails exactly one characterization test; the service was
+  restored byte-identical.
+- **Not verified.** Live response byte-equality with the pre-extraction controller (checked by pinned shape and values only).
+  Cache-busting from `StaffAdminController` was exercised by existing tests, not by a new end-to-end check.
+- **Final state: VERIFIED FIX.**

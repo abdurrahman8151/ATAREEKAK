@@ -4,17 +4,14 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
-use App\Models\UserRating;
 use App\Services\Admin\AdminTripService;
 use App\Services\Admin\AdminUserService;
 use App\Services\NotificationService;
 use App\Services\Payment\WalletTransactionService;
-use App\Services\Ride\UserRideStatsService;
-use App\Services\Score\ScoreService;
 use App\Services\Staff\StaffBookingQueryService;
+use App\Services\Staff\StaffUserProfileService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,9 +38,8 @@ final class StaffOperationsController extends Controller
     public function __construct(
         private readonly AdminUserService $userService,
         private readonly AdminTripService $tripService,
-        private readonly ScoreService $scoreService,
-        private readonly UserRideStatsService $rideStats,
         private readonly StaffBookingQueryService $bookingQueries,
+        private readonly StaffUserProfileService $userProfiles,
     ) {}
 
     // =========================================================================
@@ -117,85 +113,7 @@ final class StaffOperationsController extends Controller
     {
         try {
             $data = Cache::remember("staff.user-profile.{$userId}", now()->addMinutes(2), function () use ($userId) {
-                $profile = Profile::with([
-                    'user',
-                    'comments.commenter:id,first_name,last_name',
-                ])->where('user_id', $userId)->firstOrFail();
-
-                $user = $profile->user;
-
-                // ── Score ──────────────────────────────────────────────────────────
-                $userScore = $this->scoreService->getScore($user);
-
-                // ── Rating stats ───────────────────────────────────────────────────
-                $ratingStats = UserRating::where('rated_user_id', $userId)
-                    ->selectRaw('COUNT(*) as total, ROUND(AVG(rating), 2) as average')
-                    ->first();
-
-                // ── Ride history: as driver — 1 query instead of 3 ────────────────
-                // AF-7: the query lives in UserRideStatsService; this was duplicated verbatim in
-                // ProfileController. The reshaping below stays here because `total` (rather than
-                // ProfileController's `total_created`) is THIS endpoint's public shape.
-                $driverStats = $this->rideStats->ridesAsDriver($userId);
-
-                $asDriver = [
-                    'total' => $driverStats->sum(),
-                    'completed' => $driverStats->get('finished', 0),
-                    'cancelled' => $driverStats->get('cancelled', 0),
-                ];
-
-                // ── Ride history: as passenger — 1 query instead of 3 ─────────────
-                $passengerStats = $this->rideStats->bookingsAsPassenger($userId);
-
-                $asPassenger = [
-                    'total' => $passengerStats->sum(),
-                    'completed' => $passengerStats->get('completed', 0),
-                    'cancelled' => $passengerStats->get('cancelled', 0),
-                ];
-
-                // ── Comments received ──────────────────────────────────────────────
-                $comments = $profile->comments->map(fn ($c) => [
-                    'id' => $c->id,
-                    'comment' => $c->comment,
-                    'commenter' => [
-                        'id' => $c->commenter?->id,
-                        'name' => trim(($c->commenter?->first_name ?? '').' '.($c->commenter?->last_name ?? '')),
-                    ],
-                    'created_at' => $c->created_at->toIso8601String(),
-                ])->values()->all();
-
-                return [
-                    'id' => $user->id,
-                    'full_name' => trim("{$user->first_name} {$user->last_name}"),
-                    'email' => $user->email,
-                    'gender' => $user->gender,
-                    'address' => $user->address,
-                    'verification_status' => $user->verification_status,
-                    'is_verified_driver' => (bool) $user->is_verified_driver,
-                    'is_verified_passenger' => (bool) $user->is_verified_passenger,
-                    'account_status' => $user->isBannedNow() ? 'suspended' : 'active',
-                    'joined_at' => $user->created_at->toIso8601String(),
-                    'profile_photo' => $profile->profile_photo
-                        ? asset("storage/{$profile->profile_photo}")
-                        : null,
-                    'description' => $profile->description,
-                    'score' => [
-                        'score' => $userScore->score,
-                        'tier' => $userScore->tier,
-                        'cancel_rate' => round($userScore->cancel_rate, 2),
-                        'total_rides' => $userScore->total_rides,
-                        'total_cancellations' => $userScore->total_cancellations,
-                    ],
-                    'rating' => [
-                        'average' => $ratingStats->average ?? 0,
-                        'total_ratings' => (int) ($ratingStats->total ?? 0),
-                    ],
-                    'ride_history' => [
-                        'as_driver' => $asDriver,
-                        'as_passenger' => $asPassenger,
-                    ],
-                    'comments_received' => $comments,
-                ];
+                return $this->userProfiles->build($userId);
             });
 
             return response()->json([
