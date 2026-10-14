@@ -733,7 +733,41 @@ class WalletTransactionService
             'posting_key' => $escrowOutKey,
         ]);
 
-        // Passenger refund
+        // Passenger refund (or an audit row for a zero refund)
+        $this->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
+
+        // Driver compensation
+        $this->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
+
+        // ── Decision un3: double-entry legs (SyCash → passenger + driver) ────────
+        // Three parties, one event. Only legs are built if the amounts are non-zero, so a transfer
+        // that (correctly) owes nothing to one side does not post a 0.00 leg - a zero leg is noise,
+        // and `postTransfer` would still balance it, which would be misleading rather than wrong.
+        $legs = [['wallet_id' => $syCashWallet->id, 'amount' => -$totalPaid, 'description' => "booking #{$booking->id}: cancellation out"]];
+
+        if ($refundAmount > 0) {
+            $legs[] = ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger"];
+        }
+
+        if ($driverAmount > 0) {
+            $legs[] = ['wallet_id' => $driverWallet->id, 'amount' => $driverAmount, 'description' => "booking #{$booking->id}: driver compensation"];
+        }
+
+        $this->ledger->postTransfer($legs);
+
+        Log::info('Time-based cancellation processed', [
+            'booking_id' => $booking->id,
+            'seats_cancelled' => $seatsCancelled,
+            'total_paid' => $totalPaid,
+            'refund_amount' => $refundAmount,
+            'driver_amount' => $driverAmount,
+            'policy_tier' => $refundPolicy['policy_tier'],
+        ]);
+    }
+
+    /** Passenger side of a time-based cancellation: a refund row, or an audit row when the refund is zero. */
+    private function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId): void
+    {
         if ($refundAmount > 0) {
             WalletTransaction::create([
                 'wallet_id' => $passengerWallet->id,
@@ -762,8 +796,11 @@ class WalletTransactionService
                 'reference' => "booking:{$booking->id}",
             ]);
         }
+    }
 
-        // Driver compensation
+    /** Driver side of a time-based cancellation: the compensation row, when the driver is owed anything. */
+    private function recordDriverCompensation(Ride $ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): void
+    {
         if ($driverAmount > 0) {
             WalletTransaction::create([
                 'wallet_id' => $driverWallet->id,
@@ -778,31 +815,6 @@ class WalletTransactionService
                 'reference' => "booking:{$booking->id}",
             ]);
         }
-
-        // ── Decision un3: double-entry legs (SyCash → passenger + driver) ────────
-        // Three parties, one event. Only legs are built if the amounts are non-zero, so a transfer
-        // that (correctly) owes nothing to one side does not post a 0.00 leg - a zero leg is noise,
-        // and `postTransfer` would still balance it, which would be misleading rather than wrong.
-        $legs = [['wallet_id' => $syCashWallet->id, 'amount' => -$totalPaid, 'description' => "booking #{$booking->id}: cancellation out"]];
-
-        if ($refundAmount > 0) {
-            $legs[] = ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger"];
-        }
-
-        if ($driverAmount > 0) {
-            $legs[] = ['wallet_id' => $driverWallet->id, 'amount' => $driverAmount, 'description' => "booking #{$booking->id}: driver compensation"];
-        }
-
-        $this->ledger->postTransfer($legs);
-
-        Log::info('Time-based cancellation processed', [
-            'booking_id' => $booking->id,
-            'seats_cancelled' => $seatsCancelled,
-            'total_paid' => $totalPaid,
-            'refund_amount' => $refundAmount,
-            'driver_amount' => $driverAmount,
-            'policy_tier' => $refundPolicy['policy_tier'],
-        ]);
     }
 
     // =========================================================================

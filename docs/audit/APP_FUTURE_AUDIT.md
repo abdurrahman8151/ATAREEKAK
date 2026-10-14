@@ -900,3 +900,18 @@ o-store, no-cache). A failure logs a generic error and returns 500.
   Final run (cash-fee, the new file, the other referencing tests, and the Money floors): 231 tests, 403 assertions OK.
 - **Mutation.** Renamed the Primary Admin refund leg type: 1 of 4 L18 tests fails. File restored byte-identical; no marker left.
 - **Final state: VERIFIED FIX.**
+
+### L19. Slice 17 - WalletTransactionService::processTimeBasedCancellation (MONEY): VERIFIED FIX (refactor, then characterization)
+- **Finding.** One 150-line method held four steps in one transaction: lock three wallets, guard the SyCash balance, debit escrow, then write
+  the passenger row (refund, or a zero-refund audit row), the driver compensation row, and the double-entry legs.
+- **Refactor.** The lock, escrow guard, escrow debit, balance writes and double-entry legs stay in `processTimeBasedCancellation`, so the transaction-critical
+  sequence is unchanged. The two ledger-row branches are now private helpers: `recordPassengerRefund` (refund row, or zero-refund audit row) and
+  `recordDriverCompensation` (compensation row when owed). Same statements, same order, explicit parameters.
+  Static check: every variable in each helper is declared in its signature; the two blocks assign nothing (no hidden outputs).
+- **Characterization.** NEW `tests/Feature/Payment/L19TimeBasedCancellationLedgerTest.php`, 4 tests, 13 assertions. The existing test pins balances per tier only.
+  L19 pins the rows: partial writes `time_based_refund` + `cancellation_fee_earnings`; zero writes `cancellation_no_refund` and no refund row;
+  full writes the refund and no driver row; every cancellation writes one `cancellation_processing` SyCash debit.
+- **Checks.** Lint and Pint PASS. Cancellation baseline (232 tests, 345 assertions) green before and after the refactor.
+  Final run (cancellation tests, the new file, RV02, RV10, Money and Ride floors): 341 tests, 572 assertions OK.
+- **Mutation.** Renamed the zero-refund audit row type: 1 of 4 L19 tests fails. File restored byte-identical; no marker left.
+- **Final state: VERIFIED FIX.**
