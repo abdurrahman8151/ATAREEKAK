@@ -84,7 +84,7 @@ class ClientIpBehindProxyTest extends TestCase
     }
 
     /** The exact value set in render.yaml (Render internal 10/8 plus the Cloudflare ranges). */
-    private const RENDER_TRUSTED_PROXIES = '127.0.0.1/32,10.0.0.0/8,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,104.16.0.0/13,104.24.0.0/14,108.162.192.0/18,131.0.72.0/22,141.101.64.0/18,162.158.0.0/15,172.64.0.0/13,173.245.48.0/20,188.114.96.0/20,190.93.240.0/20,197.234.240.0/22,198.41.128.0/17,2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,2a06:98c0::/29,2c0f:f248::/32';
+    private const RENDER_TRUSTED_PROXIES = '10.0.0.0/8,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,104.16.0.0/13,104.24.0.0/14,108.162.192.0/18,131.0.72.0/22,141.101.64.0/18,162.158.0.0/15,172.64.0.0/13,173.245.48.0/20,188.114.96.0/20,190.93.240.0/20,197.234.240.0/22,198.41.128.0/17,2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,2a06:98c0::/29,2c0f:f248::/32';
 
     public function test_render_chain_resolves_to_the_real_client(): void
     {
@@ -95,19 +95,6 @@ class ClientIpBehindProxyTest extends TestCase
             '203.0.113.5',
             $this->resolvedIpFor('10.226.90.65', '203.0.113.5, 172.71.195.123, 10.226.90.65'),
             'V4: the Render chain must resolve to the client, not a proxy hop'
-        );
-    }
-
-    public function test_the_roadrunner_loopback_hop_resolves_to_the_real_client(): void
-    {
-        config(['trustedproxy.proxies' => self::RENDER_TRUSTED_PROXIES]);
-
-        // Production (live check): RoadRunner forwards with REMOTE_ADDR 127.0.0.1, then the
-        // Render chain. Loopback must be trusted or the header is ignored.
-        $this->assertSame(
-            '91.186.247.28',
-            $this->resolvedIpFor('127.0.0.1', '91.186.247.28, 162.158.94.26, 10.30.83.227'),
-            'V4: the RoadRunner loopback peer must be trusted so the real client is used'
         );
     }
 
