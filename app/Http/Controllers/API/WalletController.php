@@ -13,6 +13,7 @@ use App\Models\Wallet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class WalletController extends Controller
@@ -27,7 +28,7 @@ class WalletController extends Controller
     //
     // Validates the phone number, stores it in cache, then sends a 6-digit
     // OTP to the authenticated user's email address (same flow as signup).
-    // Password is NOT required: the user is already authenticated via JWT.
+    // Password IS required: a valid JWT alone is not enough to start wallet creation.
     // ─────────────────────────────────────────────────────────────────────────
     public function initiateWalletCreation(Request $request): JsonResponse
     {
@@ -47,9 +48,11 @@ class WalletController extends Controller
 
         $validator = Validator::make($request->all(), [
             'phone_number' => 'required|string|unique:wallets,phone_number',
+            'password' => 'required|string',
         ], [
             'phone_number.required' => 'A phone number is required to create a wallet.',
             'phone_number.unique' => 'This phone number is already linked to another wallet.',
+            'password.required' => 'Your account password is required to create a wallet.',
         ]);
 
         if ($validator->fails()) {
@@ -57,6 +60,17 @@ class WalletController extends Controller
                 'success' => false,
                 'errors' => $validator->errors(),
             ], 422);
+        }
+
+        // Re-confirm the account password before starting wallet creation. The JWT-cached user
+        // deliberately omits the password hash (decision un11), so read it fresh from the primary.
+        $passwordHash = User::query()->useWritePdo()->whereKey($user->id)->value('password');
+        if (! $passwordHash || ! Hash::check($request->password, $passwordHash)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid credentials',
+                'code' => 'INVALID_CREDENTIALS',
+            ], 401);
         }
 
         // Cache the phone number for the verification step (10 minutes).
