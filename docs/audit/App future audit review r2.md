@@ -12297,3 +12297,18 @@ ull. Owner approved (edit the tests).
 **Not verified.** Rate-limit bucket separation on live traffic (only the resolved IP was checked). docker-compose.yml still has no trust setting (has its own nginx); unchanged by design.
 
 **Final state: VERIFIED FIX.**
+
+## 204. L23 - AdminDriverService::getDriverDashboard money helper: VERIFIED FIX
+
+**Problem.** `getDriverDashboard` (148 lines) mixed rating, ride counts, money, documents and vehicle in one method. The money reads (completed ride-earning ledger sum, and the seats x price x driver-share projection) were inline.
+
+**Fix.** Moved the two money queries into one private helper, `dashboardMoney(int $driverId): array`. It returns the two raw totals; `Money::from` formatting stays at the return site, so rounding is still decided in one place (R2 sec 117). The SQL, both ledger spellings (RV-39), the completed-only rule, and the config-bound driver share rate are unchanged.
+
+**Files.** `app/Services/Admin/AdminDriverService.php` (29 insertions, 15 deletions). New `tests/Feature/Admin/L23AdminDriverDashboardLedgerTest.php`.
+
+**Checks.** Lint clean; Pint clean. Characterization (5 tests, 7 assertions) passes on HEAD and on the refactor. Existing `AdminDriverServiceTest` passes with it. Console floor and referencing tests: 194 tests, 496 assertions, OK. Boundary ratchet: 9 tests, 36 assertions, OK. Mutation (dropped the `ride_earning` spelling): caught by 1 failure on HEAD and again on the refactor; file restored byte-identical.
+
+**Process note.** The In-progress block was written before the first edit this time. The first commit of this section also rewrote the audit file (deleting section 190); that was reverted before merge, and the file was restored from the pre-commit version.
+
+**Final state: VERIFIED FIX.**
+

@@ -357,21 +357,7 @@ final class AdminDriverService
         // writes RIDE_EARNINGS ('ride_earnings'), while seeded/legacy rows use RIDE_EARNING
         // ('ride_earning'). Summing one would silently drop the other. 'completed' only - a
         // pending row is not money that moved.
-        $ledgerEarnings = WalletTransaction::where('user_id', $driverId)
-            ->whereIn('type', [LedgerType::RIDE_EARNINGS->value, LedgerType::RIDE_EARNING->value])
-            ->where('status', 'completed')
-            ->sum('amount');
-
-        // `estimated_gross` is the SAME arithmetic as before, kept and RELABELLED honestly: it is a
-        // projection off current ride prices, not a settled amount. Nothing is lost by renaming it,
-        // and everything is gained: a reader can no longer mistake a projection for a payout.
-        // The rate is bound from config instead of written into the SQL, so the platform's cut is
-        // defined in exactly one place.
-        $estimatedGross = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
-            ->where('rides.driver_id', $driverId)
-            ->where('bookings.status', 'completed')
-            ->selectRaw('SUM(bookings.seats * rides.price_per_seat * ?) as total', [(float) config('fees.driver_share_rate', 0.95)])
-            ->value('total') ?? 0.0;
+        [$ledgerEarnings, $estimatedGross] = $this->dashboardMoney($driverId);
 
         // ── Recent rides ──────────────────────────────────────────────────────
         $recentRides = Ride::where('driver_id', $driverId)
@@ -455,6 +441,34 @@ final class AdminDriverService
                 'visit_count' => $favoriteDestination->visit_count,
             ] : null,
         ];
+    }
+
+    /**
+     * The two money totals the dashboard reports, returned raw. Formatting happens at the return site, so
+     * rounding is decided in one place (R2 sec 117).
+     *
+     * RV-19 item 2 (owner: ledger is authoritative). `ledger_earnings` is the completed ride-earning ledger
+     * sum; both spellings are summed (RV-39), and a pending row is not money that moved.
+     *
+     * `estimated_gross` is a projection off current ride prices, not a settled amount. The driver share
+     * rate is bound from config, so the platform's cut is defined in exactly one place.
+     *
+     * @return array{0: float, 1: float} [ledger earnings, estimated gross]
+     */
+    private function dashboardMoney(int $driverId): array
+    {
+        $ledgerEarnings = WalletTransaction::where('user_id', $driverId)
+            ->whereIn('type', [LedgerType::RIDE_EARNINGS->value, LedgerType::RIDE_EARNING->value])
+            ->where('status', 'completed')
+            ->sum('amount');
+
+        $estimatedGross = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
+            ->where('rides.driver_id', $driverId)
+            ->where('bookings.status', 'completed')
+            ->selectRaw('SUM(bookings.seats * rides.price_per_seat * ?) as total', [(float) config('fees.driver_share_rate', 0.95)])
+            ->value('total') ?? 0.0;
+
+        return [(float) $ledgerEarnings, (float) $estimatedGross];
     }
 
     // =========================================================================
