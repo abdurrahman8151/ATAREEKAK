@@ -81,6 +81,7 @@ with each status taken from the newest section that mentions it. The per-task lo
   (`R2 sec 88`).** Symptom `â€` / `Ã`; e.g. `RideService:190`. This is the documented cause of the
   "non-ASCII anchors fail to match" rule in AGENTS.md. **Blocked by: none - the rule selects it.**
   Comments only; `RideController.php` is NOT one of the 9, so the owner's edits stay untouched.
+- Done recently: **V4 VERIFIED FIX (`R2 sec 202`)** - Render `TRUSTED_PROXIES` set in the dashboard (not applied from the blueprint), and RoadRunner loopback `127.0.0.1/32` trusted (`7959c2f`). Live `request_ip` is now the real client. Temporary `/_debug/ip` reverted (`8ddecd9`). Also earlier this batch: RV-55 (`8fc885c`), AF-3 (`eaafcba`), AF-2 (`3073f2f`), WALLET-1 (`7b593b4`).
 - Done recently: **RV-20 CHARGE HALF VERIFIED FIX (`R2 sec 86`)** - `bookRide` + `acceptBooking` now
   dispatch through `PaymentStrategyFactory`; the `E_PAY` branch is gone from `BookingService` (the
   actual point: a new payment method no longer means editing that service). 8 new tests, with a
