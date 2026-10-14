@@ -29,6 +29,9 @@ class Testridegatedinteractioncommand extends Command
 
     protected $signature = 'syride:test-ride-interaction {--commit : Persist data instead of rolling back}';
 
+    /** AF-3: hidden from artisan list; still runnable by name (developer harness, refuses production). */
+    protected $hidden = true;
+
     protected $description = '[DEV] End-to-end test: ride-gated comments & ratings';
 
     private int $pass = 0;

@@ -42,6 +42,9 @@ class Testfullrideflow extends Command
 
     protected $signature = 'syride:test-noshow {--commit : Persist data instead of rolling back}';
 
+    /** AF-3: hidden from artisan list; still runnable by name (developer harness, refuses production). */
+    protected $hidden = true;
+
     protected $description = 'End-to-end test: no-show reports, penalties, refunds, disputes, complaints';
 
     private int $pass = 0;

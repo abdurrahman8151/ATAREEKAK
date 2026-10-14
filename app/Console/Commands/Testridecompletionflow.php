@@ -28,6 +28,9 @@ class Testridecompletionflow extends Command
     use GuardsAgainstProductionExecution; // AF-4
 
     protected $signature = 'syride:test-completion
+
+    /** AF-3: hidden from artisan list; still runnable by name (developer harness, refuses production). */
+    protected $hidden = true;
                             {--payment=cash     : Payment method to test — cash or e-pay}
                             {--passengers=2     : Number of passengers to simulate (1–4)}
                             {--commit           : Commit data to DB instead of rolling back}';

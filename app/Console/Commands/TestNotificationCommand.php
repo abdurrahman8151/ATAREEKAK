@@ -12,6 +12,9 @@ class TestNotificationCommand extends Command
 
     protected $signature = 'notification:test {user_id?} {--type=welcome}';
 
+    /** AF-3: hidden from artisan list; still runnable by name (developer harness, refuses production). */
+    protected $hidden = true;
+
     protected $description = 'Send a test notification to a user';
 
     public function handle(NotificationService $notificationService)
