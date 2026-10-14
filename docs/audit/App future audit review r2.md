@@ -12358,3 +12358,19 @@ ull. Owner approved (edit the tests).
 
 **Final state: VERIFIED FIX.**
 
+## 208. RFB-2 - Rides/Bookings fixture collisions and L27 characterization: PARTIAL
+
+**Problem.** Combined money, ride and review run failed with duplicate reserved phones (0987654321 in PassengerConfirmCompletionTest; 0912345678 for the BookingTest driver wallet), then with SyCash balance leaking between tests once the shared helper was used.
+
+**Root cause.** Raw Wallet::create of reserved system phones is not idempotent. The shared helper firstOrCreate keeps an existing balance, so the SyCash balance carried over (10,100,000 instead of 100,000).
+
+**Fix.** PassengerConfirmCompletionTest: idempotent helper plus zero reset of both system wallets in setUp. BookingTest: driver wallet moved off the reserved phone. No assertion, amount or app code changed.
+
+**New characterization.** L27PassengerNoShowDirectPathTest pins the direct passenger no-show report path: the report is pending, the driver is not paid on report, no earning row until resolution. Passes on current code. The payout is pinned by MoneyPathBatchTest.
+
+**Checks.** Lint and Pint clean. PassengerConfirmCompletionTest 10 tests OK; BookingTest 11 tests OK; L27 1 test OK. Combined floor (Wallet, Payment, Domain, Review, T3Batch, T4Batch, Rides, Bookings): 978 tests, newly red vs previous baseline by name: 0; 18 then 1 more previously red tests now green.
+
+**Still red, PARKED (not edited).** RideSearchServiceTest::test_get_nearby_rides_excludes_cancelled_rides: order dependence. Passes alone and in the Rides floor. Fixing it requires changing its assertEmpty, which AGENTS.md forbids. An edit was tried and reverted to HEAD (no diff remains). BacklogTableShapeTest and NoDuplicatedFixtureHelpersTest (owner doc and guard text), MigrationEffectsBatchTest (duplicate index, schema), MoneyAndAuthPathBatchTest near-location (two tests, geometry). SharedTestSupportTest and MoneyPathBatch collisions were fixed in RFB-1.
+
+**Final state: PARTIAL. Ride floor is not yet a fully green baseline; the parked order dependence needs an owner decision on the assertion.**
+

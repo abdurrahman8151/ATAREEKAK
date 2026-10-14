@@ -49,7 +49,7 @@ class BookingTest extends TestCase
         // wallets.phone_number is UNIQUE.
         $this->syCashWallet(10_000_000);
 
-        $dw = Wallet::create(['user_id' => $this->driver->id, 'phone_number' => '0912345678', 'wallet_number' => 'WLT-DRV-001', 'balance' => 1_000_000]);
+        $dw = Wallet::create(['user_id' => $this->driver->id, 'phone_number' => '0955555555', 'wallet_number' => 'WLT-DRV-001', 'balance' => 1_000_000]);
         $this->driver->update(['wallet_id' => $dw->id]);
 
         $pw = Wallet::create(['user_id' => $this->passenger->id, 'phone_number' => '0911111111', 'wallet_number' => 'WLT-PAS-001', 'balance' => 1_000_000]);

@@ -11,6 +11,7 @@ use App\Services\Payment\WalletTransactionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
@@ -40,6 +41,7 @@ use Tests\TestCase;
 class PassengerConfirmCompletionTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $driver;
 
@@ -72,12 +74,15 @@ class PassengerConfirmCompletionTest extends TestCase
 
         // System wallets are located by phone only — config/admin.php no longer
         // holds email/password credentials.
-        $this->syCash = Wallet::create([
-            'user_id' => null, 'phone_number' => config('admin.sycash.phone'), 'balance' => 0,
-        ]);
-        $this->primary = Wallet::create([
-            'user_id' => null, 'phone_number' => config('admin.system_admin.phone'), 'balance' => 0,
-        ]);
+        // Idempotent (firstOrCreate by phone): the reserved system phones are shared across the suite,
+        // so a raw Wallet::create collided with a wallet another test already left in the database.
+        $system = $this->seedSystemWallets(0.0);
+        $this->syCash = $system['sycash'];
+        $this->primary = $system['primary'];
+        // firstOrCreate keeps an existing row's balance, so a balance left by an earlier test would
+        // leak in. Every assertion below assumes both system wallets start at zero.
+        $this->syCash->forceFill(['balance' => 0])->save();
+        $this->primary->forceFill(['balance' => 0])->save();
 
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
         $this->driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
