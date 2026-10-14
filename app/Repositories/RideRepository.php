@@ -41,70 +41,16 @@ class RideRepository implements RideRepositoryInterface
             // ────────────────────────────────────────────────────────────
             // 1) Pickup: use 'pickup_location' array if provided, otherwise geocode 'pickup_address'
             // ────────────────────────────────────────────────────────────
-            if (
-                isset($data['pickup_location']) &&
-                is_array($data['pickup_location']) &&
-                array_key_exists('lat', $data['pickup_location']) &&
-                array_key_exists('lng', $data['pickup_location'])
-            ) {
-                $pickup = [
-                    'lat' => (float) $data['pickup_location']['lat'],
-                    'lng' => (float) $data['pickup_location']['lng'],
-                ];
-                // ✅ NEW: Use GeocodingService
-                $pickupLabel = $this->geocodingService->reverseGeocode(
-                    $pickup['lat'],
-                    $pickup['lng']
-                );
-            } elseif (! empty($data['pickup_address'])) {
-                // ✅ NEW: Use GeocodingService
-                $pickupResult = $this->geocodingService->geocodeAddress($data['pickup_address']);
-                if ($pickupResult === []) {
-                    // RV-50: a miss is a curated refusal, never a null-island (0,0) coordinate.
-                    throw new \InvalidArgumentException("Could not find a location for the pickup address: {$data['pickup_address']}");
-                }
-                $pickup = [
-                    'lat' => (float) $pickupResult['lat'],
-                    'lng' => (float) $pickupResult['lng'],
-                ];
-                $pickupLabel = $pickupResult['label'];
-            } else {
-                throw new \Exception("Missing pickup data: must provide 'pickup_location' or 'pickup_address'.");
-            }
+            $pickupPoint = $this->resolveEndpoint($data, 'pickup');
+            $pickup = ['lat' => $pickupPoint['lat'], 'lng' => $pickupPoint['lng']];
+            $pickupLabel = $pickupPoint['label'];
 
             // ────────────────────────────────────────────────────────────
             // 2) Destination: same pattern as pickup
             // ────────────────────────────────────────────────────────────
-            if (
-                isset($data['destination_location']) &&
-                is_array($data['destination_location']) &&
-                array_key_exists('lat', $data['destination_location']) &&
-                array_key_exists('lng', $data['destination_location'])
-            ) {
-                $destination = [
-                    'lat' => (float) $data['destination_location']['lat'],
-                    'lng' => (float) $data['destination_location']['lng'],
-                ];
-                // ✅ NEW: Use GeocodingService
-                $destinationLabel = $this->geocodingService->reverseGeocode(
-                    $destination['lat'],
-                    $destination['lng']
-                );
-            } elseif (! empty($data['destination_address'])) {
-                // ✅ NEW: Use GeocodingService
-                $destResult = $this->geocodingService->geocodeAddress($data['destination_address']);
-                if ($destResult === []) {
-                    // RV-50: a miss is a curated refusal, never a null-island (0,0) coordinate.
-                    throw new \InvalidArgumentException("Could not find a location for the destination address: {$data['destination_address']}");
-                }
-                $destination = [
-                    'lat' => (float) $destResult['lat'],
-                    'lng' => (float) $destResult['lng'],
-                ];
-                $destinationLabel = $destResult['label'];
-            } else {
-                throw new \Exception("Missing destination data: must provide 'destination_location' or 'destination_address'.");
-            }
+            $destinationPoint = $this->resolveEndpoint($data, 'destination');
+            $destination = ['lat' => $destinationPoint['lat'], 'lng' => $destinationPoint['lng']];
+            $destinationLabel = $destinationPoint['label'];
 
             // ────────────────────────────────────────────────────────────
             // 3) Route summary: distance, duration, geometry (LineString)
@@ -142,28 +88,7 @@ class RideRepository implements RideRepositoryInterface
             ];
 
             // 6) Assign route_geometry as GeoJSON - WITH VALIDATION
-            if (isset($route['geometry']) && is_array($route['geometry']) && ! empty($route['geometry'])) {
-                $validCoordinates = true;
-                foreach ($route['geometry'] as $coord) {
-                    if (! is_array($coord) || count($coord) < 2) {
-                        $validCoordinates = false;
-                        break;
-                    }
-                }
-
-                if ($validCoordinates) {
-                    $ride->route_geometry = [
-                        'type' => 'LineString',
-                        'coordinates' => $route['geometry'],
-                    ];
-                } else {
-                    Log::warning('Invalid route geometry coordinates received', ['geometry' => $route['geometry']]);
-                    $ride->route_geometry = null;
-                }
-            } else {
-                Log::warning('No valid geometry data received from routing service');
-                $ride->route_geometry = null;
-            }
+            $ride->route_geometry = $this->validRouteGeometry($route);
 
             // ────────────────────────────────────────────────────────────
             // 7) Save and return
@@ -172,6 +97,63 @@ class RideRepository implements RideRepositoryInterface
 
             return $ride->fresh();
         });
+    }
+
+    /**
+     * Resolve one endpoint (pickup or destination) to coordinates and a label. A 'location' pair is
+     * reverse-geocoded; an 'address' is geocoded. A failed address lookup is a curated refusal (RV-50),
+     * never a (0,0) coordinate.
+     *
+     * @return array{lat: float, lng: float, label: string}
+     */
+    private function resolveEndpoint(array $data, string $role): array
+    {
+        if (
+            isset($data[$role.'_location']) &&
+            is_array($data[$role.'_location']) &&
+            array_key_exists('lat', $data[$role.'_location']) &&
+            array_key_exists('lng', $data[$role.'_location'])
+        ) {
+            $lat = (float) $data[$role.'_location']['lat'];
+            $lng = (float) $data[$role.'_location']['lng'];
+
+            return ['lat' => $lat, 'lng' => $lng, 'label' => $this->geocodingService->reverseGeocode($lat, $lng)];
+        }
+
+        if (! empty($data[$role.'_address'])) {
+            $address = $data[$role.'_address'];
+            $result = $this->geocodingService->geocodeAddress($address);
+            if ($result === []) {
+                // RV-50: a miss is a curated refusal, never a null-island (0,0) coordinate.
+                throw new \InvalidArgumentException("Could not find a location for the {$role} address: {$address}");
+            }
+
+            return ['lat' => (float) $result['lat'], 'lng' => (float) $result['lng'], 'label' => $result['label']];
+        }
+
+        throw new \Exception("Missing {$role} data: must provide '{$role}_location' or '{$role}_address'.");
+    }
+
+    /**
+     * The route geometry as a GeoJSON LineString, or null when the routing service returned none or a malformed point.
+     */
+    private function validRouteGeometry($route): ?array
+    {
+        if (! (isset($route['geometry']) && is_array($route['geometry']) && ! empty($route['geometry']))) {
+            Log::warning('No valid geometry data received from routing service');
+
+            return null;
+        }
+
+        foreach ($route['geometry'] as $coord) {
+            if (! is_array($coord) || count($coord) < 2) {
+                Log::warning('Invalid route geometry coordinates received', ['geometry' => $route['geometry']]);
+
+                return null;
+            }
+        }
+
+        return ['type' => 'LineString', 'coordinates' => $route['geometry']];
     }
 
     /**
