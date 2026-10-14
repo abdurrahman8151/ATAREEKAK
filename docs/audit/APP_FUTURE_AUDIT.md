@@ -936,3 +936,18 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Observation (not changed).** The N+1 legs loop calls `lockWalletByUserId` again for each passenger, after the loop has already locked the same wallets.
   It is behaviour-neutral within the transaction but is a second lock per passenger. Not changed in this refactor; candidate for a later review.
 - **Final state: VERIFIED FIX.**
+
+### L21. Slice 19 - WalletTransactionService::releaseEarningsToDriver (MONEY): VERIFIED FIX (refactor, then characterization)
+- **Finding.** One 138-line method: total the confirmed bookings, split 95/5 through FeeSplit, lock three wallets, guard escrow, write three rows
+  (escrow_released debit, ride_earnings for the driver, platform_fee for the platform), then post one 3-leg transfer.
+- **Refactor.** The driver row and the platform row moved into `recordDriverShare` and `recordPlatformShare`. The FeeSplit call, locks, escrow guard,
+  balance writes, the escrow_released row and the single 3-leg postTransfer stay in the main method (verified: one postTransfer in the method).
+  Static check: every variable in each helper is declared in its signature; the helpers assign nothing.
+- **Characterization.** NEW `tests/Feature/Payment/L21RideCompletionPayoutLedgerTest.php`, 4 tests, 9 assertions: one escrow debit, one driver row,
+  one platform row; driver and platform amounts equal FeeSplit; shares sum to the escrow taken; odd-tenth total 1000.50 (RV-19) balances to the cent.
+- **Fixture correction (test code only).** RideBuilder::price() takes an int and truncated 1000.50 to 1000. The fractional price is now set via
+  withAttributes (column is decimal(8,2)). RideBuilder itself was not changed.
+- **Checks.** Lint and Pint PASS. Payout baseline (497 tests, 940 assertions) green before and after the refactor.
+  Final run (payout tests, L21, DoubleEntry, RV02, completion, Money and Ride floors): 505 tests, 958 assertions OK.
+- **Mutation.** Renamed the driver earnings row type: 4 of 4 L21 tests fail. File restored byte-identical; no marker left.
+- **Final state: VERIFIED FIX.**

@@ -286,33 +286,10 @@ class WalletTransactionService
             'posting_key' => $escrowOutKey,
         ]);
 
-        // Driver receives 95%
-        WalletTransaction::create([
-            'wallet_id' => $driverWallet->id,
-            'user_id' => $ride->driver_id,
-            'type' => 'ride_earnings',
-            'amount' => $driverShare,
-            'previous_balance' => $driverPrev,
-            'new_balance' => $driverWallet->balance,
-            'description' => "Earnings (95%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
-            'transaction_id' => 'DRIVER_'.$txId,
-            'status' => 'completed',
-            'reference' => "ride:{$ride->id}",
-        ]);
+        // Driver receives 95% and the platform 5%: one row each, written in helpers.
+        $this->recordDriverShare($ride, $driverShare, $driverWallet, $driverPrev, $txId);
 
-        // Primary receives 5%
-        WalletTransaction::create([
-            'wallet_id' => $primaryWallet->id,
-            'user_id' => null,
-            'type' => 'platform_fee',
-            'amount' => $primaryShare,
-            'previous_balance' => $primaryPrev,
-            'new_balance' => $primaryWallet->balance,
-            'description' => "Platform fee (5%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
-            'transaction_id' => 'PRIMARY_'.$txId,
-            'status' => 'completed',
-            'reference' => "ride:{$ride->id}",
-        ]);
+        $this->recordPlatformShare($ride, $primaryShare, $primaryWallet, $primaryPrev, $txId);
 
         // ── Decision un3: double-entry legs for the 95/5 split ─────────────────
         // THIS is the transfer that most needed a ledger. One wallet gives, TWO receive: the split
@@ -344,6 +321,40 @@ class WalletTransactionService
             'ride_id' => $ride->id,
             'driver_share' => $driverShare,
             'primary_share' => $primaryShare,
+        ]);
+    }
+
+    /** Driver share of a completed ride (95%): the earnings row. */
+    private function recordDriverShare(Ride $ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): void
+    {
+        WalletTransaction::create([
+            'wallet_id' => $driverWallet->id,
+            'user_id' => $ride->driver_id,
+            'type' => 'ride_earnings',
+            'amount' => $driverShare,
+            'previous_balance' => $driverPrev,
+            'new_balance' => $driverWallet->balance,
+            'description' => "Earnings (95%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
+            'transaction_id' => 'DRIVER_'.$txId,
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
+        ]);
+    }
+
+    /** Platform share of a completed ride (5%): the platform fee row. */
+    private function recordPlatformShare(Ride $ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): void
+    {
+        WalletTransaction::create([
+            'wallet_id' => $primaryWallet->id,
+            'user_id' => null,
+            'type' => 'platform_fee',
+            'amount' => $primaryShare,
+            'previous_balance' => $primaryPrev,
+            'new_balance' => $primaryWallet->balance,
+            'description' => "Platform fee (5%) — completed ride: {$ride->pickup_address} → {$ride->destination_address}",
+            'transaction_id' => 'PRIMARY_'.$txId,
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
         ]);
     }
 
