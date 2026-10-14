@@ -915,3 +915,24 @@ o-store, no-cache). A failure logs a generic error and returns 500.
   Final run (cancellation tests, the new file, RV02, RV10, Money and Ride floors): 341 tests, 572 assertions OK.
 - **Mutation.** Renamed the zero-refund audit row type: 1 of 4 L19 tests fails. File restored byte-identical; no marker left.
 - **Final state: VERIFIED FIX.**
+
+### L20. Slice 18 - WalletTransactionService::refundPassengersForStaffCancellation (MONEY): VERIFIED FIX (refactor, then characterization)
+- **Finding.** One 140-line method: filter bookings with an amount_paid snapshot, guard SyCash, debit escrow once for the set, write one SyCash row,
+  loop over passengers writing one refund row each, then post one N+1-leg transfer.
+- **Refactor.** The per-passenger loop body (lock wallet, credit, refund row, log) moved into `refundPassengerForStaffCancellation(Ride, Booking, txId)`.
+  The loop in the main method is now one call. The escrow debit, SyCash row, and the single transfer stay in the main method.
+  Static check: every variable in the helper is in its signature or assigned locally (`refundAmount`, `passengerWallet`, `passengerPrev`).
+  Those three are not used after the loop in this method (verified by scope check).
+- **Characterization.** NEW `tests/Feature/Payment/L20StaffCancellationLedgerTest.php`, 4 tests, 11 assertions:
+  one SyCash debit for the whole set; one refund row per passenger for that passenger's amount_paid; escrow out equals passenger refunds in;
+  a booking with no amount_paid snapshot is never refunded and is counted for review.
+- **Fixture corrections during the step (test code only).** (a) The service is typed to Eloquent's Collection; the test first passed a Support Collection
+  and errored. Fixed by building an Eloquent collection. (b) The SyCash row is written under the ride reference and each passenger row under its booking
+  reference; the first query filtered by ride only and found zero passenger rows. Fixed by matching both references for this ride's bookings only.
+  Both were fixture errors, verified against the code, not service behaviour.
+- **Checks.** Lint and Pint PASS. Staff-cancellation baseline (208 tests, 304 assertions) green before and after the refactor.
+  Final run (staff-cancel, L19, L20, time-based, Money and Ride floors): 348 tests, 569 assertions OK.
+- **Mutation.** Renamed the per-passenger refund row type: 3 of 4 L20 tests fail. File restored byte-identical; no marker left.
+- **Observation (not changed).** The N+1 legs loop calls `lockWalletByUserId` again for each passenger, after the loop has already locked the same wallets.
+  It is behaviour-neutral within the transaction but is a second lock per passenger. Not changed in this refactor; candidate for a later review.
+- **Final state: VERIFIED FIX.**

@@ -555,33 +555,7 @@ class WalletTransactionService
         ]);
 
         foreach ($refundable as $booking) {
-            $refundAmount = (float) $booking->amount_paid;
-            $passengerWallet = $this->lockWalletByUserId($booking->user_id);
-            $passengerPrev = $passengerWallet->balance;
-
-            $passengerWallet->balance += $refundAmount;
-            $passengerWallet->save();
-
-            WalletTransaction::create([
-                'wallet_id' => $passengerWallet->id,
-                'user_id' => $booking->user_id,
-                'type' => 'staff_cancellation_refund',
-                'amount' => $refundAmount,
-                'previous_balance' => $passengerPrev,
-                'new_balance' => $passengerWallet->balance,
-                'description' => "Full refund — cancelled by support: {$ride->pickup_address} → {$ride->destination_address}",
-                'transaction_id' => 'PASS_'.$txId.'_'.$booking->id,
-                'status' => 'completed',
-                'reference' => "booking:{$booking->id}",
-            ]);
-
-            Log::info('Passenger refunded for staff cancellation', [
-                'ride_id' => $ride->id,
-                'booking_id' => $booking->id,
-                'passenger_id' => $booking->user_id,
-                'amount' => $refundAmount,
-                'source' => 'booking.amount_paid snapshot',
-            ]);
+            $this->refundPassengerForStaffCancellation($ride, $booking, $txId);
         }
 
         // ── Decision un3: double-entry legs for the whole refund ───────────────
@@ -613,6 +587,38 @@ class WalletTransactionService
             'needs_review' => $needsReview,
             'amount_source' => 'amount_paid',
         ];
+    }
+
+    /** One passenger's full refund for a staff cancellation: credit the wallet and write the refund row. */
+    private function refundPassengerForStaffCancellation(Ride $ride, Booking $booking, string $txId): void
+    {
+        $refundAmount = (float) $booking->amount_paid;
+        $passengerWallet = $this->lockWalletByUserId($booking->user_id);
+        $passengerPrev = $passengerWallet->balance;
+
+        $passengerWallet->balance += $refundAmount;
+        $passengerWallet->save();
+
+        WalletTransaction::create([
+            'wallet_id' => $passengerWallet->id,
+            'user_id' => $booking->user_id,
+            'type' => 'staff_cancellation_refund',
+            'amount' => $refundAmount,
+            'previous_balance' => $passengerPrev,
+            'new_balance' => $passengerWallet->balance,
+            'description' => "Full refund — cancelled by support: {$ride->pickup_address} → {$ride->destination_address}",
+            'transaction_id' => 'PASS_'.$txId.'_'.$booking->id,
+            'status' => 'completed',
+            'reference' => "booking:{$booking->id}",
+        ]);
+
+        Log::info('Passenger refunded for staff cancellation', [
+            'ride_id' => $ride->id,
+            'booking_id' => $booking->id,
+            'passenger_id' => $booking->user_id,
+            'amount' => $refundAmount,
+            'source' => 'booking.amount_paid snapshot',
+        ]);
     }
 
     // =========================================================================
