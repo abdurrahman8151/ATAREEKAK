@@ -888,3 +888,15 @@ o-store, no-cache). A failure logs a generic error and returns 500.
   The rollback restored the committed CRLF version, so that LF-only edit is no longer in the working copy. No content was lost.
 - **Owner's other uncommitted files:** unchanged and still modified.
 - **Final state: VERIFIED ROLLBACK.**
+
+### L18. Slice 16 - CashRideFeeService::refundCashRideCreationFee (MONEY): VERIFIED FIX (refactor, then characterization)
+- **Finding.** One 205-line method held three outcomes: deferred fee (debt only), no refund (audit row), and refund to driver (two money legs).
+- **Refactor.** The percentage tiers and early exits stay in `refundCashRideCreationFee`. The three outcomes are now private helpers:
+  `cancelDeferredDebt`, `recordNoRefund`, `refundToDriver`. Same statements, same order. Each helper takes its inputs as explicit parameters.
+  Static check: every variable used inside a helper is declared or assigned in that helper.
+- **Characterization.** NEW `tests/Unit/Services/Payment/L18CashRideFeeOutcomeLedgerTest.php`, 4 tests, 16 assertions. The existing unit test pins amounts only.
+  L18 pins the ledger rows: deferred writes `cash_ride_fee_debt_cancelled` only; no-refund writes `cash_ride_fee_no_refund` only; partial refund writes the driver leg and the matching Primary Admin leg, netting to zero.
+- **Checks.** `php -l` and Pint PASS. Cash-fee baseline (44 tests, 142 assertions) green before and after the refactor.
+  Final run (cash-fee, the new file, the other referencing tests, and the Money floors): 231 tests, 403 assertions OK.
+- **Mutation.** Renamed the Primary Admin refund leg type: 1 of 4 L18 tests fails. File restored byte-identical; no marker left.
+- **Final state: VERIFIED FIX.**

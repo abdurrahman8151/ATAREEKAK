@@ -365,36 +365,7 @@ final class CashRideFeeService
 
         // ── Deferred fee: adjust debt only, no money moves ───────────────────
         if ($ride->cash_fee_deferred) {
-            PostingKey::assertUnused($debtCancelKey);
-
-            $prevDebt = (float) $driverWallet->cash_ride_debt;
-            $driverWallet->cash_ride_debt = max(0.0, $prevDebt - $refundAmount);
-            $driverWallet->save();
-
-            WalletTransaction::create([
-                'wallet_id' => $driverWallet->id,
-                'user_id' => $driver->id,
-                'type' => 'cash_ride_fee_debt_cancelled',
-                'amount' => 0,
-                'previous_balance' => (float) $driverWallet->balance,
-                'new_balance' => (float) $driverWallet->balance,
-                'description' => "Deferred fee cancelled — ride #{$ride->id} cancelled. "
-                    ."Debt reduced by {$refundAmount} SYP ({$refundPct}%) — was {$prevDebt} SYP.",
-                'transaction_id' => 'DEBT_CANCEL_'.time().'_'.Str::random(6),
-                'status' => 'completed',
-                'reference' => "ride:{$ride->id}",
-                'posting_key' => $debtCancelKey,
-            ]);
-
-            Log::info('Deferred cash ride fee cancelled', [
-                'ride_id' => $ride->id,
-                'driver_id' => $driver->id,
-                'prev_debt' => $prevDebt,
-                'new_debt' => $driverWallet->cash_ride_debt,
-                'refund_pct' => $refundPct,
-                'elapsed_pct' => round($elapsedPct, 2),
-                'had_active_bookings' => $hadActiveBookings,
-            ]);
+            $this->cancelDeferredDebt($ride, $driver, $driverWallet, $elapsedPct, $refundPct, $hadActiveBookings, $refundAmount, $debtCancelKey);
 
             return;
         }
@@ -405,36 +376,84 @@ final class CashRideFeeService
         $platformKeeps = Money::from($feeAmount)->subtract(Money::from($refundAmount))->amount();
 
         if ($refundAmount <= 0) {
-            // Audit record only — no money movement
-            PostingKey::assertUnused($noRefundKey);
-
-            WalletTransaction::create([
-                'wallet_id' => $driverWallet->id,
-                'user_id' => $driver->id,
-                'type' => 'cash_ride_fee_no_refund',
-                'amount' => 0,
-                'previous_balance' => (float) $driverWallet->balance,
-                'new_balance' => (float) $driverWallet->balance,
-                'description' => "No refund on cash ride creation fee — ride #{$ride->id} cancelled "
-                    ."(late cancellation). Platform keeps {$feeAmount} SYP.",
-                'transaction_id' => 'CASH_NO_REFUND_'.time().'_'.Str::random(6),
-                'status' => 'completed',
-                'reference' => "ride:{$ride->id}",
-                'posting_key' => $noRefundKey,
-            ]);
-
-            Log::info('Cash ride fee — no refund (late cancellation with passengers)', [
-                'ride_id' => $ride->id,
-                'driver_id' => $driver->id,
-                'fee_paid' => $feeAmount,
-                'elapsed_pct' => round($elapsedPct, 2),
-                'had_active_bookings' => $hadActiveBookings,
-            ]);
+            $this->recordNoRefund($ride, $driver, $driverWallet, $feeAmount, $elapsedPct, $refundPct, $hadActiveBookings, $refundAmount, $noRefundKey);
 
             return;
         }
 
-        // Partial or full refund: Primary Admin → Driver wallet
+        $this->refundToDriver($ride, $driver, $driverWallet, $feeAmount, $elapsedPct, $refundPct, $hadActiveBookings, $refundAmount, $platformKeeps, $refundKey);
+    }
+
+    /** Deferred fee: only the driver debt is reduced; no money moves. */
+    private function cancelDeferredDebt(Ride $ride, User $driver, Wallet $driverWallet, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, string $debtCancelKey): void
+    {
+        PostingKey::assertUnused($debtCancelKey);
+
+        $prevDebt = (float) $driverWallet->cash_ride_debt;
+        $driverWallet->cash_ride_debt = max(0.0, $prevDebt - $refundAmount);
+        $driverWallet->save();
+
+        WalletTransaction::create([
+            'wallet_id' => $driverWallet->id,
+            'user_id' => $driver->id,
+            'type' => 'cash_ride_fee_debt_cancelled',
+            'amount' => 0,
+            'previous_balance' => (float) $driverWallet->balance,
+            'new_balance' => (float) $driverWallet->balance,
+            'description' => "Deferred fee cancelled — ride #{$ride->id} cancelled. "
+                ."Debt reduced by {$refundAmount} SYP ({$refundPct}%) — was {$prevDebt} SYP.",
+            'transaction_id' => 'DEBT_CANCEL_'.time().'_'.Str::random(6),
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
+            'posting_key' => $debtCancelKey,
+        ]);
+
+        Log::info('Deferred cash ride fee cancelled', [
+            'ride_id' => $ride->id,
+            'driver_id' => $driver->id,
+            'prev_debt' => $prevDebt,
+            'new_debt' => $driverWallet->cash_ride_debt,
+            'refund_pct' => $refundPct,
+            'elapsed_pct' => round($elapsedPct, 2),
+            'had_active_bookings' => $hadActiveBookings,
+        ]);
+
+    }
+
+    /** No refund (late cancellation with passengers): an audit row only; no money moves. */
+    private function recordNoRefund(Ride $ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, string $noRefundKey): void
+    {
+        // Audit record only — no money movement
+        PostingKey::assertUnused($noRefundKey);
+
+        WalletTransaction::create([
+            'wallet_id' => $driverWallet->id,
+            'user_id' => $driver->id,
+            'type' => 'cash_ride_fee_no_refund',
+            'amount' => 0,
+            'previous_balance' => (float) $driverWallet->balance,
+            'new_balance' => (float) $driverWallet->balance,
+            'description' => "No refund on cash ride creation fee — ride #{$ride->id} cancelled "
+                ."(late cancellation). Platform keeps {$feeAmount} SYP.",
+            'transaction_id' => 'CASH_NO_REFUND_'.time().'_'.Str::random(6),
+            'status' => 'completed',
+            'reference' => "ride:{$ride->id}",
+            'posting_key' => $noRefundKey,
+        ]);
+
+        Log::info('Cash ride fee — no refund (late cancellation with passengers)', [
+            'ride_id' => $ride->id,
+            'driver_id' => $driver->id,
+            'fee_paid' => $feeAmount,
+            'elapsed_pct' => round($elapsedPct, 2),
+            'had_active_bookings' => $hadActiveBookings,
+        ]);
+
+    }
+
+    /** Partial or full refund: Primary Admin to Driver wallet, as two double-entry legs. */
+    private function refundToDriver(Ride $ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, float $platformKeeps, string $refundKey): void
+    {
         PostingKey::assertUnused($refundKey);
 
         $primaryWallet = $this->lockPrimaryWallet();
