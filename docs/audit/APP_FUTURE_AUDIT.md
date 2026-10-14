@@ -873,3 +873,18 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Not verified.** The passenger branch is covered by existing tests (`NoshowSettlementGuardTest`, `MoneyPathBatchTest`) but has no separate mutation run on the helper.
   The `applyPenalty` notification side effects are not asserted by L16 (they are non-fatal and wrapped in try/catch).
 - **Final state: VERIFIED FIX.**
+
+### L17. Slice 15 - SignupController::register path B (AUTH): VERIFIED ROLLBACK
+- **Attempt.** Move path B's account insert (transaction plus createUser, status 0, commit before mail) into a new `SignupAccountService`.
+- **Baseline.** The 5 signup test files (38 tests, 113 assertions) were green before the change.
+- **Result.** The refactor failed 2 tests: the two structural guards in `RV16SignupMailAfterCommitTest`. They read `SignupController.php` as text and check
+  commit-before-mail. The transaction moved, so the text guards could not see the order.
+- **Attempted fix (rejected).** Read both files in the guards. Verified this does not express the order: the service commit is found, but
+  no `sendOtp(` follows it, so the commit-before-mail check cannot be expressed by file concatenation.
+- **Decision (owner).** Keep the transaction in the controller. Options offered were: keep it in the controller, replace the text guards with a runtime order test, or stop.
+- **Rollback.** Deleted the new service. Restored `SignupController.php` and `RV16SignupMailAfterCommitTest.php` to HEAD (`git checkout`).
+  Verified: both files equal HEAD, and the new service is gone. No commit.
+- **Side effect (disclosed).** The owner's uncommitted `SignupController.php` change was LF-only line endings (content identical to HEAD after CR removal).
+  The rollback restored the committed CRLF version, so that LF-only edit is no longer in the working copy. No content was lost.
+- **Owner's other uncommitted files:** unchanged and still modified.
+- **Final state: VERIFIED ROLLBACK.**
