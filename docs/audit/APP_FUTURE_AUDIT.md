@@ -765,3 +765,17 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Not verified.** The `external_inbound` row's `LedgerService` postings are not asserted by a dedicated test, and the 422
   body is checked by status only.
 - **Final state: CLOSED, no code change. Characterization added.**
+
+### L11. Slice 10 - AdminDashboardController::login and refresh (AUTH): NO CODE CHANGE, characterization added
+- **Code path.** `login()` validates, calls `AdminAuthService::authenticate()` (which uses `StaffJwtService::generateTokenPair`),
+  and returns `admin` + `tokens` or a 401 `INVALID_CREDENTIALS`. `refresh()` validates, calls `AdminAuthService::refresh()`
+  (`StaffJwtService::refreshAccessToken`), and returns `tokens` or a 401 `REFRESH_TOKEN_INVALID`. Both controller methods are thin.
+- **Why no code change.** The controllers are adapters. The token issuance and rotation live in `StaffJwtService`, which already owns them.
+- **Gap found.** No test called `/api/admin/refresh`. Login was only partly covered (RV43: valid login and invalid credentials).
+- **Step 1 (added).** NEW `tests/Feature/Review/L11AdminAuthCharacterizationTest.php`: 9 tests covering the login shape
+  (admin role, access and refresh tokens), email or username login, wrong password and unknown user (same 401), validation 422,
+  refresh success, refresh-token rotation, invalid refresh token (401), and refresh validation (422).
+- **Checks.** `php -l` and Pint PASS on the new test. The 9 tests pass on the unchanged code (24 assertions).
+- **Mutation.** Replacing the issued refresh token in `StaffJwtService::generateTokenPair` fails 2 tests. The file was restored byte-identical.
+- **Not verified.** Token expiry times, revocation of old tokens after logout, and the `JwtService` (user-facing) path are not pinned by this file.
+- **Final state: CLOSED, no code change. Characterization added.**
