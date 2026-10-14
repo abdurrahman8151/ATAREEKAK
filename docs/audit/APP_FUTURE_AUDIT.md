@@ -740,3 +740,12 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Not verified.** Live response byte-equality with the pre-extraction controller (checked by pinned shape and values only).
   Cache-busting from `StaffAdminController` was exercised by existing tests, not by a new end-to-end check.
 - **Final state: VERIFIED FIX.**
+
+### L9. Slice 8 - StaffOperationsController::users: NO STRUCTURAL CHANGE
+- **Code path.** `users()` (controller lines 60-103) validates seven inputs, calls `AdminUserService::getPageData()`
+  with the filters, drops the `admin_photo` key, and returns the envelope. The controller's only logic is that one `unset`.
+- **Why not a god method.** Filters, search, date windows and pagination already live in `AdminUserService`.
+  The controller is a thin adapter (same finding as slices 1, 2 and 6).
+- **Coverage.** `StaffOperationsControllerTest` has 16 `users` tests (every type, status, date, search, and validation case).
+- **Decision.** No code change.
+- **Final state: CLOSED, no change needed.**
