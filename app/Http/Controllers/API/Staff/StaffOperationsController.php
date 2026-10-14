@@ -14,6 +14,7 @@ use App\Services\NotificationService;
 use App\Services\Payment\WalletTransactionService;
 use App\Services\Ride\UserRideStatsService;
 use App\Services\Score\ScoreService;
+use App\Services\Staff\StaffBookingQueryService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,6 +43,7 @@ final class StaffOperationsController extends Controller
         private readonly AdminTripService $tripService,
         private readonly ScoreService $scoreService,
         private readonly UserRideStatsService $rideStats,
+        private readonly StaffBookingQueryService $bookingQueries,
     ) {}
 
     // =========================================================================
@@ -297,63 +299,24 @@ final class StaffOperationsController extends Controller
         }
 
         try {
-            $query = Booking::with([
-                'user:id,first_name,last_name,email',
-                'ride:id,pickup_address,destination_address,departure_time,price_per_seat,status,driver_id',
-                'ride.driver:id,first_name,last_name',
-            ]);
-
-            $status = $request->get('status', 'all');
-            if ($status !== 'all') {
-                $query->where('status', $status);
-            }
-
+            // Only pass the filters that were actually supplied, as the original query did (filled()).
+            $filters = [
+                'status' => $request->get('status', 'all'),
+                'per_page' => (int) $request->get('per_page', 15),
+                'page' => (int) $request->get('page', 1),
+            ];
             if ($request->filled('user_id')) {
-                $query->where('user_id', $request->integer('user_id'));
+                $filters['user_id'] = $request->integer('user_id');
             }
-
             if ($request->filled('ride_id')) {
-                $query->where('ride_id', $request->integer('ride_id'));
+                $filters['ride_id'] = $request->integer('ride_id');
             }
 
-            $paginator = $query
-                ->orderByDesc('created_at')
-                ->paginate(
-                    (int) $request->get('per_page', 15),
-                    ['*'],
-                    'page',
-                    (int) $request->get('page', 1)
-                );
+            $paginator = $this->bookingQueries->paginate($filters);
 
-            $data = $paginator->getCollection()->map(fn ($booking) => [
-                'id' => $booking->id,
-                'status' => $booking->status,
-                'seats' => $booking->seats,
-                'communication_number' => $booking->communication_number,
-                'passenger' => [
-                    'id' => $booking->user?->id,
-                    'name' => trim(($booking->user?->first_name ?? '').' '.($booking->user?->last_name ?? '')),
-                    'email' => $booking->user?->email,
-                ],
-                'ride' => [
-                    'id' => $booking->ride?->id,
-                    'pickup_address' => $booking->ride?->pickup_address,
-                    'destination_address' => $booking->ride?->destination_address,
-                    'departure_time' => $booking->ride?->departure_time?->toIso8601String(),
-                    'price_per_seat' => $booking->ride?->price_per_seat,
-                    'ride_status' => $booking->ride?->status,
-                    'driver' => [
-                        'id' => $booking->ride?->driver?->id,
-                        'name' => trim(
-                            ($booking->ride?->driver?->first_name ?? '').' '.
-                            ($booking->ride?->driver?->last_name ?? '')
-                        ),
-                    ],
-                ],
-                'total_price' => $booking->seats * ($booking->ride?->price_per_seat ?? 0),
-                'booked_at' => $booking->created_at->toIso8601String(),
-                'completed_at' => $booking->completed_at?->toIso8601String(),
-            ])->values();
+            $data = $paginator->getCollection()
+                ->map(fn ($booking) => $this->bookingQueries->toRow($booking))
+                ->values();
 
             return response()->json([
                 'status' => 'success',
@@ -363,7 +326,7 @@ final class StaffOperationsController extends Controller
                     'last_page' => $paginator->lastPage(),
                     'per_page' => $paginator->perPage(),
                     'total' => $paginator->total(),
-                    'filter' => $status,
+                    'filter' => $filters['status'],
                 ],
             ]);
         } catch (\Exception $e) {

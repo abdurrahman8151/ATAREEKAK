@@ -698,3 +698,14 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Not verified.** The PDF's content and layout (only the format prefix and headers are pinned); the export
   rendering against real report data.
 - **Final state: VERIFIED FIX (characterization).** No application code changed.
+
+### L6. Slice 5 - StaffOperationsController::bookings read logic: VERIFIED FIX
+- **Finding.** `bookings()` (about 90 lines) built the query, the filters, the pagination and the row shape in one method.
+- **Root cause.** Read logic lived in the HTTP controller, so it could not be reused or tested apart from HTTP.
+- **Fix.** New `Services/Staff/StaffBookingQueryService` owns `paginate(array $filters)` and `toRow(Booking)`. The controller keeps validation, the response envelope (`data`, `meta`, `filter`) and error handling. Only the filters that were supplied are passed, as before (`filled()`). The row shape is byte-for-byte the same.
+- **Files.** NEW `app/Services/Staff/StaffBookingQueryService.php`; CHANGED `app/Http/Controllers/API/Staff/StaffOperationsController.php` (`bookings()`, constructor, import).
+- **Money paths.** Not touched. `cancelTrip` and `cancelBooking` (refunds) were excluded and stay as they were.
+- **Checks.** `php -l` and Pint PASS on both files. Scoped: `StaffOperationsControllerTest` + `StaffAuthControllerTest` 99 tests OK. Wider: `tests/Feature/Staff` + `tests/Feature/Admin` + `StaffCancellationRefundTest` + `RV42aSuspendedMeansBannedTest` 364 tests, 860 assertions OK.
+- **Mutation.** Disabling the status filter in the service fails 2 tests; the file was restored byte-identical.
+- **Not verified.** Response equality against the old code was checked by the existing tests (shape and values), not by a byte-for-byte diff of live responses.
+- **Final state: VERIFIED FIX.**
