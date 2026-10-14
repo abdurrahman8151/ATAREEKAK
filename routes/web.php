@@ -14,6 +14,8 @@ Route::get('/_debug/ip', function (Request $request) {
         'REMOTE_ADDR' => $request->server('REMOTE_ADDR'),
         'X-Forwarded-For' => $request->header('X-Forwarded-For'),
         'request_ip' => $request->ip(),
+        'trusted_config' => config('trustedproxy.proxies'),
+        'trusted_env' => env('TRUSTED_PROXIES'),
     ]);
 });
 
