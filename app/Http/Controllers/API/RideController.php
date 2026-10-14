@@ -17,6 +17,7 @@ use App\Services\NotificationService;
 use App\Services\Ride\BookingService;
 use App\Services\Ride\RideService;
 use App\Services\Score\ScoreService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -285,7 +286,7 @@ class RideController extends Controller
                 // !! NO 'bookings' key — passenger data never leaves this endpoint !!
             ]);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ride not found',
@@ -376,7 +377,7 @@ class RideController extends Controller
                 ],
             ]);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ride not found',
