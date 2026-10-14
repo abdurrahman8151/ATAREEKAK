@@ -749,3 +749,19 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Coverage.** `StaffOperationsControllerTest` has 16 `users` tests (every type, status, date, search, and validation case).
 - **Decision.** No code change.
 - **Final state: CLOSED, no change needed.**
+
+### L10. Slice 9 - AdminDashboardController::chargeWallet (MONEY): NO CODE CHANGE, characterization added
+- **Code path.** `chargeWallet()` (controller line 250) validates `phone_number` and `amount`, reads the admin config,
+  and calls `AdminWalletService::chargeWallet()`. It then maps the result to the response. The money write is in the service:
+  one DB transaction that credits the target wallet, debits the External Capital wallet (`config admin.external.phone`),
+  writes an `admin_credit` row and an `external_inbound` row, and posts to `LedgerService`. It fails loudly if the external wallet is missing.
+- **Why no code change.** The controller is thin. Moving more code would only add a wrapper around the service, which already owns the money logic.
+- **Gap found.** The existing tests check status codes only. Nothing pinned the balances, the ledger rows, or the failure paths.
+- **Step 1 (added).** NEW `tests/Feature/Review/L10AdminChargeWalletCharacterizationTest.php`: 9 tests covering the target
+  credit, the external debit, both ledger rows, the response balances, stacking, the 404 with no money moved,
+  the negative amount (422, no money moved), and the non-admin 403 (no money moved).
+- **Checks.** `php -l` and Pint PASS on the new test. The new test: 9 tests, 31 assertions OK on the unchanged code.
+- **Mutation.** Removing the External Capital debit in `AdminWalletService` fails 1 test. The service was restored byte-identical.
+- **Not verified.** The `external_inbound` row's `LedgerService` postings are not asserted by a dedicated test, and the 422
+  body is checked by status only.
+- **Final state: CLOSED, no code change. Characterization added.**
