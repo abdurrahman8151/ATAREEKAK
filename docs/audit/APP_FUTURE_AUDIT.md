@@ -709,3 +709,12 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Mutation.** Disabling the status filter in the service fails 2 tests; the file was restored byte-identical.
 - **Not verified.** Response equality against the old code was checked by the existing tests (shape and values), not by a byte-for-byte diff of live responses.
 - **Final state: VERIFIED FIX.**
+
+### L7. Slice 6 - StaffOperationsController::trips: NO STRUCTURAL CHANGE
+- **Code path.** `trips()` (controller lines 227-268) validates `filter`, `per_page` and `page`, then calls
+  `AdminTripService::getFilteredTrips()`, `formatTrip()` per row and `getStatusCounts()`. It builds only the envelope.
+- **Why not a god method.** The query, filters, row shape and counts already live in `AdminTripService`
+  (`getFilteredTrips` line 43, `formatTrip` line 77, `getStatusCounts` line 129). The controller is a thin adapter.
+- **Coverage.** `StaffOperationsControllerTest` has 13 `trips` tests (auth, empty list, every filter, row contents).
+- **Decision.** No code change. Same finding as slices 1 and 2.
+- **Final state: CLOSED, no change needed.**
