@@ -112,11 +112,12 @@ class RV45CreateRideStatusTest extends TestCase
     {
         // RV-13 still holds for genuine faults: a non-domain exception returns the generic 500
         // and never leaks the internal message to the client.
-        // A real database fault, not a mock: omitting distance violates the NOT NULL column and
-        // raises SQLSTATE 1048. That is a genuine \Throwable and must stay generic.
+        // A real database fault, not a mock: vehicle_type passes validation (max:100) but the
+        // column is string(50), so the database rejects it (strict mode). That is a genuine
+        // \Throwable and must stay generic. (Was: omitting distance, which RV-55 now fixes.)
         $driver = $this->driverWith(['is_verified_driver' => true], withDocuments: true);
         $payload = $this->payload();
-        unset($payload['distance']);
+        $payload['vehicle_type'] = str_repeat('V', 60);
 
         $response = $this->withToken($this->tokenFor($driver))->postJson('/api/rides', $payload);
 

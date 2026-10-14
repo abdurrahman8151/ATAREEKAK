@@ -12,6 +12,7 @@ use App\Interfaces\RideRepositoryInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
+use App\Services\Geocoding\RouteCalculationService;
 use App\Services\NotificationService;
 use App\Services\Payment\CashRideFeeService;
 use App\Services\Payment\WalletTransactionService;
@@ -31,6 +32,7 @@ final class RideService
         private readonly NotificationService $notificationService,
         private readonly ScoreService $scoreService,
         private readonly CashRideFeeService $cashRideFeeService,
+        private readonly RouteCalculationService $routeService,
     ) {}
 
     // =========================================================================
@@ -53,6 +55,17 @@ final class RideService
 
         return DB::transaction(function () use ($dto, $driver) {
             $rideData = $dto->toArray();
+
+            // RV-55: POST /api/rides does not pass a route, so distance/duration arrive null and the
+            // NOT NULL columns raise SQLSTATE 1048. Fill them from the route service when missing.
+            if ($rideData['distance'] === null || $rideData['duration'] === null) {
+                $route = $this->routeService->getRouteDetails(
+                    ['lat' => $dto->pickupLocation->latitude(), 'lng' => $dto->pickupLocation->longitude()],
+                    ['lat' => $dto->destinationLocation->latitude(), 'lng' => $dto->destinationLocation->longitude()],
+                );
+                $rideData['distance'] ??= $route['distance'];
+                $rideData['duration'] ??= $route['duration'];
+            }
 
             // Cash ride: check eligibility and stamp fee fields
             if ($dto->paymentMethod->value === 'cash') {

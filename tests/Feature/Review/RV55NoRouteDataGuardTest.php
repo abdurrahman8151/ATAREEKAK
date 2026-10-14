@@ -90,4 +90,26 @@ class RV55NoRouteDataGuardTest extends TestCase
         $this->assertGreaterThan(0, (float) $ride->getRawOriginal('distance'));
         $this->assertGreaterThan(0, (float) $ride->getRawOriginal('duration'));
     }
+
+    /**
+     * The finding names POST /api/rides (RideController::create, the validated path), not
+     * /create-with-route. Probe the endpoint it actually names.
+     *
+     * @test
+     */
+    public function post_api_rides_without_route_data_never_stores_null(): void
+    {
+        Http::fake(['*' => Http::response('upstream down', 503)]);
+
+        $this->withToken($this->token)
+            ->postJson('/api/rides', $this->payload())
+            ->assertStatus(201);
+
+        $ride = Ride::query()->latest('id')->firstOrFail();
+
+        $this->assertNotNull($ride->getRawOriginal('distance'), 'distance must never be null (SQLSTATE 1048)');
+        $this->assertNotNull($ride->getRawOriginal('duration'), 'duration must never be null (SQLSTATE 1048)');
+        $this->assertGreaterThan(0, (float) $ride->getRawOriginal('distance'));
+        $this->assertGreaterThan(0, (float) $ride->getRawOriginal('duration'));
+    }
 }
