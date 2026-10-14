@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
@@ -32,6 +33,7 @@ use Tests\TestCase;
 class MoneyPathBatchTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $driver;
 
@@ -54,6 +56,8 @@ class MoneyPathBatchTest extends TestCase
 
         $this->syCash = Wallet::create(['user_id' => null, 'phone_number' => config('admin.sycash.phone'), 'balance' => 0]);
         $this->primary = Wallet::create(['user_id' => null, 'phone_number' => config('admin.system_admin.phone'), 'balance' => 0]);
+        // Decision un3: the admin charge path records against External Capital and fails loudly without it.
+        $this->seedSystemWallet(config('admin.external.phone'), 0.0);
 
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
         $this->driver->profile()->create(['full_name' => 'D', 'number_of_rides' => 0]);
@@ -122,7 +126,10 @@ class MoneyPathBatchTest extends TestCase
             ->postJson("/api/admin/passengers/{$this->passenger->id}/charge-wallet", ['amount' => 5000])
             ->assertStatus(200);
 
+        // Each charge writes two rows under this reference (decision un3): the passenger's
+        // admin_charge and the External Capital external_inbound leg. Count only the passenger's rows.
         $ids = WalletTransaction::where('reference', "admin_charge:{$this->passenger->id}")
+            ->where('type', 'admin_charge')
             ->pluck('transaction_id')->all();
 
         $this->assertCount(2, $ids, 'both charges must persist (pre-fix the same-second collision rolled one back)');

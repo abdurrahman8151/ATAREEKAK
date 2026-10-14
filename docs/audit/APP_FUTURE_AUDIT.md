@@ -837,3 +837,16 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Not verified.** The `ACCOUNT_BANNED` and expired-ban paths are covered by existing tests (`GoogleOauthTokenTest`, `RV12ExpiredBanLoginTest`), not re-written here.
   Live OAuth against Google was not exercised (Socialite is mocked in tests).
 - **Final state: VERIFIED FIX.**
+
+### L15. Slice 14a - MoneyPathBatchTest::test_two_charges_in_the_same_second_do_not_collide (PRE-EXISTING FAILURE): VERIFIED FIX (fixture only)
+- **Finding.** The test was already red on the committed code, before the no-show work. Its setUp never created the External Capital wallet,
+  which `PassengerProfileController` charge path needs (decision un3, fails loudly by design). The failure was a 500 on the first charge.
+- **Fix (fixture).** Added `SeedsSystemWallets` and seeded External Capital through the trait helper (`config('admin.external.phone')`, `kind` system).
+- **Second, behind it.** Once the charge succeeded, the test counted 4 rows, not 2. Each charge writes two rows under `admin_charge:{id}`
+  (passenger `admin_charge` plus External `external_inbound`, decision un3). The count was narrowed to the passenger's `admin_charge` rows.
+  The expected count (2) and the distinct-id check are unchanged.
+- **Checks.** `php -l` and Pint PASS. `MoneyPathBatchTest` 7 tests, 23 assertions OK. Previously 1 failure.
+- **Mutation.** Removing the External seed fails 1 test again. Restored byte-identical.
+- **Baseline.** No-show set (`NoshowSettlementGuardTest`, `RV11ScoreLedgerTest`, `RV40NoshowReportUniquenessTest`, `RV10StuckEscrowReportTest`,
+  `MoneyPathBatchTest`, `DriverNoShowPolicyTest`): 49 tests, 110 assertions OK.
+- **Final state: VERIFIED FIX.**
