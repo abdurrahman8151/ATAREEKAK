@@ -4,6 +4,7 @@ namespace Services\Staff;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
+use App\Services\Staff\EmployeeAuthService;
 use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,21 +40,21 @@ class EmployeeManagementServiceTest extends TestCase
 
     public function test_list_returns_collection(): void
     {
-        $result = $this->service->list($this->sysAdmin);
+        $result = $this->service->getAll($this->sysAdmin);
         $this->assertNotNull($result);
     }
 
-    public function test_list_excludes_caller_themselves(): void
+    public function test_list_includes_caller_themselves(): void
     {
         $agents = collect();
         for ($i = 0; $i < 3; $i++) {
             $agents->push($this->make(StaffRole::SUPPORT_AGENT, "agent{$i}", "agent{$i}@s.test"));
         }
 
-        $result = $this->service->list($this->sysAdmin);
+        $result = $this->service->getAll($this->sysAdmin);
         $ids = collect($result)->pluck('id')->toArray();
 
-        $this->assertNotContains($this->sysAdmin->id, $ids);
+        $this->assertContains($this->sysAdmin->id, $ids);
     }
 
     // ─── create ────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ class EmployeeManagementServiceTest extends TestCase
     {
         $employee = $this->service->create([
             'username' => 'brand_new',
+            'email' => 'brand_new@s.test',
             'password' => 'password123',
             'first_name' => 'Brand',
             'last_name' => 'New',
@@ -88,7 +90,7 @@ class EmployeeManagementServiceTest extends TestCase
 
     public function test_create_throws_on_duplicate_username(): void
     {
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(\DomainException::class);
 
         $this->service->create([
             'username' => 'sysadmin', // already exists
@@ -168,7 +170,7 @@ class EmployeeManagementServiceTest extends TestCase
     {
         $agent = $this->make(StaffRole::SUPPORT_AGENT, 'rp_agent', 'rp@s.test');
 
-        $this->service->resetPassword($agent->id, 'brand_new_pass_123', $this->sysAdmin);
+        $this->service->rotatePassword($agent->id, 'brand_new_pass_123', $this->sysAdmin);
 
         $this->assertTrue(
             Hash::check('brand_new_pass_123', $agent->fresh()->password)
@@ -180,7 +182,7 @@ class EmployeeManagementServiceTest extends TestCase
         $agent = $this->make(StaffRole::SUPPORT_AGENT, 'rp_agent2', 'rp2@s.test');
         $oldVersion = $agent->token_version;
 
-        $this->service->resetPassword($agent->id, 'new_password_123', $this->sysAdmin);
+        $this->service->rotatePassword($agent->id, 'new_password_123', $this->sysAdmin);
 
         // token_version must be bumped so old tokens are rejected
         $this->assertGreaterThan($oldVersion, (int) $agent->fresh()->token_version);
@@ -192,9 +194,10 @@ class EmployeeManagementServiceTest extends TestCase
     {
         $agent = $this->make(StaffRole::SUPPORT_AGENT, 'fmt_agent', 'fmt@s.test');
 
-        $result = $this->service->formatEmployee($agent);
+        // The public formatter lives on EmployeeAuthService (the profile shape).
+        $result = app(EmployeeAuthService::class)->formatEmployee($agent);
 
-        foreach (['id', 'username', 'role', 'is_active', 'first_name', 'last_name'] as $key) {
+        foreach (['id', 'username', 'role', 'is_active', 'full_name'] as $key) {
             $this->assertArrayHasKey($key, $result, "Missing key: {$key}");
         }
     }
@@ -203,7 +206,7 @@ class EmployeeManagementServiceTest extends TestCase
     {
         $agent = $this->make(StaffRole::SUPPORT_AGENT, 'fmt_agent2', 'fmt2@s.test');
 
-        $result = $this->service->formatEmployee($agent);
+        $result = app(EmployeeAuthService::class)->formatEmployee($agent);
 
         $this->assertArrayNotHasKey('password', $result);
     }

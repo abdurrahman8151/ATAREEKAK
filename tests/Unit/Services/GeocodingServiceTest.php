@@ -135,7 +135,7 @@ class GeocodingServiceTest extends TestCase
         $this->assertStringContainsString('Amman', $result);
     }
 
-    public function test_reverse_geocode_returns_null_when_no_results(): void
+    public function test_reverse_geocode_returns_coordinate_label_when_no_results(): void
     {
         Http::fake([
             '*' => Http::response($this->emptyGeocodeResponse(), 200),
@@ -143,10 +143,10 @@ class GeocodingServiceTest extends TestCase
 
         $result = $this->service->reverseGeocode(0.0, 0.0);
 
-        $this->assertNull($result);
+        $this->assertSame('Location: 0, 0', $result);
     }
 
-    public function test_reverse_geocode_returns_null_on_api_error(): void
+    public function test_reverse_geocode_returns_coordinate_label_on_api_error(): void
     {
         Http::fake([
             '*' => Http::response([], 503),
@@ -154,18 +154,19 @@ class GeocodingServiceTest extends TestCase
 
         $result = $this->service->reverseGeocode(31.9539, 35.9106);
 
-        $this->assertNull($result);
+        $this->assertSame('Location: 31.9539, 35.9106', $result);
     }
 
-    public function test_reverse_geocode_returns_null_on_connection_failure(): void
+    public function test_reverse_geocode_returns_coordinate_label_on_connection_failure(): void
     {
         Http::fake([
-            '*' => Http::throw(new ConnectionException('Network error')),
+            '*' => fn () => throw new ConnectionException('Network error'),
         ]);
 
         $result = $this->service->reverseGeocode(31.9539, 35.9106);
 
-        $this->assertNull($result);
+        $this->assertIsString($result);
+        $this->assertStringContainsString('31.9539', $result);
     }
 
     public function test_reverse_geocode_result_is_not_empty_string(): void
@@ -194,8 +195,9 @@ class GeocodingServiceTest extends TestCase
 
     public function test_reverse_geocode_makes_exactly_one_http_request(): void
     {
+        // Arabic result found -> the English fallback is never called, so exactly one request.
         Http::fake([
-            '*' => Http::response($this->reverseGeocodeResponse('Amman'), 200),
+            '*' => Http::response($this->reverseGeocodeResponse('عمّان، الأردن'), 200),
         ]);
 
         $this->service->reverseGeocode(31.9539, 35.9106);
@@ -230,18 +232,13 @@ class GeocodingServiceTest extends TestCase
         ];
     }
 
+    /** Nominatim reverse shape: a single object with display_name, lat and lon. */
     private function reverseGeocodeResponse(string $address): array
     {
         return [
-            'results' => [
-                [
-                    'formatted_address' => $address,
-                    'geometry' => [
-                        'location' => ['lat' => 31.9539, 'lng' => 35.9106],
-                    ],
-                ],
-            ],
-            'status' => 'OK',
+            'lat' => '31.9539',
+            'lon' => '35.9106',
+            'display_name' => $address,
         ];
     }
 

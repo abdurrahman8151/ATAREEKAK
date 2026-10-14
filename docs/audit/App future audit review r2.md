@@ -12254,3 +12254,23 @@ Both return the generic message `The request could not be completed. Please try 
 **Not changed.** No code, config, or deploy file. `phpunit.xml` and `docker-compose.local.yml` not staged.
 
 **Next audit section number: 190.**
+
+## 190. V15 verified: scoped Unit/Services suite green (test-side fixes only)
+
+**Problem.** V15 (group suite errors by message) was PARTIAL. 	ests/Unit/Services was red: geocoding reverse-lookup and staff-formatter tests.
+
+**Root cause.** Four tests expected behaviour the code does not have. Changed the tests, not the code.
+
+- GeocodingServiceTest: fixtures used a shape the Nominatim parser does not read (ormatted_address, a list). Reverse lookup returns a single object with display_name. Failure paths return a coordinate label (Location: lat, lng), not 
+ull. Owner approved (edit the tests).
+- EmployeeManagementServiceTest: formatter tests called a method on the wrong class; the public formatter lives on EmployeeAuthService. The "excludes caller" test contradicted the intended design; renamed to "includes caller". Owner approved.
+
+**Files changed (V15 only).** 	ests/Unit/Services/GeocodingServiceTest.php, 	ests/Unit/Services/Staff/EmployeeManagementServiceTest.php, docs/audit/BACKLOG.md (row 15), this section.
+
+**Checks.** php -l clean on both test files. endor/bin/pint --test pass. endor/bin/phpunit tests/Unit/Services --no-coverage on scratch DB 127.0.0.1:3399 (guard checked): OK, 361 tests, 637 assertions. 	ests/Feature/Staff as one directory was killed at 180 s twice (around 81%, no failure seen). Each of its 9 files run alone: OK.
+
+**Unverified.** The full 	ests/Feature/Staff directory run in one process. The killed-run hang was not diagnosed.
+
+**Numbering caution.** The working-tree copy of this file has uncommitted sections 190 and 191 from an earlier session. This committed section 190 collides with that number; reconcile when the owner commits the working-tree file.
+
+**Next audit section number: 191.**
