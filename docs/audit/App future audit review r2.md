@@ -12274,3 +12274,26 @@ ull. Owner approved (edit the tests).
 **Numbering caution.** The working-tree copy of this file has uncommitted sections 190 and 191 from an earlier session. This committed section 190 collides with that number; reconcile when the owner commits the working-tree file.
 
 **Next audit section number: 191.**
+
+## 202. V4 verified fix: live client IP resolves behind Render
+
+**Finding.** V4 / RV-05: behind Render every request resolved to the proxy, so all ip-keyed rate-limit buckets collapsed into one.
+
+**Root causes (both confirmed live).**
+1. TRUSTED_PROXIES was not set on the running service. The blueprint (render.yaml) is applied once when a service is created, so later edits to its envVars do not reach an existing service. The value had to be set in the Render dashboard. Live check before this: trusted_config and trusted_env were null.
+2. RoadRunner delivers REMOTE_ADDR as 127.0.0.1 to PHP. Without 127.0.0.1/32 in the trust list, Laravel ignores X-Forwarded-For. Confirmed through the real middleware stack: with the committed list and a loopback peer, ip resolved to 127.0.0.1 (same as production). With 127.0.0.1/32 added, it resolved to the real client.
+
+**Fix.**
+- render.yaml: TRUSTED_PROXIES = 127.0.0.1/32 + 10.0.0.0/8 + the 22 Cloudflare ranges (ips-v4 / ips-v6). Commit 7959c2f.
+- Dashboard: TRUSTED_PROXIES set on the atareekak web service to the same value (owner action).
+- tests/Feature/Review/ClientIpBehindProxyTest.php: 12 tests, 18 assertions, green. Includes the RoadRunner loopback case. Mutation (loopback removed) fails exactly that test; file restored identical.
+
+**Live verification.** Temporary /_debug/ip (commit e99385d, reverted 8ddecd9):
+- XFF "91.186.247.28, 162.158.94.232, 10.27.162.19" gave request_ip 91.186.247.28.
+- trusted_config showed the full list.
+
+**Earlier wrong turns (recorded for history).** Sections 194 to 201 recorded a loopback-only theory. A failed attempt (dc17f42) was reverted (cf13d08). The fix only worked once the dashboard value was set.
+
+**Not verified.** Rate-limit bucket separation on live traffic (only the resolved IP was checked). docker-compose.yml still has no trust setting (has its own nginx); unchanged by design.
+
+**Final state: VERIFIED FIX.**
