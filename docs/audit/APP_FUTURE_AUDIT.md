@@ -587,3 +587,38 @@ worker.
 *Maintained as the future-state companion to the bug audit. If any item here graduates to a
 fix task, mirror it into the `SYRIDE_COMPREHENSIVE_AUDIT.md` workflow (one problem at a
 time, verification to terminal state).*
+## K. Recheck of the code-smell audit (B2 / B3 / D) against current code
+
+Measured with a PHP tokenizer over all of pp/ (260 PHP files, 1149 methods). Method length is
+from the unction line to the matching closing brace, so it includes the signature. Figures are
+approximate to a few lines.
+
+| Metric | Audit (B2/B3, earlier snapshot) | Now | Direction |
+|---|---|---|---|
+| Largest class WalletTransactionService | 790 lines | 1343 lines | worse |
+| RideController | 966 lines | 1034 lines | worse |
+| BookingService | 738 lines | 786 lines | worse |
+| Files over 500 lines | 10 | 12 | worse |
+| Methods of 85 lines or more | 9 | 21 | worse |
+| Methods of 60 lines or more | not recorded | 52 | baseline |
+| passengerConfirmCompletion | 111 lines | 114 lines | worse |
+| createRideWithRoute | 70 lines (listed) | not in the top list | improved |
+| pp() service-locator calls outside providers | 22 | 36 | worse |
+
+**Long methods the audit did not list (largest first):** GoogleController::callback (200),
+SignupController::register (173), AppServiceProvider::register (157), Handler::register (147),
+Noshowservice::applyPenalty (115), ProfileController::update (108), AppServiceProvider::boot (104),
+VerificationController::verifyDriver (103), LoginController::__invoke (102),
+DocumentController::store (98), JwtAuthMiddleware::handle (96), AdminWalletService::chargeWallet (95).
+
+**Test-harness commands still shipped in pp/ (D4):** TestRideGatedInteractionCommand::handle (239),
+Testfullrideflow::handle (223), Getloadtesttokens::handle (102).
+
+**Not re-verified in this pass:** D2 (ledger dialects) and D4 (RideSearchService dead code). Both
+need their own check before any status changes.
+
+**Net result.** The codebase has more code smells than the audit recorded, not fewer. The large
+classes grew, the long-method count roughly doubled, and service-locator calls rose. One finding
+improved (createRideWithRoute is no longer in the long-method list).
+
+**Status.** Measurement only. No code was changed for this recheck, and no finding was closed.
