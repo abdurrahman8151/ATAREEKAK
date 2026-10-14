@@ -543,90 +543,9 @@ final class Noshowservice
         $driver = User::findOrFail($ride->driver_id);
 
         if ($report->target_role === 'passenger') {
-            // ── Driver won → passenger is penalised ───────────────────────────
-            $booking->update(['status' => 'no_show', 'completed_at' => now()]);
-
-            // Score: −15 for cash; e-pay = 0 pts (wallet handles the punishment)
-            $this->scoreService->recordPassengerNoShow($passenger, $booking, $report->payment_method);
-
-            // Wallet: escrow → driver 95% + primary 5% (e-pay only)
-            if ($report->payment_method === 'e-pay') {
-                $this->walletService->processPassengerNoShow($booking, $ride, $passenger);
-            }
-
-            // Notify passenger: penalty applied
-            try {
-                $this->notificationService->createNotification(
-                    $passenger,
-                    'noshow_penalty_applied',
-                    'تم تطبيق عقوبة الغياب',
-                    'انتهت مهلة الاعتراض ولم تعترض. تم تطبيق عقوبة الغياب على حسابك.',
-                    ['booking_id' => $booking->id],
-                    'high',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
-            }
-
-            // Notify driver: you received your earnings
-            try {
-                $this->notificationService->createNotification(
-                    $driver,
-                    'noshow_resolved_in_your_favor',
-                    'تم البت في تقرير الغياب',
-                    'تم تأكيد غياب الراكب وتطبيق العقوبة المقررة.'.
-                    ($report->payment_method === 'e-pay' ? ' تم تحويل المبلغ إلى محفظتك.' : ''),
-                    ['booking_id' => $booking->id],
-                    'normal',
-                    'ride'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
-            }
-
+            $this->penalisePassenger($report, $booking, $ride, $passenger, $driver);
         } else {
-            // ── Passenger won → driver is penalised ───────────────────────────
-            $booking->update(['status' => 'no_show', 'completed_at' => now()]);
-
-            // Score: −15 for cash; e-pay = 0 pts (wallet handles the punishment)
-            $this->scoreService->recordDriverNoShow($driver, $ride, $report->payment_method);
-
-            // Wallet: escrow → passenger 100% refund (e-pay only)
-            if ($report->payment_method === 'e-pay') {
-                $this->walletService->processDriverNoShowRefund($ride, $booking, $passenger);
-            }
-
-            // Notify driver: penalty applied
-            try {
-                $this->notificationService->createNotification(
-                    $driver,
-                    'noshow_penalty_applied',
-                    'تم تطبيق عقوبة الغياب',
-                    'انتهت مهلة الاعتراض ولم تعترض. تم تطبيق عقوبة الغياب على حسابك.',
-                    ['ride_id' => $ride->id],
-                    'high',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
-            }
-
-            // Notify passenger: refunded (e-pay) or resolved (cash)
-            try {
-                $this->notificationService->createNotification(
-                    $passenger,
-                    'noshow_resolved_in_your_favor',
-                    'تم البت في تقرير الغياب',
-                    'تم تأكيد غياب السائق وتطبيق العقوبة المقررة.'.
-                    ($report->payment_method === 'e-pay' ? ' تم استرجاع المبلغ إلى محفظتك.' : ''),
-                    ['booking_id' => $booking->id],
-                    'normal',
-                    'ride'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
-            }
+            $this->penaliseDriver($report, $booking, $ride, $passenger, $driver);
         }
 
         return true;
@@ -677,5 +596,97 @@ final class Noshowservice
             '  2. التواصل مع الطرفين إن لزم',
             '  3. تطبيق العقوبة على الطرف المخطئ يدوياً',
         ]);
+    }
+
+    /** Driver won: the passenger is penalised (score, e-pay escrow to driver, notifications). */
+    private function penalisePassenger(NoshowReport $report, Booking $booking, Ride $ride, User $passenger, User $driver): void
+    {
+        // ── Driver won → passenger is penalised ───────────────────────────
+        $booking->update(['status' => 'no_show', 'completed_at' => now()]);
+
+        // Score: −15 for cash; e-pay = 0 pts (wallet handles the punishment)
+        $this->scoreService->recordPassengerNoShow($passenger, $booking, $report->payment_method);
+
+        // Wallet: escrow → driver 95% + primary 5% (e-pay only)
+        if ($report->payment_method === 'e-pay') {
+            $this->walletService->processPassengerNoShow($booking, $ride, $passenger);
+        }
+
+        // Notify passenger: penalty applied
+        try {
+            $this->notificationService->createNotification(
+                $passenger,
+                'noshow_penalty_applied',
+                'تم تطبيق عقوبة الغياب',
+                'انتهت مهلة الاعتراض ولم تعترض. تم تطبيق عقوبة الغياب على حسابك.',
+                ['booking_id' => $booking->id],
+                'high',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+        }
+
+        // Notify driver: you received your earnings
+        try {
+            $this->notificationService->createNotification(
+                $driver,
+                'noshow_resolved_in_your_favor',
+                'تم البت في تقرير الغياب',
+                'تم تأكيد غياب الراكب وتطبيق العقوبة المقررة.'.
+                ($report->payment_method === 'e-pay' ? ' تم تحويل المبلغ إلى محفظتك.' : ''),
+                ['booking_id' => $booking->id],
+                'normal',
+                'ride'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+        }
+    }
+
+    /** Passenger won: the driver is penalised (score, e-pay refund to passenger, notifications). */
+    private function penaliseDriver(NoshowReport $report, Booking $booking, Ride $ride, User $passenger, User $driver): void
+    {
+        // ── Passenger won → driver is penalised ───────────────────────────
+        $booking->update(['status' => 'no_show', 'completed_at' => now()]);
+
+        // Score: −15 for cash; e-pay = 0 pts (wallet handles the punishment)
+        $this->scoreService->recordDriverNoShow($driver, $ride, $report->payment_method);
+
+        // Wallet: escrow → passenger 100% refund (e-pay only)
+        if ($report->payment_method === 'e-pay') {
+            $this->walletService->processDriverNoShowRefund($ride, $booking, $passenger);
+        }
+
+        // Notify driver: penalty applied
+        try {
+            $this->notificationService->createNotification(
+                $driver,
+                'noshow_penalty_applied',
+                'تم تطبيق عقوبة الغياب',
+                'انتهت مهلة الاعتراض ولم تعترض. تم تطبيق عقوبة الغياب على حسابك.',
+                ['ride_id' => $ride->id],
+                'high',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+        }
+
+        // Notify passenger: refunded (e-pay) or resolved (cash)
+        try {
+            $this->notificationService->createNotification(
+                $passenger,
+                'noshow_resolved_in_your_favor',
+                'تم البت في تقرير الغياب',
+                'تم تأكيد غياب السائق وتطبيق العقوبة المقررة.'.
+                ($report->payment_method === 'e-pay' ? ' تم استرجاع المبلغ إلى محفظتك.' : ''),
+                ['booking_id' => $booking->id],
+                'normal',
+                'ride'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+        }
     }
 }

@@ -850,3 +850,26 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Baseline.** No-show set (`NoshowSettlementGuardTest`, `RV11ScoreLedgerTest`, `RV40NoshowReportUniquenessTest`, `RV10StuckEscrowReportTest`,
   `MoneyPathBatchTest`, `DriverNoShowPolicyTest`): 49 tests, 110 assertions OK.
 - **Final state: VERIFIED FIX.**
+
+### L16. Slice 14 - Noshowservice::applyPenalty (MONEY + SCORE): VERIFIED FIX (refactor, then characterization)
+- **Finding.** `applyPenalty()` held two mirror branches in one method (passenger no-show, driver no-show). Each flips the booking,
+  records score, moves e-pay money, and notifies. The branches had no separate names, so each was hard to test or change alone.
+- **Refactor.** The guard (booking lock, confirmed check, ride and user loading) stays in `applyPenalty()`. It now dispatches to
+  `penalisePassenger()` or `penaliseDriver()`, two private helpers with the original statements, order, and notifications unchanged.
+  Verified statement by statement against HEAD: driver branch 33/33 identical; passenger branch identical plus the structural closing brace.
+  The return contract (`false` on a non-confirmed booking, `true` otherwise) is unchanged. No `use` line changed; no file under app/ was added or moved.
+- **Mid-step defect (self-caused, fixed before any check passed).** The first split appended the helpers after the class closing brace,
+  and the passenger helper lost its `catch` closing brace. `php -l` caught both. Both fixed in the same file; no behaviour changed.
+- **Characterization (step 2).** NEW `tests/Feature/Review/L16DriverNoShowSettlementCharacterizationTest.php`, 4 tests. The existing
+  no-show tests only settle reports where the passenger is the target; this file drives the driver-no-show branch (passenger accuses driver):
+  booking becomes `no_show`; passenger refunded `seats x price_per_seat` from SyCash escrow; a driver_no_show_refund pair written (one debit, one credit);
+  no driver payout; no second refund on a re-run.
+- **Fixture correction during the step (test code only).** The first run counted 2 refund rows as 1. The refund is a double-entry pair (debit and
+  credit, both `driver_no_show_refund`), so the assertion now checks one debit and one credit separately. The re-run count is 2 (one pair).
+- **Checks.** `php -l` and Pint PASS on `Noshowservice.php` and the L16 test. The 49-test no-show baseline (`NoshowSettlementGuardTest`,
+  `RV11ScoreLedgerTest`, `RV40NoshowReportUniquenessTest`, `RV10StuckEscrowReportTest`, `MoneyPathBatchTest`, `DriverNoShowPolicyTest`)
+  is OK before and after the refactor (110 assertions). Final combined run (no-show set + L16 + Money floors + Ride floors): 337 tests, 563 assertions OK.
+- **Mutation.** Removing the driver-branch refund fails 2 of 4 L16 tests. `Noshowservice.php` restored byte-identical; no mutation marker left.
+- **Not verified.** The passenger branch is covered by existing tests (`NoshowSettlementGuardTest`, `MoneyPathBatchTest`) but has no separate mutation run on the helper.
+  The `applyPenalty` notification side effects are not asserted by L16 (they are non-fatal and wrapped in try/catch).
+- **Final state: VERIFIED FIX.**
