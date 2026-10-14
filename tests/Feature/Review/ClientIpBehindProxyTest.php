@@ -83,6 +83,46 @@ class ClientIpBehindProxyTest extends TestCase
         $this->assertSame('203.0.113.9', $this->resolvedIpFor('172.16.4.4', '203.0.113.9'));
     }
 
+    /** The exact value set in render.yaml (Render internal 10/8 plus the Cloudflare ranges). */
+    private const RENDER_TRUSTED_PROXIES = '10.0.0.0/8,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,104.16.0.0/13,104.24.0.0/14,108.162.192.0/18,131.0.72.0/22,141.101.64.0/18,162.158.0.0/15,172.64.0.0/13,173.245.48.0/20,188.114.96.0/20,190.93.240.0/20,197.234.240.0/22,198.41.128.0/17,2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,2a06:98c0::/29,2c0f:f248::/32';
+
+    public function test_render_chain_resolves_to_the_real_client(): void
+    {
+        config(['trustedproxy.proxies' => self::RENDER_TRUSTED_PROXIES]);
+
+        // Observed on Render: client, then Cloudflare, then Render's internal 10.x hop.
+        $this->assertSame(
+            '203.0.113.5',
+            $this->resolvedIpFor('10.226.90.65', '203.0.113.5, 172.71.195.123, 10.226.90.65'),
+            'V4: the Render chain must resolve to the client, not a proxy hop'
+        );
+    }
+
+    public function test_a_spoofed_forwarded_prefix_does_not_change_the_client(): void
+    {
+        config(['trustedproxy.proxies' => self::RENDER_TRUSTED_PROXIES]);
+
+        // The attacker prepends a fake address. Trusted hops are skipped right-to-left, so the
+        // first untrusted entry (the real client) still wins over the forged prefix.
+        $this->assertSame(
+            '203.0.113.5',
+            $this->resolvedIpFor('10.226.90.65', '198.51.100.9, 203.0.113.5, 172.71.195.123, 10.226.90.65'),
+            'V4: a client-supplied XFF prefix must not choose the rate-limit identity'
+        );
+    }
+
+    public function test_an_untrusted_peer_with_a_forged_header_is_ignored(): void
+    {
+        config(['trustedproxy.proxies' => self::RENDER_TRUSTED_PROXIES]);
+
+        // 198.51.100.9 is NOT in any trusted range, so its forged XFF must be discarded.
+        $this->assertSame(
+            '198.51.100.9',
+            $this->resolvedIpFor('198.51.100.9', '10.9.9.9, 203.0.113.5'),
+            'V4: a direct untrusted peer must not be able to set its IP via XFF'
+        );
+    }
+
     public function test_an_untrusted_source_cannot_spoof_its_own_address(): void
     {
         config(['trustedproxy.proxies' => '10.0.0.5']);
