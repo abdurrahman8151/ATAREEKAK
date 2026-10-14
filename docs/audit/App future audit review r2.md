@@ -12312,3 +12312,31 @@ ull. Owner approved (edit the tests).
 
 **Final state: VERIFIED FIX.**
 
+## 205. L24 - AdminWalletRequestController::approve refactor (auto-clear and notification helpers): VERIFIED FIX
+
+**Problem.** `approve` (about 200 lines) held the post-commit cash-debt auto-clear and the user notification inline.
+
+**Fix.** Moved both into private helpers, `autoClearDebtAfterCharge` and `notifyRequestDecided`. The charge-only guard, the try/catch blocks, log text and response are unchanged. The ledger posting inside the transaction is untouched.
+
+**Files.** `app/Http/Controllers/API/AdminWalletRequestController.php` (51 insertions, 41 deletions). New `tests/Feature/Review/L24ApproveAutoClearDebtTest.php`.
+
+**Checks.** Lint and Pint clean. The L24 guard passes on HEAD and on the refactor (2 tests). It fails when the charge guard is inverted (2 failures); file restored byte-identical. Existing approve tests (L13, wallet request, attribution): 57 tests pass. Combined floor: 346 tests, 618 assertions, OK.
+
+**Note.** The first mutation of this guard was not caught by the existing tests; the new guard closes that gap.
+
+**Final state: VERIFIED FIX.**
+
+## 206. L25 - RideRepository::createRide refactor (endpoint resolution and geometry helpers): VERIFIED FIX
+
+**Problem.** `createRide` repeated the pickup and destination resolution, and held the route-geometry check inline. The RV-50 tests pin only fragments of the refusal text, so a changed message passed them.
+
+**Fix.** Moved the pickup and destination resolution into `resolveEndpoint(array $data, string $role)`, and the geometry check into `validRouteGeometry($route)`. Both refusal messages and both missing-data messages are built from the role and match the original text exactly. The RV-50 refusal, the log lines and the save order are unchanged.
+
+**Files.** `app/Repositories/RideRepository.php` (64 insertions, 82 deletions). New `tests/Feature/Review/L25RideRepositoryRefusalWordingTest.php`.
+
+**Checks.** Lint and Pint clean. The L25 wording test (4 tests, 7 assertions) passes on HEAD and on the refactor. It fails when the address refusal text is changed (2 failures); file restored byte-identical. Ride, booking, domain and RV-50/RV-24 tests: 282 pass. Combined floor: 346 tests, 618 assertions, OK.
+
+**Note.** The earlier mutation of the RV-50 refusal was not caught by RV-50 alone; the exact-wording test closes that gap.
+
+**Final state: VERIFIED FIX.**
+
