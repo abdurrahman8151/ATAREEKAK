@@ -798,3 +798,24 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Not verified.** Success-path refunds are pinned by the existing `StaffCancellationRefundTest`, not re-run here. The `cancelBooking` ride-seat restoration on a
   refused refund is not separately asserted. Step 2 (any code change) is not started.
 - **Final state: CLOSED, no code change. Rollback rule characterized.**
+
+### L13. Slice 12 - AdminWalletRequestController::approve (MONEY): NO CODE CHANGE, money effects characterized
+- **Code path.** `approve()` (controller line 104) validates `admin_notes`, loads the request, refuses it unless pending (422),
+  then in `DB::transaction` locks the wallet and: a withdrawal refuses an overdraft with a `DomainException` (mapped to 422) and
+  writes a negative `withdrawal` row; a top-up writes an `admin_charge` row. It then mirrors the amount on the External Capital
+  account (`external_inbound` for a top-up, `external_outbound` for a withdrawal), posts `LedgerService::postExternalTransfer`, and marks the request approved.
+- **Why no code change.** Money is correct under the characterization below. A refactor would move the transaction boundary,
+  which is a larger risk than the current code, so the change is deferred until a concrete defect or a need is shown.
+- **Gap found.** The attribution tests (`StaffAdminIdentityAttributionTest`, `RVWalletRequestEmployeeAttributionTest`) check WHO approved,
+  not the money. Nothing pinned the balances, the external sign, the ledger rows, the overdraft refusal, or the double-approval refusal.
+- **Step 1 (added).** NEW `tests/Feature/Review/L13WalletRequestApproveCharacterizationTest.php`: 8 tests covering top-up balance,
+  `admin_charge` row, external debit with one `external_inbound` row, withdrawal balance, negative `withdrawal` row, external
+  credit with one `external_outbound` row, overdraft refused (422, wallet unchanged, request still pending, no withdrawal row),
+  and an already-approved request refused (422, no second credit).
+- **Fixture corrections during the step (test code only).** The route is `/api/admin/wallet/requests/{id}/approve` (the `wallet` prefix),
+  not `/api/admin/requests/...`. The overdraft refusal is 422 (the controller maps `DomainException` to 422), not 500.
+- **Checks.** `php -l` and Pint PASS. The 8 tests pass on the unchanged code (28 assertions).
+- **Mutation.** Flipping the external-account sign for top-ups in `approve` fails 2 tests (2 of 8). The controller was restored byte-identical; its git diff is empty.
+- **Not verified.** The `LedgerService::postExternalTransfer` postings themselves are not asserted by a dedicated test (only the wallet and external rows).
+  The reject path is not characterized here.
+- **Final state: CLOSED, no code change. Money effects characterized.**
