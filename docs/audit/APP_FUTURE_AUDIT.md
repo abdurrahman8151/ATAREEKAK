@@ -652,3 +652,27 @@ verification and commit, and this section is updated after each step.
 - exportPdf - export.
 
 **Status of section L:** in progress; no code changed yet.
+
+### L4. Slice 3 - duplicated national-ID approval: VERIFIED FIX
+- **Finding.** The approval of a verification (duplicate national-ID check, driver/passenger decision,
+  repository write, national-ID save) was copied in AdminDashboardController::approveVerification and
+  Staff/StaffAdminController::approveVerification. The copies had drifted: only the staff copy fired the
+  real-time UserVerified event, so an admin-approved user's app never got the live update.
+- **Root cause.** No shared service owned the approval rules, so each controller carried its own copy.
+- **Fix (owner-approved).** New Services/Verification/VerificationApprovalService::approve() owns the rules
+  and fires UserVerified for every approval. New DuplicateNationalIdException and ApprovedVerification
+  value types. Both controllers keep their own validation, response shape and cache busting, so no client
+  response changes. Admin approvals now fire the event (owner decision: both fire it).
+- **Files.** NEW pp/Services/Verification/VerificationApprovalService.php, DuplicateNationalIdException.php,
+  ApprovedVerification.php; CHANGED pp/Http/Controllers/API/AdminDashboardController.php,
+  pp/Http/Controllers/API/Staff/StaffAdminController.php, 	ests/Feature/Admin/NationalIdVerificationTest.php
+  (2 new tests).
+- **Checks.** php -l on all 5 changed PHP files; Pint PASS on them; scoped run
+  AdminDashboardControllerTest + NationalIdVerificationTest + StaffAdminControllerTest: 65 tests OK before
+  the new tests, then NationalIdVerificationTest 9 tests OK after; Identity floor (	ests/Feature/Auth,
+  Staff, Otp, Security, 	ests/Unit/Middleware + the two files above): 462 tests, 1238 assertions OK.
+- **Mutation.** Removing the event firing from the service fails exactly dmin_approval_fires_user_verified_event;
+  file restored byte-identical.
+- **Not verified.** Live Pusher delivery of the event (only the dispatch is tested; the event is faked in tests).
+  Staff and admin response bodies were kept by design; a client-level check against the real apps was not done.
+- **Final state: VERIFIED FIX.**

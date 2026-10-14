@@ -4,13 +4,14 @@ namespace App\Http\Controllers\API;
 
 use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
-use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminExportService;
 use App\Services\Admin\AdminReportService;
 use App\Services\Admin\AdminWalletService;      // ← added
+use App\Services\Verification\DuplicateNationalIdException;
+use App\Services\Verification\VerificationApprovalService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -477,39 +478,16 @@ final class AdminDashboardController extends Controller
 
         $nationalId = trim($request->input('national_id'));
 
-        $duplicate = User::where('national_id', $nationalId)
-            ->where('id', '!=', $userId)
-            ->first();
-
-        if ($duplicate) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'This national ID is already linked to another verified account. Verification blocked.',
-                'data' => [
-                    'conflicting_user_id' => $duplicate->id,
-                ],
-            ], 422);
-        }
-
         try {
-            $user = User::with(['photos'])->findOrFail($userId);
-            $docTypes = $user->photos->pluck('type')->toArray();
-            $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
-
-            $repo = app(VerificationRepositoryInterface::class);
-            $verifiedUser = $isDriver
-                ? $repo->verifyDriver($userId)
-                : $repo->verifyPassenger($userId);
-
-            $verifiedUser->national_id = $nationalId;
-            $verifiedUser->save();
+            $approved = app(VerificationApprovalService::class)->approve($userId, $nationalId);
+            $verifiedUser = $approved->user;
 
             // Bust caches that reflect user/driver counts and verification stats
             $this->bustVerificationCaches();
 
             return response()->json([
                 'status' => 'success',
-                'message' => ($isDriver ? 'Driver' : 'Passenger').' verification approved',
+                'message' => ucfirst($approved->type).' verification approved',
                 'user' => [
                     'id' => $verifiedUser->id,
                     'national_id' => $verifiedUser->national_id,
@@ -517,6 +495,14 @@ final class AdminDashboardController extends Controller
                 ],
             ]);
 
+        } catch (DuplicateNationalIdException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'This national ID is already linked to another verified account. Verification blocked.',
+                'data' => [
+                    'conflicting_user_id' => $e->conflictingUserId,
+                ],
+            ], 422);
         } catch (\Exception $e) {
             // RV-13: message to the log, not the client.
             Log::error('AdminDashboard: verification decision failed', [

@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\API\Staff;
 
 use App\Enums\ComplaintStatus;
-use App\Events\UserVerified;
 use App\Http\Controllers\Controller;
 use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\Complaint;
 use App\Models\User;
 use App\Services\NotificationService;
 use App\Services\Staff\StaffComplaintService;
+use App\Services\Verification\DuplicateNationalIdException;
+use App\Services\Verification\VerificationApprovalService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -126,39 +127,9 @@ final class StaffAdminController extends Controller
 
         $nationalId = trim($request->input('national_id'));
 
-        // Check uniqueness: is this national ID already linked to another account?
-        $duplicate = User::where('national_id', $nationalId)
-            ->where('id', '!=', $userId)
-            ->first();
-
-        if ($duplicate) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'This national ID is already linked to another verified account. Verification blocked.',
-                'data' => [
-                    'conflicting_user_id' => $duplicate->id,
-                ],
-            ], 422);
-        }
-
         try {
-            $user = User::with('photos')->findOrFail($userId);
-            $docTypes = $user->photos->pluck('type')->toArray();
-            $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
-
-            $verified = $isDriver
-                ? $this->verificationRepo->verifyDriver($userId)
-                : $this->verificationRepo->verifyPassenger($userId);
-
-            // Save national ID — cannot be changed through normal flows after this point
-            $verified->national_id = $nationalId;
-            $verified->save();
-
-            // Fire the broadcast event so the user's app updates in real time
-            event(new UserVerified(
-                $verified,
-                $isDriver ? 'driver' : 'passenger'
-            ));
+            $approved = app(VerificationApprovalService::class)->approve($userId, $nationalId);
+            $verified = $approved->user;
 
             // User leaves the pending list; their staff profile now shows new verification status
             Cache::forget('staff.pending-verifications');
@@ -166,7 +137,7 @@ final class StaffAdminController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => ($isDriver ? 'Driver' : 'Passenger').' verification approved.',
+                'message' => ucfirst($approved->type).' verification approved.',
                 'data' => [
                     'user_id' => $verified->id,
                     'national_id' => $verified->national_id,
@@ -178,6 +149,14 @@ final class StaffAdminController extends Controller
 
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
+        } catch (DuplicateNationalIdException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'This national ID is already linked to another verified account. Verification blocked.',
+                'data' => [
+                    'conflicting_user_id' => $e->conflictingUserId,
+                ],
+            ], 422);
         } catch (\Exception $e) {
             Log::error('StaffAdmin: approveVerification failed', [
                 'user_id' => $userId,

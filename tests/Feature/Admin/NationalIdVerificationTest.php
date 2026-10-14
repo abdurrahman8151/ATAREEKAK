@@ -210,4 +210,43 @@ class NationalIdVerificationTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['national_id']);
     }
+
+    /**
+     * L4: admin approvals now fire the real-time UserVerified event, as staff approvals always did.
+     * Before the shared VerificationApprovalService this event was fired only from the staff path.
+     */
+    /** @test */
+    public function admin_approval_fires_user_verified_event(): void
+    {
+        $driver = $this->pendingDriver();
+
+        $this->withToken($this->adminToken())
+            ->postJson($this->adminApproveRoute($driver->id), [
+                'national_id' => 'SY-55555555',
+            ])
+            ->assertOk();
+
+        Event::assertDispatched(UserVerified::class, function (UserVerified $event) use ($driver) {
+            return $event->user->id === $driver->id && $event->verificationType === 'driver';
+        });
+    }
+
+    /** @test */
+    public function refused_approval_does_not_fire_user_verified_event(): void
+    {
+        User::factory()->create([
+            'national_id' => 'SY-66666666',
+            'status' => 1,
+        ]);
+
+        $driver = $this->pendingDriver();
+
+        $this->withToken($this->adminToken())
+            ->postJson($this->adminApproveRoute($driver->id), [
+                'national_id' => 'SY-66666666',
+            ])
+            ->assertStatus(422);
+
+        Event::assertNotDispatched(UserVerified::class);
+    }
 }
