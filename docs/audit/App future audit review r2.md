@@ -12374,3 +12374,19 @@ ull. Owner approved (edit the tests).
 
 **Final state: PARTIAL. Ride floor is not yet a fully green baseline; the parked order dependence needs an owner decision on the assertion.**
 
+## 209. RFB-3 commit 1 - WalletTransactionService split behind a facade: VERIFIED FIX (facade step)
+
+**Problem.** WalletTransactionService is 1,372 lines with 22 methods covering five money responsibilities. Section K flagged it as the largest class.
+
+**Change.** Five classes in app/Services/Payment: BookingCharge (chargePassengerForBooking), RidePayout (releaseEarningsToDriver, releaseEscrowToDriver and the two share recorders), CancellationRefund (driver, staff and time-based refunds, refund policy, refund rows), NoShowSettlement (processPassengerNoShow, processDriverNoShowRefund), WalletAccess (lookup, row locking, balance guard, posting-key and escrow debit helpers). WalletTransactionService is now a facade keeping its constructor and all nine public signatures; each method delegates to the class that owns it.
+
+**Verification of the move.** Every one of the 22 original method bodies was compared byte-for-byte against the candidate classes, normalised only for private to public on helpers. 22 of 22 matched. Helper calls were rewritten to go through the injected WalletAccess (50 call sites, counted per class). No amount, refund tier, 95/5 split, posting key, escrow rule or ledger type name changed.
+
+**Checks.** php -l clean on all six files. BoundaryDependencyTest: 9 tests, 36 assertions OK, no baseline raised. Focused money paths (Payment, L16, L27, RV20 refund routing, MoneyPathBatch, refund policy): 69 tests, 128 assertions OK. Wide selection (Wallet, Payment, Domain, Review, T3Batch, T4Batch, Rides, Bookings, Unit/Services) compared with HEAD 19d96c6 in a separate worktree, by name: newly red 0; HEAD-red now green 4 (WalletTest x2, two ratchet tests, incidental).
+
+**Still red, same on HEAD (not caused by the split).** Reserved-phone wallet collisions in Unit/Services (24 errors, 0912345678), AdminDriverServiceTest and CashRideFeeServiceTest assertion failures, the parked list from RFB-1 and RFB-2.
+
+**Next (commit 2, not started).** Repoint the 16 app call sites and the test references from WalletTransactionService to the five classes, then delete the facade.
+
+**Final state: VERIFIED FIX for the facade step. The split is not finished until commit 2 deletes the facade.**
+
