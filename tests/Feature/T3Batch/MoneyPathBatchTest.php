@@ -54,8 +54,11 @@ class MoneyPathBatchTest extends TestCase
         }
         parent::setUp();
 
-        $this->syCash = Wallet::create(['user_id' => null, 'phone_number' => config('admin.sycash.phone'), 'balance' => 0]);
-        $this->primary = Wallet::create(['user_id' => null, 'phone_number' => config('admin.system_admin.phone'), 'balance' => 0]);
+        // Idempotent (firstOrCreate by phone): the reserved system phones are shared across the suite,
+        // so a raw Wallet::create collided with a wallet another test already left in the database.
+        $system = $this->seedSystemWallets(0.0);
+        $this->syCash = $system['sycash'];
+        $this->primary = $system['primary'];
         // Decision un3: the admin charge path records against External Capital and fails loudly without it.
         $this->seedSystemWallet(config('admin.external.phone'), 0.0);
 

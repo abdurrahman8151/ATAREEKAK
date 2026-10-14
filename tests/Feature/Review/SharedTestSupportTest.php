@@ -152,11 +152,8 @@ class SharedTestSupportTest extends TestCase
         $passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
 
         $syCash = $this->syCashWallet();
-        Wallet::create([
-            'user_id' => null,
-            'phone_number' => config('admin.system_admin.phone'),
-            'balance' => 0,
-        ]);
+        // Idempotent: the reserved primary phone is shared across the suite, so a raw Wallet::create collided.
+        $this->seedSystemWallet(config('admin.system_admin.phone'), 0.0);
 
         $passengerWallet = Wallet::create([
             'user_id' => $passenger->id,

@@ -12340,3 +12340,21 @@ ull. Owner approved (edit the tests).
 
 **Final state: VERIFIED FIX.**
 
+## 207. RFB-1 - Ride and money fixture collisions (tests only): VERIFIED FIX
+
+**Problem.** Money-path tests failed with `wallets_phone_number_unique` (duplicate reserved phone 0987654321 / 0912345678) when run in the full money floor.
+
+**Root cause.** Two test setups created the reserved system wallets with a raw `Wallet::create`, which is not idempotent. A wallet left by an earlier test in the same process collided. The shared `SeedsSystemWallets` helper uses `firstOrCreate` by phone and is the correct pattern.
+
+**Fix.** Replaced the raw inserts with the idempotent helper in `tests/Feature/T3Batch/MoneyPathBatchTest.php` (setUp) and `tests/Feature/Review/SharedTestSupportTest.php`. No assertion, amount or app code changed.
+
+**Files.** The two test files above. Diff: 5+/2- and 2+/5-.
+
+**Checks.** Lint and Pint clean. Money floor: errors fell from 8 to 0 for the phone collision; 7 MoneyPathBatchTest tests and SharedTestSupportTest now pass; newly red tests vs the HEAD baseline by name: 0. Ride floor: 229 tests, 404 assertions, OK.
+
+**Still red, parked (not edited).** BacklogTableShapeTest and NoDuplicatedFixtureHelpersTest (owner doc and guard text), MigrationEffectsBatchTest (duplicate index, schema), MoneyAndAuthPathBatchTest near-location (two tests, geometry result). Each needs an owner decision or is outside this batch.
+
+**RideSearchServiceTest order dependence.** Not reproduced: passes alone and in the Rides floor on three consecutive runs. No change made.
+
+**Final state: VERIFIED FIX.**
+
