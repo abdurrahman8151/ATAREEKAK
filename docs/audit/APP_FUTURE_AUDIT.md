@@ -622,3 +622,33 @@ classes grew, the long-method count roughly doubled, and service-locator calls r
 improved (createRideWithRoute is no longer in the long-method list).
 
 **Status.** Measurement only. No code was changed for this recheck, and no finding was closed.
+
+## L. Modular-monolith slices: findings (in progress)
+
+Plan agreed with the owner: Phase 0 module map, then slice by slice. Each slice gets its own finding,
+verification and commit, and this section is updated after each step.
+
+### L1. Slice 1 - AdminBanController: NO CHANGE NEEDED (audit figure stale)
+- The ban write, token revocation and cache busting already live in Services/Admin/BanService (decision un13).
+- an() and unban() hold validation, the duplicate-ban check, one service call, a notification and logging.
+  No transaction, money or auth-rule logic sits in the controller.
+- Existing coverage: 	ests/Feature/Admin/AdminBanControllerTest.php, 	ests/Feature/Review/AccountStatusBanServiceTest.php,
+  	ests/Feature/Review/RV12ExpiredBanLoginTest.php.
+- Decision: no structural change. Moving the remaining lines into a service would add a class with no behaviour change.
+- Status: **closed as already done (no code change).**
+
+### L2. Slice 2 - AdminDashboardController read methods: NO CHANGE NEEDED
+- dashboard, dashboardStats, dashboardGrowth, dashboardCities, dashboardRecent (controller lines 125-217)
+  each delegate one call to AdminReportService inside a Cache::remember. Queries live in the service.
+- The controller holds only caching, input clamping and response shaping.
+- Existing coverage: 	ests/Feature/Admin/AdminDashboardControllerTest.php, 	ests/Feature/Staff/StaffAdminControllerTest.php.
+- Decision: no structural change. Extraction would relocate one-line delegations with no gain.
+- Status: **closed as already done (no code change).**
+
+### L3. Where the real remaining logic is (next candidates, need owner choice)
+- pproveVerification (about 63 lines) - verification, not money or auth. Suggested next.
+- chargeWallet - money. Needs owner sign-off before any change.
+- login / efresh - auth. Needs owner sign-off before any change.
+- exportPdf - export.
+
+**Status of section L:** in progress; no code changed yet.
