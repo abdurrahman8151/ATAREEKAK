@@ -676,3 +676,25 @@ verification and commit, and this section is updated after each step.
 - **Not verified.** Live Pusher delivery of the event (only the dispatch is tested; the event is faked in tests).
   Staff and admin response bodies were kept by design; a client-level check against the real apps was not done.
 - **Final state: VERIFIED FIX.**
+
+### L5. Slice 4 - exportPdf: NO STRUCTURAL CHANGE; characterization test added
+- **Code path.** AdminDashboardController::exportPdf (lines 381-424): validates the date range and sections,
+  calls AdminExportService::exportDashboardPdf() for the bytes, calls uildFilename() for the name, and
+  returns the PDF with its headers (
+o-store, no-cache). A failure logs a generic error and returns 500.
+- **Why not a god method.** The PDF building already lives in AdminExportService. The controller holds
+  only validation, two service calls and the headers.
+- **Real gap.** No test called /api/admin/export/pdf, exportDashboardPdf() or uildFilename(). Only a
+  comment in AdminFinancialSurfaceAuthorizationTest.php names the route. The success path, the validation and
+  the authorization of this endpoint were unpinned.
+- **Decision.** No refactor. Add a characterization test that pins current behaviour, so any later change is caught.
+- **Test added.** `tests/Feature/Review/L5ExportPdfCharacterizationTest.php` (4 tests, 13 assertions): success
+  returns a PDF with inline disposition and `no-store` cache; end date before start is 422; unknown section is 422;
+  no admin token is 401.
+- **Checks.** `php -l` and Pint PASS. Scoped run: 4 tests OK. Area floor `tests/Feature/Admin` plus the new file:
+  121 tests, 271 assertions OK.
+- **Mutation.** Removing the date-order rule from the export (line 385 only) fails exactly the end-date test;
+  the controller was restored byte-identical (`git diff` empty for that file).
+- **Not verified.** The PDF's content and layout (only the format prefix and headers are pinned); the export
+  rendering against real report data.
+- **Final state: VERIFIED FIX (characterization).** No application code changed.
