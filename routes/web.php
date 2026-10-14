@@ -8,15 +8,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
-// TEMPORARY V4 DEBUG ROUTE - remove before the final state (own commit, revert cleanly).
-Route::get('/_debug/ip', function (Request $request) {
-    return response()->json([
-        'REMOTE_ADDR' => $request->server('REMOTE_ADDR'),
-        'X-Forwarded-For' => $request->header('X-Forwarded-For'),
-        'request_ip' => $request->ip(),
-    ]);
-});
-
 // Platform healthcheck (render.yaml:5) and the deploy workflow depend on this
 // route. It is public by design, so it must disclose nothing.
 //
