@@ -779,3 +779,22 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Mutation.** Replacing the issued refresh token in `StaffJwtService::generateTokenPair` fails 2 tests. The file was restored byte-identical.
 - **Not verified.** Token expiry times, revocation of old tokens after logout, and the `JwtService` (user-facing) path are not pinned by this file.
 - **Final state: CLOSED, no code change. Characterization added.**
+
+### L12. Slice 11 - StaffOperationsController::cancelTrip and cancelBooking (MONEY/REFUND): NO CODE CHANGE, rollback rule characterized
+- **Code path.** `cancelTrip()` and `cancelBooking()` validate `reason`, then run `WalletTransactionService::refundPassengersForStaffCancellation()`
+  inside `DB::transaction` BEFORE flipping booking and ride status. Refund first, so a failed refund rolls the whole cancellation back.
+- **Why no code change.** The controllers are the transaction boundary and already order the money first. The refund logic is in the service.
+- **Gap found.** `StaffCancellationRefundTest` pins successful refunds. Nothing pinned the failure rule: when the refund cannot be funded,
+  the ride and bookings must stay unchanged and no money may move.
+- **Step 1 (added).** NEW `tests/Feature/Review/L12StaffCancelRefundFailureCharacterizationTest.php`: 3 tests. A booking is charged, SyCash is drained
+  so the refund is unfundable, then: (a) trip cancel refused, ride stays active, booking stays confirmed; (b) trip cancel moves no money and writes no refund row;
+  (c) booking cancel refused, booking stays confirmed, passenger balance unchanged.
+- **Checks.** `php -l` and Pint PASS. The 3 tests pass on the unchanged code (9 assertions). Log lines during the run are the expected
+  "Insufficient SyCash balance" errors from the refused refund, not failures.
+- **Mutation.** Disabling only the staff-refund SyCash guard (`refundPassengersForStaffCancellation`, the `assertSufficientBalance` at
+  `WalletTransactionService` line 519) fails all 3 tests (3 of 3). The service was restored byte-identical; its git diff is empty.
+- **Fixture corrections made during the step (test code only).** Used `RideBuilder::paymentMethod()` (not a non-existent `withPaymentMethod`).
+  Used `system_admin` for the admin login: `AdminAuthService` accepts only `system_admin` and `sycash` (`isAdminRole`), so the plain `admin` role cannot log in there.
+- **Not verified.** Success-path refunds are pinned by the existing `StaffCancellationRefundTest`, not re-run here. The `cancelBooking` ride-seat restoration on a
+  refused refund is not separately asserted. Step 2 (any code change) is not started.
+- **Final state: CLOSED, no code change. Rollback rule characterized.**
