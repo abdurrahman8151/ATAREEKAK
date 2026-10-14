@@ -63,7 +63,7 @@ class BoundaryDependencyTest extends TestCase
         // `User::findOrFail($id)` in a controller is ordinary Laravel, and wrapping each one to satisfy
         // a number would add indirection with no benefit. The money-path sites are reserved by
         // `AGENTS.md` and were deliberately not touched.
-        'controllers_to_models' => 20,
+        'controllers_to_models' => 19,
         // RV-11-B, owner decision D10 = A (2026-10-04): 2 -> 3. Raised ONCE, on instruction, with
         // the edges named rather than a bare number - a bare raise is indistinguishable from drift.
         //

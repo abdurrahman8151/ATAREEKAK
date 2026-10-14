@@ -4,14 +4,13 @@ namespace App\Http\Controllers\API\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Interfaces\UserRepositoryInterface;
-use App\Models\User;
+use App\Services\Auth\GoogleUserResolver;
 use App\Services\JwtService; // Ensure this is imported
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 
@@ -21,10 +20,13 @@ class GoogleController extends Controller
 
     private JwtService $jwtService;
 
-    public function __construct(UserRepositoryInterface $userRepo, JwtService $jwtService)
+    private GoogleUserResolver $googleUsers;
+
+    public function __construct(UserRepositoryInterface $userRepo, JwtService $jwtService, GoogleUserResolver $googleUsers)
     {
         $this->userRepo = $userRepo;
         $this->jwtService = $jwtService;
+        $this->googleUsers = $googleUsers;
     }
 
     public function redirect()
@@ -64,56 +66,7 @@ class GoogleController extends Controller
                 return response()->json(['error' => 'Could not retrieve user information from Google.'], 401);
             }
 
-            $user = $this->userRepo->findByGoogleId($googleUser->getId());
-
-            if (! $user) {
-                $user = $this->userRepo->findByEmail($googleUser->getEmail());
-
-                if ($user) {
-                    $this->userRepo->updateGoogleId($user->id, $googleUser->getId());
-                    if (empty($user->avatar) && $googleUser->getAvatar()) {
-                        $userModel = User::find($user->id);
-                        if ($userModel) {
-                            $userModel->avatar = $googleUser->getAvatar();
-                            $userModel->save();
-                            $user = $userModel;
-                        }
-                    }
-                } else {
-                    $firstName = $googleUser->user['given_name'] ?? null;
-                    $lastName = $googleUser->user['family_name'] ?? null;
-
-                    if (is_null($firstName) && ! is_null($googleUser->getName())) {
-                        $nameParts = explode(' ', $googleUser->getName(), 2);
-                        $firstName = $nameParts[0];
-                        $lastName = $nameParts[1] ?? '';
-                    }
-
-                    $userData = [
-                        'first_name' => $firstName,
-                        'last_name' => $lastName,
-                        'email' => $googleUser->getEmail(),
-                        'password' => bcrypt(Str::random(24)),
-                        'google_id' => $googleUser->getId(),
-                        'avatar' => $googleUser->getAvatar(),
-                        'email_verified_at' => now(),
-                        'status' => 1,
-                    ];
-                    $user = $this->userRepo->createUser($userData);
-                }
-            } else {
-                $updateData = [];
-                if ($user->avatar !== $googleUser->getAvatar() && $googleUser->getAvatar()) {
-                    $updateData['avatar'] = $googleUser->getAvatar();
-                }
-                if (! empty($updateData)) {
-                    $userModel = User::find($user->id);
-                    if ($userModel) {
-                        $userModel->update($updateData);
-                        $user = $userModel;
-                    }
-                }
-            }
+            $user = $this->googleUsers->resolve($googleUser);
 
             if (! $user) {
                 Log::error('Google OAuth Callback: User object is null after create/find.', ['google_user_id' => $googleUser->getId()]);

@@ -819,3 +819,21 @@ o-store, no-cache). A failure logs a generic error and returns 500.
 - **Not verified.** The `LedgerService::postExternalTransfer` postings themselves are not asserted by a dedicated test (only the wallet and external rows).
   The reject path is not characterized here.
 - **Final state: CLOSED, no code change. Money effects characterized.**
+
+### L14. Slice 13 - GoogleController::callback (AUTH): VERIFIED FIX (refactor, then characterization)
+- **Finding.** `callback()` mixed the Socialite call, the find-or-create user rules, the ban gate, the expired-ban clearing,
+  the status flip and token issuance in one method.
+- **Refactor.** The find-or-create block (old lines 67-116) moved to NEW `app/Services/Auth/GoogleUserResolver::resolve($googleUser): ?User`.
+  Its rules run in the same order: find by Google id; else find by email, link the Google id, fill a missing avatar; else create.
+  The ban check, expired-ban clearing, status flip and token issuance stay in the controller, in the same order, so the auth gate stays in one place.
+  Responses and logs are unchanged. The controller lost its `User` and `Str` imports (no remaining uses).
+- **Gap found, pinned, NOT fixed (owner decision: leave as is).** `UserRepository::createUser()` writes a fixed field list and drops `email_verified_at`,
+  so a Google-created account has no verified-email timestamp although the resolver sets it. The new test pins this current behaviour.
+- **Boundary baseline (owner-approved).** `BoundaryDependencyTest` `controllers_to_models`: 20 -> 19. The refactor removed one controller-to-model import; the ratchet was red until lowered.
+- **Checks.** `php -l` and Pint PASS on the controller and the resolver. Google baseline (`GoogleControllerTest`, `GoogleOauthTokenTest`,
+  `RV12ExpiredBanLoginTest`, `RV22OauthCredentialRedactionTest`): 25 tests OK before and after the refactor. Combined with the new file: 30 tests, 97 assertions OK.
+  Identity floor (`tests/Feature/Auth`, `Staff`, `Otp`, `Security`, `tests/Unit/Middleware`) plus the new file and the boundary test: 434 tests, 1213 assertions OK.
+- **Mutation.** Forcing the avatar-fill rule in the resolver fails 1 of 5 resolver tests. The resolver was restored byte-identical.
+- **Not verified.** The `ACCOUNT_BANNED` and expired-ban paths are covered by existing tests (`GoogleOauthTokenTest`, `RV12ExpiredBanLoginTest`), not re-written here.
+  Live OAuth against Google was not exercised (Socialite is mocked in tests).
+- **Final state: VERIFIED FIX.**
