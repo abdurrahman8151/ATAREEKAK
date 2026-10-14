@@ -246,47 +246,8 @@ final class AdminWalletRequestController extends Controller
 
             Cache::forget("wallet.requests.{$walletRequest->user_id}");
 
-            // ── Auto-clear cash ride debt after a top-up ────────────────────
-            // Only for charges; withdrawals reduce the balance so debt clearing
-            // would immediately fail the balance >= debt check anyway.
-            // FIX 3: wrapped in its own DB::transaction() so that the
-            //         lockForUpdate() inside autoClearDebt is actually effective.
-            if ($walletRequest->isCharge() && $walletRequest->user && $walletRequest->wallet) {
-                try {
-                    DB::transaction(function () use ($walletRequest) {
-                        $this->cashRideFeeService->autoClearDebt(
-                            $walletRequest->wallet->fresh(),
-                            $walletRequest->user
-                        );
-                    });
-                } catch (\Throwable $e) {
-                    // Debt clearing failure must never block the approval response.
-                    Log::error('Auto debt clear failed after wallet charge', [
-                        'wallet_request_id' => $walletRequest->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            // ── Notify user ─────────────────────────────────────────────────
-            try {
-                $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
-                $msg = $walletRequest->isCharge()
-                    ? "Your wallet charge request of {$walletRequest->amount} SYP has been approved."
-                    : "Your withdrawal request of {$walletRequest->amount} SYP has been approved.";
-
-                app(NotificationService::class)->createNotification(
-                    $walletRequest->user,
-                    'wallet_request_approved',
-                    $label.' - موافق',
-                    $msg,
-                    ['wallet_request_id' => $walletRequest->id],
-                    'high',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('wallet-request decision notification failed (non-fatal): '.$e->getMessage());
-            }
+            $this->autoClearDebtAfterCharge($walletRequest);
+            $this->notifyRequestDecided($walletRequest);
 
             return response()->json([
                 'status' => 'success',
@@ -406,6 +367,55 @@ final class AdminWalletRequestController extends Controller
                 'cash_ride_debt' => (float) $r->wallet->cash_ride_debt,
             ] : null,
         ];
+    }
+
+    /**
+     * Auto-clear cash ride debt after a top-up. Only for charges; withdrawals reduce the balance, so debt
+     * clearing would fail the balance >= debt check anyway. Wrapped in its own transaction so the
+     * lockForUpdate() inside autoClearDebt is effective. A failure here never blocks the approval.
+     */
+    private function autoClearDebtAfterCharge(WalletRequest $walletRequest): void
+    {
+        if (! ($walletRequest->isCharge() && $walletRequest->user && $walletRequest->wallet)) {
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($walletRequest) {
+                $this->cashRideFeeService->autoClearDebt(
+                    $walletRequest->wallet->fresh(),
+                    $walletRequest->user
+                );
+            });
+        } catch (\Throwable $e) {
+            Log::error('Auto debt clear failed after wallet charge', [
+                'wallet_request_id' => $walletRequest->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /** Tell the requesting user their request was approved. Non-fatal: a failure is logged only. */
+    private function notifyRequestDecided(WalletRequest $walletRequest): void
+    {
+        try {
+            $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
+            $msg = $walletRequest->isCharge()
+                ? "Your wallet charge request of {$walletRequest->amount} SYP has been approved."
+                : "Your withdrawal request of {$walletRequest->amount} SYP has been approved.";
+
+            app(NotificationService::class)->createNotification(
+                $walletRequest->user,
+                'wallet_request_approved',
+                $label.' - موافق',
+                $msg,
+                ['wallet_request_id' => $walletRequest->id],
+                'high',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('wallet-request decision notification failed (non-fatal): '.$e->getMessage());
+        }
     }
 
     private function serverError(): JsonResponse
