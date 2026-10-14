@@ -18,6 +18,15 @@ use Illuminate\Support\Facades\Route;
 // This route catches the exception itself, so it never reached the global
 // handler's app.debug gate in app/Exceptions/Handler.php:57-63.
 //
+// TEMPORARY V4 DEBUG ROUTE - remove before the final state (own commit, revert cleanly).
+Route::get('/_debug/ip', function (Request $request) {
+    return response()->json([
+        'REMOTE_ADDR' => $request->server('REMOTE_ADDR'),
+        'X-Forwarded-For' => $request->header('X-Forwarded-For'),
+        'request_ip' => $request->ip(),
+    ]);
+});
+
 // The healthcheck only distinguishes 200 from 500, so the body carries no
 // detail and the exception goes to the log instead.
 Route::get('/up', function () {
