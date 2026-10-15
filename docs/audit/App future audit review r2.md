@@ -12426,3 +12426,16 @@ RFB-4 (continued) - RideController ride-lifecycle group moved to RideLifecycleHa
 - Section K (after this group): RideController 878 to 741 lines in this group; public methods 20 (unchanged).
 - Final state: VERIFIED FIX for the ride-lifecycle group. Remaining controller actions still in RideController: getRouteOptions, bookRide, show, driverView, searchRides, autocomplete, cancelRide-group handled earlier, passengerConfirmCompletion, cancelPartialSeats, reportPassengerNoShow (these query Booking directly and stay for the boundary).
 - Unverified / parked: the 500 branches of getRouteOptions and getRides are unreachable from a valid request (no seam; not faked).
+## 213
+
+RFB-4 (continued) - RideController search and read group moved to RideSearchReadHandler.
+
+- Problem: RideController still held the search and read actions (searchRides, autocomplete, show, driverView, getRouteOptions) with the rest of the controller.
+- Root cause: as in sections 211 and 212; these actions share the ride, geocoding and route services.
+- Change: five bodies moved verbatim to `app/Http/Controllers/API/Support/RideSearchReadHandler.php` (checked equal to HEAD after trimming indentation, and still equal after Pint). RideController keeps all 20 public method names and signatures; the route bindings are unchanged.
+- Boundary: the handler references no App\Models class. Its static uses are the Cache and DB facades, not models, so the controllers_to_models edge count is unchanged at 19; no baseline was raised.
+- Correctness detail: the moved catch blocks catch ModelNotFoundException, so the handler imports Illuminate\Database\Eloquent\ModelNotFoundException. Without that import the catch would have resolved in the Support namespace and never matched the 404 path.
+- Checks: scoped run over the three characterization files, tests/Feature/Rides, tests/Feature/Bookings, tests/Unit/Domain and the search pins RV10, RV50, RV14: OK (241 tests, 452 assertions). BoundaryDependencyTest: OK (9 tests, 36 assertions). Pint on the two changed files: PASS (exit 0). php -l on both: clean.
+- Section K (this group): RideController 739 to 499 lines; public methods 20 (unchanged).
+- Final state: VERIFIED FIX for the search and read group. Remaining controller actions: bookRide, passengerConfirmCompletion, cancelPartialSeats, reportPassengerNoShow. The last three query Booking directly and stay for the boundary.
+- Unverified / parked: the 500 branches of getRouteOptions and getRides are unreachable from a valid request (no seam; not faked).
