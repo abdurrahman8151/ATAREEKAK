@@ -5,6 +5,8 @@ namespace App\Http\Controllers\API;
 use App\DTOs\Ride\BookRideDTO;
 use App\DTOs\Ride\CreateRideDTO;
 use App\Exceptions\Domain\DomainException;
+use App\Http\Controllers\API\Support\RideBookingResponseHandler;
+use App\Http\Controllers\API\Support\RideCancellationHandler;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BookRideRequest;
 use App\Http\Requests\CreateRideRequest;
@@ -50,6 +52,8 @@ class RideController extends Controller
         private readonly GeocodingService $geocodingService,
         private readonly RouteCalculationService $routeService,
         private readonly NotificationService $notificationService,
+        private readonly RideCancellationHandler $cancellation,
+        private readonly RideBookingResponseHandler $bookingResponses,
     ) {}
 
     // =========================================================================
@@ -563,68 +567,12 @@ class RideController extends Controller
 
     public function cancelRide(Request $request, int $rideId): JsonResponse
     {
-        try {
-            $ride = $this->rideService->cancelRide($rideId, $request->user());
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Ride cancelled successfully.',
-                'ride' => $ride,
-            ]);
-
-        } catch (\InvalidArgumentException $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
-        } catch (\Throwable $e) {
-            Log::error('Ride cancellation failed', [
-                'ride_id' => $rideId,
-                'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 500);
-        }
+        return $this->cancellation->cancelRide($request, $rideId);
     }
 
     public function cancelBooking(int $bookingId, Request $request): JsonResponse
     {
-        try {
-            $booking = $this->bookingService->cancelBooking($bookingId, $request->user());
-
-            try {
-                $booking->loadMissing(['ride.driver']);
-                if ($booking->ride?->driver) {
-                    $this->notificationService->createNotification(
-                        $booking->ride->driver,
-                        'booking_cancelled_by_passenger',
-                        'إلغاء حجز',
-                        "ألغى أحد الركاب حجزه ({$booking->seats} مقعد). تم إعادة المقاعد لرحلتك.",
-                        ['booking_id' => $booking->id, 'ride_id' => $booking->ride_id],
-                        'normal',
-                        'ride'
-                    );
-                }
-            } catch (\Throwable $e) {
-                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => new BookingResource($booking),
-                'message' => 'Booking cancelled successfully',
-            ]);
-
-        } catch (\Throwable $e) {
-            // RV-13: the exception text goes to the LOG, not to the client - a
-            // QueryException carries the SQL and the table names.
-            Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'The request could not be completed. Please try again.',
-            ], 422);
-        }
+        return $this->cancellation->cancelBooking($bookingId, $request);
     }
 
     // =========================================================================
@@ -633,86 +581,12 @@ class RideController extends Controller
 
     public function acceptBooking(int $bookingId, Request $request): JsonResponse
     {
-        try {
-            $booking = $this->bookingService->acceptBooking($bookingId, $request->user());
-
-            try {
-                $booking->loadMissing('user');
-                if ($booking->user) {
-                    $this->notificationService->createNotification(
-                        $booking->user,
-                        'booking_accepted',
-                        'تم قبول حجزك',
-                        'قبل السائق طلب حجزك. تحقق من تفاصيل رحلتك.',
-                        ['booking_id' => $booking->id, 'ride_id' => $booking->ride_id],
-                        'high',
-                        'ride'
-                    );
-                }
-            } catch (\Throwable $e) {
-                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => new BookingResource($booking),
-                'message' => 'Booking accepted successfully',
-            ]);
-
-        } catch (\Throwable $e) {
-            // RV-13: the exception text goes to the LOG, not to the client - a
-            // QueryException carries the SQL and the table names.
-            Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'The request could not be completed. Please try again.',
-            ], 422);
-        }
+        return $this->bookingResponses->acceptBooking($bookingId, $request);
     }
 
     public function rejectBooking(int $bookingId, Request $request): JsonResponse
     {
-        try {
-            $booking = $this->bookingService->rejectBooking($bookingId, $request->user());
-
-            try {
-                $booking->loadMissing('user');
-                if ($booking->user) {
-                    $this->notificationService->createNotification(
-                        $booking->user,
-                        'booking_rejected',
-                        'تم رفض طلب حجزك',
-                        'اعتذر السائق عن قبول طلبك. يمكنك البحث عن رحلة أخرى.',
-                        ['booking_id' => $booking->id, 'ride_id' => $booking->ride_id],
-                        'normal',
-                        'ride'
-                    );
-                }
-            } catch (\Throwable $e) {
-                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => new BookingResource($booking),
-                'message' => 'Booking rejected successfully',
-            ]);
-
-        } catch (\Throwable $e) {
-            // RV-13: the exception text goes to the LOG, not to the client - a
-            // QueryException carries the SQL and the table names.
-            Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'The request could not be completed. Please try again.',
-            ], 422);
-        }
+        return $this->bookingResponses->rejectBooking($bookingId, $request);
     }
 
     // =========================================================================
@@ -998,36 +872,6 @@ class RideController extends Controller
 
     public function reportDriverNoShow(Request $request, int $rideId): JsonResponse
     {
-        try {
-            $result = $this->rideService->reportDriverNoShow($rideId, $request->user());
-
-            try {
-                $ride = $this->rideService->getRideById($rideId);
-                if ($ride->driver) {
-                    $this->notificationService->createNotification(
-                        $ride->driver,
-                        'driver_no_show_recorded',
-                        'تقرير غياب',
-                        'أفاد أحد الركاب بغيابك في موعد انطلاق الرحلة.',
-                        ['ride_id' => $rideId],
-                        'high',
-                        'ride'
-                    );
-                }
-            } catch (\Throwable $e) {
-                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
-            }
-
-            return response()->json(['status' => 'success', 'message' => $result['message']]);
-
-        } catch (\Throwable $e) {
-            // RV-13: the exception text goes to the LOG, not to the client - a
-            // QueryException carries the SQL and the table names.
-            Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 422);
-        }
+        return $this->bookingResponses->reportDriverNoShow($request, $rideId);
     }
 }
