@@ -9,7 +9,7 @@ use App\Models\User;
 use App\Services\Admin\AdminTripService;
 use App\Services\Admin\AdminUserService;
 use App\Services\NotificationService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\CancellationRefund;
 use App\Services\Staff\StaffBookingQueryService;
 use App\Services\Staff\StaffUserProfileService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -310,7 +310,7 @@ final class StaffOperationsController extends Controller
                 //
                 // Money first: if the refund cannot be funded the transaction rolls back and the
                 // ride is NOT cancelled, so we can never leave a cancelled ride with stranded money.
-                $refund = app(WalletTransactionService::class)
+                $refund = app(CancellationRefund::class)
                     ->refundPassengersForStaffCancellation($ride, $affectedBookings);
 
                 foreach ($affectedBookings as $booking) {
@@ -420,7 +420,7 @@ final class StaffOperationsController extends Controller
                 if ($ride) {
                     // An ELOQUENT collection, not collect(): the service signature is typed to
                     // Eloquent's Collection and a support-collection here was a hard 500.
-                    $refund = app(WalletTransactionService::class)
+                    $refund = app(CancellationRefund::class)
                         ->refundPassengersForStaffCancellation($ride, Booking::whereIn('id', [$booking->id])->get());
                 }
 

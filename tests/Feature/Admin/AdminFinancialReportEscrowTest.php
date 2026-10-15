@@ -8,12 +8,13 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Admin\AdminReportService;
 use App\Services\JwtService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
+use Tests\Support\Concerns\SeedsSystemWallets;
 
 /**
  * Admin financial report — escrow-out accounting (T1-2 regression coverage).
@@ -32,6 +33,7 @@ use Tests\TestCase;
 class AdminFinancialReportEscrowTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsSystemWallets;
 
     private User $driver;
 
@@ -61,12 +63,10 @@ class AdminFinancialReportEscrowTest extends TestCase
 
         parent::setUp();
 
-        $this->syCash = Wallet::create([
-            'user_id' => null, 'phone_number' => config('admin.sycash.phone'), 'balance' => 0,
-        ]);
-        $this->primary = Wallet::create([
-            'user_id' => null, 'phone_number' => config('admin.system_admin.phone'), 'balance' => 0,
-        ]);
+        $this->syCash = $this->seedSystemWallet(config('admin.sycash.phone'), 0.0);
+        $this->primary = $this->seedSystemWallet(config('admin.system_admin.phone'), 0.0);
+        $this->syCash->update(['balance' => 0]);
+        $this->primary->update(['balance' => 0]);
 
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
         $this->driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
@@ -120,7 +120,7 @@ class AdminFinancialReportEscrowTest extends TestCase
             'status' => 'confirmed', 'communication_number' => '0900000000',
         ]);
 
-        app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $passenger);
+        app(BookingCharge::class)->chargePassengerForBooking($booking, $ride, $passenger);
 
         return $booking;
     }

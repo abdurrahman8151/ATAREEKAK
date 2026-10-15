@@ -43,7 +43,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     private const CONVERTED = [
         'app/Services/Payment/LedgerService.php',
         'app/Services/Payment/CashRideFeeService.php',
-        'app/Services/Payment/WalletTransactionService.php',
+        'app/Services/Payment/RidePayout.php',
         'app/Services/Admin/AdminDriverService.php',
         'app/Http/Controllers/API/PassengerProfileController.php',
         'app/Console/Commands/BackfillBookingMoneySnapshot.php',

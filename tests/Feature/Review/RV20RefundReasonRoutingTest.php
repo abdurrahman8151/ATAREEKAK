@@ -7,7 +7,9 @@ use App\Domain\Payment\Strategies\EPayPaymentStrategy;
 use App\Domain\Payment\Strategies\PaymentStrategy;
 use App\Models\Booking;
 use App\Models\Ride;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\RidePayout;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Mockery;
 use Tests\TestCase;
@@ -67,14 +69,14 @@ class RV20RefundReasonRoutingTest extends TestCase
 
     public function test_staff_cancellation_never_takes_the_driver_cancellation_path(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
         // The whole point: this must NOT be reached for a staff cancellation.
         $wallet->shouldReceive('refundPassengersForDriverCancellation')->never();
         $wallet->shouldReceive('refundPassengersForStaffCancellation')
             ->once()
             ->andReturn($this->staffSummary());
 
-        (new EPayPaymentStrategy($wallet))
+        (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
             ->processRefund($this->ride(), $this->set(), 'staff_cancellation');
 
         $this->addToAssertionCount(1); // the never()/once() expectations are the assertions
@@ -82,11 +84,11 @@ class RV20RefundReasonRoutingTest extends TestCase
 
     public function test_driver_cancellation_takes_the_driver_path_and_not_the_staff_path(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
         $wallet->shouldReceive('refundPassengersForDriverCancellation')->once();
         $wallet->shouldReceive('refundPassengersForStaffCancellation')->never();
 
-        (new EPayPaymentStrategy($wallet))
+        (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
             ->processRefund($this->ride(), $this->set(), 'driver_cancellation');
 
         $this->addToAssertionCount(1);
@@ -96,7 +98,7 @@ class RV20RefundReasonRoutingTest extends TestCase
 
     public function test_the_entire_set_is_passed_through_not_a_single_booking(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
 
         $two = new EloquentCollection([
             new Booking(['seats' => 1, 'amount_paid' => 50.0]),
@@ -107,7 +109,7 @@ class RV20RefundReasonRoutingTest extends TestCase
             ->once()
             ->with(Mockery::any(Ride::class), $two);
 
-        (new EPayPaymentStrategy($wallet))
+        (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
             ->processRefund($this->ride(), $two, 'driver_cancellation');
 
         $this->addToAssertionCount(1);
@@ -117,7 +119,7 @@ class RV20RefundReasonRoutingTest extends TestCase
 
     public function test_an_unknown_reason_refuses_instead_of_defaulting_to_the_driver_path(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
         // If a caller passes a reason this strategy does not know, guessing would mean refunding
         // 100% of someone's money on the wrong basis.
         $wallet->shouldReceive('refundPassengersForDriverCancellation')->never();
@@ -126,18 +128,18 @@ class RV20RefundReasonRoutingTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/Refusing rather than guessing/');
 
-        (new EPayPaymentStrategy($wallet))
+        (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
             ->processRefund($this->ride(), $this->set(), 'something_else');
     }
 
     public function test_a_reason_only_guessable_from_typo_does_not_refund_at_all(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
         $wallet->shouldNotReceive('refundPassengersForDriverCancellation');
         $wallet->shouldNotReceive('refundPassengersForStaffCancellation');
 
         try {
-            (new EPayPaymentStrategy($wallet))
+            (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
                 ->processRefund($this->ride(), $this->set(), 'driver_cancelation'); // typo
             $this->fail('a misspelled reason must not refund anything');
         } catch (\InvalidArgumentException) {
@@ -149,11 +151,11 @@ class RV20RefundReasonRoutingTest extends TestCase
 
     public function test_an_empty_set_refunds_nothing(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
         $wallet->shouldReceive('refundPassengersForDriverCancellation')->never();
         $wallet->shouldReceive('refundPassengersForStaffCancellation')->never();
 
-        $result = (new EPayPaymentStrategy($wallet))
+        $result = (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
             ->processRefund($this->ride(), new EloquentCollection, 'driver_cancellation');
 
         $this->assertTrue($result->success);
@@ -163,12 +165,12 @@ class RV20RefundReasonRoutingTest extends TestCase
 
     public function test_staff_cancellation_reports_the_amount_and_booking_count(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
         $wallet->shouldReceive('refundPassengersForStaffCancellation')
             ->once()
             ->andReturn($this->staffSummary(['refunded' => 1234.5, 'bookings' => 7]));
 
-        $result = (new EPayPaymentStrategy($wallet))
+        $result = (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
             ->processRefund($this->ride(), $this->set(), 'staff_cancellation');
 
         $this->assertStringContainsString('1234.50', $result->message);
@@ -177,7 +179,7 @@ class RV20RefundReasonRoutingTest extends TestCase
 
     public function test_rows_needing_manual_review_are_surfaced_not_swallowed(): void
     {
-        $wallet = Mockery::mock(WalletTransactionService::class);
+        $wallet = Mockery::mock(CancellationRefund::class);
         // Charged before the `amount_paid` snapshot existed. Silently refunding them would fabricate
         // an amount from today's price - the exact failure RV-40 warns about - so the count is
         // reported to the caller.
@@ -185,7 +187,7 @@ class RV20RefundReasonRoutingTest extends TestCase
             ->once()
             ->andReturn($this->staffSummary(['needs_review' => 3]));
 
-        $result = (new EPayPaymentStrategy($wallet))
+        $result = (new EPayPaymentStrategy(Mockery::mock(BookingCharge::class), Mockery::mock(RidePayout::class), $wallet))
             ->processRefund($this->ride(), $this->set(), 'staff_cancellation');
 
         $this->assertStringContainsString('3 booking(s) need manual review', $result->message);

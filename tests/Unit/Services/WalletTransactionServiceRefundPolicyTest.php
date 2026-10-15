@@ -2,7 +2,9 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\LedgerService;
+use App\Services\Payment\WalletAccess;
 use Carbon\Carbon;
 use PHPUnit\Framework\TestCase;
 
@@ -18,12 +20,12 @@ use PHPUnit\Framework\TestCase;
  */
 class WalletTransactionServiceRefundPolicyTest extends TestCase
 {
-    private WalletTransactionService $service;
+    private CancellationRefund $service;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new WalletTransactionService;
+        $this->service = new CancellationRefund(new WalletAccess, new LedgerService);
     }
 
     // ─── Tier 1: 0–30% elapsed → 100% refund ────────────────────────────────

@@ -7,7 +7,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\JwtService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -134,7 +134,7 @@ class PassengerConfirmCompletionTest extends TestCase
             'status' => 'confirmed', 'communication_number' => '0900000000',
         ]);
 
-        app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $passenger);
+        app(BookingCharge::class)->chargePassengerForBooking($booking, $ride, $passenger);
 
         return $booking;
     }

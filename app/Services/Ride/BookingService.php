@@ -16,7 +16,7 @@ use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\NotificationService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\CancellationRefund;
 use App\Services\Score\ScoreService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,7 +29,7 @@ final class BookingService
 {
     public function __construct(
         private readonly RideRepositoryInterface $rideRepository,
-        private readonly WalletTransactionService $walletService,
+        private readonly CancellationRefund $cancellationRefund,
         private readonly NotificationService $notificationService,
         private readonly RideValidationService $validationService,
         private readonly ScoreService $scoreService,
@@ -316,7 +316,7 @@ final class BookingService
             $booking->save();
 
             // Calculate time-elapsed percentage (needed for both wallet and score logic)
-            $refundPolicy = $this->walletService->calculateRefundPolicy(
+            $refundPolicy = $this->cancellationRefund->calculateRefundPolicy(
                 Carbon::parse($ride->departure_time),
                 $booking->created_at
             );
@@ -324,7 +324,7 @@ final class BookingService
             if ($wasConfirmed) {
                 // Wallet refund — E-PAY confirmed bookings only
                 if ($ride->payment_method === PaymentMethod::E_PAY->value) {
-                    $this->walletService->processTimeBasedCancellation(
+                    $this->cancellationRefund->processTimeBasedCancellation(
                         $booking, $ride, $booking->seats, $refundPolicy
                     );
                 }
@@ -393,7 +393,7 @@ final class BookingService
             $wasConfirmed = ($booking->status === BookingStatus::CONFIRMED->value);
             $remainingSeats = $booking->seats - $seatsToCancel;
 
-            $refundPolicy = $this->walletService->calculateRefundPolicy(
+            $refundPolicy = $this->cancellationRefund->calculateRefundPolicy(
                 Carbon::parse($ride->departure_time),
                 $booking->created_at
             );
@@ -403,7 +403,7 @@ final class BookingService
             if ($wasConfirmed) {
                 // Wallet — E-PAY only
                 if ($ride->payment_method === PaymentMethod::E_PAY->value) {
-                    $this->walletService->processTimeBasedCancellation(
+                    $this->cancellationRefund->processTimeBasedCancellation(
                         $booking, $ride, $seatsToCancel, $refundPolicy
                     );
                 }

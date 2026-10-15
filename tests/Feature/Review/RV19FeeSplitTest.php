@@ -178,7 +178,11 @@ class RV19FeeSplitTest extends TestCase
         $offenders = [];
 
         foreach ([
-            app_path('Services/Payment/WalletTransactionService.php'),
+            app_path('Services/Payment/BookingCharge.php'),
+app_path('Services/Payment/RidePayout.php'),
+app_path('Services/Payment/CancellationRefund.php'),
+app_path('Services/Payment/NoShowSettlement.php'),
+app_path('Services/Payment/WalletAccess.php'),
             app_path('Services/Admin/AdminDriverService.php'),
         ] as $file) {
             $src = (string) file_get_contents($file);

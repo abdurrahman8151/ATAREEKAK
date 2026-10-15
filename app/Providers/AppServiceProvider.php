@@ -43,7 +43,11 @@ use App\Services\Geocoding\GeocodingService;
 use App\Services\Geocoding\RouteCalculationService;
 use App\Services\NotificationService;
 use App\Services\Payment\CashRideFeeService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\NoShowSettlement;
+use App\Services\Payment\RidePayout;
+use App\Services\Payment\WalletAccess;
 use App\Services\Profile\ProfileInteractionService;
 use App\Services\Profile\ProfileUpdateService;
 use App\Services\PushNotification\FcmSenderService;
@@ -134,7 +138,11 @@ class AppServiceProvider extends ServiceProvider
         // PAYMENT SERVICES
         // ========================================
         $this->app->singleton(CashRideFeeService::class);
-        $this->app->singleton(WalletTransactionService::class);
+        $this->app->singleton(BookingCharge::class);
+        $this->app->singleton(RidePayout::class);
+        $this->app->singleton(CancellationRefund::class);
+        $this->app->singleton(NoShowSettlement::class);
+        $this->app->singleton(WalletAccess::class);
         $this->app->singleton(EPayPaymentStrategy::class);
         $this->app->singleton(CashPaymentStrategy::class);
         $this->app->singleton(PaymentStrategyFactory::class);

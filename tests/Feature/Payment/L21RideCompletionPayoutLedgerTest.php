@@ -7,7 +7,8 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\RidePayout;
 use App\Support\FeeSplit;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,7 +33,8 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
     use RefreshDatabase;
     use SeedsSystemWallets;
 
-    private WalletTransactionService $service;
+    private BookingCharge $bookingCharge;
+    private RidePayout $ridePayout;
 
     private User $driver;
 
@@ -44,7 +46,8 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new WalletTransactionService;
+                $this->bookingCharge = app(BookingCharge::class);
+        $this->ridePayout = app(RidePayout::class);
 
         $this->seedSystemWallets(10_000_000.0);
         $this->primaryWallet = Wallet::where('phone_number', config('admin.system_admin.phone'))->first();
@@ -92,7 +95,7 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
                 'status' => 'confirmed',
                 'communication_number' => '0900000000',
             ]);
-            $this->service->chargePassengerForBooking($booking, $ride->fresh(), $passenger->fresh());
+            $this->bookingCharge->chargePassengerForBooking($booking, $ride->fresh(), $passenger->fresh());
             $bookings[] = $booking->fresh();
         }
 
@@ -110,7 +113,7 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
         [$ride, $bookings] = $this->completedRide(50_000, [1, 2]);
         $total = (float) $bookings->sum(fn (Booking $b) => $b->seats * $ride->price_per_seat);
 
-        $this->service->releaseEarningsToDriver($ride, $bookings);
+        $this->ridePayout->releaseEarningsToDriver($ride, $bookings);
 
         $this->assertCount(1, $this->rows($ride, 'escrow_released'), 'one escrow debit for the whole total');
         $this->assertCount(1, $this->rows($ride, 'ride_earnings'), 'one earnings row for the driver');
@@ -124,7 +127,7 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
         $total = (float) $bookings->sum(fn (Booking $b) => $b->seats * $ride->price_per_seat);
         $expected = FeeSplit::driverAndPlatform($total);
 
-        $this->service->releaseEarningsToDriver($ride, $bookings);
+        $this->ridePayout->releaseEarningsToDriver($ride, $bookings);
 
         $this->assertEqualsWithDelta($expected['driver'], (float) $this->rows($ride, 'ride_earnings')->first()->amount, 0.001);
         $this->assertEqualsWithDelta($expected['platform'], (float) $this->rows($ride, 'platform_fee')->first()->amount, 0.001);
@@ -134,7 +137,7 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
     {
         [$ride, $bookings] = $this->completedRide(50_000, [1, 2]);
 
-        $this->service->releaseEarningsToDriver($ride, $bookings);
+        $this->ridePayout->releaseEarningsToDriver($ride, $bookings);
 
         $out = abs((float) $this->rows($ride, 'escrow_released')->sum('amount'));
         $in = (float) $this->rows($ride, 'ride_earnings')->sum('amount') + (float) $this->rows($ride, 'platform_fee')->sum('amount');
@@ -148,7 +151,7 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
         $total = (float) $bookings->sum(fn (Booking $b) => $b->seats * $ride->price_per_seat);
         $this->assertEqualsWithDelta(1000.50, $total, 0.001, 'the fixture total must be the RV-19 odd-tenth amount');
 
-        $this->service->releaseEarningsToDriver($ride, $bookings);
+        $this->ridePayout->releaseEarningsToDriver($ride, $bookings);
 
         $driver = (float) $this->rows($ride, 'ride_earnings')->first()->amount;
         $platform = (float) $this->rows($ride, 'platform_fee')->first()->amount;

@@ -12389,4 +12389,15 @@ ull. Owner approved (edit the tests).
 **Next (commit 2, not started).** Repoint the 16 app call sites and the test references from WalletTransactionService to the five classes, then delete the facade.
 
 **Final state: VERIFIED FIX for the facade step. The split is not finished until commit 2 deletes the facade.**
+## 210
 
+RFB-3 commit 2 - delete the WalletTransactionService facade and repoint every caller.
+
+- Problem: commit 1 (f7aab32) left WalletTransactionService as a facade over the five split classes. Callers still went through it, so the facade stayed a second entry point for money.
+- Root cause: the facade was kept only as a compatibility layer during the split; no caller needed it once each call names its owner.
+- Change: app callers (EPayPaymentStrategy, PaymentStrategyFactory, RideService, BookingService, Noshowservice, StaffOperationsController, AppServiceProvider) now construct or resolve BookingCharge, RidePayout, CancellationRefund, NoShowSettlement or WalletAccess directly. The facade file is deleted. The five split classes are no longer declared final so Mockery can substitute them in tests (declaration only; no method body changed).
+- Tests repointed (mechanical, no assertion edited): each test property or mock now targets the class that owns the called method. Two architecture scan lists (MoneyRoundingIsDecidedInOnePlace, RV19FeeSplit) name the split files instead of the deleted facade; the converted-file list keeps only RidePayout, the one split class that calls Money::.
+- Reserved-phone fixture fix (owner item 2): AdminFinancialReportEscrowTest and AdminFinancialSurfaceAuthorizationTest seed system wallets through the idempotent helper; AdminFinancialReportEscrowTest zeroes both reserved balances in setUp to stop a balance leak between tests.
+- Checks: container resolution of 10 classes (testing environment); AppServiceProvider and call sites lint clean; BoundaryDependencyTest OK 9/36 before and after the deletion; full money floor (Wallet, Payment, Domain, Review, T3Batch, T4Batch, Rides, Bookings, Unit/Services, Admin) 1465 tests: 64 red, 0 newly red against HEAD f7aab32 by name, 4 green that were red at HEAD.
+- Final state: VERIFIED FIX (commit 2). Owner files (AGENTS.md, BACKLOG.md, STATE.md, phpunit.xml, RV42aSuspendedMeansBannedTest.php, rv13 sweep, backlog png/render) not staged.
+- Parked: none for this commit. Still red on HEAD and unchanged: BacklogTableShapeTest, NoDuplicatedFixtureHelpersTest (owner doc/guard text), MigrationEffectsBatchTest (schema), MoneyAndAuthPathBatchTest near-location, RideSearchServiceTest order dependence (assertion edit required), Unit/Services reserved-phone collisions not yet fixed.

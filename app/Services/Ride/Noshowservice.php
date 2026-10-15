@@ -12,7 +12,7 @@ use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\NotificationService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\NoShowSettlement;
 use App\Services\Score\ScoreService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -66,7 +66,7 @@ final class Noshowservice
 
     public function __construct(
         private readonly ScoreService $scoreService,
-        private readonly WalletTransactionService $walletService,
+        private readonly NoShowSettlement $noShowSettlement,
         private readonly NotificationService $notificationService,
     ) {}
 
@@ -609,7 +609,7 @@ final class Noshowservice
 
         // Wallet: escrow → driver 95% + primary 5% (e-pay only)
         if ($report->payment_method === 'e-pay') {
-            $this->walletService->processPassengerNoShow($booking, $ride, $passenger);
+            $this->noShowSettlement->processPassengerNoShow($booking, $ride, $passenger);
         }
 
         // Notify passenger: penalty applied
@@ -655,7 +655,7 @@ final class Noshowservice
 
         // Wallet: escrow → passenger 100% refund (e-pay only)
         if ($report->payment_method === 'e-pay') {
-            $this->walletService->processDriverNoShowRefund($ride, $booking, $passenger);
+            $this->noShowSettlement->processDriverNoShowRefund($ride, $booking, $passenger);
         }
 
         // Notify driver: penalty applied

@@ -7,7 +7,7 @@ use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
@@ -61,13 +61,13 @@ class LedgerReconcileDetectsDriftTest extends TestCase
 
     private Wallet $passengerWallet;
 
-    private WalletTransactionService $service;
+    private BookingCharge $service;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->service = app(WalletTransactionService::class);
+        $this->service = app(BookingCharge::class);
 
         $this->driver = User::factory()->create([
             'is_verified_driver' => true, 'is_verified_passenger' => true,

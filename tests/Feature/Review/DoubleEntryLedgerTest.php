@@ -10,7 +10,8 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\Admin\AdminWalletService;
 use App\Services\Payment\LedgerService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\RidePayout;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\Support\Concerns\SeedsSystemWallets;
@@ -40,13 +41,15 @@ class DoubleEntryLedgerTest extends TestCase
 
     private Wallet $passengerWallet;
 
-    private WalletTransactionService $service;
+    private BookingCharge $bookingCharge;
+    private RidePayout $ridePayout;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->service = app(WalletTransactionService::class);
+                $this->bookingCharge = app(BookingCharge::class);
+        $this->ridePayout = app(RidePayout::class);
 
         $this->driver = User::factory()->create([
             'is_verified_driver' => true, 'is_verified_passenger' => true,
@@ -94,7 +97,7 @@ class DoubleEntryLedgerTest extends TestCase
         $booking = $this->makeBooking(2, 10_000.0);
         $charge = $booking->seats * 10_000.0;
 
-        $this->service->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
 
         $legs = LedgerEntry::orderBy('id')->get();
         $this->assertCount(2, $legs, 'a two-party transfer must record exactly two legs');
@@ -125,7 +128,7 @@ class DoubleEntryLedgerTest extends TestCase
         $passengerBefore = (float) $this->passengerWallet->balance;
         $syCashBefore = (float) $this->syCashWallet()->balance;
 
-        $this->service->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
 
         $this->assertSame($passengerBefore - $charge, (float) $this->passengerWallet->fresh()->balance);
         $this->assertSame($syCashBefore + $charge, (float) $this->syCashWallet()->fresh()->balance);
@@ -217,7 +220,7 @@ class DoubleEntryLedgerTest extends TestCase
         ]);
 
         // Fund escrow as the charge would have.
-        $this->service->chargePassengerForBooking($booking, $ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $ride, $this->passenger);
         LedgerEntry::query()->delete();   // isolate: measure the settlement's own legs
 
         // The driver needs a wallet to receive into; the factory does not create one.
@@ -229,7 +232,7 @@ class DoubleEntryLedgerTest extends TestCase
         ]);
         $this->driver->update(['wallet_id' => $driverWallet->id]);
 
-        $this->service->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
+        $this->ridePayout->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
 
         $legs = LedgerEntry::orderBy('id')->get();
         $this->assertCount(3, $legs, 'the 95/5 split is one transfer with three legs');
@@ -278,7 +281,7 @@ class DoubleEntryLedgerTest extends TestCase
             'unit_price' => 1000.50, 'amount_paid' => 1000.50, 'payment_method' => 'e-pay',
         ]);
 
-        $this->service->chargePassengerForBooking($booking, $ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $ride, $this->passenger);
         LedgerEntry::query()->delete();   // isolate: measure the settlement's own legs
 
         $driverWallet = Wallet::create([
@@ -290,7 +293,7 @@ class DoubleEntryLedgerTest extends TestCase
         $this->driver->update(['wallet_id' => $driverWallet->id]);
 
         // THE REGRESSION: this call used to throw "Refusing to post an unbalanced ledger transfer".
-        $this->service->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
+        $this->ridePayout->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
 
         $legs = LedgerEntry::orderBy('id')->get();
         $this->assertCount(3, $legs, 'the 95/5 split is one transfer with three legs');
@@ -364,8 +367,8 @@ class DoubleEntryLedgerTest extends TestCase
         }
 
         // Two real movements: the escrow charge, then the 95/5 settlement.
-        $this->service->chargePassengerForBooking($booking, $ride, $this->passenger);
-        $this->service->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
+        $this->bookingCharge->chargePassengerForBooking($booking, $ride, $this->passenger);
+        $this->ridePayout->releaseEarningsToDriver($ride, Booking::whereIn('id', [$booking->id])->get());
 
         foreach ($watched as $id) {
             $ledgerTotal = round((float) LedgerEntry::where('wallet_id', $id)->sum('amount'), 2);
@@ -392,7 +395,7 @@ class DoubleEntryLedgerTest extends TestCase
     public function the_reconcile_command_runs_against_real_data_and_reports_success(): void
     {
         $booking = $this->makeBooking(2, 10_000.0);
-        $this->service->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
 
         $this->artisan('ledger:reconcile')
             ->assertExitCode(0);

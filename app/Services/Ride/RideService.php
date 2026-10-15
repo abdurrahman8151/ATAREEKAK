@@ -15,7 +15,8 @@ use App\Models\User;
 use App\Services\Geocoding\RouteCalculationService;
 use App\Services\NotificationService;
 use App\Services\Payment\CashRideFeeService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\RidePayout;
 use App\Services\Score\ScoreService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -28,7 +29,8 @@ final class RideService
         private readonly RideRepositoryInterface $rideRepository,
         private readonly RideValidationService $validationService,
         private readonly RideSearchService $searchService,
-        private readonly WalletTransactionService $walletService,
+        private readonly CancellationRefund $cancellationRefund,
+        private readonly RidePayout $ridePayout,
         private readonly NotificationService $notificationService,
         private readonly ScoreService $scoreService,
         private readonly CashRideFeeService $cashRideFeeService,
@@ -196,7 +198,7 @@ final class RideService
             if ($confirmedBookings->isNotEmpty()
                 && $ride->payment_method === PaymentMethod::E_PAY->value
             ) {
-                $this->walletService->refundPassengersForDriverCancellation($ride, $confirmedBookings);
+                $this->cancellationRefund->refundPassengersForDriverCancellation($ride, $confirmedBookings);
             }
 
             // 4. Refund or retain the driver's cash-ride creation fee.
@@ -443,7 +445,7 @@ final class RideService
                 fn ($b) => $ride->payment_method === PaymentMethod::E_PAY->value
             );
             if ($ePayBookings->isNotEmpty()) {
-                $this->walletService->releaseEarningsToDriver($ride, $ePayBookings);
+                $this->ridePayout->releaseEarningsToDriver($ride, $ePayBookings);
             }
 
             // ── Mark every confirmed booking as completed ─────────────────

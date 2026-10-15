@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Tests\Support\Concerns\SeedsSystemWallets;
 
 /**
  * T2-2 regression — the admin panel's financial surface is system_admin-only.
@@ -28,7 +29,9 @@ use Tests\TestCase;
  */
 class AdminFinancialSurfaceAuthorizationTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SeedsSystemWallets {
+        seedSystemWallet as protected seedSystemWalletByPhone;
+    }
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -65,24 +68,14 @@ class AdminFinancialSurfaceAuthorizationTest extends TestCase
 
     private function seedSystemWallet(): void
     {
-        Wallet::create([
-            'user_id' => null,
-            'phone_number' => config('admin.system_admin.phone'),
-            'wallet_number' => 'ADM'.random_int(1000000000, 9999999999),
-            'balance' => 0,
-        ]);
+        $this->seedSystemWalletByPhone(config('admin.system_admin.phone'));
 
         // Decision un3 (owner choice (a)): an admin wallet charge is money arriving from OUTSIDE,
         // recorded against the External Capital account. The charge path FAILS LOUD without it -
         // correctly, because a ledger that cannot record money entering the platform is not closed -
         // so a fixture that omits it makes the money endpoint throw for the wrong reason.
-        Wallet::create([
-            'user_id' => null,
-            'phone_number' => config('admin.external.phone'),
-            'wallet_number' => 'EXT'.random_int(1000000000, 9999999999),
-            'balance' => 0,
-            'kind' => 'system',
-        ]);
+        $this->seedSystemWalletByPhone(config('admin.external.phone'));
+
     }
 
     private function userWithWallet(): User

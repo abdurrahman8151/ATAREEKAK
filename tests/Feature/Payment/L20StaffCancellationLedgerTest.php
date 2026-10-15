@@ -7,7 +7,10 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\LedgerService;
+use App\Services\Payment\WalletAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -31,7 +34,7 @@ class L20StaffCancellationLedgerTest extends TestCase
     use RefreshDatabase;
     use SeedsSystemWallets;
 
-    private WalletTransactionService $service;
+    private CancellationRefund $service;
 
     private User $driver;
 
@@ -41,7 +44,7 @@ class L20StaffCancellationLedgerTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new WalletTransactionService;
+        $this->service = new CancellationRefund(new WalletAccess, new LedgerService);
 
         $this->seedSystemWallets(10_000_000.0);
         $this->syCashWallet = Wallet::where('phone_number', config('admin.sycash.phone'))->first();
@@ -76,7 +79,7 @@ class L20StaffCancellationLedgerTest extends TestCase
             'communication_number' => '0900000000',
         ]);
 
-        app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $passenger);
+        app(BookingCharge::class)->chargePassengerForBooking($booking, $ride, $passenger);
 
         return $booking->fresh();
     }

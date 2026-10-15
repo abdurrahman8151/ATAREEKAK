@@ -8,7 +8,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\JwtService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use App\Services\Ride\Noshowservice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -101,7 +101,7 @@ class NoshowSettlementGuardTest extends TestCase
             'communication_number' => '0900000000',
         ]);
 
-        app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $this->passenger);
+        app(BookingCharge::class)->chargePassengerForBooking($booking, $ride, $this->passenger);
 
         return [$ride, $booking];
     }

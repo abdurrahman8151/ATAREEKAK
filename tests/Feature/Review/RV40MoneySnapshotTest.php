@@ -5,7 +5,7 @@ namespace Tests\Feature\Review;
 use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\RideBuilder;
@@ -78,7 +78,7 @@ class RV40MoneySnapshotTest extends TestCase
             'communication_number' => '0912345678',
         ]);
 
-        app(WalletTransactionService::class)->chargePassengerForBooking(
+        app(BookingCharge::class)->chargePassengerForBooking(
             $booking,
             $ride->fresh(),
             $this->passenger->fresh()

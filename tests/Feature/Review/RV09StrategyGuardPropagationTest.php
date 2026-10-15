@@ -11,7 +11,9 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\Payment\LedgerService;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\RidePayout;
 use App\Support\PostingKey;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,7 +53,8 @@ class RV09StrategyGuardPropagationTest extends TestCase
 
     private EPayPaymentStrategy $strategy;
 
-    private WalletTransactionService $walletService;
+    private BookingCharge $bookingCharge;
+    private RidePayout $ridePayout;
 
     private User $passenger;
 
@@ -70,8 +73,9 @@ class RV09StrategyGuardPropagationTest extends TestCase
         $wallets = $this->seedSystemWallets(1_000_000);
         $this->syCash = $wallets['sycash'];
 
-        $this->walletService = app(WalletTransactionService::class);
-        $this->strategy = new EPayPaymentStrategy($this->walletService);
+                $this->bookingCharge = app(BookingCharge::class);
+        $this->ridePayout = app(RidePayout::class);
+        $this->strategy = new EPayPaymentStrategy($this->bookingCharge, $this->ridePayout, app(CancellationRefund::class));
 
         $this->passenger = User::factory()->create();
         $this->passengerWallet = Wallet::create([
@@ -117,7 +121,7 @@ class RV09StrategyGuardPropagationTest extends TestCase
             'communication_number' => '0912345678',
         ]);
 
-        $this->walletService->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $this->passenger);
 
         return $booking->fresh();
     }
@@ -175,7 +179,7 @@ class RV09StrategyGuardPropagationTest extends TestCase
         $booking = $this->chargedBooking(1);
 
         // Drain the booking's escrow by settling it, which is the only way to spend it.
-        $this->walletService->releaseEscrowToDriver($booking, $this->ride, $this->driver);
+        $this->ridePayout->releaseEscrowToDriver($booking, $this->ride, $this->driver);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/escrow/i');
@@ -194,7 +198,7 @@ class RV09StrategyGuardPropagationTest extends TestCase
         // Spend the booking's escrow FIRST, so the second attempt is a genuine refusal rather
         // than a legitimate second release. (An earlier draft of this test omitted this and the
         // balance moved 95.00 - correctly, because the call was allowed.)
-        $this->walletService->releaseEscrowToDriver($booking, $this->ride, $this->driver);
+        $this->ridePayout->releaseEscrowToDriver($booking, $this->ride, $this->driver);
 
         $driverBefore = (float) $this->driverWallet->fresh()->balance;
         $syCashBefore = (float) $this->syCash->fresh()->balance;

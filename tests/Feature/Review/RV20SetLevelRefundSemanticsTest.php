@@ -7,7 +7,8 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\CancellationRefund;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -49,7 +50,8 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
     use RefreshDatabase;
     use SeedsSystemWallets;
 
-    private WalletTransactionService $walletService;
+    private BookingCharge $bookingCharge;
+    private CancellationRefund $cancellationRefund;
 
     private Wallet $syCash;
 
@@ -69,7 +71,8 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
 
         $wallets = $this->seedSystemWallets(1_000_000);
         $this->syCash = $wallets['sycash'];
-        $this->walletService = app(WalletTransactionService::class);
+                $this->bookingCharge = app(BookingCharge::class);
+        $this->cancellationRefund = app(CancellationRefund::class);
 
         $this->driver = User::factory()->create();
 
@@ -99,7 +102,7 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
             'communication_number' => '0912345678',
         ]);
 
-        $this->walletService->chargePassengerForBooking($booking, $this->ride, $user);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $user);
 
         $this->passengers[] = $user;
         $this->passengerWallets[] = $wallet;
@@ -130,7 +133,7 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
         $rowsBefore = WalletTransaction::count();
 
         try {
-            $this->walletService->refundPassengersForDriverCancellation(
+            $this->cancellationRefund->refundPassengersForDriverCancellation(
                 $this->ride,
                 new Collection([$b1, $b2])
             );
@@ -158,7 +161,7 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
         $b2 = $this->chargedBooking(1);
         $set = new Collection([$b1, $b2]);
 
-        $this->walletService->refundPassengersForDriverCancellation($this->ride, $set);
+        $this->cancellationRefund->refundPassengersForDriverCancellation($this->ride, $set);
 
         $syCashAfterFirst = (float) $this->syCash->fresh()->balance;
         $w1AfterFirst = (float) $this->passengerWallets[0]->fresh()->balance;
@@ -170,7 +173,7 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
         // Asserted with try/catch rather than expectException so the "nothing moved" checks below
         // actually execute; after expectException they would be unreachable dead code.
         try {
-            $this->walletService->refundPassengersForDriverCancellation($this->ride, $set);
+            $this->cancellationRefund->refundPassengersForDriverCancellation($this->ride, $set);
             $this->fail('replaying the same cancellation set must be refused');
         } catch (\RuntimeException $e) {
             $this->assertMatchesRegularExpression('/already posted/i', $e->getMessage());
@@ -195,7 +198,7 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
         $b2 = $this->chargedBooking(3);
         $rowsBefore = WalletTransaction::count();
 
-        $this->walletService->refundPassengersForDriverCancellation(
+        $this->cancellationRefund->refundPassengersForDriverCancellation(
             $this->ride,
             new Collection([$b1, $b2])
         );

@@ -7,7 +7,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use App\Services\Ride\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -102,7 +102,7 @@ class CancelSeatsEquivalenceCheck extends TestCase
         ])->save();
 
         if ($paymentMethod === 'e-pay') {
-            app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $passenger);
+            app(BookingCharge::class)->chargePassengerForBooking($booking, $ride, $passenger);
         }
 
         return [$passenger, $booking->fresh()];

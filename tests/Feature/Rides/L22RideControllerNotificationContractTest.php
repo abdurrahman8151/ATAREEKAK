@@ -9,7 +9,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserNotification;
 use App\Models\Wallet;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Str;
@@ -90,7 +90,7 @@ class L22RideControllerNotificationContractTest extends TestCase
             'communication_number' => '0900000000',
         ]);
         if ($charge) {
-            app(WalletTransactionService::class)
+            app(BookingCharge::class)
                 ->chargePassengerForBooking($booking, $ride->fresh(), $this->passenger->fresh());
         }
 

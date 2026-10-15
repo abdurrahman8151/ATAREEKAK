@@ -10,7 +10,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use App\Services\Ride\Noshowservice;
 use App\Services\Wallet\WalletRequestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -106,7 +106,7 @@ class MoneyPathBatchTest extends TestCase
             'user_id' => $this->passenger->id, 'ride_id' => $ride->id, 'seats' => 1,
             'status' => 'confirmed', 'communication_number' => '0900000000',
         ]);
-        app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $this->passenger);
+        app(BookingCharge::class)->chargePassengerForBooking($booking, $ride, $this->passenger);
 
         return [$ride, $booking];
     }

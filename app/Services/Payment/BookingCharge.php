@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** Money path split out of WalletTransactionService (behaviour unchanged). */
-final class BookingCharge
+class BookingCharge
 {
 
     public function __construct(

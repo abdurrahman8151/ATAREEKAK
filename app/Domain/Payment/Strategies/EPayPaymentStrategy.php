@@ -5,7 +5,9 @@ namespace App\Domain\Payment\Strategies;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\RidePayout;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /**
@@ -37,7 +39,9 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 final class EPayPaymentStrategy implements PaymentStrategy
 {
     public function __construct(
-        private readonly WalletTransactionService $walletService,
+        private readonly BookingCharge $bookingCharge,
+        private readonly RidePayout $ridePayout,
+        private readonly CancellationRefund $cancellationRefund,
     ) {}
 
     // ── Book ─────────────────────────────────────────────────────────────────
@@ -47,7 +51,7 @@ final class EPayPaymentStrategy implements PaymentStrategy
         Ride $ride,
         User $passenger,
     ): PaymentResult {
-        $this->walletService->chargePassengerForBooking($booking, $ride, $passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $ride, $passenger);
 
         return PaymentResult::success('Payment held in escrow');
     }
@@ -64,7 +68,7 @@ final class EPayPaymentStrategy implements PaymentStrategy
         User $passenger,
     ): PaymentResult {
         $driver = $ride->driver;   // ← derive driver from ride; passenger is the confirmer
-        $this->walletService->releaseEscrowToDriver($booking, $ride, $driver);
+        $this->ridePayout->releaseEscrowToDriver($booking, $ride, $driver);
 
         return PaymentResult::success('Escrow released to driver');
     }
@@ -109,7 +113,7 @@ final class EPayPaymentStrategy implements PaymentStrategy
      */
     private function refundForDriverCancellation(Ride $ride, EloquentCollection $bookings): RefundResult
     {
-        $this->walletService->refundPassengersForDriverCancellation($ride, $bookings);
+        $this->cancellationRefund->refundPassengersForDriverCancellation($ride, $bookings);
 
         return RefundResult::success(sprintf(
             'Refunded %d booking(s) in full (driver cancellation)',
@@ -124,7 +128,7 @@ final class EPayPaymentStrategy implements PaymentStrategy
      */
     private function refundForStaffCancellation(Ride $ride, EloquentCollection $bookings): RefundResult
     {
-        $summary = $this->walletService->refundPassengersForStaffCancellation($ride, $bookings);
+        $summary = $this->cancellationRefund->refundPassengersForStaffCancellation($ride, $bookings);
 
         $message = sprintf(
             'Refunded %.2f across %d booking(s)',

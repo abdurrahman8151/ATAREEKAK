@@ -7,7 +7,9 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\RidePayout;
+use App\Services\Payment\CancellationRefund;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,7 +23,9 @@ class WalletTransactionServiceTest extends TestCase
     use RefreshDatabase;
     use SeedsSystemWallets;
 
-    private WalletTransactionService $service;
+    private BookingCharge $bookingCharge;
+    private RidePayout $ridePayout;
+    private CancellationRefund $cancellationRefund;
 
     private User $driver;
 
@@ -46,7 +50,9 @@ class WalletTransactionServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new WalletTransactionService;
+                $this->bookingCharge = app(BookingCharge::class);
+        $this->ridePayout = app(RidePayout::class);
+        $this->cancellationRefund = app(CancellationRefund::class);
 
         // Generate unique phone numbers for each test method
         $this->driverPhone = '091'.rand(1000000, 9999999);
@@ -101,7 +107,7 @@ class WalletTransactionServiceTest extends TestCase
         $amount = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->passengerWallet->fresh()->balance;
 
-        $this->service->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $this->passenger);
 
         $this->assertEquals($before - $amount, (float) $this->passengerWallet->fresh()->balance);
     }
@@ -114,7 +120,7 @@ class WalletTransactionServiceTest extends TestCase
         $amount = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->syCashWallet->fresh()->balance;
 
-        $this->service->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $this->passenger);
 
         $this->assertEquals($before + $amount, (float) $this->syCashWallet->fresh()->balance);
     }
@@ -124,7 +130,7 @@ class WalletTransactionServiceTest extends TestCase
         $booking = $this->makeBooking(1);
         $before = WalletTransaction::count();
 
-        $this->service->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $this->passenger);
 
         $this->assertEquals($before + 2, WalletTransaction::count());
     }
@@ -135,7 +141,7 @@ class WalletTransactionServiceTest extends TestCase
         $booking = $this->makeBooking(1);
 
         $this->expectException(\RuntimeException::class);
-        $this->service->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $this->passenger);
     }
 
     public function test_charge_passenger_throws_when_passenger_has_no_wallet(): void
@@ -144,7 +150,7 @@ class WalletTransactionServiceTest extends TestCase
         $booking = $this->makeBooking(1);
 
         $this->expectException(\RuntimeException::class);
-        $this->service->chargePassengerForBooking($booking, $this->ride, $noWalletPassenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $noWalletPassenger);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -160,7 +166,7 @@ class WalletTransactionServiceTest extends TestCase
         $expectedShare = round($total * 0.95, 2);
         $before = (float) $this->driverWallet->fresh()->balance;
 
-        $this->service->releaseEarningsToDriver($this->ride, new Collection([$booking]));
+        $this->ridePayout->releaseEarningsToDriver($this->ride, new Collection([$booking]));
 
         $this->assertEquals($before + $expectedShare, (float) $this->driverWallet->fresh()->balance);
     }
@@ -173,7 +179,7 @@ class WalletTransactionServiceTest extends TestCase
         $expectedShare = round($total * 0.05, 2);
         $before = (float) $this->primaryAdminWallet->fresh()->balance;
 
-        $this->service->releaseEarningsToDriver($this->ride, new Collection([$booking]));
+        $this->ridePayout->releaseEarningsToDriver($this->ride, new Collection([$booking]));
 
         $this->assertEquals($before + $expectedShare, (float) $this->primaryAdminWallet->fresh()->balance);
     }
@@ -186,7 +192,7 @@ class WalletTransactionServiceTest extends TestCase
         $total = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->syCashWallet->fresh()->balance;
 
-        $this->service->releaseEarningsToDriver($this->ride, new Collection([$booking]));
+        $this->ridePayout->releaseEarningsToDriver($this->ride, new Collection([$booking]));
 
         $this->assertEquals($before - $total, (float) $this->syCashWallet->fresh()->balance);
     }
@@ -195,7 +201,7 @@ class WalletTransactionServiceTest extends TestCase
     {
         $before = WalletTransaction::count();
 
-        $this->service->releaseEarningsToDriver($this->ride, new Collection);
+        $this->ridePayout->releaseEarningsToDriver($this->ride, new Collection);
 
         $this->assertEquals($before, WalletTransaction::count());
     }
@@ -206,7 +212,7 @@ class WalletTransactionServiceTest extends TestCase
         $booking = $this->makeChargedBooking(1, 'confirmed');
         $before = WalletTransaction::count();
 
-        $this->service->releaseEarningsToDriver($this->ride, new Collection([$booking]));
+        $this->ridePayout->releaseEarningsToDriver($this->ride, new Collection([$booking]));
 
         $this->assertEquals($before + 3, WalletTransaction::count());
     }
@@ -219,7 +225,7 @@ class WalletTransactionServiceTest extends TestCase
     {
         $before = WalletTransaction::count();
 
-        $this->service->refundPassengersForDriverCancellation($this->ride, new Collection);
+        $this->cancellationRefund->refundPassengersForDriverCancellation($this->ride, new Collection);
 
         $this->assertEquals($before, WalletTransaction::count());
     }
@@ -230,7 +236,7 @@ class WalletTransactionServiceTest extends TestCase
         $refund = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->passengerWallet->fresh()->balance;
 
-        $this->service->refundPassengersForDriverCancellation($this->ride, new Collection([$booking]));
+        $this->cancellationRefund->refundPassengersForDriverCancellation($this->ride, new Collection([$booking]));
 
         $this->assertEquals($before + $refund, (float) $this->passengerWallet->fresh()->balance);
     }
@@ -244,7 +250,7 @@ class WalletTransactionServiceTest extends TestCase
         $refund = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->syCashWallet->fresh()->balance;
 
-        $this->service->refundPassengersForDriverCancellation($this->ride, new Collection([$booking]));
+        $this->cancellationRefund->refundPassengersForDriverCancellation($this->ride, new Collection([$booking]));
 
         $this->assertEquals($before - $refund, (float) $this->syCashWallet->fresh()->balance);
     }
@@ -255,7 +261,7 @@ class WalletTransactionServiceTest extends TestCase
         $b2 = $this->makeChargedBooking(1, 'confirmed');
         $before = WalletTransaction::count();
 
-        $this->service->refundPassengersForDriverCancellation(
+        $this->cancellationRefund->refundPassengersForDriverCancellation(
             $this->ride, new Collection([$b1, $b2])
         );
 
@@ -269,7 +275,7 @@ class WalletTransactionServiceTest extends TestCase
         $booking = $this->makeBooking(1, 'confirmed');
 
         $this->expectException(\RuntimeException::class);
-        $this->service->refundPassengersForDriverCancellation($this->ride, new Collection([$booking]));
+        $this->cancellationRefund->refundPassengersForDriverCancellation($this->ride, new Collection([$booking]));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -283,7 +289,7 @@ class WalletTransactionServiceTest extends TestCase
         $amount = $booking->seats * $this->ride->price_per_seat;
         $before = (float) $this->passengerWallet->fresh()->balance;
 
-        $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
 
         $this->assertEquals($before + $amount, (float) $this->passengerWallet->fresh()->balance);
     }
@@ -294,7 +300,7 @@ class WalletTransactionServiceTest extends TestCase
         $booking = $this->makeChargedBooking(1, 'confirmed');
         $before = (float) $this->driverWallet->fresh()->balance;
 
-        $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
 
         $this->assertEquals($before, (float) $this->driverWallet->fresh()->balance);
     }
@@ -310,7 +316,7 @@ class WalletTransactionServiceTest extends TestCase
         $passengerBefore = (float) $this->passengerWallet->fresh()->balance;
         $driverBefore = (float) $this->driverWallet->fresh()->balance;
 
-        $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
 
         $this->assertEqualsWithDelta($passengerBefore + $refundAmount, (float) $this->passengerWallet->fresh()->balance, 1);
         $this->assertEqualsWithDelta($driverBefore + $driverAmount, (float) $this->driverWallet->fresh()->balance, 1);
@@ -323,7 +329,7 @@ class WalletTransactionServiceTest extends TestCase
         $totalPaid = $booking->seats * $this->ride->price_per_seat;
         $driverBefore = (float) $this->driverWallet->fresh()->balance;
 
-        $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
 
         $this->assertEquals($driverBefore + $totalPaid, (float) $this->driverWallet->fresh()->balance);
     }
@@ -333,7 +339,7 @@ class WalletTransactionServiceTest extends TestCase
         $policy = ['refund_percentage' => 0, 'time_elapsed_percentage' => 80, 'policy_tier' => '70-100%'];
         $booking = $this->makeChargedBooking(1, 'confirmed');
 
-        $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
 
         $this->assertDatabaseHas('wallet_transactions', [
             'user_id' => $booking->user_id,
@@ -348,7 +354,7 @@ class WalletTransactionServiceTest extends TestCase
         $policy = ['refund_percentage' => 100, 'time_elapsed_percentage' => 10, 'policy_tier' => 'Full refund'];
 
         $this->expectException(\RuntimeException::class);
-        $this->service->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $this->ride, 1, $policy);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -357,7 +363,7 @@ class WalletTransactionServiceTest extends TestCase
 
     public function test_refund_policy_tier1_full_refund(): void
     {
-        $policy = $this->service->calculateRefundPolicy(
+        $policy = $this->cancellationRefund->calculateRefundPolicy(
             Carbon::now()->addHours(48),
             Carbon::now()->subMinutes(5)
         );
@@ -366,7 +372,7 @@ class WalletTransactionServiceTest extends TestCase
 
     public function test_refund_policy_tier2_70_percent(): void
     {
-        $policy = $this->service->calculateRefundPolicy(
+        $policy = $this->cancellationRefund->calculateRefundPolicy(
             Carbon::now()->addMinutes(60),
             Carbon::now()->subMinutes(40)
         );
@@ -375,7 +381,7 @@ class WalletTransactionServiceTest extends TestCase
 
     public function test_refund_policy_tier3_50_percent(): void
     {
-        $policy = $this->service->calculateRefundPolicy(
+        $policy = $this->cancellationRefund->calculateRefundPolicy(
             Carbon::now()->addMinutes(40),
             Carbon::now()->subMinutes(60)
         );
@@ -384,7 +390,7 @@ class WalletTransactionServiceTest extends TestCase
 
     public function test_refund_policy_tier4_no_refund(): void
     {
-        $policy = $this->service->calculateRefundPolicy(
+        $policy = $this->cancellationRefund->calculateRefundPolicy(
             Carbon::now()->addMinutes(20),
             Carbon::now()->subMinutes(80)
         );
@@ -393,7 +399,7 @@ class WalletTransactionServiceTest extends TestCase
 
     public function test_refund_policy_after_departure_returns_zero(): void
     {
-        $policy = $this->service->calculateRefundPolicy(
+        $policy = $this->cancellationRefund->calculateRefundPolicy(
             Carbon::now()->subMinutes(5),
             Carbon::now()->subHour()
         );
@@ -414,7 +420,7 @@ class WalletTransactionServiceTest extends TestCase
         $booking = $this->makeBooking(1);
 
         $this->expectException(\RuntimeException::class);
-        $this->service->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $this->passenger);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -472,7 +478,7 @@ class WalletTransactionServiceTest extends TestCase
     {
         $booking = $this->makeBooking($seats, $status);
 
-        $this->service->chargePassengerForBooking($booking, $this->ride, $this->passenger);
+        $this->bookingCharge->chargePassengerForBooking($booking, $this->ride, $this->passenger);
 
         return $booking->fresh();
     }

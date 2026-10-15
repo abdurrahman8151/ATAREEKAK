@@ -9,7 +9,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use App\Services\Ride\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
@@ -59,7 +59,7 @@ class RV20ChargeThroughStrategyTest extends TestCase
     use RefreshDatabase;
     use SeedsSystemWallets;
 
-    private WalletTransactionService $walletService;
+    private BookingCharge $walletService;
 
     private BookingService $bookingService;
 
@@ -76,7 +76,7 @@ class RV20ChargeThroughStrategyTest extends TestCase
         $wallets = $this->seedSystemWallets(1_000_000);
         $this->syCash = $wallets['sycash'];
 
-        $this->walletService = app(WalletTransactionService::class);
+        $this->walletService = app(BookingCharge::class);
         $this->bookingService = app(BookingService::class);
 
         $this->passenger = User::factory()->create(['is_verified_passenger' => true]);

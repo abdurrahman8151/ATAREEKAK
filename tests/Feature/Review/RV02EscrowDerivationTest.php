@@ -6,7 +6,9 @@ use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\RidePayout;
+use App\Services\Payment\CancellationRefund;
 use App\Support\PostingKey;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -63,7 +65,9 @@ class RV02EscrowDerivationTest extends TestCase
 
     private Wallet $driverWallet;
 
-    private WalletTransactionService $service;
+    private BookingCharge $bookingCharge;
+    private RidePayout $ridePayout;
+    private CancellationRefund $cancellationRefund;
 
     protected function setUp(): void
     {
@@ -73,7 +77,9 @@ class RV02EscrowDerivationTest extends TestCase
 
         parent::setUp();
 
-        $this->service = app(WalletTransactionService::class);
+                $this->bookingCharge = app(BookingCharge::class);
+        $this->ridePayout = app(RidePayout::class);
+        $this->cancellationRefund = app(CancellationRefund::class);
 
         // `kind = system` + `user_id NULL`: lockWalletByPhone refuses anything else (RV-21), and
         // this suite exercises the real guard, so the fixtures must satisfy the real boundary.
@@ -129,7 +135,7 @@ class RV02EscrowDerivationTest extends TestCase
     {
         $booking = $this->chargedBooking(50_000, 2);
 
-        $this->service->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
+        $this->ridePayout->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
 
         $this->assertSame(
             '0.00',
@@ -151,7 +157,7 @@ class RV02EscrowDerivationTest extends TestCase
         $this->chargedBooking(50_000, 2);
 
         // Spend the escrow legitimately, via the per-passenger release.
-        $this->service->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
+        $this->ridePayout->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
         $this->assertSame('0.00', (string) $booking->fresh()->escrow_held);
 
         // Now try to spend it again through a DIFFERENT movement: the ride-level completion
@@ -160,7 +166,7 @@ class RV02EscrowDerivationTest extends TestCase
         // differently is the point: the key catches "the same movement ran twice", the escrow
         // catches "this booking's escrow is already spent" even when the movement differs.
         try {
-            $this->service->releaseEarningsToDriver(
+            $this->ridePayout->releaseEarningsToDriver(
                 $booking->ride,
                 new Collection([$booking])
             );
@@ -198,7 +204,7 @@ class RV02EscrowDerivationTest extends TestCase
         $syCashAfterCharge = (float) $this->syCash->fresh()->balance;
         $driverAfterCharge = (float) $this->driverWallet->fresh()->balance;
 
-        $this->service->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
+        $this->ridePayout->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
 
         $syCashAfterSettle = (float) $this->syCash->fresh()->balance;
         $driverAfterSettle = (float) $this->driverWallet->fresh()->balance;
@@ -210,7 +216,7 @@ class RV02EscrowDerivationTest extends TestCase
 
         // ── The replay: the same call again, exactly as a retried request would arrive ──
         try {
-            $this->service->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
+            $this->ridePayout->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
             $this->fail('A replayed settlement must be refused, not paid again.');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('RV-02 L2', $e->getMessage());
@@ -275,7 +281,7 @@ class RV02EscrowDerivationTest extends TestCase
         $this->expectException(RuntimeException::class);
 
         try {
-            $this->service->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
+            $this->bookingCharge->chargePassengerForBooking($booking, $booking->ride, $this->passenger);
         } finally {
             $this->assertSame(
                 $syCashAfterCharge,
@@ -300,7 +306,7 @@ class RV02EscrowDerivationTest extends TestCase
         // Settle one booking in full. The invariant must STILL hold - escrow and SyCash move
         // together, which is the whole claim.
         $settled = Booking::with('ride')->orderBy('id')->first();
-        $this->service->releaseEscrowToDriver($settled, $settled->ride, $this->driver);
+        $this->ridePayout->releaseEscrowToDriver($settled, $settled->ride, $this->driver);
 
         $this->assertEscrowInvariantHolds('after one booking is settled');
     }
@@ -311,7 +317,7 @@ class RV02EscrowDerivationTest extends TestCase
         $booking = $this->chargedBooking(50_000, 2);
 
         $policy = ['refund_percentage' => 70, 'time_elapsed_percentage' => 40, 'policy_tier' => '30-50%'];
-        $this->service->processTimeBasedCancellation($booking, $booking->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $booking->ride, 1, $policy);
 
         $this->assertEscrowInvariantHolds('after a partial-seat cancellation');
         $this->assertSame(
@@ -374,10 +380,10 @@ class RV02EscrowDerivationTest extends TestCase
 
         // Cancel one seat, then the other. Two real, distinct movements on one booking - the
         // key must distinguish them or the second cancel would be silently refused.
-        $this->service->processTimeBasedCancellation($booking, $booking->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking, $booking->ride, 1, $policy);
         $booking->update(['seats' => 1]);
 
-        $this->service->processTimeBasedCancellation($booking->fresh(['ride']), $booking->ride, 1, $policy);
+        $this->cancellationRefund->processTimeBasedCancellation($booking->fresh(['ride']), $booking->ride, 1, $policy);
 
         $this->assertSame(
             '0.00',
@@ -410,7 +416,7 @@ class RV02EscrowDerivationTest extends TestCase
         $driverBefore = (float) $this->driverWallet->fresh()->balance;
         $primaryBefore = (float) $this->primary->fresh()->balance;
 
-        $this->service->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
+        $this->ridePayout->releaseEscrowToDriver($booking, $booking->ride, $this->driver);
 
         $this->assertSame(47500.0, round((float) $this->driverWallet->fresh()->balance - $driverBefore, 2));
         $this->assertSame(2500.0, round((float) $this->primary->fresh()->balance - $primaryBefore, 2));
@@ -449,7 +455,7 @@ class RV02EscrowDerivationTest extends TestCase
             $passengerBefore = (float) $this->passengerWallet->fresh()->balance;
             $driverBefore = (float) $this->driverWallet->fresh()->balance;
 
-            $this->service->processTimeBasedCancellation($booking, $booking->ride, 2, $policy);
+            $this->cancellationRefund->processTimeBasedCancellation($booking, $booking->ride, 2, $policy);
 
             $this->assertSame(
                 $tier['passenger'],
@@ -530,7 +536,7 @@ class RV02EscrowDerivationTest extends TestCase
             'communication_number' => '0912345678',
         ]);
 
-        $this->service->chargePassengerForBooking($booking, $ride->fresh(), $this->passenger->fresh());
+        $this->bookingCharge->chargePassengerForBooking($booking, $ride->fresh(), $this->passenger->fresh());
 
         return $booking->fresh(['ride']);
     }

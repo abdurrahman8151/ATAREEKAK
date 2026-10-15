@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** Wallet lookup, row locking and the balance guard shared by the money paths. */
-final class WalletAccess
+class WalletAccess
 {
 
 /**

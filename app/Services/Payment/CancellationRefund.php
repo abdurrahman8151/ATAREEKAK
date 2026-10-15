@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** Money path split out of WalletTransactionService (behaviour unchanged). */
-final class CancellationRefund
+class CancellationRefund
 {
 
     public function __construct(

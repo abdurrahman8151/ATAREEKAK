@@ -3,7 +3,9 @@
 namespace App\Domain\Payment\Strategies;
 
 use App\Enums\PaymentMethod;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
+use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\RidePayout;
 use InvalidArgumentException;
 
 /**
@@ -19,11 +21,13 @@ final class PaymentStrategyFactory
     private array $strategies = [];
 
     public function __construct(
-        private readonly WalletTransactionService $walletService,
+        private readonly BookingCharge $bookingCharge,
+        private readonly RidePayout $ridePayout,
+        private readonly CancellationRefund $cancellationRefund,
     ) {
         $this->strategies = [
             new CashPaymentStrategy,
-            new EPayPaymentStrategy($this->walletService),
+            new EPayPaymentStrategy($this->bookingCharge, $this->ridePayout, $this->cancellationRefund),
         ];
     }
 

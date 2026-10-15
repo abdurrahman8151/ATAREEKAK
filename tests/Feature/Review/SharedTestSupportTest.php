@@ -5,7 +5,7 @@ namespace Tests\Feature\Review;
 use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Payment\WalletTransactionService;
+use App\Services\Payment\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\Concerns\ActsAsStaff;
@@ -178,7 +178,7 @@ class SharedTestSupportTest extends TestCase
             'communication_number' => '0900000000',
         ]);
 
-        app(WalletTransactionService::class)->chargePassengerForBooking($booking, $ride, $passenger);
+        app(BookingCharge::class)->chargePassengerForBooking($booking, $ride, $passenger);
 
         $this->assertSame(50000.0, (float) $syCash->fresh()->balance, 'the fare must reach SyCash escrow');
         $this->assertSame(950000.0, (float) $passengerWallet->fresh()->balance);
