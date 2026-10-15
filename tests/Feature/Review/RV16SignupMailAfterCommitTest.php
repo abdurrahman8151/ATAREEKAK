@@ -157,7 +157,7 @@ class RV16SignupMailAfterCommitTest extends TestCase
      */
     public function the_commit_precedes_the_mail_send_in_path_b(): void
     {
-        $source = (string) file_get_contents(app_path('Http/Controllers/API/SignupController.php'));
+        $source = (string) file_get_contents(app_path('Http/Controllers/API/Support/SignupRegistrationHandler.php'));
 
         // PATH A also calls sendOtp, so start measuring from the transaction that matters.
         $pathB = strpos($source, 'DB::beginTransaction()');
@@ -188,7 +188,7 @@ class RV16SignupMailAfterCommitTest extends TestCase
      */
     public function no_rollback_survives_after_the_mail_has_been_sent(): void
     {
-        $source = (string) file_get_contents(app_path('Http/Controllers/API/SignupController.php'));
+        $source = (string) file_get_contents(app_path('Http/Controllers/API/Support/SignupRegistrationHandler.php'));
 
         $pathB = (int) strpos($source, 'DB::beginTransaction()');
         $send = (int) strpos($source, 'sendOtp(', $pathB);
