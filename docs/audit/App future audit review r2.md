@@ -12451,3 +12451,16 @@ RFB-4 (continued) - RideController bookRide moved to RideBookingHandler.
 - Section K (this group): RideController 499 to 457 lines; public methods 20 (unchanged).
 - Final state: VERIFIED FIX for the bookRide group. Remaining controller actions: passengerConfirmCompletion, cancelPartialSeats, reportPassengerNoShow. These query Booking directly, so moving them would raise the controllers_to_models edge; they stay in RideController until the owner decides on that boundary.
 - Unverified / parked: the 500 branches of getRouteOptions and getRides are unreachable from a valid request (no seam; not faked).
+## 215
+
+RFB-5 (1 of 10) - AdminWalletService::chargeWallet moved to AdminWalletCharger.
+
+- Problem: AdminWalletService::chargeWallet, a money path that credits a user wallet and debits External Capital in one transaction, sat inside a general-purpose admin service.
+- Root cause: the method was added to the admin service with the rest of the console operations; it has its own ledger rules (admin_credit, external_inbound) and its own failure path.
+- Characterization first: the existing L10AdminChargeWalletCharacterization file pins the target credit, the External debit, the ledger rows and the type names. No test pinned the missing-External-account refusal, so AdminChargeWalletMissingExternalCharacterizationTest was added (1 test, 3 assertions): it asserts the exact RuntimeException message and that the target balance is unchanged after the refusal. Green on the unchanged service.
+- Change: the method body moved verbatim to `app/Services/Admin/AdminWalletCharger.php` (checked equal to HEAD after trimming indentation, and still equal after Pint). AdminWalletService::chargeWallet keeps its signature and return type and delegates to the charger. Four imports that only the moved body used (LedgerService, DB, Log, Str) were removed from the service.
+- Money rules unchanged: the positive-amount guard, the row lock order, the admin_credit and external_inbound types, the missing-External exception, and the returned array are all in the moved body unchanged. No amount or ledger semantics changed.
+- Boundary: the new class is under app/Services, outside the controllers_to_models rule and the domain and repository service rules. BoundaryDependencyTest: OK (9 tests, 36 assertions); no baseline raised.
+- Checks: chargeWallet money floor (L10 and missing-External characterizations, AdminWalletServiceTest, AdminFinancialSurfaceAuthorizationTest, AdminDashboardControllerTest, tests/Feature/Wallet, tests/Feature/Payment, tests/Unit/Domain, DoubleEntryLedgerTest, SharedTestSupportTest): before the move OK (279 tests, 520 assertions); after the move OK (279 tests, 520 assertions). Pint on the two files: PASS (exit 0). php -l on both: clean.
+- Final state: VERIFIED FIX for chargeWallet. Remaining RFB-5 areas: CashRideFeeService::chargeCashRideCreationFee, SignupController::register, ProfileController::update (L26, paused for owner approval), LoginController, JwtAuthMiddleware, VerificationController, DocumentController, AppServiceProvider, Handler.
+- Unverified / parked: none for this area.
