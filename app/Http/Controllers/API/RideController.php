@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\API;
 
-use App\DTOs\Ride\BookRideDTO;
 use App\Exceptions\Domain\DomainException;
+use App\Http\Controllers\API\Support\RideBookingHandler;
 use App\Http\Controllers\API\Support\RideBookingResponseHandler;
 use App\Http\Controllers\API\Support\RideCancellationHandler;
 use App\Http\Controllers\API\Support\RideLifecycleHandler;
@@ -11,7 +11,6 @@ use App\Http\Controllers\API\Support\RideSearchReadHandler;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BookRideRequest;
 use App\Http\Requests\CreateRideRequest;
-use App\Http\Resources\BookingResource;
 use App\Http\Resources\RideResource;
 use App\Models\Booking;
 use App\Services\Geocoding\GeocodingService;
@@ -54,6 +53,7 @@ class RideController extends Controller
         private readonly RideBookingResponseHandler $bookingResponses,
         private readonly RideLifecycleHandler $lifecycle,
         private readonly RideSearchReadHandler $searchRead,
+        private readonly RideBookingHandler $booking,
     ) {}
 
     // =========================================================================
@@ -95,49 +95,7 @@ class RideController extends Controller
      */
     public function bookRide(BookRideRequest $request, int $rideId): JsonResponse
     {
-        try {
-            $dto = BookRideDTO::fromRequest($request->validated(), $request->user()->id, $rideId);
-            $booking = $this->bookingService->bookRide($dto, $request->user());
-
-            return response()->json([
-                'success' => true,
-                'data' => new BookingResource($booking),
-                'message' => 'Ride booked successfully',
-            ], 201);
-
-        } catch (\InvalidArgumentException $e) {
-            // Decision 11 (owner): a refusal must name its own gate. "The request could not be
-            // completed" tells the caller nothing about WHICH rule stopped them.
-            //
-            // Every InvalidArgumentException thrown by the ride/booking domain is a curated,
-            // user-facing sentence - see RideValidationService ("You must be verified as a passenger
-            // to book rides"), BookingService ("Only pending bookings can be accepted"),
-            // RideService, Noshowservice - so this type is precisely the "the user did something we
-            // are refusing on purpose" signal, distinct from a fault.
-            //
-            // RV-13 STILL HOLDS: everything else, and above all QueryException with its SQL and
-            // table names, falls through to the generic branch below and never reaches the client.
-            Log::error('RideController: request refused', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
-
-        } catch (\Throwable $e) {
-            // RV-13: the exception text goes to the LOG, not to the client - a
-            // QueryException carries the SQL and the table names.
-            Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'The request could not be completed. Please try again.',
-            ], 422);
-        }
+        return $this->booking->bookRide($request, $rideId);
     }
 
     // =========================================================================

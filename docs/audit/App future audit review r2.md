@@ -12439,3 +12439,15 @@ RFB-4 (continued) - RideController search and read group moved to RideSearchRead
 - Section K (this group): RideController 739 to 499 lines; public methods 20 (unchanged).
 - Final state: VERIFIED FIX for the search and read group. Remaining controller actions: bookRide, passengerConfirmCompletion, cancelPartialSeats, reportPassengerNoShow. The last three query Booking directly and stay for the boundary.
 - Unverified / parked: the 500 branches of getRouteOptions and getRides are unreachable from a valid request (no seam; not faked).
+## 214
+
+RFB-4 (continued) - RideController bookRide moved to RideBookingHandler.
+
+- Problem: RideController still held bookRide (the passenger booking action) with the rest of the controller.
+- Root cause: as in sections 211 to 213; bookRide depends on BookingService and was not yet separated.
+- Change: the body moved verbatim to `app/Http/Controllers/API/Support/RideBookingHandler.php` (checked equal to HEAD after trimming indentation, and still equal after Pint). RideController keeps the public method name and signature, so the route binding is unchanged.
+- Boundary: the handler references no App\Models class. The catch uses the fully qualified \InvalidArgumentException. The controllers_to_models edge count is unchanged at 19; no baseline was raised.
+- Checks: scoped run over the three characterization files, tests/Feature/Rides, tests/Feature/Bookings and tests/Unit/Domain: OK (234 tests, 423 assertions). BoundaryDependencyTest: OK (9 tests, 36 assertions). Pint on the two changed files: PASS (exit 0). php -l on both: clean.
+- Section K (this group): RideController 499 to 457 lines; public methods 20 (unchanged).
+- Final state: VERIFIED FIX for the bookRide group. Remaining controller actions: passengerConfirmCompletion, cancelPartialSeats, reportPassengerNoShow. These query Booking directly, so moving them would raise the controllers_to_models edge; they stay in RideController until the owner decides on that boundary.
+- Unverified / parked: the 500 branches of getRouteOptions and getRides are unreachable from a valid request (no seam; not faked).
