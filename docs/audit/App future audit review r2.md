@@ -12414,3 +12414,15 @@ RFB-4 - RideController whole-file split (cancel and booking-response groups), wi
 - Section K (after this slice): RideController 1034 to 878 lines; php files 266 to 272; methods 1174 to 1184; files over 500 lines 11 to 10; methods at or above 85 lines 21 unchanged; app() locator calls 37 unchanged.
 - Final state: VERIFIED FIX for the cancel and booking-response groups. The remaining RideController actions (create, getRouteOptions, bookRide, show, driverView, getRides, searchRides, autocomplete, index, myBookings, createRideWithRoute) are not yet moved; RideController is still the entry point for them.
 - Unverified / parked: the 500 branches of getRouteOptions and getRides are unreachable from a valid request (no seam; not faked). The remaining groups still need their own characterization before they move.
+## 212
+
+RFB-4 (continued) - RideController ride-lifecycle group moved to RideLifecycleHandler.
+
+- Problem: RideController still held the ride-lifecycle actions (create, createRideWithRoute, index, myBookings, getRides) in one class with the rest of the controller.
+- Root cause: the same as section 211; these actions share the ride and booking read/write services and were not yet separated.
+- Change: five bodies moved verbatim to `app/Http/Controllers/API/Support/RideLifecycleHandler.php` (checked equal to HEAD after trimming indentation). RideController keeps all 20 public method names and signatures, so the route bindings are unchanged.
+- Boundary: the handler references no App\Models class. The one DB reference (DB::raw in index) is the Illuminate facade, not a model, so the controllers_to_models edge count is unchanged at 19; no baseline was raised.
+- Checks: scoped run over the three characterization files, tests/Feature/Rides, tests/Feature/Bookings and tests/Unit/Domain: OK (234 tests, 423 assertions). BoundaryDependencyTest: OK (9 tests, 36 assertions). Pint on the two changed files: PASS (exit 0). php -l on both: clean.
+- Section K (after this group): RideController 878 to 741 lines in this group; public methods 20 (unchanged).
+- Final state: VERIFIED FIX for the ride-lifecycle group. Remaining controller actions still in RideController: getRouteOptions, bookRide, show, driverView, searchRides, autocomplete, cancelRide-group handled earlier, passengerConfirmCompletion, cancelPartialSeats, reportPassengerNoShow (these query Booking directly and stay for the boundary).
+- Unverified / parked: the 500 branches of getRouteOptions and getRides are unreachable from a valid request (no seam; not faked).
