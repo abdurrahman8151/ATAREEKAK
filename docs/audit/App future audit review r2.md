@@ -12492,3 +12492,17 @@ RFB-5 (3 of 10) - SignupController::register moved to SignupRegistrationHandler.
 - Checks: identity floor (the new characterization, tests/Feature/Auth, Staff, Otp, Security, tests/Unit/Middleware, RV16, RV45, ExceptionMessageLeakRatchetTest): before the move OK (436 tests, 1219 assertions); after the move, 2 failures (the two RV16 source-text pins, fixed by the path change above); after the path fix OK (436 tests, 1219 assertions). Pint on the four files: PASS (exit 0). php -l on all four: clean.
 - Final state: VERIFIED FIX for the signup move. Remaining RFB-5 areas: ProfileController::update (L26, paused for owner approval), LoginController, JwtAuthMiddleware, VerificationController, DocumentController, AppServiceProvider, Handler.
 - Unverified / parked: none for this area.
+## 218
+
+RFB-5 (4 of 10) - LoginController::__invoke moved to LoginHandler.
+
+- Problem: LoginController::__invoke, the authentication path with four refusal branches (422 validation, 401 INVALID_CREDENTIALS, 403 EMAIL_NOT_VERIFIED, 403 ACCOUNT_BANNED) and the expired-ban clearing, sat in the controller with its token issue.
+- Root cause: the login flow was written into the controller; its repository, JWT and ban logic belong in a dedicated class.
+- Characterization first: existing tests covered the ban, unverified and expired-ban rules (RV12, RV42a), but no test pinned the INVALID_CREDENTIALS sentence and code, the enumeration rule that an unknown email and a wrong password return the same response, or the 200 Login successful envelope with tokens. LoginContractCharacterizationTest was added (3 tests, 15 assertions) through the real route with real hashing and no mocks. Green on the unchanged controller.
+- Change: __invoke moved verbatim to app/Http/Controllers/API/Support/LoginHandler.php (checked equal to HEAD after trimming indentation, and still equal after Pint). LoginController::__invoke keeps its signature and delegates. The controller now takes one dependency (the handler); its repository, JWT service, and four imports that only the moved body used were removed.
+- A constructor edit during this batch left the controller's old property assignments in place and failed 34 tests (every login returned no token). That was my own mistake; it was fixed by replacing the stale constructor with one promoted LoginHandler dependency. The rerun matched the baseline exactly.
+- Money and identity rules unchanged: the 401 for unknown email and wrong password (identical), the 403 unverified and banned responses, the expired-ban clearing, and the token issue are in the moved body unchanged. No status code, key or sentence changed.
+- Boundary: the new class is under app/Http/Controllers/API/Support and references no App\Models class; controllers_to_models stays at 19. BoundaryDependencyTest: OK (9 tests, 36 assertions); no baseline raised.
+- Checks: login identity set (the new characterization, tests/Feature/Auth, Staff, Otp, Security, tests/Unit/Middleware, RV12, RV42a, RV15, tests/Feature/RateLimiting): baseline before the move OK (466 tests, 1386 assertions); after the constructor fix OK (466 tests, 1386 assertions). Pint on the three files: PASS (exit 0). php -l on all three: clean.
+- Final state: VERIFIED FIX for the login move. Remaining RFB-5 areas: ProfileController::update (L26, paused for owner approval), JwtAuthMiddleware, VerificationController, DocumentController, AppServiceProvider, Handler.
+- Unverified / parked: none for this area.
