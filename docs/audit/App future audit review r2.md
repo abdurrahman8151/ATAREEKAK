@@ -12559,3 +12559,26 @@ RFB-5 (8 of 10) - App\Exceptions\Handler::register renderers moved to App\Except
 - Infrastructure note: the first run of the wider selection failed 18 tests with SQLSTATE[HY000] [2002] connection refused and then hung past the 600 s wall-clock. The scratch MySQL was down (no mysqld process). Diagnosis confirmed every error was a connection failure with zero assertion failures, and exactly the three DB-backed files errored. The run was repeated after the owner restored the database; no app code was changed in response to the outage.
 - Final state: VERIFIED FIX for the exception-renderer move. Remaining RFB-5 areas: ProfileController::update (L26, parked for owner approval), VerificationController (rolled back, parked on the boundary decision).
 - Unverified / parked: none open for this area.
+## 223
+
+RFB batch close-out: section K before/after, ride-floor baseline, and the parked list.
+
+- Section K measurement. Script: temp section_k_measure.php (tokenizer over app/), run against the pre-batch commit 19d96c6 and against the final tree 9d14a8b. The pre-batch run reproduces the saved before-reading exactly, so the comparison is apples to apples.
+  - php_files: 266 -> 283 (new handler/support classes).
+  - methods_total: 1174 -> 1212.
+  - files_over_500: 11 -> 9 (WalletTransactionService and RideController both left the list).
+  - methods_85_plus: 21 -> 21 (unchanged).
+  - methods_60_plus: 49 -> 49 (unchanged).
+  - app_locator_calls: 37 -> 39.
+  - largest class before: WalletTransactionService=1372, RideController=1034. After: BookingService=786 (WalletTransactionService is gone; the five money classes are all under it).
+  - The 85+/60+ counts did not fall: long methods were relocated, not shortened (SignupController::register 174 became SignupRegistrationHandler::register 174; Handler::register 148 became ApiExceptionRenderers::register 149; LoginController::__invoke 103 became LoginHandler::__invoke 103). The batch's gain is class responsibility and the removal of the two largest classes, not method length.
+- app_locator_calls went UP by 2. Attributated exactly, per file, with the script's own tokenizer rule: in app/, RideController -1, JwtAuthMiddleware -1, AppServiceProvider -2, against RideLifecycleHandler +1, JwtAuthHandler +1, AdminWalletCharger +1, CashRideCreationFeeCharger +1, BootGuards +2. Net +2. No new service-locator usage was written in this batch; those calls are relocated together with the bodies that already contained them. The metric is location-sensitive and penalises moving code, not adding it.
+- Ride floor: GREEN and no longer red. tests/Feature/Rides, tests/Feature/Bookings, tests/Unit/Domain: OK (229 tests, 404 assertions) with zero failing names. The previously order-dependent Rides\RideSearchServiceTest (test_get_nearby_rides_excludes_cancelled_rides) now passes both as part of the full floor and on its own (file alone: 17 tests, 22 assertions; single test: OK). The RFB-1/RFB-2 fixture work (idempotent system wallets, zeroed reserved wallets in setUp) removed the leaked state that made it order-sensitive. The earlier "order dependence parked" entry is therefore CLOSED - no assertion needed editing.
+- Boundary ratchet: at baseline throughout. BoundaryDependencyTest OK (9 tests, 36 assertions); no baseline was raised at any point, and the one attempt that would have raised controllers_to_models (VerificationController submissions) was rolled back instead.
+- Parked, needing an owner decision (not blocking the batch):
+  1. VerificationController::verifyPassenger / verifyDriver. Cannot be extracted: a handler under Http/Controllers that imports App\Models pushes controllers_to_models to 20 (a baseline raise, forbidden), and a handler under Services trips request_in_services because it imports Illuminate\Http\Request. Attempted, verified broken, rolled back (tree green at 91474d4).
+  2. RideController booking actions passengerConfirmCompletion, cancelPartialSeats, reportPassengerNoShow. Query Booking:: directly; moving them raises controllers_to_models. Same decision as 1.
+  3. ProfileController::update. L26 revocation rule is an auth rule; changing it needs owner approval before any characterization is meaningful.
+  4. Test-harness commands under app/ (Testridegatedinteractioncommand::handle 239 lines, Testfullrideflow::handle 223, Getloadtesttokens::handle 103). Owner decision on whether they belong in app/.
+- Known follow-up created by this batch (allowed, not done): CashRideFeeService::lockPrimaryWallet is now duplicated between CashRideFeeService and CashRideCreationFeeCharger (recorded in section 216). Deduplicating it touches the money floor and was left for its own batch.
+- Owner-file note: docs/audit/BACKLOG.md and docs/audit/STATE.md still carry uncommitted owner edits, so the batch's BACKLOG rows and STATE block were left in the working tree and not committed.
