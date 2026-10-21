@@ -170,7 +170,7 @@ class RV13DomainExceptionMaskingTest extends TestCase
      */
     public function the_base_invalid_argument_handler_and_the_domain_handler_mask_identically(): void
     {
-        $src = (string) file_get_contents(app_path('Exceptions/Handler.php'));
+        $src = (string) file_get_contents(app_path('Exceptions/Support/ApiExceptionRenderers.php'));
 
         $this->assertSame(
             substr_count($src, "'The request could not be processed.'"),
@@ -188,7 +188,7 @@ class RV13DomainExceptionMaskingTest extends TestCase
      */
     public function masking_is_conditional_on_debug_not_hardcoded(): void
     {
-        $src = (string) file_get_contents(app_path('Exceptions/Handler.php'));
+        $src = (string) file_get_contents(app_path('Exceptions/Support/ApiExceptionRenderers.php'));
 
         $this->assertStringContainsString(
             "if (! config('app.debug')) {",
