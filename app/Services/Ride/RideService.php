@@ -14,8 +14,8 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Services\Geocoding\RouteCalculationService;
 use App\Services\NotificationService;
-use App\Services\Payment\CashRideFeeService;
 use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\CashRideFeeService;
 use App\Services\Payment\RidePayout;
 use App\Services\Score\ScoreService;
 use Carbon\Carbon;
@@ -134,51 +134,13 @@ final class RideService
     public function cancelRide(int $rideId, User $driver): Ride
     {
         return DB::transaction(function () use ($rideId, $driver) {
-            // RV-37 / un9: driver is read by the refund/notify/score paths in every one
-            // of these transactions - load it once, explicitly.
-            $ride = Ride::lockForUpdate()->with('driver')->findOrFail($rideId);
-
-            if ($ride->driver_id !== $driver->id) {
-                throw new \InvalidArgumentException('Only the ride creator can cancel it');
-            }
-
-            $rideStatus = RideStatus::from($ride->status);
-            if ($rideStatus->isTerminal()) {
-                throw new \InvalidArgumentException(
-                    "Cannot cancel a ride with status: {$rideStatus->label()}"
-                );
-            }
+            $ride = $this->lockRideForCancellation($rideId, $driver);
 
             $this->validationService->validateCanCancelRide(Carbon::parse($ride->departure_time));
 
-            // Snapshot all active bookings before any status changes
-            $activeBookings = $ride->bookings()
-                ->whereNotIn('status', [
-                    BookingStatus::CANCELLED->value,
-                    BookingStatus::COMPLETED->value,
-                    Booking::NO_SHOW,
-                ])
-                ->with('user')
-                ->get();
+            $snapshot = $this->snapshotRideBookings($ride);
 
-            $confirmedBookings = $activeBookings->filter(
-                fn ($b) => $b->status === BookingStatus::CONFIRMED->value
-            );
-            $pendingBookings = $activeBookings->filter(
-                fn ($b) => $b->status === BookingStatus::PENDING->value
-            );
-
-            // Reconstruct original seat count for creation fee refund calculation
-            $confirmedSeats = $confirmedBookings->sum('seats');
-            $pendingSeats = $pendingBookings->sum('seats');
-            $originalSeats = $ride->available_seats + $confirmedSeats + $pendingSeats;
-
-            // Snapshot booking existence NOW — before step 2 cancels them.
-            // refundCashRideCreationFee() needs to know whether passengers were
-            // present at the moment of cancellation, not after the wipe.
-            $hadActiveBookings = $activeBookings->isNotEmpty();
-
-            // Calculate elapsed % once — reused for score AND fee-refund notification.
+            // Calculate elapsed % once - reused for score AND fee-refund notification.
             $elapsedPct = ScoreService::calculateElapsedPct(
                 $ride->created_at,
                 Carbon::parse($ride->departure_time)
@@ -189,67 +151,39 @@ final class RideService
             $ride->save();
 
             // 2. Cancel every active booking
-            foreach ($activeBookings as $booking) {
+            foreach ($snapshot['active'] as $booking) {
                 $booking->status = BookingStatus::CANCELLED->value;
                 $booking->save();
             }
 
             // 3. Refund confirmed E-PAY passengers (pending were never charged)
-            if ($confirmedBookings->isNotEmpty()
-                && $ride->payment_method === PaymentMethod::E_PAY->value
-            ) {
-                $this->cancellationRefund->refundPassengersForDriverCancellation($ride, $confirmedBookings);
-            }
+            $this->refundConfirmedPassengers($ride, $snapshot['confirmed']);
 
             // 4. Refund or retain the driver's cash-ride creation fee.
-            //    Policy: elapsed < 30% → full refund always.
-            //            elapsed ≥ 30% + had passengers → platform keeps fee.
-            //            elapsed ≥ 30% + no passengers  → full refund.
-            if ($ride->payment_method === PaymentMethod::CASH->value) {
-                $this->cashRideFeeService->refundCashRideCreationFee($ride, $driver, $hadActiveBookings);
-            }
+            $this->refundCashCreationFee($ride, $driver, $snapshot['hadActiveBookings']);
 
             // 5. Score penalty for driver
             $this->scoreService->recordDriverCancelRide($driver, $ride, $elapsedPct);
 
             // 6. Notify all affected passengers
-            $this->notifyPassengersOnRideCancelled($ride, $confirmedBookings, $pendingBookings);
+            $this->notifyPassengersOnRideCancelled($ride, $snapshot['confirmed'], $snapshot['pending']);
 
-            // 7. Notify driver — fee outcome is conditional on cancellation policy
+            // 7. Notify driver - fee outcome is conditional on cancellation policy
             $feeKept = $ride->payment_method === PaymentMethod::CASH->value
                 && $elapsedPct >= 30.0
-                && $hadActiveBookings;
+                && $snapshot['hadActiveBookings'];
 
-            $feeMessage = match (true) {
-                $ride->payment_method !== PaymentMethod::CASH->value => '',
-                $feeKept => ' Your creation fee has been retained by the platform due to '
-                    .'late cancellation while passengers were booked.',
-                default => ' Your creation fee has been refunded in full.',
-            };
+            $this->notifyDriverOfRideCancellation($ride, $driver, $snapshot['active'], $elapsedPct, $feeKept);
 
-            $this->notificationService->createNotification(
-                $driver,
-                'ride_cancelled_driver',
-                'Ride Cancelled',
-                "Your ride from {$ride->pickup_address} to {$ride->destination_address} has been cancelled.{$feeMessage}",
-                [
-                    'ride_id' => $ride->id,
-                    'passengers_notified' => $activeBookings->count(),
-                    'elapsed_pct' => round($elapsedPct, 2),
-                    'creation_fee_kept' => $feeKept,
-                ],
-                'normal', 'ride'
-            );
-
-            broadcast(new RideCancelled($ride, $activeBookings->toArray(), $driver));
+            broadcast(new RideCancelled($ride, $snapshot['active']->toArray(), $driver));
 
             Log::info('Ride cancelled by driver', [
                 'ride_id' => $ride->id,
                 'driver_id' => $driver->id,
                 'elapsed_pct' => round($elapsedPct, 2),
-                'confirmed' => $confirmedBookings->count(),
-                'pending' => $pendingBookings->count(),
-                'original_seats' => $originalSeats,
+                'confirmed' => $snapshot['confirmed']->count(),
+                'pending' => $snapshot['pending']->count(),
+                'original_seats' => $snapshot['originalSeats'],
             ]);
 
             return $ride->fresh();
@@ -282,6 +216,24 @@ final class RideService
     {
         $ride = Ride::with('driver')->findOrFail($rideId);
 
+        $this->assertDriverMayFinishRide($ride, $driver);
+
+        $confirmedBookings = $ride->bookings()
+            ->where('status', BookingStatus::CONFIRMED->value)
+            ->get();
+
+        // Case A: empty ride - the driver is finished with no one to wait for.
+        if ($confirmedBookings->isEmpty()) {
+            return $this->finishEmptyRide($ride);
+        }
+
+        // Case B: confirmed passengers - await mutual confirmation.
+        return $this->awaitMutualConfirmation($ride);
+    }
+
+    /** Ownership, a finishable status, and departure already passed. */
+    private function assertDriverMayFinishRide(Ride $ride, User $driver): void
+    {
         if ($ride->driver_id !== $driver->id) {
             throw new \InvalidArgumentException('Only the ride driver can finish it');
         }
@@ -296,44 +248,44 @@ final class RideService
         if (now()->lessThan(Carbon::parse($ride->departure_time))) {
             throw new \InvalidArgumentException('Cannot finish a ride before its departure time');
         }
+    }
 
-        $confirmedBookings = $ride->bookings()
-            ->where('status', BookingStatus::CONFIRMED->value)
-            ->get();
+    /** Case A: finish immediately and refund the creation fee. */
+    private function finishEmptyRide(Ride $ride): array
+    {
+        return DB::transaction(function () use ($ride) {
+            $ride->status = RideStatus::FINISHED->value;
+            $ride->finished_at = now();
+            $ride->save();
 
-        // ── Case A: empty ride ────────────────────────────────────────────────
-        if ($confirmedBookings->isEmpty()) {
-            return DB::transaction(function () use ($ride) {
-                $ride->status = RideStatus::FINISHED->value;
-                $ride->finished_at = now();
-                $ride->save();
+            // Refund the creation fee (deferred -> debt reduction; paid -> wallet credit).
+            if ($ride->payment_method === PaymentMethod::CASH->value) {
+                $this->cashRideFeeService->refundCashRideCreationFee($ride, $ride->driver);
+            }
 
-                // Refund the creation fee (deferred → debt reduction; paid → wallet credit).
-                if ($ride->payment_method === PaymentMethod::CASH->value) {
-                    $this->cashRideFeeService->refundCashRideCreationFee($ride, $ride->driver);
-                }
+            $this->notificationService->createNotification(
+                $ride->driver,
+                'ride_finished_no_passengers',
+                'Ride Finished',
+                "Ride from {$ride->pickup_address} to {$ride->destination_address} finished. "
+                .'No passengers booked — creation fee refunded.',
+                ['ride_id' => $ride->id],
+                'normal', 'ride'
+            );
 
-                $this->notificationService->createNotification(
-                    $ride->driver,
-                    'ride_finished_no_passengers',
-                    'Ride Finished',
-                    "Ride from {$ride->pickup_address} to {$ride->destination_address} finished. "
-                    .'No passengers booked — creation fee refunded.',
-                    ['ride_id' => $ride->id],
-                    'normal', 'ride'
-                );
+            Log::info('Ride finished with no passengers', ['ride_id' => $ride->id]);
 
-                Log::info('Ride finished with no passengers', ['ride_id' => $ride->id]);
+            return [
+                'status' => RideStatus::FINISHED->value,
+                'message' => 'Ride finished. No passengers booked — creation fee refunded.',
+                'requires_confirmation' => false,
+            ];
+        });
+    }
 
-                return [
-                    'status' => RideStatus::FINISHED->value,
-                    'message' => 'Ride finished. No passengers booked — creation fee refunded.',
-                    'requires_confirmation' => false,
-                ];
-            });
-        }
-
-        // ── Case B: confirmed passengers — await mutual confirmation ──────────
+    /** Case B: move the ride to awaiting confirmation and ask everyone to confirm. */
+    private function awaitMutualConfirmation(Ride $ride): array
+    {
         return DB::transaction(function () use ($ride) {
             $ride->status = RideStatus::AWAITING_CONFIRMATION->value;
             $ride->finished_at = now();
@@ -426,13 +378,8 @@ final class RideService
                 ->where('status', BookingStatus::CONFIRMED->value)
                 ->get();
 
-            if ($confirmedBookings->isNotEmpty()) {
-                $allPassengersConfirmed = $confirmedBookings->every(
-                    fn ($b) => $b->passenger_confirmed_at !== null
-                );
-                if (! $allPassengersConfirmed) {
-                    return;
-                }
+            if (! $this->everyPassengerConfirmed($confirmedBookings)) {
+                return;
             }
 
             // ── Flip status to FINISHED *before* any side-effects ─────────
@@ -458,29 +405,8 @@ final class RideService
             // every booking with status='completed', so no extra loop needed.
             $this->scoreService->recordRideCompleted($ride);
 
-            // ── Notify driver ─────────────────────────────────────────────
-            $this->notificationService->createNotification(
-                $ride->driver,
-                'ride_completed',
-                'Ride Completed ✓',
-                "Your ride from {$ride->pickup_address} to {$ride->destination_address} is complete. Earnings released.",
-                ['ride_id' => $ride->id],
-                'high',
-                'ride'
-            );
-
-            // ── Notify each passenger ─────────────────────────────────────
-            foreach ($confirmedBookings as $booking) {
-                $this->notificationService->createNotification(
-                    $booking->user,
-                    'ride_completed',
-                    'Ride Completed ✓',
-                    "Your ride from {$ride->pickup_address} to {$ride->destination_address} is complete. Thank you!",
-                    ['ride_id' => $ride->id, 'booking_id' => $booking->id],
-                    'high',
-                    'ride'
-                );
-            }
+            // ── Notify driver and every passenger ─────────────────────────
+            $this->notifyRideCompleted($ride, $confirmedBookings);
 
             Log::info('Ride completed', [
                 'ride_id' => $ride->id,
@@ -544,6 +470,157 @@ final class RideService
     // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================
+
+    /**
+     * Lock the ride and refuse a cancellation by anyone but its creator.
+     *
+     * RV-37 / un9: the driver is read by the refund/notify/score paths in every one of
+     * these transactions - load it once, explicitly.
+     */
+    private function lockRideForCancellation(int $rideId, User $driver): Ride
+    {
+        $ride = Ride::lockForUpdate()->with('driver')->findOrFail($rideId);
+
+        if ($ride->driver_id !== $driver->id) {
+            throw new \InvalidArgumentException('Only the ride creator can cancel it');
+        }
+
+        $rideStatus = RideStatus::from($ride->status);
+        if ($rideStatus->isTerminal()) {
+            throw new \InvalidArgumentException(
+                "Cannot cancel a ride with status: {$rideStatus->label()}"
+            );
+        }
+
+        return $ride;
+    }
+
+    /**
+     * Snapshot the ride's active bookings before any status changes.
+     *
+     * `hadActiveBookings` is taken NOW - before the cancellations below - because
+     * refundCashRideCreationFee() needs to know whether passengers were present at the
+     * moment of cancellation, not after the wipe. `originalSeats` reconstructs the seat
+     * count the ride was created with.
+     *
+     * @return array{active: Collection, confirmed: Collection, pending: Collection, originalSeats: int, hadActiveBookings: bool}
+     */
+    private function snapshotRideBookings(Ride $ride): array
+    {
+        $activeBookings = $ride->bookings()
+            ->whereNotIn('status', [
+                BookingStatus::CANCELLED->value,
+                BookingStatus::COMPLETED->value,
+                Booking::NO_SHOW,
+            ])
+            ->with('user')
+            ->get();
+
+        $confirmedBookings = $activeBookings->filter(
+            fn ($b) => $b->status === BookingStatus::CONFIRMED->value
+        );
+        $pendingBookings = $activeBookings->filter(
+            fn ($b) => $b->status === BookingStatus::PENDING->value
+        );
+
+        return [
+            'active' => $activeBookings,
+            'confirmed' => $confirmedBookings,
+            'pending' => $pendingBookings,
+            'originalSeats' => $ride->available_seats + $confirmedBookings->sum('seats') + $pendingBookings->sum('seats'),
+            'hadActiveBookings' => $activeBookings->isNotEmpty(),
+        ];
+    }
+
+    /** Refund confirmed E-PAY passengers; pending bookings were never charged. */
+    private function refundConfirmedPassengers(Ride $ride, Collection $confirmedBookings): void
+    {
+        if ($confirmedBookings->isNotEmpty()
+            && $ride->payment_method === PaymentMethod::E_PAY->value
+        ) {
+            $this->cancellationRefund->refundPassengersForDriverCancellation($ride, $confirmedBookings);
+        }
+    }
+
+    /**
+     * Refund or retain the driver's cash-ride creation fee.
+     *
+     * Policy: elapsed < 30%                -> full refund always.
+     *         elapsed >= 30% + had passengers -> platform keeps the fee.
+     *         elapsed >= 30% + no passengers  -> full refund.
+     */
+    private function refundCashCreationFee(Ride $ride, User $driver, bool $hadActiveBookings): void
+    {
+        if ($ride->payment_method === PaymentMethod::CASH->value) {
+            $this->cashRideFeeService->refundCashRideCreationFee($ride, $driver, $hadActiveBookings);
+        }
+    }
+
+    /**
+     * Tell the driver their ride is cancelled, including the creation-fee outcome.
+     */
+    private function notifyDriverOfRideCancellation(
+        Ride $ride,
+        User $driver,
+        Collection $activeBookings,
+        float $elapsedPct,
+        bool $feeKept
+    ): void {
+        $feeMessage = match (true) {
+            $ride->payment_method !== PaymentMethod::CASH->value => '',
+            $feeKept => ' Your creation fee has been retained by the platform due to '
+                .'late cancellation while passengers were booked.',
+            default => ' Your creation fee has been refunded in full.',
+        };
+
+        $this->notificationService->createNotification(
+            $driver,
+            'ride_cancelled_driver',
+            'Ride Cancelled',
+            "Your ride from {$ride->pickup_address} to {$ride->destination_address} has been cancelled.{$feeMessage}",
+            [
+                'ride_id' => $ride->id,
+                'passengers_notified' => $activeBookings->count(),
+                'elapsed_pct' => round($elapsedPct, 2),
+                'creation_fee_kept' => $feeKept,
+            ],
+            'normal', 'ride'
+        );
+    }
+
+    /** An empty set counts as confirmed: there is no passenger left to wait for. */
+    private function everyPassengerConfirmed(Collection $confirmedBookings): bool
+    {
+        return $confirmedBookings->every(
+            fn ($b) => $b->passenger_confirmed_at !== null
+        );
+    }
+
+    /** Tell the driver and every confirmed passenger that the ride is complete. */
+    private function notifyRideCompleted(Ride $ride, Collection $confirmedBookings): void
+    {
+        $this->notificationService->createNotification(
+            $ride->driver,
+            'ride_completed',
+            'Ride Completed ✓',
+            "Your ride from {$ride->pickup_address} to {$ride->destination_address} is complete. Earnings released.",
+            ['ride_id' => $ride->id],
+            'high',
+            'ride'
+        );
+
+        foreach ($confirmedBookings as $booking) {
+            $this->notificationService->createNotification(
+                $booking->user,
+                'ride_completed',
+                'Ride Completed ✓',
+                "Your ride from {$ride->pickup_address} to {$ride->destination_address} is complete. Thank you!",
+                ['ride_id' => $ride->id, 'booking_id' => $booking->id],
+                'high',
+                'ride'
+            );
+        }
+    }
 
     /**
      * Notify the driver and every confirmed passenger to confirm completion.

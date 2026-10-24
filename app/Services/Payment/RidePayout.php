@@ -3,7 +3,6 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
-use App\Enums\WalletKind;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
@@ -11,7 +10,6 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Support\FeeSplit;
 use App\Support\PostingKey;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,13 +18,12 @@ use Illuminate\Support\Str;
 /** Money path split out of WalletTransactionService (behaviour unchanged). */
 class RidePayout
 {
-
     public function __construct(
         private readonly WalletAccess $access,
         private readonly LedgerService $ledger = new LedgerService,
     ) {}
 
-/**
+    /**
      * Release escrow after all parties confirm ride completion.
      *
      * SyCash → Driver  (95%)
@@ -48,9 +45,7 @@ class RidePayout
         // transfer and the ride could never complete. See App\Support\FeeSplit.
         ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);
 
-        $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
-        $primaryWallet = $this->access->lockWalletByPhone(config('admin.system_admin.phone'));
-        $driverWallet = $this->access->lockWalletByUserId($ride->driver_id);
+        [$syCashWallet, $primaryWallet, $driverWallet] = $this->lockPayoutWallets($ride->driver_id);
 
         $this->access->assertSufficientBalance(
             $syCashWallet,
@@ -58,12 +53,40 @@ class RidePayout
             "Insufficient SyCash balance for payout. Required: {$total}"
         );
 
+        $escrowOutKey = $this->debitEscrowForRideCompletionSet($ride, $confirmedBookings);
+
+        $prev = $this->applyCompletionPayout($syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare);
+
+        $txId = 'COMPLETE_'.time().'_'.Str::random(6);
+
+        $this->recordEscrowReleasedRow($ride, $syCashWallet, (float) $prev['sycash'], $total, $escrowOutKey, $txId);
+
+        // Driver receives 95% and the platform 5%: one row each, written in helpers.
+        $this->recordDriverShare($ride, $driverShare, $driverWallet, (float) $prev['driver'], $txId);
+
+        $this->recordPlatformShare($ride, $primaryShare, $primaryWallet, (float) $prev['primary'], $txId);
+
+        $this->postCompletionTransfer($ride, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare);
+
+        Log::info('Ride earnings released', [
+            'ride_id' => $ride->id,
+            'driver_share' => $driverShare,
+            'primary_share' => $primaryShare,
+        ]);
+    }
+
+    /**
+     * RV-02 L2 (D1) for the whole-set completion release: both escrow guards, then the debit.
+     *
+     * One wallet debit happens in the caller, but the escrow is PER BOOKING, so each confirmed
+     * booking is decremented on its own row for exactly the share of `$total` it contributed
+     * (`$total` is the sum of those same per-booking amounts). The posting key names the ride
+     * AND the settled set, so re-running this same completion cannot pay again, while
+     * cancelling a different subset of the same ride is still a distinct movement.
+     */
+    private function debitEscrowForRideCompletionSet(Ride $ride, Collection $confirmedBookings): string
+    {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
-        // One wallet debit here, but the escrow is PER BOOKING, so each confirmed booking is
-        // decremented on its own row for exactly the share of `$total` it contributed
-        // (`$total` is the sum of those same per-booking amounts). The posting key names the ride
-        // AND the settled set, so re-running this same completion cannot pay again, while
-        // cancelling a different subset of the same ride is still a distinct movement.
         $escrowOutKey = PostingKey::buildForSet($ride->id, 'ride-complete', $confirmedBookings);
         $this->access->assertPostingKeyUnused($escrowOutKey);
         $this->access->debitEscrowForSet(
@@ -71,10 +94,24 @@ class RidePayout
             fn (Booking $b) => (float) $b->seats * (float) $ride->price_per_seat
         );
 
-        $syCashPrev = $syCashWallet->balance;
-        $driverPrev = $driverWallet->balance;
-        $primaryPrev = $primaryWallet->balance;
+        return $escrowOutKey;
+    }
 
+    /**
+     * Snapshot the three previous balances, apply the 95/5 payout and persist the wallets.
+     *
+     * @return array{sycash: mixed, driver: mixed, primary: mixed}
+     */
+    private function applyCompletionPayout(Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare): array
+    {
+        // ── Snapshot previous balances ────────────────────────────────────────────
+        $prev = [
+            'sycash' => $syCashWallet->balance,
+            'driver' => $driverWallet->balance,
+            'primary' => $primaryWallet->balance,
+        ];
+
+        // ── Apply balance changes ─────────────────────────────────────────────────
         $syCashWallet->balance -= $total;
         $driverWallet->balance += $driverShare;
         $primaryWallet->balance += $primaryShare;
@@ -83,8 +120,12 @@ class RidePayout
         $driverWallet->save();
         $primaryWallet->save();
 
-        $txId = 'COMPLETE_'.time().'_'.Str::random(6);
+        return $prev;
+    }
 
+    /** SyCash debit row for a whole-set completion release: the escrow that left SyCash. */
+    private function recordEscrowReleasedRow(Ride $ride, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId): void
+    {
         // SyCash debit
         WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
@@ -99,20 +140,21 @@ class RidePayout
             'reference' => "ride:{$ride->id}",
             'posting_key' => $escrowOutKey,
         ]);
+    }
 
-        // Driver receives 95% and the platform 5%: one row each, written in helpers.
-        $this->recordDriverShare($ride, $driverShare, $driverWallet, $driverPrev, $txId);
-
-        $this->recordPlatformShare($ride, $primaryShare, $primaryWallet, $primaryPrev, $txId);
-
-        // ── Decision un3: double-entry legs for the 95/5 split ─────────────────
-        // THIS is the transfer that most needed a ledger. One wallet gives, TWO receive: the split
-        // is not two independent events, it is one event with two outcomes, and the single-sided rows
-        // above cannot state that. A `from`/`to` pair of columns could not express it either, which
-        // is why the ledger is N legs per transfer.
-        //
-        // The sum is checked by `postTransfer`, so if the 95/5 arithmetic ever drifts from `$total`
-        // the transfer is REFUSED rather than silently creating or destroying money.
+    /**
+     * Decision un3: double-entry legs for the 95/5 split.
+     *
+     * THIS is the transfer that most needed a ledger. One wallet gives, TWO receive: the split
+     * is not two independent events, it is one event with two outcomes, and the single-sided rows
+     * above cannot state that. A `from`/`to` pair of columns could not express it either, which
+     * is why the ledger is N legs per transfer.
+     *
+     * The sum is checked by `postTransfer`, so if the 95/5 arithmetic ever drifts from `$total`
+     * the transfer is REFUSED rather than silently creating or destroying money.
+     */
+    private function postCompletionTransfer(Ride $ride, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare): void
+    {
         $this->ledger->postTransfer([
             [
                 'wallet_id' => $syCashWallet->id,
@@ -130,15 +172,9 @@ class RidePayout
                 'description' => "ride #{$ride->id}: platform fee 5%",
             ],
         ]);
-
-        Log::info('Ride earnings released', [
-            'ride_id' => $ride->id,
-            'driver_share' => $driverShare,
-            'primary_share' => $primaryShare,
-        ]);
     }
 
-/** Driver share of a completed ride (95%): the earnings row. */
+    /** Driver share of a completed ride (95%): the earnings row. */
     public function recordDriverShare(Ride $ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): void
     {
         WalletTransaction::create([
@@ -155,7 +191,7 @@ class RidePayout
         ]);
     }
 
-/** Platform share of a completed ride (5%): the platform fee row. */
+    /** Platform share of a completed ride (5%): the platform fee row. */
     public function recordPlatformShare(Ride $ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): void
     {
         WalletTransaction::create([
@@ -172,7 +208,7 @@ class RidePayout
         ]);
     }
 
-/**
+    /**
      * Release ONE passenger's escrowed share to the driver.
      *
      * Called by BookingService::passengerConfirmCompletion() once per booking
@@ -193,9 +229,7 @@ class RidePayout
         ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);
 
         // ── Lock all three wallets (same order as everywhere else to prevent deadlock) ──
-        $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
-        $primaryWallet = $this->access->lockWalletByPhone(config('admin.system_admin.phone'));
-        $driverWallet = $this->access->lockWalletByUserId($driver->id);
+        [$syCashWallet, $primaryWallet, $driverWallet] = $this->lockPayoutWallets($driver->id);
 
         // ── Guard: SyCash must have enough to release ─────────────────────────────
         $this->access->assertSufficientBalance(
@@ -205,29 +239,10 @@ class RidePayout
             ."Required: {$total} SYP. Available: {$syCashWallet->balance} SYP."
         );
 
-        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
-        // This is the per-passenger counterpart of releaseEarningsToDriver(). The two cannot both
-        // pay for the same booking — `passengerConfirmCompletion` marks the booking COMPLETED
-        // before calling here, and `checkAndCompleteRide` only settles bookings still CONFIRMED —
-        // but that exclusion lives in the CALLER. These guards make the guarantee hold at the
-        // money layer itself, so a caller that gets that filter wrong can no longer pay twice.
-        $escrowOutKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-out', 'release');
-        $this->access->assertPostingKeyUnused($escrowOutKey);
-        $this->access->debitEscrow($booking, $total);
+        $escrowOutKey = $this->debitEscrowForBookingRelease($booking, $total);
 
         // ── Snapshot previous balances ────────────────────────────────────────────
-        $syCashPrev = (float) $syCashWallet->balance;
-        $driverPrev = (float) $driverWallet->balance;
-        $primaryPrev = (float) $primaryWallet->balance;
-
-        // ── Apply balance changes ─────────────────────────────────────────────────
-        $syCashWallet->balance = $syCashPrev - $total;
-        $driverWallet->balance = $driverPrev + $driverShare;
-        $primaryWallet->balance = $primaryPrev + $primaryShare;
-
-        $syCashWallet->save();
-        $driverWallet->save();
-        $primaryWallet->save();
+        $prev = $this->applyPerPassengerRelease($syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare);
 
         // ── Transaction IDs ───────────────────────────────────────────────────────
         $ts = now()->timestamp;
@@ -235,6 +250,73 @@ class RidePayout
         $txRef = "booking:{$booking->id}";
 
         // ── 1. SyCash debit (escrow released) ────────────────────────────────────
+        $this->recordEscrowReleaseRow($booking, $syCashWallet, $prev['sycash'], $total, $escrowOutKey, $txId, $txRef);
+
+        // ── 2. Driver credit (95%) ────────────────────────────────────────────────
+        $this->recordDriverEarningRow($booking, $driver, $driverWallet, $prev['driver'], $driverShare, $txId, $txRef);
+
+        // ── 3. Primary Admin credit (5%) ──────────────────────────────────────────
+        $this->recordPlatformFeeRow($booking, $primaryWallet, $prev['primary'], $primaryShare, $txId, $txRef);
+
+        $this->postPerPassengerTransfer($booking, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare);
+
+        Log::info('Escrow released per passenger confirmation', [
+            'booking_id' => $booking->id,
+            'ride_id' => $ride->id,
+            'driver_id' => $driver->id,
+            'total' => $total,
+            'driver_share' => $driverShare,
+            'primary_share' => $primaryShare,
+        ]);
+    }
+
+    /**
+     * RV-02 L2 (D1) for one passenger's release: both escrow guards, then the debit.
+     *
+     * This is the per-passenger counterpart of releaseEarningsToDriver(). The two cannot both
+     * pay for the same booking — `passengerConfirmCompletion` marks the booking COMPLETED
+     * before calling here, and `checkAndCompleteRide` only settles bookings still CONFIRMED —
+     * but that exclusion lives in the CALLER. These guards make the guarantee hold at the
+     * money layer itself, so a caller that gets that filter wrong can no longer pay twice.
+     */
+    private function debitEscrowForBookingRelease(Booking $booking, float $total): string
+    {
+        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
+        $escrowOutKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-out', 'release');
+        $this->access->assertPostingKeyUnused($escrowOutKey);
+        $this->access->debitEscrow($booking, $total);
+
+        return $escrowOutKey;
+    }
+
+    /**
+     * Snapshot the three previous balances as floats, apply the per-passenger payout and persist.
+     *
+     * @return array{sycash: float, driver: float, primary: float}
+     */
+    private function applyPerPassengerRelease(Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare): array
+    {
+        $prev = [
+            'sycash' => (float) $syCashWallet->balance,
+            'driver' => (float) $driverWallet->balance,
+            'primary' => (float) $primaryWallet->balance,
+        ];
+
+        // ── Apply balance changes ─────────────────────────────────────────────────
+        $syCashWallet->balance = $prev['sycash'] - $total;
+        $driverWallet->balance = $prev['driver'] + $driverShare;
+        $primaryWallet->balance = $prev['primary'] + $primaryShare;
+
+        $syCashWallet->save();
+        $driverWallet->save();
+        $primaryWallet->save();
+
+        return $prev;
+    }
+
+    /** Per-passenger escrow release: the SyCash debit row for that booking. */
+    private function recordEscrowReleaseRow(Booking $booking, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId, string $txRef): void
+    {
         WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
@@ -248,8 +330,11 @@ class RidePayout
             'reference' => $txRef,
             'posting_key' => $escrowOutKey,
         ]);
+    }
 
-        // ── 2. Driver credit (95%) ────────────────────────────────────────────────
+    /** Per-passenger escrow release: the driver's 95% earnings row for that booking. */
+    private function recordDriverEarningRow(Booking $booking, User $driver, Wallet $driverWallet, float $driverPrev, float $driverShare, string $txId, string $txRef): void
+    {
         WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
             'user_id' => $driver->id,
@@ -262,8 +347,11 @@ class RidePayout
             'status' => 'completed',
             'reference' => $txRef,
         ]);
+    }
 
-        // ── 3. Primary Admin credit (5%) ──────────────────────────────────────────
+    /** Per-passenger escrow release: the platform's 5% fee row for that booking. */
+    private function recordPlatformFeeRow(Booking $booking, Wallet $primaryWallet, float $primaryPrev, float $primaryShare, string $txId, string $txRef): void
+    {
         WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
             'user_id' => null,
@@ -276,25 +364,36 @@ class RidePayout
             'status' => 'completed',
             'reference' => $txRef,
         ]);
+    }
 
-        // ── Decision un3: double-entry legs (95/5, per booking) ─────────────────
-        // This method derives `$primaryShare` by SUBTRACTING rather than multiplying by 0.05, to
-        // avoid float drift. That care is invisible in the balances, but the ledger is where it
-        // becomes checkable: if the two shares ever stop summing to `$total`, the legs do not
-        // balance and the transfer is refused instead of quietly creating or destroying money.
+    /**
+     * Decision un3: double-entry legs (95/5, per booking).
+     *
+     * This method derives `$primaryShare` by SUBTRACTING rather than multiplying by 0.05, to
+     * avoid float drift. That care is invisible in the balances, but the ledger is where it
+     * becomes checkable: if the two shares ever stop summing to `$total`, the legs do not
+     * balance and the transfer is refused instead of quietly creating or destroying money.
+     */
+    private function postPerPassengerTransfer(Booking $booking, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare): void
+    {
         $this->ledger->postTransfer([
             ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: escrow released"],
             ['wallet_id' => $driverWallet->id, 'amount' => $driverShare, 'description' => "booking #{$booking->id}: driver share 95%"],
             ['wallet_id' => $primaryWallet->id, 'amount' => $primaryShare, 'description' => "booking #{$booking->id}: platform fee 5%"],
         ]);
+    }
 
-        Log::info('Escrow released per passenger confirmation', [
-            'booking_id' => $booking->id,
-            'ride_id' => $ride->id,
-            'driver_id' => $driver->id,
-            'total' => $total,
-            'driver_share' => $driverShare,
-            'primary_share' => $primaryShare,
-        ]);
+    /**
+     * Lock SyCash, Primary Admin and the driver wallet in the shared deadlock-safe order.
+     *
+     * @return array{0: Wallet, 1: Wallet, 2: Wallet} SyCash, Primary, Driver
+     */
+    private function lockPayoutWallets(int $driverId): array
+    {
+        $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
+        $primaryWallet = $this->access->lockWalletByPhone(config('admin.system_admin.phone'));
+        $driverWallet = $this->access->lockWalletByUserId($driverId);
+
+        return [$syCashWallet, $primaryWallet, $driverWallet];
     }
 }

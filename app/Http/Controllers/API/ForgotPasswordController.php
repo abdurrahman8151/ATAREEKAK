@@ -59,12 +59,19 @@ class ForgotPasswordController extends Controller
         // observable from the HTTP response. A real account must still get its code, so the
         // success branch is left exactly as it was.
         if (! $user) {
-            return response()->json([
-                'success' => true,
-                'message' => 'A 6-digit verification code has been sent to '.$email.'. It expires in 10 minutes.',
-            ]);
+            return $this->codeSentResponse($email);
         }
 
+        return $this->sendResetCode($email, $user);
+    }
+
+    /**
+     * Send the PASSWORD_RESET code and answer with the shared 200 body.
+     *
+     * Only a real, existing account reaches here.
+     */
+    private function sendResetCode(string $email, $user): JsonResponse
+    {
         $dto = new SendEmailOtpDTO(
             email: Email::from($email),
             userName: $user->first_name,
@@ -80,14 +87,24 @@ class ForgotPasswordController extends Controller
             ], 500);
         }
 
+        return $this->codeSentResponse($email, $result['otp_code'] ?? null);
+    }
+
+    /**
+     * The one 200 body the unknown-address and the sent-code branches both return.
+     *
+     * `otp_code` is attached only when the service supplied one (local/testing).
+     */
+    private function codeSentResponse(string $email, ?string $otpCode = null): JsonResponse
+    {
         $response = [
             'success' => true,
             'message' => 'A 6-digit verification code has been sent to '.$email.'. It expires in 10 minutes.',
         ];
 
         // Expose OTP only in local/testing environments
-        if (isset($result['otp_code'])) {
-            $response['otp_code'] = $result['otp_code'];
+        if ($otpCode !== null) {
+            $response['otp_code'] = $otpCode;
         }
 
         return response()->json($response);

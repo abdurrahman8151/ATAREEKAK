@@ -51,18 +51,7 @@ class WhatsAppOtpService
                 ];
             }
 
-            $this->otpRepository->deleteByPhone($validatedPhone);
-
-            $otpCode = Otp::generateCode();
-
-            $otp = $this->otpRepository->create([
-                'phone_number' => $validatedPhone,
-                'otp_code' => $otpCode,
-                'type' => $type,
-                'expires_at' => Carbon::now()->addMinutes(10),
-                'is_verified' => false,
-                'attempts' => 0,
-            ]);
+            [$otpCode, $otp] = $this->issueOtp($validatedPhone, $type);
 
             // ── TESTING MODE ─────────────────────────────────────────────────────
             // FIX: also check app()->environment('testing') so phpunit runs always
@@ -86,29 +75,60 @@ class WhatsAppOtpService
                 ];
             }
 
-            $sent = $this->sendViaCallMeBot($validatedPhone, $otpCode);
-
-            if (! $sent) {
-                Log::error("Failed to send OTP to $validatedPhone");
-
-                return [
-                    'success' => false,
-                    'message' => 'Failed to send OTP. Please try again.',
-                ];
-            }
-
-            Log::info("OTP sent (production) to $validatedPhone");
-
-            return [
-                'success' => true,
-                'message' => 'OTP sent successfully via WhatsApp',
-                'expires_at' => $otp->expires_at->toDateTimeString(),
-            ];
+            return $this->dispatchViaProvider($validatedPhone, $otpCode, $otp);
         } catch (\Exception $e) {
             Log::error('OTP send error: '.$e->getMessage());
 
             return ['success' => false, 'message' => 'Failed to send OTP. Please try again.'];
         }
+    }
+
+    /**
+     * Delete any outstanding codes for the phone and persist the new OTP record.
+     *
+     * @return array{0: string, 1: Otp}
+     */
+    private function issueOtp(string $validatedPhone, string $type): array
+    {
+        $this->otpRepository->deleteByPhone($validatedPhone);
+
+        $otpCode = Otp::generateCode();
+
+        $otp = $this->otpRepository->create([
+            'phone_number' => $validatedPhone,
+            'otp_code' => $otpCode,
+            'type' => $type,
+            'expires_at' => Carbon::now()->addMinutes(10),
+            'is_verified' => false,
+            'attempts' => 0,
+        ]);
+
+        return [$otpCode, $otp];
+    }
+
+    /**
+     * Call the CallMeBot provider and shape the result of that call.
+     */
+    private function dispatchViaProvider(string $validatedPhone, string $otpCode, Otp $otp): array
+    {
+        $sent = $this->sendViaCallMeBot($validatedPhone, $otpCode);
+
+        if (! $sent) {
+            Log::error("Failed to send OTP to $validatedPhone");
+
+            return [
+                'success' => false,
+                'message' => 'Failed to send OTP. Please try again.',
+            ];
+        }
+
+        Log::info("OTP sent (production) to $validatedPhone");
+
+        return [
+            'success' => true,
+            'message' => 'OTP sent successfully via WhatsApp',
+            'expires_at' => $otp->expires_at->toDateTimeString(),
+        ];
     }
 
     /**

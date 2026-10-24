@@ -45,64 +45,114 @@ class LoginHandler
         $user = $this->userRepository->findByEmail($request->email);
 
         if (! $user) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid credentials',
-                'code' => 'INVALID_CREDENTIALS',
-            ], 401);
+            return $this->invalidCredentialsResponse();
         }
 
         // ── Verify password ───────────────────────────────────────────────────
         if (! Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid credentials',
-                'code' => 'INVALID_CREDENTIALS',
-            ], 401);
+            return $this->invalidCredentialsResponse();
         }
 
+        $refusal = $this->refuseUnverifiedEmail($user);
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $refusal = $this->refuseBannedAccount($user);
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $this->liftExpiredBan($user);
+
+        // ── All checks passed — issue tokens ──────────────────────────────────
+        return $this->issueTokens($user);
+    }
+
+    /**
+     * The one 401 refusal shared by "no such email" and "wrong password".
+     *
+     * Keeping a single body is deliberate: the two cases must be indistinguishable.
+     */
+    private function invalidCredentialsResponse(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid credentials',
+            'code' => 'INVALID_CREDENTIALS',
+        ], 401);
+    }
+
+    /**
+     * The EMAIL_NOT_VERIFIED refusal, or null when the address is verified.
+     */
+    private function refuseUnverifiedEmail($user): ?JsonResponse
+    {
         // ── Block unverified email ────────────────────────────────────────────
         // Users who registered but never submitted the OTP are blocked here.
         // email_verified_at is set by EmailVerificationController::verify()
         // only after the correct OTP is submitted.
-        if (! $user->email_verified_at) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Your email address is not verified. '
-                    .'Please check your inbox for the verification code.',
-                'code' => 'EMAIL_NOT_VERIFIED',
-                'email' => $user->email,
-            ], 403);
+        if ($user->email_verified_at) {
+            return null;
         }
 
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Your email address is not verified. '
+                .'Please check your inbox for the verification code.',
+            'code' => 'EMAIL_NOT_VERIFIED',
+            'email' => $user->email,
+        ], 403);
+    }
+
+    /**
+     * The ACCOUNT_BANNED refusal, or null when the account is not banned right now.
+     */
+    private function refuseBannedAccount($user): ?JsonResponse
+    {
         // ── Block banned accounts ─────────────────────────────────────────────
         // RV-12: honour ban_expires_at. The middleware auto-lifts expired bans, but
         // it only runs for AUTHENTICATED requests, and a banned user's tokens were
         // revoked at ban time — login was the only remaining door, and it ignored
         // the expiry, so an expired TEMPORARY ban locked the user out forever.
         // isBannedNow() is the single source of truth (status -1 AND not expired).
-        if ($user->isBannedNow()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Your account has been suspended. Please contact support.',
-                'code' => 'ACCOUNT_BANNED',
-            ], 403);
+        if (! $user->isBannedNow()) {
+            return null;
         }
 
-        if ($user->banHasExpired()) {
-            // The ban is no longer in force: clear the dead ban fields so the row
-            // cannot be mistaken for an active ban by anything reading it, exactly
-            // as the middleware's auto-lift does.
-            $user->update([
-                'ban_reason' => null,
-                'ban_type' => null,
-                'banned_at' => null,
-                'ban_expires_at' => null,
-                'banned_by' => null,
-            ]);
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Your account has been suspended. Please contact support.',
+            'code' => 'ACCOUNT_BANNED',
+        ], 403);
+    }
+
+    /**
+     * Clear the dead ban columns when the temporary ban has already expired.
+     */
+    private function liftExpiredBan($user): void
+    {
+        if (! $user->banHasExpired()) {
+            return;
         }
 
-        // ── All checks passed — issue tokens ──────────────────────────────────
+        // The ban is no longer in force: clear the dead ban fields so the row
+        // cannot be mistaken for an active ban by anything reading it, exactly
+        // as the middleware's auto-lift does.
+        $user->update([
+            'ban_reason' => null,
+            'ban_type' => null,
+            'banned_at' => null,
+            'ban_expires_at' => null,
+            'banned_by' => null,
+        ]);
+    }
+
+    /**
+     * Flip the account active and hand back the 200 token body.
+     */
+    private function issueTokens($user): JsonResponse
+    {
         $this->userRepository->updateUserStatus($user->id, 1);
 
         $user->refresh();

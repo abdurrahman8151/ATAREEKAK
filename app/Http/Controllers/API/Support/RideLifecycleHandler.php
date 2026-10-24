@@ -99,35 +99,8 @@ class RideLifecycleHandler
         $validated = $request->validated();
 
         try {
-            if (empty($validated['pickup_address'])) {
-                $validated['pickup_address'] = $this->geocodingService->reverseGeocode(
-                    $validated['pickup_lat'],
-                    $validated['pickup_lng']
-                );
-            }
-            if (empty($validated['destination_address'])) {
-                $validated['destination_address'] = $this->geocodingService->reverseGeocode(
-                    $validated['destination_lat'],
-                    $validated['destination_lng']
-                );
-            }
-            if (empty($validated['route_geometry']) || empty($validated['distance']) || empty($validated['duration'])) {
-                $route = $this->routeService->getRouteDetails(
-                    ['lat' => $validated['pickup_lat'],      'lng' => $validated['pickup_lng']],
-                    ['lat' => $validated['destination_lat'], 'lng' => $validated['destination_lng']]
-                );
-                // The guard above tests empty(), so the fill MUST test empty() too. `??` only
-                // replaces null/absent, so a client sending distance=0 or duration=0 (both legal:
-                // `numeric|min:0`) or route_geometry=[] (legal: `array`) tripped the guard and
-                // then kept its own degenerate value while the server filled the OTHER fields -
-                // storing a real server geometry beside a zero distance. Server-derived metres
-                // are authoritative here (D6 = B), so fill exactly what the guard flagged.
-                $validated['distance'] = empty($validated['distance']) ? $route['distance'] : $validated['distance'];
-                $validated['duration'] = empty($validated['duration']) ? $route['duration'] : $validated['duration'];
-                $validated['route_geometry'] = empty($validated['route_geometry'])
-                    ? ['type' => 'LineString', 'coordinates' => $route['geometry']]
-                    : $validated['route_geometry'];
-            }
+            $validated = $this->fillMissingAddresses($validated);
+            $validated = $this->fillMissingRouteSummary($validated);
 
             $dto = CreateRideDTO::fromRequest($validated, $request->user()->id);
             $ride = $this->rideService->createRide($dto, $request->user());
@@ -139,16 +112,82 @@ class RideLifecycleHandler
             ], 201);
 
         } catch (\InvalidArgumentException $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
+            return $this->invalidArgumentResponse($e);
         } catch (\Throwable $e) {
-            Log::error('Create ride with route failed', [
-                'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
-                'class' => get_class($e),
-            ]);
-
-            return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 500);
+            return $this->unexpectedCreateFailure($e, $request->user()->id);
         }
+    }
+
+    /**
+     * Reverse-geocode any address the client left out, keeping the coordinates it sent.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function fillMissingAddresses(array $validated): array
+    {
+        if (empty($validated['pickup_address'])) {
+            $validated['pickup_address'] = $this->geocodingService->reverseGeocode(
+                $validated['pickup_lat'],
+                $validated['pickup_lng']
+            );
+        }
+        if (empty($validated['destination_address'])) {
+            $validated['destination_address'] = $this->geocodingService->reverseGeocode(
+                $validated['destination_lat'],
+                $validated['destination_lng']
+            );
+        }
+
+        return $validated;
+    }
+
+    /**
+     * Fill distance, duration and geometry from the routing service when the guard below flags
+     * any of them as empty.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function fillMissingRouteSummary(array $validated): array
+    {
+        if (empty($validated['route_geometry']) || empty($validated['distance']) || empty($validated['duration'])) {
+            $route = $this->routeService->getRouteDetails(
+                ['lat' => $validated['pickup_lat'],      'lng' => $validated['pickup_lng']],
+                ['lat' => $validated['destination_lat'], 'lng' => $validated['destination_lng']]
+            );
+            // The guard above tests empty(), so the fill MUST test empty() too. `??` only
+            // replaces null/absent, so a client sending distance=0 or duration=0 (both legal:
+            // `numeric|min:0`) or route_geometry=[] (legal: `array`) tripped the guard and
+            // then kept its own degenerate value while the server filled the OTHER fields -
+            // storing a real server geometry beside a zero distance. Server-derived metres
+            // are authoritative here (D6 = B), so fill exactly what the guard flagged.
+            $validated['distance'] = empty($validated['distance']) ? $route['distance'] : $validated['distance'];
+            $validated['duration'] = empty($validated['duration']) ? $route['duration'] : $validated['duration'];
+            $validated['route_geometry'] = empty($validated['route_geometry'])
+                ? ['type' => 'LineString', 'coordinates' => $route['geometry']]
+                : $validated['route_geometry'];
+        }
+
+        return $validated;
+    }
+
+    private function invalidArgumentResponse(\InvalidArgumentException $e): JsonResponse
+    {
+        $message = $e->getMessage();
+
+        return response()->json(['status' => 'error', 'message' => $message], 422);
+    }
+
+    private function unexpectedCreateFailure(\Throwable $e, int $userId): JsonResponse
+    {
+        Log::error('Create ride with route failed', [
+            'user_id' => $userId,
+            'error' => $e->getMessage(),
+            'class' => get_class($e),
+        ]);
+
+        return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 500);
     }
 
     public function index(Request $request): JsonResponse

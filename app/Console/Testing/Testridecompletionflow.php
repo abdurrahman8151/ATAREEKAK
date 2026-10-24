@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Testing;
 
+use App\Console\Commands\GuardsAgainstProductionExecution;
 use App\Enums\BookingStatus;
 use App\Enums\BookingType;
 use App\Enums\RideStatus;
@@ -59,63 +60,14 @@ class Testridecompletionflow extends Command
 
         try {
             $this->info('  [1/3] Creating test scenario…');
-            $driver = $this->makeUser('Driver');
-            $passengers = array_map(fn ($i) => $this->makeUser("Passenger {$i}"), range(1, $numPass));
-            $ride = $this->makeRide($driver, $payment, $numPass);
-            $bookings = array_map(fn ($p) => $this->makeBooking($ride, $p), $passengers);
-
-            $this->printState('INITIAL STATE', $ride->fresh(), array_map(fn ($b) => $b->fresh(), $bookings));
+            [$ride, $passengers, $bookings] = $this->createScenario($payment, $numPass);
 
             $this->info("\n  [2/3] Running confirmations…");
-            $allOk = true;
-
-            foreach ($passengers as $i => $passenger) {
-                $n = $i + 1;
-                $booking = $bookings[$i];
-
-                $this->line("\n  <fg=cyan>── Passenger {$n} confirms (".$passenger->first_name.' '.$passenger->last_name.') ──────────────────</>');
-
-                try {
-                    $result = $bookingService->passengerConfirmCompletion($booking->id, $passenger);
-
-                    $icon = $result['ride_finished'] ? '🏁' : '✅';
-                    $label = $result['ride_finished'] ? '<fg=blue>YES — ride finished</>' : '<fg=yellow>NO — more passengers pending</>';
-                    $this->line("  {$icon} {$result['message']}");
-                    $this->line("     ride_complete → {$label}");
-                } catch (\Throwable $e) {
-                    $this->error("\n  ✗ passengerConfirmCompletion() THREW:");
-                    $this->error('    '.get_class($e).': '.$e->getMessage());
-                    $this->line('    File: '.$e->getFile().':'.$e->getLine());
-                    $this->line("\n  Stack trace:");
-                    foreach (array_slice(explode("\n", $e->getTraceAsString()), 0, 10) as $frame) {
-                        $this->line("    {$frame}");
-                    }
-                    $allOk = false;
-                    break;
-                }
-
-                $this->printState(
-                    "STATE AFTER PASSENGER {$n}",
-                    $ride->fresh(),
-                    array_map(fn ($b) => $b->fresh(), $bookings)
-                );
-            }
+            $allOk = $this->runConfirmations($bookingService, $ride, $passengers, $bookings);
 
             $this->line("\n  [3/3] Final check…");
             $this->printSummary($ride->fresh(), array_map(fn ($b) => $b->fresh(), $bookings));
-
-            if ($doCommit) {
-                DB::commit();
-                $this->newline();
-                $this->components->info('Data committed. To clean up:');
-                $this->line('  DELETE FROM bookings WHERE id IN ('.implode(', ', $this->bookingIds).');');
-                $this->line('  DELETE FROM rides    WHERE id  = '.$this->rideId.';');
-                $this->line('  DELETE FROM users    WHERE id IN ('.implode(', ', $this->userIds).');');
-            } else {
-                DB::rollBack();
-                $this->newline();
-                $this->components->info('Transaction rolled back — DB untouched. Use --commit to persist.');
-            }
+            $this->finishTransaction($doCommit);
 
             return $allOk ? self::SUCCESS : self::FAILURE;
 
@@ -126,6 +78,96 @@ class Testridecompletionflow extends Command
             $this->line($e->getTraceAsString());
 
             return self::FAILURE;
+        }
+    }
+
+    /**
+     * Build driver, passengers, ride and bookings, then print the initial state.
+     */
+    private function createScenario(string $payment, int $numPass): array
+    {
+        $driver = $this->makeUser('Driver');
+        $passengers = array_map(fn ($i) => $this->makeUser("Passenger {$i}"), range(1, $numPass));
+        $ride = $this->makeRide($driver, $payment, $numPass);
+        $bookings = array_map(fn ($p) => $this->makeBooking($ride, $p), $passengers);
+
+        $this->printState('INITIAL STATE', $ride->fresh(), array_map(fn ($b) => $b->fresh(), $bookings));
+
+        return [$ride, $passengers, $bookings];
+    }
+
+    /**
+     * Run every passenger confirmation in order, printing the state after each one.
+     */
+    private function runConfirmations(BookingService $bookingService, Ride $ride, array $passengers, array $bookings): bool
+    {
+        $allOk = true;
+
+        foreach ($passengers as $i => $passenger) {
+            $n = $i + 1;
+            $booking = $bookings[$i];
+
+            $this->line("\n  <fg=cyan>── Passenger {$n} confirms (".$passenger->first_name.' '.$passenger->last_name.') ──────────────────</>');
+
+            try {
+                $result = $bookingService->passengerConfirmCompletion($booking->id, $passenger);
+
+                $icon = $result['ride_finished'] ? '🏁' : '✅';
+                $label = $result['ride_finished'] ? '<fg=blue>YES — ride finished</>' : '<fg=yellow>NO — more passengers pending</>';
+                $this->line("  {$icon} {$result['message']}");
+                $this->line("     ride_complete → {$label}");
+            } catch (\Throwable $e) {
+                $this->error("\n  ✗ passengerConfirmCompletion() THREW:");
+                $this->error('    '.get_class($e).': '.$e->getMessage());
+                $this->line('    File: '.$e->getFile().':'.$e->getLine());
+                $this->line("\n  Stack trace:");
+                foreach (array_slice(explode("\n", $e->getTraceAsString()), 0, 10) as $frame) {
+                    $this->line("    {$frame}");
+                }
+                $allOk = false;
+                break;
+            }
+
+            $this->printState(
+                "STATE AFTER PASSENGER {$n}",
+                $ride->fresh(),
+                array_map(fn ($b) => $b->fresh(), $bookings)
+            );
+        }
+
+        return $allOk;
+    }
+
+    /**
+     * Dump a passengerConfirmCompletion() exception the way the harness always has.
+     */
+    private function reportConfirmationFailure(\Throwable $e): void
+    {
+        $this->error("\n  ✗ passengerConfirmCompletion() THREW:");
+        $this->error('    '.get_class($e).': '.$e->getMessage());
+        $this->line('    File: '.$e->getFile().':'.$e->getLine());
+        $this->line("\n  Stack trace:");
+        foreach (array_slice(explode("\n", $e->getTraceAsString()), 0, 10) as $frame) {
+            $this->line("    {$frame}");
+        }
+    }
+
+    /**
+     * Commit or roll back, and print the matching cleanup instructions.
+     */
+    private function finishTransaction(bool $doCommit): void
+    {
+        if ($doCommit) {
+            DB::commit();
+            $this->newline();
+            $this->components->info('Data committed. To clean up:');
+            $this->line('  DELETE FROM bookings WHERE id IN ('.implode(', ', $this->bookingIds).');');
+            $this->line('  DELETE FROM rides    WHERE id  = '.$this->rideId.';');
+            $this->line('  DELETE FROM users    WHERE id IN ('.implode(', ', $this->userIds).');');
+        } else {
+            DB::rollBack();
+            $this->newline();
+            $this->components->info('Transaction rolled back — DB untouched. Use --commit to persist.');
         }
     }
 

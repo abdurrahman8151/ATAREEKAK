@@ -254,7 +254,21 @@ final class AdminTripService
     {
         $now = Carbon::now();
 
-        $rides = Ride::with([
+        return $this->liveTripsQuery($now)
+            ->map(fn (Ride $ride) => $this->formatLiveTrip($ride, $now))
+            ->all();
+    }
+
+    // =========================================================================
+    // PRIVATE HELPERS
+    // =========================================================================
+
+    /**
+     * Rides on the road right now: status active and departure already passed.
+     */
+    private function liveTripsQuery(Carbon $now)
+    {
+        return Ride::with([
             'driver:id,first_name,last_name',
             'driver.profile:user_id,profile_photo',
             'bookings' => fn ($q) => $q
@@ -265,60 +279,75 @@ final class AdminTripService
             ->where('departure_time', '<=', $now)
             ->orderBy('departure_time')
             ->get();
-
-        return $rides->map(function (Ride $ride) use ($now): array {
-            $minutesElapsed = (int) $ride->departure_time->diffInMinutes($now);
-            $durationMins = $ride->duration ? (int) round($ride->duration / 60) : null;
-            $etaMins = $durationMins !== null
-                ? max(0, $durationMins - $minutesElapsed)
-                : null;
-
-            return [
-                'id' => $ride->id,
-                'trip_ref' => '#TR-'.$ride->id,
-
-                'driver' => [
-                    'id' => $ride->driver?->id,
-                    'name' => trim(($ride->driver?->first_name ?? '').' '.($ride->driver?->last_name ?? '')),
-                    'profile_photo' => $ride->driver?->profile?->profile_photo
-                        ? asset('storage/'.$ride->driver->profile->profile_photo)
-                        : null,
-                    'communication_number' => $ride->communication_number,
-                ],
-
-                'route' => [
-                    'from' => $ride->pickup_address,
-                    'to' => $ride->destination_address,
-                    'pickup_coords' => $this->safeCoords($ride, 'pickup'),
-                    'destination_coords' => $this->safeCoords($ride, 'destination'),
-                    'geometry' => $ride->route_geometry,
-                ],
-
-                'timing' => [
-                    'departure_time' => $ride->departure_time->toIso8601String(),
-                    'minutes_elapsed' => $minutesElapsed,
-                    'eta_minutes' => $etaMins,
-                    'duration_total' => $durationMins,
-                ],
-
-                'passengers' => $ride->bookings->map(fn ($b) => [
-                    'id' => $b->user?->id,
-                    'name' => trim(($b->user?->first_name ?? '').' '.($b->user?->last_name ?? '')),
-                    'seats' => $b->seats,
-                ])->values()->all(),
-
-                'passenger_count' => $ride->bookings->sum('seats'),
-                'vehicle_type' => $ride->vehicle_type,
-                'distance_km' => $ride->distance
-                    ? round($ride->distance / 1000, 1)
-                    : null,
-            ];
-        })->all();
     }
 
-    // =========================================================================
-    // PRIVATE HELPERS
-    // =========================================================================
+    /**
+     * Shape one live trip for the map view / contact-driver panel.
+     */
+    private function formatLiveTrip(Ride $ride, Carbon $now): array
+    {
+        $minutesElapsed = (int) $ride->departure_time->diffInMinutes($now);
+        $durationMins = $ride->duration ? (int) round($ride->duration / 60) : null;
+        $etaMins = $durationMins !== null
+            ? max(0, $durationMins - $minutesElapsed)
+            : null;
+
+        return [
+            'id' => $ride->id,
+            'trip_ref' => '#TR-'.$ride->id,
+
+            'driver' => $this->liveTripDriverBlock($ride),
+
+            'route' => $this->liveTripRouteBlock($ride),
+
+            'timing' => [
+                'departure_time' => $ride->departure_time->toIso8601String(),
+                'minutes_elapsed' => $minutesElapsed,
+                'eta_minutes' => $etaMins,
+                'duration_total' => $durationMins,
+            ],
+
+            'passengers' => $this->liveTripPassengersBlock($ride),
+
+            'passenger_count' => $ride->bookings->sum('seats'),
+            'vehicle_type' => $ride->vehicle_type,
+            'distance_km' => $ride->distance
+                ? round($ride->distance / 1000, 1)
+                : null,
+        ];
+    }
+
+    private function liveTripDriverBlock(Ride $ride): array
+    {
+        return [
+            'id' => $ride->driver?->id,
+            'name' => trim(($ride->driver?->first_name ?? '').' '.($ride->driver?->last_name ?? '')),
+            'profile_photo' => $ride->driver?->profile?->profile_photo
+                ? asset('storage/'.$ride->driver->profile->profile_photo)
+                : null,
+            'communication_number' => $ride->communication_number,
+        ];
+    }
+
+    private function liveTripRouteBlock(Ride $ride): array
+    {
+        return [
+            'from' => $ride->pickup_address,
+            'to' => $ride->destination_address,
+            'pickup_coords' => $this->safeCoords($ride, 'pickup'),
+            'destination_coords' => $this->safeCoords($ride, 'destination'),
+            'geometry' => $ride->route_geometry,
+        ];
+    }
+
+    private function liveTripPassengersBlock(Ride $ride): array
+    {
+        return $ride->bookings->map(fn ($b) => [
+            'id' => $b->user?->id,
+            'name' => trim(($b->user?->first_name ?? '').' '.($b->user?->last_name ?? '')),
+            'seats' => $b->seats,
+        ])->values()->all();
+    }
 
     /**
      * Translate the stored DB status + departure_time into the UI status string

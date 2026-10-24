@@ -97,26 +97,7 @@ class WalletRequestService
                 throw new BusinessRuleViolation('You do not have a wallet yet.', 'WALLET_NOT_FOUND');
             }
 
-            $balance = (float) $wallet->balance;
-
-            if ($amount > $balance) {
-                throw new BusinessRuleViolation(
-                    "Insufficient balance. Your current balance is {$wallet->balance} SYP.",
-                    'INSUFFICIENT_BALANCE'
-                );
-            }
-
-            $pendingTotal = (float) WalletRequest::where('user_id', $user->id)
-                ->where('type', 'withdraw')
-                ->where('status', 'pending')
-                ->sum('amount');
-
-            if (($pendingTotal + $amount) > $balance) {
-                throw new BusinessRuleViolation(
-                    "You already have pending withdraw requests totalling {$pendingTotal} SYP. This request would exceed your balance.",
-                    'PENDING_WITHDRAWALS_EXCEED_BALANCE'
-                );
-            }
+            $this->assertWithdrawable($user, $wallet, $amount);
 
             $walletRequest = WalletRequest::create([
                 'user_id' => $user->id,
@@ -132,6 +113,38 @@ class WalletRequestService
 
             return $walletRequest;
         });
+    }
+
+    /**
+     * The locked-wallet balance checks for a withdraw request: the amount must fit the
+     * current balance, and the amount plus any pending withdraws must fit too.
+     *
+     * Must run inside the transaction that holds the wallet row FOR UPDATE.
+     *
+     * @throws BusinessRuleViolation
+     */
+    private function assertWithdrawable(User $user, Wallet $wallet, float $amount): void
+    {
+        $balance = (float) $wallet->balance;
+
+        if ($amount > $balance) {
+            throw new BusinessRuleViolation(
+                "Insufficient balance. Your current balance is {$wallet->balance} SYP.",
+                'INSUFFICIENT_BALANCE'
+            );
+        }
+
+        $pendingTotal = (float) WalletRequest::where('user_id', $user->id)
+            ->where('type', 'withdraw')
+            ->where('status', 'pending')
+            ->sum('amount');
+
+        if (($pendingTotal + $amount) > $balance) {
+            throw new BusinessRuleViolation(
+                "You already have pending withdraw requests totalling {$pendingTotal} SYP. This request would exceed your balance.",
+                'PENDING_WITHDRAWALS_EXCEED_BALANCE'
+            );
+        }
     }
 
     public function create(User $user, string $type, float $amount, ?string $notes = null): WalletRequest

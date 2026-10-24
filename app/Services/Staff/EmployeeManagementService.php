@@ -117,6 +117,29 @@ class EmployeeManagementService
     {
         $role = StaffRole::from($data['role']);
 
+        $this->assertRoleCanBeCreated($role, $requester);
+        $this->assertIdentityIsAvailable($data, $role);
+
+        $employee = $this->persistEmployee($data, $role, $requester);
+
+        // ── Auto-create shadow User for the chat bridge ───────────────────────
+        // This runs for support_agent (and admin, who may also participate in
+        // chat via StaffChatController).  system_admin / sycash are restricted
+        // roles and are already blocked above.
+        if ($employee->email) {
+            $this->ensureShadowUser($employee);
+        }
+
+        return $employee;
+    }
+
+    /**
+     * Guards 1 and 2: the target role, then the requester's authority over it.
+     *
+     * @throws \DomainException
+     */
+    private function assertRoleCanBeCreated(StaffRole $role, Employee $requester): void
+    {
         // ── Guard 1: restricted roles can never be created via the API ────────
         if ($role->isRestricted()) {
             throw new \DomainException(
@@ -133,7 +156,15 @@ class EmployeeManagementService
                 "create a '{$role->label()}' account."
             );
         }
+    }
 
+    /**
+     * Guards 3 to 5: unique username, unique email, and the chat-bridge email rule.
+     *
+     * @throws \DomainException
+     */
+    private function assertIdentityIsAvailable(array $data, StaffRole $role): void
+    {
         // ── Guard 3: unique username ──────────────────────────────────────────
         if (Employee::where('username', $data['username'])->exists()) {
             throw new \DomainException("Username '{$data['username']}' is already taken.");
@@ -156,8 +187,14 @@ class EmployeeManagementService
                 'It is used to link the employee to the chat system.'
             );
         }
+    }
 
-        $employee = Employee::create([
+    /**
+     * The single INSERT, with created_by stamped from the requester.
+     */
+    private function persistEmployee(array $data, StaffRole $role, Employee $requester): Employee
+    {
+        return Employee::create([
             'username' => $data['username'],
             'email' => $data['email'] ?? null,
             'password' => Hash::make($data['password']),
@@ -167,16 +204,6 @@ class EmployeeManagementService
             'is_active' => true,
             'created_by' => $requester->id,   // ← was missing; always track who created whom
         ]);
-
-        // ── Auto-create shadow User for the chat bridge ───────────────────────
-        // This runs for support_agent (and admin, who may also participate in
-        // chat via StaffChatController).  system_admin / sycash are restricted
-        // roles and are already blocked above.
-        if ($employee->email) {
-            $this->ensureShadowUser($employee);
-        }
-
-        return $employee;
     }
 
     // =========================================================================
@@ -193,13 +220,36 @@ class EmployeeManagementService
     {
         $employee = $this->getById($id, $requester);
 
-        // Restricted accounts are immutable via the API
+        $this->assertNotRestricted($employee);
+
+        $data = $this->resolveRoleChange($data, $requester);
+
+        $this->assertIdentityIsFree($data, $employee);
+
+        return $this->applyProfileUpdate($employee, $data);
+    }
+
+    /**
+     * Restricted accounts (system_admin / sycash) are immutable via the API.
+     *
+     * @throws \DomainException
+     */
+    private function assertNotRestricted(Employee $employee): void
+    {
         if ($employee->role->isRestricted()) {
             throw new \DomainException(
                 "The '{$employee->role->label()}' account cannot be modified via the API."
             );
         }
+    }
 
+    /**
+     * Validate a requested role change and normalise it to its stored value.
+     *
+     * @throws \DomainException
+     */
+    private function resolveRoleChange(array $data, Employee $requester): array
+    {
         // Role changes must target a non-restricted role the requester can manage
         if (isset($data['role'])) {
             $newRole = StaffRole::from($data['role']);
@@ -219,6 +269,16 @@ class EmployeeManagementService
             $data['role'] = $newRole->value;
         }
 
+        return $data;
+    }
+
+    /**
+     * Username and email uniqueness, only when the value actually changes.
+     *
+     * @throws \DomainException
+     */
+    private function assertIdentityIsFree(array $data, Employee $employee): void
+    {
         // Username uniqueness when changing
         if (
             isset($data['username'])
@@ -236,7 +296,13 @@ class EmployeeManagementService
         ) {
             throw new \DomainException("Email '{$data['email']}' is already in use.");
         }
+    }
 
+    /**
+     * Fill the mutable columns, save, then keep the shadow User email in sync.
+     */
+    private function applyProfileUpdate(Employee $employee, array $data): Employee
+    {
         $oldEmail = $employee->email;
 
         $employee->fill(

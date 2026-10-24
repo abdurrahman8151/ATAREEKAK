@@ -3,6 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Http\Controllers\API\RideController;
+use App\Http\Controllers\API\Support\RideSearchReadHandler;
 use App\Http\Requests\BookRideRequest;
 use App\Http\Requests\SendOtpRequest;
 use Tests\TestCase;
@@ -65,7 +66,9 @@ class RV17LoadTestContractRatchetTest extends TestCase
     public function the_search_contract_really_is_source_dest_seats_required(): void
     {
         // Ground the ratchet: read the live rules so this test cannot pass on stale text.
-        $rules = (new \ReflectionMethod(RideController::class, 'searchRides'))
+        // Section K: RideController::searchRides delegates to RideSearchReadHandler, which now
+        // owns the live validation rules - read them where they actually live.
+        $rules = (new \ReflectionMethod(RideSearchReadHandler::class, 'searchRides'))
             ->getFileName();
         $this->assertNotNull($rules);
         $src = (string) file_get_contents((string) $rules);

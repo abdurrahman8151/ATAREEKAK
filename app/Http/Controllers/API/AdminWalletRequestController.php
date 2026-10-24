@@ -103,141 +103,18 @@ final class AdminWalletRequestController extends Controller
     // ── POST /api/admin/wallet/requests/{id}/approve ─────────────────────────
     public function approve(int $id, Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'admin_notes' => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        if ($invalid = $this->validateAdminNotes($request)) {
+            return $invalid;
         }
 
         try {
             $walletRequest = WalletRequest::with('wallet')->findOrFail($id);
 
             if (! $walletRequest->isPending()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "This request has already been {$walletRequest->status}.",
-                ], 422);
+                return $this->alreadyDecided($walletRequest);
             }
 
-            DB::transaction(function () use ($walletRequest, $request) {
-                $wallet = Wallet::lockForUpdate()->findOrFail($walletRequest->wallet_id);
-                $amount = (float) $walletRequest->amount;
-
-                if ($walletRequest->isWithdraw()) {
-                    if ($amount > (float) $wallet->balance) {
-                        throw new \DomainException(
-                            "Insufficient wallet balance ({$wallet->balance} SYP) to process withdrawal of {$amount} SYP."
-                        );
-                    }
-                    $previousBalance = (float) $wallet->balance;
-                    $newBalance = $previousBalance - $amount;
-                    $transactionType = 'withdrawal';
-                    // FIX 1: withdrawal is an outflow — store as negative to match
-                    //         the convention used everywhere else in the codebase.
-                    $transactionAmount = -$amount;
-                    $description = 'Withdrawal processed by admin';
-                } else {
-                    $previousBalance = (float) $wallet->balance;
-                    $newBalance = $previousBalance + $amount;
-                    $transactionType = 'admin_charge';
-                    $transactionAmount = $amount;
-                    $description = 'Balance topped up by admin';
-                }
-
-                $wallet->balance = $newBalance;
-                $wallet->save();
-
-                WalletTransaction::create([
-                    'wallet_id' => $wallet->id,
-                    'user_id' => $walletRequest->user_id,
-                    'type' => $transactionType,
-                    'amount' => $transactionAmount,
-                    'previous_balance' => $previousBalance,
-                    'new_balance' => $newBalance,
-                    'description' => $description,
-                    // T3-1: was 'WR-'.$walletRequest->id.'-'.now()->timestamp.
-                    // Honest note: because the request id is itself unique, this
-                    // generator could not actually collide — the real collision
-                    // was in PassengerProfileController::chargeWallet() where the
-                    // id was 'ADM-'.$user->id.'-'.timestamp (same passenger, same
-                    // second, UNIQUE transaction_id → 500 + rollback). Normalised
-                    // to UUID anyway so both money paths share one collision-free
-                    // scheme; the readable prefix is kept for ops.
-                    'transaction_id' => 'WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
-                    'status' => 'completed',
-                    'reference' => 'wallet_request:'.$walletRequest->id,
-                ]);
-
-                // ── Decision un3 (owner choice (a)): external flow ──────────────────────
-                // A top-up is money ARRIVING from outside; a withdrawal is money LEAVING to outside.
-                // Both are recorded against the External Capital account, which is what closes the
-                // ledger. `$transactionAmount`'s sign already encodes the direction, so the inbound
-                // flag is derived from it rather than re-decided here.
-                $external = Wallet::where('phone_number', config('admin.external.phone'))
-                    ->where('kind', 'system')
-                    ->whereNull('user_id')
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($external === null) {
-                    throw new \RuntimeException(
-                        'External Capital wallet not found for phone: '.config('admin.external.phone')
-                        .'. Run: php artisan db:seed --class=SystemWalletSeeder'
-                    );
-                }
-
-                $externalPrev = (float) $external->balance;
-                // A positive wallet movement means money arrived, so it LEFT the external account.
-                $externalDelta = -1 * (float) $transactionAmount;
-                $external->balance += $externalDelta;
-                $external->save();
-
-                WalletTransaction::create([
-                    'wallet_id' => $external->id,
-                    'user_id' => null,
-                    'type' => $transactionAmount > 0 ? 'external_inbound' : 'external_outbound',
-                    'amount' => $externalDelta,
-                    'previous_balance' => $externalPrev,
-                    'new_balance' => (float) $external->balance,
-                    'description' => ($transactionAmount > 0 ? 'Injected' : 'Paid out')
-                        ." for wallet request #{$walletRequest->id}",
-                    'transaction_id' => 'EXT-WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
-                    'status' => 'completed',
-                    'reference' => 'wallet_request:'.$walletRequest->id,
-                ]);
-
-                app(LedgerService::class)->postExternalTransfer(
-                    $external,
-                    $wallet,
-                    abs((float) $transactionAmount),
-                    inbound: $transactionAmount > 0,
-                    description: "wallet request #{$walletRequest->id}",
-                );
-
-                $walletRequest->update([
-                    'status' => 'approved',
-                    'admin_notes' => $request->input('admin_notes'),
-                    // T3-4: `processed_by` is the shadow `users` id and is kept for history;
-                    // `processed_by_employee_id` is the real actor, read from the attribute
-                    // StaffJwtMiddleware sets (the same idiom 12 other admin/staff call sites
-                    // use). Writing only the shadow id made the audit trail name a mirror row -
-                    // and a real customer, if one already held the admin's email address.
-                    'processed_by_employee_id' => $request->attributes->get('staffEmployee')?->id,
-                    'processed_by' => $request->user()?->id,
-                    'processed_at' => now(),
-                ]);
-
-                Log::info('Wallet request approved', [
-                    'request_id' => $walletRequest->id,
-                    'type' => $walletRequest->type,
-                    'amount' => $amount,
-                    'user_id' => $walletRequest->user_id,
-                    'previous_balance' => $previousBalance,
-                    'new_balance' => $newBalance,
-                ]);
-            });
+            DB::transaction(fn () => $this->applyApprovedRequest($walletRequest, $request));
 
             $walletRequest->refresh()->load([
                 'user:id,first_name,last_name,email',
@@ -269,12 +146,8 @@ final class AdminWalletRequestController extends Controller
     // ── POST /api/admin/wallet/requests/{id}/reject ──────────────────────────
     public function reject(int $id, Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'admin_notes' => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        if ($invalid = $this->validateAdminNotes($request)) {
+            return $invalid;
         }
 
         try {
@@ -286,10 +159,7 @@ final class AdminWalletRequestController extends Controller
             ])->findOrFail($id);
 
             if (! $walletRequest->isPending()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "This request has already been {$walletRequest->status}.",
-                ], 422);
+                return $this->alreadyDecided($walletRequest);
             }
 
             $walletRequest->update([
@@ -310,22 +180,7 @@ final class AdminWalletRequestController extends Controller
                 'user_id' => $walletRequest->user_id,
             ]);
 
-            try {
-                $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
-                $reason = $request->input('admin_notes') ? ' Reason: '.$request->input('admin_notes') : '';
-
-                app(NotificationService::class)->createNotification(
-                    $walletRequest->user,
-                    'wallet_request_rejected',
-                    $label.' - Rejected',
-                    "Your request for {$walletRequest->amount} SYP has been rejected.{$reason}",
-                    ['wallet_request_id' => $walletRequest->id],
-                    'normal',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('wallet-request decision notification failed (non-fatal): '.$e->getMessage());
-            }
+            $this->notifyRequestRejected($walletRequest, $request);
 
             return response()->json([
                 'status' => 'success',
@@ -343,6 +198,215 @@ final class AdminWalletRequestController extends Controller
     }
 
     // ── Private ──────────────────────────────────────────────────────────────
+    /** Validate the `admin_notes` payload shared by approve() and reject(). */
+    private function validateAdminNotes(Request $request): ?JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'admin_notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        return null;
+    }
+
+    /** The 422 a decision endpoint returns for a request that is no longer pending. */
+    private function alreadyDecided(WalletRequest $walletRequest): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => "This request has already been {$walletRequest->status}.",
+        ], 422);
+    }
+
+    /**
+     * Body of the approval transaction: lock the wallet, apply the movement, mirror it against
+     * the External Capital account, post the ledger leg, then mark the request approved.
+     */
+    private function applyApprovedRequest(WalletRequest $walletRequest, Request $request): void
+    {
+        $wallet = Wallet::lockForUpdate()->findOrFail($walletRequest->wallet_id);
+        $movement = $this->resolveApprovedMovement($walletRequest, $wallet);
+
+        $wallet->balance = $movement['new_balance'];
+        $wallet->save();
+
+        $this->recordWalletMovement($walletRequest, $wallet, $movement);
+        $this->settleExternalCapital($walletRequest, $wallet, $movement['transaction_amount']);
+        $this->markRequestApproved($walletRequest, $request);
+
+        Log::info('Wallet request approved', [
+            'request_id' => $walletRequest->id,
+            'type' => $walletRequest->type,
+            'amount' => $movement['amount'],
+            'user_id' => $walletRequest->user_id,
+            'previous_balance' => $movement['previous_balance'],
+            'new_balance' => $movement['new_balance'],
+        ]);
+    }
+
+    /**
+     * The balance movement for one approved request: the new balance plus the ledger-leg values
+     * the wallet transaction row is written with. A withdrawal above the balance throws.
+     *
+     * @return array{amount: float, previous_balance: float, new_balance: float, type: string, transaction_amount: float, description: string}
+     */
+    private function resolveApprovedMovement(WalletRequest $walletRequest, Wallet $wallet): array
+    {
+        $amount = (float) $walletRequest->amount;
+
+        if ($walletRequest->isWithdraw()) {
+            if ($amount > (float) $wallet->balance) {
+                throw new \DomainException(
+                    "Insufficient wallet balance ({$wallet->balance} SYP) to process withdrawal of {$amount} SYP."
+                );
+            }
+            $previousBalance = (float) $wallet->balance;
+            $newBalance = $previousBalance - $amount;
+            $transactionType = 'withdrawal';
+            // FIX 1: withdrawal is an outflow — store as negative to match
+            //         the convention used everywhere else in the codebase.
+            $transactionAmount = -$amount;
+            $description = 'Withdrawal processed by admin';
+        } else {
+            $previousBalance = (float) $wallet->balance;
+            $newBalance = $previousBalance + $amount;
+            $transactionType = 'admin_charge';
+            $transactionAmount = $amount;
+            $description = 'Balance topped up by admin';
+        }
+
+        return [
+            'amount' => $amount,
+            'previous_balance' => $previousBalance,
+            'new_balance' => $newBalance,
+            'type' => $transactionType,
+            'transaction_amount' => $transactionAmount,
+            'description' => $description,
+        ];
+    }
+
+    /**
+     * The approved request's own wallet_transactions row.
+     *
+     * @param  array{previous_balance: float, new_balance: float, type: string, transaction_amount: float, description: string}  $movement
+     */
+    private function recordWalletMovement(WalletRequest $walletRequest, Wallet $wallet, array $movement): void
+    {
+        WalletTransaction::create([
+            'wallet_id' => $wallet->id,
+            'user_id' => $walletRequest->user_id,
+            'type' => $movement['type'],
+            'amount' => $movement['transaction_amount'],
+            'previous_balance' => $movement['previous_balance'],
+            'new_balance' => $movement['new_balance'],
+            'description' => $movement['description'],
+            // T3-1: was 'WR-'.$walletRequest->id.'-'.now()->timestamp.
+            // Honest note: because the request id is itself unique, this
+            // generator could not actually collide — the real collision
+            // was in PassengerProfileController::chargeWallet() where the
+            // id was 'ADM-'.$user->id.'-'.timestamp (same passenger, same
+            // second, UNIQUE transaction_id → 500 + rollback). Normalised
+            // to UUID anyway so both money paths share one collision-free
+            // scheme; the readable prefix is kept for ops.
+            'transaction_id' => 'WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
+            'status' => 'completed',
+            'reference' => 'wallet_request:'.$walletRequest->id,
+        ]);
+    }
+
+    /**
+     * Mirror the movement against the External Capital account and close it on the ledger.
+     */
+    private function settleExternalCapital(WalletRequest $walletRequest, Wallet $wallet, float $transactionAmount): void
+    {
+        // ── Decision un3 (owner choice (a)): external flow ──────────────────────
+        // A top-up is money ARRIVING from outside; a withdrawal is money LEAVING to outside.
+        // Both are recorded against the External Capital account, which is what closes the
+        // ledger. `$transactionAmount`'s sign already encodes the direction, so the inbound
+        // flag is derived from it rather than re-decided here.
+        $external = Wallet::where('phone_number', config('admin.external.phone'))
+            ->where('kind', 'system')
+            ->whereNull('user_id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($external === null) {
+            throw new \RuntimeException(
+                'External Capital wallet not found for phone: '.config('admin.external.phone')
+                .'. Run: php artisan db:seed --class=SystemWalletSeeder'
+            );
+        }
+
+        $externalPrev = (float) $external->balance;
+        // A positive wallet movement means money arrived, so it LEFT the external account.
+        $externalDelta = -1 * (float) $transactionAmount;
+        $external->balance += $externalDelta;
+        $external->save();
+
+        WalletTransaction::create([
+            'wallet_id' => $external->id,
+            'user_id' => null,
+            'type' => $transactionAmount > 0 ? 'external_inbound' : 'external_outbound',
+            'amount' => $externalDelta,
+            'previous_balance' => $externalPrev,
+            'new_balance' => (float) $external->balance,
+            'description' => ($transactionAmount > 0 ? 'Injected' : 'Paid out')
+                ." for wallet request #{$walletRequest->id}",
+            'transaction_id' => 'EXT-WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
+            'status' => 'completed',
+            'reference' => 'wallet_request:'.$walletRequest->id,
+        ]);
+
+        app(LedgerService::class)->postExternalTransfer(
+            $external,
+            $wallet,
+            abs((float) $transactionAmount),
+            inbound: $transactionAmount > 0,
+            description: "wallet request #{$walletRequest->id}",
+        );
+    }
+
+    /** Persist the approval decision and its audit columns on the request row. */
+    private function markRequestApproved(WalletRequest $walletRequest, Request $request): void
+    {
+        $walletRequest->update([
+            'status' => 'approved',
+            'admin_notes' => $request->input('admin_notes'),
+            // T3-4: `processed_by` is the shadow `users` id and is kept for history;
+            // `processed_by_employee_id` is the real actor, read from the attribute
+            // StaffJwtMiddleware sets (the same idiom 12 other admin/staff call sites
+            // use). Writing only the shadow id made the audit trail name a mirror row -
+            // and a real customer, if one already held the admin's email address.
+            'processed_by_employee_id' => $request->attributes->get('staffEmployee')?->id,
+            'processed_by' => $request->user()?->id,
+            'processed_at' => now(),
+        ]);
+    }
+
+    /** Tell the requesting user their request was rejected. Non-fatal: a failure is logged only. */
+    private function notifyRequestRejected(WalletRequest $walletRequest, Request $request): void
+    {
+        try {
+            $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
+            $reason = $request->input('admin_notes') ? ' Reason: '.$request->input('admin_notes') : '';
+
+            app(NotificationService::class)->createNotification(
+                $walletRequest->user,
+                'wallet_request_rejected',
+                $label.' - Rejected',
+                "Your request for {$walletRequest->amount} SYP has been rejected.{$reason}",
+                ['wallet_request_id' => $walletRequest->id],
+                'normal',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('wallet-request decision notification failed (non-fatal): '.$e->getMessage());
+        }
+    }
+
     private function formatRequest(WalletRequest $r): array
     {
         return [

@@ -26,10 +26,33 @@ class ApiExceptionRenderers
 {
     public function register(ExceptionHandler $handler): void
     {
+        // The calls below are the ORIGINAL registration sequence, in order: the empty
+        // reportable, the three JWT renderers, then ValidationException, DomainException,
+        // InvalidArgumentException, and the Throwable catch-all last. Do not reorder them.
+        $this->registerReportableCallback($handler);
+        $this->registerJwtRenderers($handler);
+        $this->registerValidationRenderer($handler);
+        $this->registerDomainRenderer($handler);
+        $this->registerInvalidArgumentRenderer($handler);
+        $this->registerFallbackRenderer($handler);
+    }
+
+    /**
+     * The no-op reportable that was registered first.
+     */
+    private function registerReportableCallback(ExceptionHandler $handler): void
+    {
         $handler->reportable(function (Throwable $e) {
             //
         });
+    }
 
+    /**
+     * The three JWT renderers, registered in their original order: expired, then
+     * invalid, then the base JWTException.
+     */
+    private function registerJwtRenderers(ExceptionHandler $handler): void
+    {
         $handler->renderable(function (TokenExpiredException $e) {
             return response()->json(['message' => 'Token has expired'], 401);
         });
@@ -41,7 +64,13 @@ class ApiExceptionRenderers
         $handler->renderable(function (JWTException $e) {
             return response()->json(['message' => 'Token not provided'], 401);
         });
+    }
 
+    /**
+     * The ValidationException renderer.
+     */
+    private function registerValidationRenderer(ExceptionHandler $handler): void
+    {
         // RV-13 / V5: a validation failure must say WHICH field failed and why.
         //
         // This is registered BEFORE the catch-all below, deliberately. The catch-all
@@ -68,7 +97,13 @@ class ApiExceptionRenderers
                 'errors' => $e->errors(),
             ], $e->status);
         });
+    }
 
+    /**
+     * The DomainException renderer.
+     */
+    private function registerDomainRenderer(ExceptionHandler $handler): void
+    {
         // RV-13: domain rule violations are CLIENT errors.
         //
         // Registered before the catch-all below, and before anything else, because the catch-all
@@ -116,7 +151,13 @@ class ApiExceptionRenderers
 
             return response()->json($payload, $e->httpStatus);
         });
+    }
 
+    /**
+     * The bare InvalidArgumentException renderer.
+     */
+    private function registerInvalidArgumentRenderer(ExceptionHandler $handler): void
+    {
         $handler->renderable(function (\InvalidArgumentException $e, $request) {
             if (! $request->is('api/*') && ! $request->expectsJson()) {
                 return null;
@@ -129,7 +170,13 @@ class ApiExceptionRenderers
                 'status_code' => 422,
             ], 422);
         });
+    }
 
+    /**
+     * The Throwable catch-all. MUST stay registered last.
+     */
+    private function registerFallbackRenderer(ExceptionHandler $handler): void
+    {
         // Catch-all for API routes — returns JSON instead of an HTML error page.
         // In debug mode the real message is exposed; in production a generic
         // message is shown so stack traces never leak to clients.
@@ -171,6 +218,5 @@ class ApiExceptionRenderers
                 ], $status, $headers);
             }
         });
-
     }
 }

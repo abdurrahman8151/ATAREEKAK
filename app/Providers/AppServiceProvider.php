@@ -82,6 +82,25 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // The group methods below are contiguous runs of the original body, called in the
+        // order their bindings appeared, so container binding order is unchanged.
+        $this->registerDomainServices();
+        $this->registerPushNotificationServices();
+        $this->registerProfileChatAndFileServices();
+        $this->registerRideServices();
+        $this->registerPaymentServices();
+        $this->registerAdminServices();
+        $this->registerStaffServices();
+        $this->registerSupportServices();
+        $this->registerRepositories();
+        $this->registerOtpServices();
+    }
+
+    /**
+     * Geocoding, score and route-calculation services.
+     */
+    private function registerDomainServices(): void
+    {
         // ========================================
         // GEOCODING SERVICES (CRITICAL - WAS MISSING!)
         // ========================================
@@ -103,14 +122,26 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ScoreLedger::class);
         $this->app->singleton(ScorePolicyFactory::class);
         $this->app->singleton(RouteCalculationService::class);
+    }
 
+    /**
+     * Push notification services.
+     */
+    private function registerPushNotificationServices(): void
+    {
         // ========================================
         // PUSH NOTIFICATION SERVICES
         // ========================================
         $this->app->singleton(PushTokenManager::class);
         $this->app->singleton(FcmSenderService::class);
         $this->app->singleton(PushNotificationService::class);
+    }
 
+    /**
+     * Profile, chat and file-upload services.
+     */
+    private function registerProfileChatAndFileServices(): void
+    {
         // ========================================
         // PROFILE SERVICES
         // ========================================
@@ -126,7 +157,13 @@ class AppServiceProvider extends ServiceProvider
         // FILE UPLOAD SERVICE
         // ========================================
         $this->app->singleton(FileUploadService::class);
+    }
 
+    /**
+     * Ride lifecycle services.
+     */
+    private function registerRideServices(): void
+    {
         // ========================================
         // RIDE SERVICES
         // ========================================
@@ -134,7 +171,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(BookingService::class);
         $this->app->singleton(RideValidationService::class);
         $this->app->singleton(RideSearchService::class);
+    }
 
+    /**
+     * Payment, wallet-access and payment-strategy services.
+     */
+    private function registerPaymentServices(): void
+    {
         // ========================================
         // PAYMENT SERVICES
         // ========================================
@@ -147,6 +190,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(EPayPaymentStrategy::class);
         $this->app->singleton(CashPaymentStrategy::class);
         $this->app->singleton(PaymentStrategyFactory::class);
+    }
+
+    /**
+     * Admin back-office services.
+     */
+    private function registerAdminServices(): void
+    {
         // ========================================
         // ADMIN SERVICES
         // ========================================
@@ -157,13 +207,26 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AdminTripService::class);
         $this->app->singleton(AdminDriverService::class);
         $this->app->singleton(AdminUserService::class);
+    }
+
+    /**
+     * Staff / employee services.
+     */
+    private function registerStaffServices(): void
+    {
         // ── Staff / Employee Services ────────────────────────────────────────────
         $this->app->singleton(StaffJwtService::class);
         $this->app->singleton(EmployeeAuthService::class);
         $this->app->singleton(EmployeeManagementService::class);
         $this->app->singleton(ReviewModerationService::class);
         $this->app->singleton(StaffComplaintService::class);
+    }
 
+    /**
+     * Wallet-request, notification and verification services.
+     */
+    private function registerSupportServices(): void
+    {
         // ========================================
         // WALLET SERVICES
         // ========================================
@@ -178,7 +241,14 @@ class AppServiceProvider extends ServiceProvider
         // VERIFICATION SERVICE
         // ========================================
         $this->app->singleton(DocumentVerificationService::class);
+    }
 
+    /**
+     * Repository interface bindings. The ComplaintService singleton that sat between
+     * them in the original body stays here so the sequence is unchanged.
+     */
+    private function registerRepositories(): void
+    {
         // ========================================
         // REPOSITORY BINDINGS
         // ========================================
@@ -234,7 +304,13 @@ class AppServiceProvider extends ServiceProvider
             RideRepositoryInterface::class,
             RideRepository::class
         );
+    }
 
+    /**
+     * OTP services (special binding).
+     */
+    private function registerOtpServices(): void
+    {
         // ========================================
         // OTP SERVICES (Special binding)
         // ========================================
@@ -251,6 +327,18 @@ class AppServiceProvider extends ServiceProvider
         $this->guardJwtSecret();
         $this->guardOtpTestingModes();
 
+        $this->configureSchemaAndModelStrictness();
+        $this->listenForCacheEvents();
+        $this->ensureScheduledLogDirectory();
+        $this->guardBroadcastCredentials();
+        $this->guardQueueDriver();
+    }
+
+    /**
+     * Schema defaults and the RV-38 Eloquent strictness flags.
+     */
+    private function configureSchemaAndModelStrictness(): void
+    {
         Schema::defaultStringLength(191);
 
         // RV-38 — Eloquent data-integrity strictness, OUTSIDE PRODUCTION.
@@ -287,7 +375,13 @@ class AppServiceProvider extends ServiceProvider
             Model::preventAccessingMissingAttributes();
             Model::preventLazyLoading();
         }
+    }
 
+    /**
+     * Per-request cache-status instrumentation.
+     */
+    private function listenForCacheEvents(): void
+    {
         Event::listen(CacheHit::class, function () {
             try {
                 request()->attributes->set('cache_status', 'HIT');
@@ -304,12 +398,25 @@ class AppServiceProvider extends ServiceProvider
             } catch (\Throwable) {
             } // intentionally silent: fires per cache event on every request
         });
+    }
+
+    /**
+     * Make sure the scheduled-task log directory exists.
+     */
+    private function ensureScheduledLogDirectory(): void
+    {
         $scheduledLogPath = storage_path('logs/scheduled');
 
         if (! is_dir($scheduledLogPath)) {
             mkdir($scheduledLogPath, 0755, true);
         }
+    }
 
+    /**
+     * T2-8: refuse to boot with pusher configured but no credentials.
+     */
+    private function guardBroadcastCredentials(): void
+    {
         // T2-8: the pusher credentials used to be in-code literals, so a deploy
         // that lost its env still booted "successfully" on a shared, publicly
         // committed credential. With no defaults left in config/broadcasting.php
@@ -330,7 +437,13 @@ class AppServiceProvider extends ServiceProvider
                 .'with rotated credentials, or set BROADCAST_DRIVER=null.'
             );
         }
+    }
 
+    /**
+     * T3-14: refuse to boot on the sync queue outside local/testing.
+     */
+    private function guardQueueDriver(): void
+    {
         // T3-14: SendPushNotificationJob is ShouldQueue with tries/backoff, but
         // config/queue.php defaults QUEUE_CONNECTION to `sync`, which runs it
         // inline — a slow or failing FCM call (3 retries + backoff) then executes

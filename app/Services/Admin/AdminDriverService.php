@@ -227,7 +227,39 @@ final class AdminDriverService
      */
     public function getDriverProfile(int $driverId): array
     {
-        $driver = User::with([
+        $driver = $this->findDriverWithProfileData($driverId);
+
+        $ratingStats = UserRating::where('rated_user_id', $driverId)
+            ->selectRaw('COUNT(*) as total, AVG(rating) as average')
+            ->first();
+
+        $completedRides = Ride::where('driver_id', $driverId)
+            ->where('status', 'finished')
+            ->count();
+
+        return [
+            ...$this->driverProfileIdentity($driver),
+            'vehicle' => $this->driverProfileVehicle($driver->profile),
+            'documents' => $driver->photos->mapWithKeys(
+                fn ($p) => [$p->type => asset('storage/'.$p->path)]
+            ),
+            'rating' => $this->driverProfileRating($ratingStats),
+            'stats' => [
+                'completed_rides' => $completedRides,
+                // RV-19 item 5: the uncapped count, not the 5-row recent collection.
+                'total_rides' => (int) $driver->rides_count,
+            ],
+            'recent_rides' => $this->driverProfileRecentRides($driver),
+        ];
+    }
+
+    /**
+     * The driver row the profile view is built from: profile, photos, the 5 most recent rides
+     * with their booking counts, and the uncapped ride count.
+     */
+    private function findDriverWithProfileData(int $driverId): User
+    {
+        return User::with([
             'profile',
             'photos',
             // Only the RECENT rides are limited, for the `recent_rides` list below. `total_rides`
@@ -244,19 +276,11 @@ final class AdminDriverService
         ])
             ->withCount('rides')
             ->findOrFail($driverId);
+    }
 
-        $ratingStats = UserRating::where('rated_user_id', $driverId)
-            ->selectRaw('COUNT(*) as total, AVG(rating) as average')
-            ->first();
-
-        $completedRides = Ride::where('driver_id', $driverId)
-            ->where('status', 'finished')
-            ->count();
-
-        $documents = $driver->photos->mapWithKeys(
-            fn ($p) => [$p->type => asset('storage/'.$p->path)]
-        );
-
+    /** Identity, contact and verification keys of the driver profile payload, in their order. */
+    private function driverProfileIdentity(User $driver): array
+    {
         $profile = $driver->profile;
 
         return [
@@ -274,35 +298,41 @@ final class AdminDriverService
             'is_verified_driver' => (bool) $driver->is_verified_driver,
             'status' => $this->resolveDriverStatus($driver),
             'joined_at' => $driver->created_at->toIso8601String(),
-            'vehicle' => [
-                'type' => $profile?->type_of_car,
-                'color' => $profile?->color_of_car,
-                'seats' => $profile?->number_of_seats,
-                'photo' => $profile?->car_pic
-                    ? asset('storage/'.$profile->car_pic)
-                    : null,
-            ],
-            'documents' => $documents,
-            'rating' => [
-                'average' => $ratingStats->average
-                    ? round((float) $ratingStats->average, 2)
-                    : null,
-                'total_ratings' => (int) $ratingStats->total,
-            ],
-            'stats' => [
-                'completed_rides' => $completedRides,
-                // RV-19 item 5: the uncapped count, not the 5-row recent collection.
-                'total_rides' => (int) $driver->rides_count,
-            ],
-            'recent_rides' => $driver->rides->map(fn ($r) => [
-                'id' => $r->id,
-                'pickup_address' => $r->pickup_address,
-                'destination_address' => $r->destination_address,
-                'departure_time' => $r->departure_time->toIso8601String(),
-                'status' => $r->status,
-                'bookings_count' => $r->bookings_count,
-            ])->values()->all(),
         ];
+    }
+
+    private function driverProfileVehicle(?Profile $profile): array
+    {
+        return [
+            'type' => $profile?->type_of_car,
+            'color' => $profile?->color_of_car,
+            'seats' => $profile?->number_of_seats,
+            'photo' => $profile?->car_pic
+                ? asset('storage/'.$profile->car_pic)
+                : null,
+        ];
+    }
+
+    private function driverProfileRating($ratingStats): array
+    {
+        return [
+            'average' => $ratingStats->average
+                ? round((float) $ratingStats->average, 2)
+                : null,
+            'total_ratings' => (int) $ratingStats->total,
+        ];
+    }
+
+    private function driverProfileRecentRides(User $driver): array
+    {
+        return $driver->rides->map(fn ($r) => [
+            'id' => $r->id,
+            'pickup_address' => $r->pickup_address,
+            'destination_address' => $r->destination_address,
+            'departure_time' => $r->departure_time->toIso8601String(),
+            'status' => $r->status,
+            'bookings_count' => $r->bookings_count,
+        ])->values()->all();
     }
 
     // =========================================================================
@@ -326,18 +356,10 @@ final class AdminDriverService
         $profile = $driver->profile;
 
         // ── Rating ────────────────────────────────────────────────────────────
-        $ratingStats = UserRating::where('rated_user_id', $driverId)
-            ->selectRaw('COUNT(*) as total, ROUND(AVG(rating), 2) as average')
-            ->first();
+        $ratingStats = $this->dashboardRatingStats($driverId);
 
         // ── Stats ─────────────────────────────────────────────────────────────
-        $totalRides = Ride::where('driver_id', $driverId)->count();
-        $completedRides = Ride::where('driver_id', $driverId)->where('status', 'finished')->count();
-        $cancelledRides = Ride::where('driver_id', $driverId)->where('status', 'cancelled')->count();
-
-        $cancelRate = $totalRides > 0
-            ? round(($cancelledRides / $totalRides) * 100, 1)
-            : 0.0;
+        $stats = $this->dashboardRideStats($driverId);
 
         // ── RV-19 item 2 (owner: ledger is authoritative) ──────────────────────
         // `ledger_earnings` reads REAL RECORDED MONEY, not a number re-derived from today's
@@ -360,53 +382,49 @@ final class AdminDriverService
         [$ledgerEarnings, $estimatedGross] = $this->dashboardMoney($driverId);
 
         // ── Recent rides ──────────────────────────────────────────────────────
-        $recentRides = Ride::where('driver_id', $driverId)
-            ->orderByDesc('created_at')
-            ->limit(10)
-            ->get(['id', 'status', 'pickup_address', 'destination_address', 'price_per_seat', 'departure_time']);
+        $recentRides = $this->dashboardRecentRides($driverId);
 
         // ── Favorite destination ──────────────────────────────────────────────
-        $favoriteDestination = Ride::where('driver_id', $driverId)
-            ->where('status', 'finished')
-            ->select('destination_address')
-            ->selectRaw('COUNT(*) as visit_count')
-            ->groupBy('destination_address')
-            ->orderByDesc('visit_count')
-            ->first();
+        $favoriteDestination = $this->dashboardFavoriteDestination($driverId);
 
         // ── Documents ─────────────────────────────────────────────────────────
-        $documents = $driver->photos->map(fn ($photo) => [
-            'type' => $photo->type,
-            'file_url' => asset('storage/'.$photo->path),
-        ]);
+        $documents = $this->dashboardDocuments($driver);
+
+        return $this->formatDriverDashboard(
+            $driver,
+            $profile,
+            $ratingStats,
+            $stats,
+            [$ledgerEarnings, $estimatedGross],
+            $recentRides,
+            $favoriteDestination,
+            $documents,
+        );
+    }
+
+    /**
+     * Assemble the driver dashboard payload. Money is rounded once, here (R2 sec 117).
+     */
+    private function formatDriverDashboard(
+        User $driver,
+        ?Profile $profile,
+        $ratingStats,
+        array $stats,
+        array $money,
+        $recentRides,
+        $favoriteDestination,
+        $documents,
+    ): array {
+        [$ledgerEarnings, $estimatedGross] = $money;
 
         return [
-            'id' => $driver->id,
-            'driver_ref' => '#DR-'.$driver->id,
-            'full_name' => trim("{$driver->first_name} {$driver->last_name}"),
-            'email' => $driver->email,
-            'phone' => $this->resolveDriverPhone($driver->id),
-            'gender' => $driver->gender,
-            'address' => $driver->address,
-            'joined_at' => $driver->created_at->toIso8601String(),
-            'status' => $this->resolveDriverStatus($driver),
-            'is_verified' => (bool) $driver->is_verified_driver,
-            'verification_status' => $driver->verification_status,
-
-            'profile_photo' => $profile?->profile_photo
-                ? asset('storage/'.$profile->profile_photo)
-                : null,
-
-            'rating' => [
-                'average' => $ratingStats->average ?? 0,
-                'total_ratings' => (int) ($ratingStats->total ?? 0),
-            ],
+            ...$this->dashboardIdentityBlock($driver, $profile, $ratingStats),
 
             'stats' => [
-                'total_rides' => $totalRides,
-                'completed_rides' => $completedRides,
-                'cancelled_rides' => $cancelledRides,
-                'cancel_rate' => $cancelRate,                        // e.g. 2.4 (%)
+                'total_rides' => $stats['total_rides'],
+                'completed_rides' => $stats['completed_rides'],
+                'cancelled_rides' => $stats['cancelled_rides'],
+                'cancel_rate' => $stats['cancel_rate'],                        // e.g. 2.4 (%)
                 // AUTHORITATIVE: real settled money paid to this driver for rides.
                 // `R2 sec 117`: money figures are rounded once, in `Money`.
                 'ledger_earnings' => Money::from((float) $ledgerEarnings)->amount(),
@@ -441,6 +459,85 @@ final class AdminDriverService
                 'visit_count' => $favoriteDestination->visit_count,
             ] : null,
         ];
+    }
+
+    /**
+     * Identity and rating keys of the dashboard payload, in their original order.
+     */
+    private function dashboardIdentityBlock(User $driver, ?Profile $profile, $ratingStats): array
+    {
+        return [
+            'id' => $driver->id,
+            'driver_ref' => '#DR-'.$driver->id,
+            'full_name' => trim("{$driver->first_name} {$driver->last_name}"),
+            'email' => $driver->email,
+            'phone' => $this->resolveDriverPhone($driver->id),
+            'gender' => $driver->gender,
+            'address' => $driver->address,
+            'joined_at' => $driver->created_at->toIso8601String(),
+            'status' => $this->resolveDriverStatus($driver),
+            'is_verified' => (bool) $driver->is_verified_driver,
+            'verification_status' => $driver->verification_status,
+
+            'profile_photo' => $profile?->profile_photo
+                ? asset('storage/'.$profile->profile_photo)
+                : null,
+
+            'rating' => [
+                'average' => $ratingStats->average ?? 0,
+                'total_ratings' => (int) ($ratingStats->total ?? 0),
+            ],
+        ];
+    }
+
+    private function dashboardRatingStats(int $driverId)
+    {
+        return UserRating::where('rated_user_id', $driverId)
+            ->selectRaw('COUNT(*) as total, ROUND(AVG(rating), 2) as average')
+            ->first();
+    }
+
+    private function dashboardRideStats(int $driverId): array
+    {
+        $totalRides = Ride::where('driver_id', $driverId)->count();
+        $completedRides = Ride::where('driver_id', $driverId)->where('status', 'finished')->count();
+        $cancelledRides = Ride::where('driver_id', $driverId)->where('status', 'cancelled')->count();
+
+        return [
+            'total_rides' => $totalRides,
+            'completed_rides' => $completedRides,
+            'cancelled_rides' => $cancelledRides,
+            'cancel_rate' => $totalRides > 0
+                ? round(($cancelledRides / $totalRides) * 100, 1)
+                : 0.0,
+        ];
+    }
+
+    private function dashboardRecentRides(int $driverId)
+    {
+        return Ride::where('driver_id', $driverId)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['id', 'status', 'pickup_address', 'destination_address', 'price_per_seat', 'departure_time']);
+    }
+
+    private function dashboardFavoriteDestination(int $driverId): ?Ride
+    {
+        return Ride::where('driver_id', $driverId)
+            ->where('status', 'finished')
+            ->select('destination_address')
+            ->selectRaw('COUNT(*) as visit_count')
+            ->groupBy('destination_address')
+            ->orderByDesc('visit_count')
+            ->first();
+    }
+
+    private function dashboardDocuments(User $driver)
+    {
+        return $driver->photos->map(fn ($photo) => [
+            'type' => $photo->type,
+            'file_url' => asset('storage/'.$photo->path),
+        ]);
     }
 
     /**
@@ -484,15 +581,27 @@ final class AdminDriverService
      */
     public function getRecentActivity(int $limit = 10): array
     {
-        $events = [];
+        $events = [
+            ...$this->verificationActivityEvents($limit),
+            ...$this->profileUpdateActivityEvents($limit),
+        ];
 
-        // ── 1. Verification status changes ────────────────────────────────────
+        usort($events, fn ($a, $b) => strcmp($b['occurred_at'], $a['occurred_at']));
+
+        return array_slice(array_values($events), 0, $limit);
+    }
+
+    // ── 1. Verification status changes ────────────────────────────────────
+    private function verificationActivityEvents(int $limit): array
+    {
         $recentVerifications = User::with('profile:user_id,profile_photo')
             ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->whereIn('verification_status', ['pending', 'approved', 'rejected'])
             ->orderByDesc('updated_at')
             ->limit($limit)
             ->get();
+
+        $events = [];
 
         foreach ($recentVerifications as $user) {
             $name = trim("{$user->first_name} {$user->last_name}");
@@ -523,7 +632,12 @@ final class AdminDriverService
             ];
         }
 
-        // ── 2. Vehicle / profile updates by drivers ───────────────────────────
+        return $events;
+    }
+
+    /** ── 2. Vehicle / profile updates by drivers ─────────────────────────── */
+    private function profileUpdateActivityEvents(int $limit): array
+    {
         $recentProfileUpdates = Profile::with('user:id,first_name,last_name')
             ->whereHas('user', fn ($q) => $q->where('is_verified_driver', true)
                 ->orWhereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
@@ -532,6 +646,8 @@ final class AdminDriverService
             ->orderByDesc('updated_at')
             ->limit($limit)
             ->get();
+
+        $events = [];
 
         foreach ($recentProfileUpdates as $profile) {
             if (! $profile->user) {
@@ -551,9 +667,7 @@ final class AdminDriverService
             ];
         }
 
-        usort($events, fn ($a, $b) => strcmp($b['occurred_at'], $a['occurred_at']));
-
-        return array_slice(array_values($events), 0, $limit);
+        return $events;
     }
 
     // =========================================================================
@@ -577,29 +691,8 @@ final class AdminDriverService
             $previousLabel,
         ] = $this->resolvePeriodBounds($period);
 
-        $totalIncoming = $this->countIncomingVerifications($currentStart, $currentEnd);
-        $processed = $this->countProcessedVerifications($currentStart, $currentEnd);
-
-        $efficiencyPct = $totalIncoming > 0
-            ? round(($processed / $totalIncoming) * 100)
-            : 100;
-
-        $prevTotalIncoming = $this->countIncomingVerifications($previousStart, $previousEnd);
-        $prevProcessed = $this->countProcessedVerifications($previousStart, $previousEnd);
-
-        $prevEfficiencyPct = $prevTotalIncoming > 0
-            ? round(($prevProcessed / $prevTotalIncoming) * 100)
-            : 100;
-
-        $delta = $efficiencyPct - $prevEfficiencyPct;
-        $deltaDisplay = ($delta >= 0 ? '+' : '').$delta.'%';
-        $trend = $delta > 0 ? 'up' : ($delta < 0 ? 'down' : 'flat');
-
-        $comparisonText = match (true) {
-            $delta > 0 => abs($delta).'% higher than last '.$label,
-            $delta < 0 => abs($delta).'% lower than last '.$label,
-            default => 'Same as last '.$label,
-        };
+        $current = $this->efficiencyWindow($currentStart, $currentEnd);
+        $previous = $this->efficiencyWindow($previousStart, $previousEnd);
 
         return [
             // RV-19 item 5: `resolvePeriodBounds()` has a `default =>` arm, so an unknown
@@ -615,25 +708,20 @@ final class AdminDriverService
             'current' => [
                 'start' => $currentStart->toDateTimeString(),
                 'end' => $currentEnd->toDateTimeString(),
-                'total_incoming' => $totalIncoming,
-                'processed' => $processed,
-                'pending' => max(0, $totalIncoming - $processed),
-                'efficiency_pct' => $efficiencyPct,
+                'total_incoming' => $current['total_incoming'],
+                'processed' => $current['processed'],
+                'pending' => max(0, $current['total_incoming'] - $current['processed']),
+                'efficiency_pct' => $current['efficiency_pct'],
             ],
             'previous' => [
                 'label' => 'Last '.$previousLabel,
                 'start' => $previousStart->toDateTimeString(),
                 'end' => $previousEnd->toDateTimeString(),
-                'total_incoming' => $prevTotalIncoming,
-                'processed' => $prevProcessed,
-                'efficiency_pct' => $prevEfficiencyPct,
+                'total_incoming' => $previous['total_incoming'],
+                'processed' => $previous['processed'],
+                'efficiency_pct' => $previous['efficiency_pct'],
             ],
-            'comparison' => [
-                'delta' => $delta,
-                'delta_display' => $deltaDisplay,
-                'trend' => $trend,
-                'text' => $comparisonText,
-            ],
+            'comparison' => $this->efficiencyComparison($current['efficiency_pct'], $previous['efficiency_pct'], $label),
         ];
     }
 
@@ -672,6 +760,46 @@ final class AdminDriverService
             ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
             ->whereBetween('updated_at', [$start, $end])
             ->count();
+    }
+
+    /**
+     * Incoming / processed counts and the efficiency percentage for one window.
+     */
+    private function efficiencyWindow(Carbon $start, Carbon $end): array
+    {
+        $totalIncoming = $this->countIncomingVerifications($start, $end);
+        $processed = $this->countProcessedVerifications($start, $end);
+
+        return [
+            'total_incoming' => $totalIncoming,
+            'processed' => $processed,
+            'efficiency_pct' => $totalIncoming > 0
+                ? round(($processed / $totalIncoming) * 100)
+                : 100,
+        ];
+    }
+
+    /**
+     * Delta / trend block comparing the current window against the previous one.
+     *
+     * The two percentages are deliberately untyped: they are `round()` (float) when requests came
+     * in and the integer `100` when none did, and `$delta` kept that int/float shape in the
+     * response, so the arithmetic here must not force either type.
+     */
+    private function efficiencyComparison($efficiencyPct, $prevEfficiencyPct, string $label): array
+    {
+        $delta = $efficiencyPct - $prevEfficiencyPct;
+
+        return [
+            'delta' => $delta,
+            'delta_display' => ($delta >= 0 ? '+' : '').$delta.'%',
+            'trend' => $delta > 0 ? 'up' : ($delta < 0 ? 'down' : 'flat'),
+            'text' => match (true) {
+                $delta > 0 => abs($delta).'% higher than last '.$label,
+                $delta < 0 => abs($delta).'% lower than last '.$label,
+                default => 'Same as last '.$label,
+            },
+        ];
     }
 
     private function resolvePeriodBounds(string $period): array

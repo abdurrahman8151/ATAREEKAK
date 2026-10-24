@@ -56,54 +56,14 @@ class TextMeBotOtpService
                 ];
             }
 
-            // Delete existing OTPs for this phone
-            $this->otpRepository->deleteByPhone($validatedPhone);
-
-            // Generate OTP
-            $otpCode = Otp::generateCode();
-
-            // Create OTP record
-            $otp = $this->otpRepository->create([
-                'phone_number' => $validatedPhone,
-                'otp_code' => $otpCode,
-                'type' => $type,
-                'expires_at' => Carbon::now()->addMinutes(5),
-                'is_verified' => false,
-                'attempts' => 0,
-            ]);
+            [$otpCode, $otp] = $this->issueOtp($validatedPhone, $type);
 
             // Always try to send if API key exists
             if (! empty($this->apiKey)) {
-                $sent = $this->sendViaTextMeBot($validatedPhone, $otpCode);
-
-                if (! $sent) {
-                    Log::error("TextMeBot: Failed to send OTP to $validatedPhone");
-
-                    return [
-                        'success' => false,
-                        'message' => 'Failed to send OTP. Please try again.',
-                        'otp_code' => $otpCode,
-                        'expires_at' => $otp->expires_at->toDateTimeString(),
-                    ];
-                }
-
-                Log::info("TextMeBot: OTP sent to $validatedPhone");
-
-                return [
-                    'success' => true,
-                    'message' => 'OTP sent successfully via WhatsApp (TextMeBot)',
-                    'expires_at' => $otp->expires_at->toDateTimeString(),
-                ];
+                return $this->dispatchViaProvider($validatedPhone, $otpCode, $otp);
             }
 
-            Log::info("TextMeBot: OTP generated for $validatedPhone: $otpCode (no API key)");
-
-            return [
-                'success' => true,
-                'message' => 'OTP generated (TextMeBot not configured)',
-                'otp_code' => $otpCode,
-                'expires_at' => $otp->expires_at->toDateTimeString(),
-            ];
+            return $this->unconfiguredResponse($validatedPhone, $otpCode, $otp);
 
         } catch (\Exception $e) {
             Log::error('TextMeBot OTP send error: '.$e->getMessage());
@@ -113,6 +73,75 @@ class TextMeBotOtpService
                 'message' => 'Failed to send OTP. Please try again.',
             ];
         }
+    }
+
+    /**
+     * Delete any outstanding codes for the phone and persist the new OTP record.
+     *
+     * @return array{0: string, 1: Otp}
+     */
+    private function issueOtp(string $validatedPhone, string $type): array
+    {
+        // Delete existing OTPs for this phone
+        $this->otpRepository->deleteByPhone($validatedPhone);
+
+        // Generate OTP
+        $otpCode = Otp::generateCode();
+
+        // Create OTP record
+        $otp = $this->otpRepository->create([
+            'phone_number' => $validatedPhone,
+            'otp_code' => $otpCode,
+            'type' => $type,
+            'expires_at' => Carbon::now()->addMinutes(5),
+            'is_verified' => false,
+            'attempts' => 0,
+        ]);
+
+        return [$otpCode, $otp];
+    }
+
+    /**
+     * Call the TextMeBot provider and shape the result of that call.
+     */
+    private function dispatchViaProvider(string $validatedPhone, string $otpCode, Otp $otp): array
+    {
+        $sent = $this->sendViaTextMeBot($validatedPhone, $otpCode);
+
+        if (! $sent) {
+            Log::error("TextMeBot: Failed to send OTP to $validatedPhone");
+
+            return [
+                'success' => false,
+                'message' => 'Failed to send OTP. Please try again.',
+                'otp_code' => $otpCode,
+                'expires_at' => $otp->expires_at->toDateTimeString(),
+            ];
+        }
+
+        Log::info("TextMeBot: OTP sent to $validatedPhone");
+
+        return [
+            'success' => true,
+            'message' => 'OTP sent successfully via WhatsApp (TextMeBot)',
+            'expires_at' => $otp->expires_at->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * Shape the result when no provider API key is configured: the code was
+     * only generated locally (OtpDisclosure decides who may read it back).
+     */
+    private function unconfiguredResponse(string $validatedPhone, string $otpCode, Otp $otp): array
+    {
+        Log::info("TextMeBot: OTP generated for $validatedPhone: $otpCode (no API key)");
+
+        return [
+            'success' => true,
+            'message' => 'OTP generated (TextMeBot not configured)',
+            'otp_code' => $otpCode,
+            'expires_at' => $otp->expires_at->toDateTimeString(),
+        ];
     }
 
     /**

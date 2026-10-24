@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\LedgerEntry;
 use App\Models\Wallet;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 
 /**
  * Decision un3 (owner, 2026-10-02): does the ledger explain the balances?
@@ -45,6 +46,28 @@ class ReconcileLedgerCommand extends Command
 
         $wallets = Wallet::orderBy('id')->get();
 
+        $this->renderHeader($wallets, $threshold);
+
+        if (! $this->systemBalances()) {
+            return self::FAILURE;
+        }
+
+        [$explained, $unexplained] = $this->comparePerWallet($wallets, $threshold);
+
+        $this->info(sprintf('  %d of %d wallets fully explained by the ledger.', $explained, $wallets->count()));
+
+        if ($unexplained !== []) {
+            $this->reportUnexplained($unexplained);
+
+            // Owner decision (AF-6a, R2 sec 115). The report above is the diagnosis; this is the alarm.
+            return self::FAILURE;
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function renderHeader(Collection $wallets, float $threshold): void
+    {
         $this->info('Ledger reconciliation');
         $this->line(sprintf(
             '  %d wallets | %d ledger entries | tolerance %s SYP',
@@ -53,8 +76,13 @@ class ReconcileLedgerCommand extends Command
             number_format($threshold, 2),
         ));
         $this->newLine();
+    }
 
-        // Conservation first: if the whole system does not balance, no per-wallet reading means much.
+    /**
+     * Conservation first: if the whole system does not balance, no per-wallet reading means much.
+     */
+    private function systemBalances(): bool
+    {
         $systemImbalance = round((float) LedgerEntry::sum('amount'), 2);
 
         if ($systemImbalance !== 0.0) {
@@ -64,12 +92,20 @@ class ReconcileLedgerCommand extends Command
             ));
             $this->error('  Every transfer must conserve money. Fix this before trusting any per-wallet row below.');
 
-            return self::FAILURE;
+            return false;
         }
 
         $this->info('  System balances: all ledger legs sum to 0.00 SYP.');
         $this->newLine();
 
+        return true;
+    }
+
+    /**
+     * @return array{0: int, 1: list<string>}
+     */
+    private function comparePerWallet(Collection $wallets, float $threshold): array
+    {
         $explained = 0;
         $unexplained = [];
 
@@ -95,25 +131,24 @@ class ReconcileLedgerCommand extends Command
             );
         }
 
-        $this->info(sprintf('  %d of %d wallets fully explained by the ledger.', $explained, $wallets->count()));
+        return [$explained, $unexplained];
+    }
 
-        if ($unexplained !== []) {
-            $this->newLine();
-            $this->warn(sprintf('  %d wallet(s) with movement the ledger does not yet explain:', count($unexplained)));
-            foreach ($unexplained as $line) {
-                $this->line($line);
-            }
-            $this->newLine();
-            $this->comment('  Unexpected on ANY wallet: a converted money path moved a balance');
-            $this->comment('  without posting legs. Every money path is double-entry now, the admin');
-            $this->comment('  and external flows included (R2 sec 57-60.1), so no flow is left for which');
-            $this->comment('  unexplained movement is expected.');
-            $this->newLine();
-
-            // Owner decision (AF-6a, R2 sec 115). The report above is the diagnosis; this is the alarm.
-            return self::FAILURE;
+    /**
+     * @param  list<string>  $unexplained
+     */
+    private function reportUnexplained(array $unexplained): void
+    {
+        $this->newLine();
+        $this->warn(sprintf('  %d wallet(s) with movement the ledger does not yet explain:', count($unexplained)));
+        foreach ($unexplained as $line) {
+            $this->line($line);
         }
-
-        return self::SUCCESS;
+        $this->newLine();
+        $this->comment('  Unexpected on ANY wallet: a converted money path moved a balance');
+        $this->comment('  without posting legs. Every money path is double-entry now, the admin');
+        $this->comment('  and external flows included (R2 sec 57-60.1), so no flow is left for which');
+        $this->comment('  unexplained movement is expected.');
+        $this->newLine();
     }
 }

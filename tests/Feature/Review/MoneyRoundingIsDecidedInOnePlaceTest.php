@@ -47,7 +47,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
         'app/Services/Admin/AdminDriverService.php',
         'app/Http/Controllers/API/PassengerProfileController.php',
         'app/Console/Commands/BackfillBookingMoneySnapshot.php',
-        'app/Console/Commands/Testfullrideflow.php',
+        'app/Console/Testing/Testfullrideflow.php',
     ];
 
     /**

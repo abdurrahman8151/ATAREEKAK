@@ -148,21 +148,9 @@ final class StaffComplaintController extends Controller
     // ── PATCH /api/staff/complaints/{id}/respond ──────────────────────────────
     public function respond(int $complaintId, Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'resolution_notes' => 'required|string|min:10|max:3000',
-            'status' => 'required|in:in_review,resolved,closed',
-        ], [
-            'resolution_notes.required' => 'A response message is required.',
-            'resolution_notes.min' => 'Response must be at least 10 characters.',
-            'status.required' => 'Please specify the new complaint status.',
-            'status.in' => 'Status must be one of: in_review, resolved, closed.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors(),
-            ], 422);
+        $validationError = $this->validateRespondRequest($request);
+        if ($validationError) {
+            return $validationError;
         }
 
         try {
@@ -176,22 +164,7 @@ final class StaffComplaintController extends Controller
                 agent: $agent,
             );
 
-            try {
-                $complaint->loadMissing('user');
-                if ($complaint->user) {
-                    $this->notificationService->createNotification(
-                        $complaint->user,
-                        'complaint_response',
-                        'رد على شكواك',
-                        "تم تحديث حالة شكواك إلى: {$newStatus->label()}.",
-                        ['complaint_id' => $complaintId],
-                        'normal',
-                        'system'
-                    );
-                }
-            } catch (\Throwable $e) {
-                Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
-            }
+            $this->notifyComplaintUser($complaint, $complaintId, $newStatus);
 
             // Status transition changes resolved/closed/in_review badge counts
             Cache::forget('staff.complaint-counts');
@@ -211,6 +184,55 @@ final class StaffComplaintController extends Controller
                 'status' => 'error',
                 'message' => $e->getMessage(),
             ], 422);
+        }
+    }
+
+    /**
+     * Validation for respond(). Returns the 422 response, or null when the input is valid.
+     */
+    private function validateRespondRequest(Request $request): ?JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'resolution_notes' => 'required|string|min:10|max:3000',
+            'status' => 'required|in:in_review,resolved,closed',
+        ], [
+            'resolution_notes.required' => 'A response message is required.',
+            'resolution_notes.min' => 'Response must be at least 10 characters.',
+            'status.required' => 'Please specify the new complaint status.',
+            'status.in' => 'Status must be one of: in_review, resolved, closed.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Tell the complainant their complaint moved. Non-fatal: a failed
+     * notification must not undo the response that was already persisted.
+     */
+    private function notifyComplaintUser(Complaint $complaint, int $complaintId, ComplaintStatus $newStatus): void
+    {
+        try {
+            $complaint->loadMissing('user');
+            if ($complaint->user) {
+                $this->notificationService->createNotification(
+                    $complaint->user,
+                    'complaint_response',
+                    'رد على شكواك',
+                    "تم تحديث حالة شكواك إلى: {$newStatus->label()}.",
+                    ['complaint_id' => $complaintId],
+                    'normal',
+                    'system'
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
         }
     }
 

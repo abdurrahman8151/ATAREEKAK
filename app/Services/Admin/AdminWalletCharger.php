@@ -44,67 +44,15 @@ class AdminWalletCharger
             $wallet->balance = $newBalance;
             $wallet->save();
 
-            $transactionId = strtoupper($adminConfig['type']).'_CHARGE_'.time().'_'.Str::random(8);
+            [$transaction, $transactionId] = $this->createAdminCreditTransaction(
+                $wallet,
+                $amount,
+                $adminConfig,
+                $previousBalance,
+                $newBalance,
+            );
 
-            $transaction = WalletTransaction::create([
-                'wallet_id' => $wallet->id,
-                'user_id' => $wallet->user_id,   // null for system wallets
-                'type' => 'admin_credit',
-                'amount' => $amount->amount(),
-                'previous_balance' => $previousBalance,
-                'new_balance' => $newBalance,
-                'description' => 'Admin wallet charge by '.$adminConfig['type'],
-                'transaction_id' => $transactionId,
-                'status' => 'completed',
-                // NOTE: no 'metadata' column in wallet_transactions
-            ]);
-
-            // ── Decision un3 (owner choice (a)): this is an EXTERNAL flow ────────────
-            // Money arriving in the platform from the outside world has no internal counterparty,
-            // so it is recorded against the External Capital account. That closes the ledger:
-            // without it, an admin top-up was a balance change with no ledger entry, and
-            // reconciliation had a permanent hole exactly where money enters the system.
-            //
-            // The account is NOT Primary Escrow - that one is platform revenue.
-            $external = Wallet::where('phone_number', config('admin.external.phone'))
-                ->where('kind', 'system')
-                ->whereNull('user_id')
-                ->lockForUpdate()
-                ->first();
-
-            if ($external !== null) {
-                $externalPrev = (float) $external->balance;
-                $external->balance -= $amount->amount();   // money leaves the outside account
-                $external->save();
-
-                WalletTransaction::create([
-                    'wallet_id' => $external->id,
-                    'user_id' => null,
-                    'type' => 'external_inbound',
-                    'amount' => -$amount->amount(),
-                    'previous_balance' => $externalPrev,
-                    'new_balance' => (float) $external->balance,
-                    'description' => 'Funds injected into wallet #'.$wallet->id.' by '.$adminConfig['type'],
-                    'transaction_id' => 'EXT_'.$transactionId,
-                    'status' => 'completed',
-                ]);
-
-                app(LedgerService::class)->postExternalTransfer(
-                    $external,
-                    $wallet,
-                    (float) $amount->amount(),
-                    inbound: true,
-                    transaction: $transaction,
-                    description: "admin credit to wallet #{$wallet->id}",
-                );
-            } else {
-                // The external account must exist for the ledger to close. Failing loudly beats
-                // silently recording money that the ledger cannot explain.
-                throw new RuntimeException(
-                    'External Capital wallet not found for phone: '.config('admin.external.phone')
-                    .'. Run: php artisan db:seed --class=SystemWalletSeeder'
-                );
-            }
+            $this->postExternalInboundLeg($wallet, $transaction, $amount, $adminConfig, $transactionId);
 
             Log::info('Wallet charged by admin', [
                 'wallet_id' => $wallet->id,
@@ -119,5 +67,96 @@ class AdminWalletCharger
                 'new_balance' => Money::from($newBalance),
             ];
         });
+    }
+
+    /**
+     * The admin_credit leg: the target wallet transaction. Returns the transaction plus the id
+     * used for the matching external leg.
+     *
+     * @return array{0: WalletTransaction, 1: string}
+     */
+    private function createAdminCreditTransaction(
+        Wallet $wallet,
+        Money $amount,
+        array $adminConfig,
+        float $previousBalance,
+        float $newBalance,
+    ): array {
+        $transactionId = strtoupper($adminConfig['type']).'_CHARGE_'.time().'_'.Str::random(8);
+
+        $transaction = WalletTransaction::create([
+            'wallet_id' => $wallet->id,
+            'user_id' => $wallet->user_id,   // null for system wallets
+            'type' => 'admin_credit',
+            'amount' => $amount->amount(),
+            'previous_balance' => $previousBalance,
+            'new_balance' => $newBalance,
+            'description' => 'Admin wallet charge by '.$adminConfig['type'],
+            'transaction_id' => $transactionId,
+            'status' => 'completed',
+            // NOTE: no 'metadata' column in wallet_transactions
+        ]);
+
+        return [$transaction, $transactionId];
+    }
+
+    /**
+     * The external_inbound leg: money leaves the External Capital account and the transfer is
+     * posted through the ledger. Throws when that account is missing, because the ledger cannot
+     * close without it.
+     */
+    private function postExternalInboundLeg(
+        Wallet $wallet,
+        WalletTransaction $transaction,
+        Money $amount,
+        array $adminConfig,
+        string $transactionId,
+    ): void {
+        // ── Decision un3 (owner choice (a)): this is an EXTERNAL flow ────────────
+        // Money arriving in the platform from the outside world has no internal counterparty,
+        // so it is recorded against the External Capital account. That closes the ledger:
+        // without it, an admin top-up was a balance change with no ledger entry, and
+        // reconciliation had a permanent hole exactly where money enters the system.
+        //
+        // The account is NOT Primary Escrow - that one is platform revenue.
+        $external = Wallet::where('phone_number', config('admin.external.phone'))
+            ->where('kind', 'system')
+            ->whereNull('user_id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($external === null) {
+            // The external account must exist for the ledger to close. Failing loudly beats
+            // silently recording money that the ledger cannot explain.
+            throw new RuntimeException(
+                'External Capital wallet not found for phone: '.config('admin.external.phone')
+                .'. Run: php artisan db:seed --class=SystemWalletSeeder'
+            );
+        }
+
+        $externalPrev = (float) $external->balance;
+        $external->balance -= $amount->amount();   // money leaves the outside account
+        $external->save();
+
+        WalletTransaction::create([
+            'wallet_id' => $external->id,
+            'user_id' => null,
+            'type' => 'external_inbound',
+            'amount' => -$amount->amount(),
+            'previous_balance' => $externalPrev,
+            'new_balance' => (float) $external->balance,
+            'description' => 'Funds injected into wallet #'.$wallet->id.' by '.$adminConfig['type'],
+            'transaction_id' => 'EXT_'.$transactionId,
+            'status' => 'completed',
+        ]);
+
+        app(LedgerService::class)->postExternalTransfer(
+            $external,
+            $wallet,
+            (float) $amount->amount(),
+            inbound: true,
+            transaction: $transaction,
+            description: "admin credit to wallet #{$wallet->id}",
+        );
     }
 }

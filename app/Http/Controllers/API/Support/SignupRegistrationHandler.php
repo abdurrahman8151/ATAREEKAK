@@ -64,62 +64,89 @@ class SignupRegistrationHandler
 
         // ── PATH A: email exists ──────────────────────────────────────────────
         if ($existingUser) {
-
-            // Already fully verified → reject
-            if ($existingUser->email_verified_at !== null) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'This email address is already registered. Please log in.',
-                ], 409);
-            }
-
-            // Unverified → resend the verification code ONLY.
-            //
-            // This branch used to overwrite the existing account's password with
-            // the request-supplied value. Nothing here proves the caller controls
-            // the mailbox, so anyone who knew an abandoned (unverified) address
-            // could set that account's password to a value of their choosing —
-            // a pre-account-takeover: the victim's own password stops working and
-            // the attacker's chosen one becomes the live credential.
-            //
-            // Requesting a new code must not be a credential-change primitive.
-            // The password is left untouched; it can only be changed through the
-            // OTP-verified reset flow under /api/auth/password/*.
-            //
-            // The response is deliberately neutral: it echoes no account identity
-            // (id/first_name/email) and no otp_code. The dev affordance for the
-            // code is the existing Log::info in EmailOtpService::sendOtp().
-            try {
-                $dto = SendEmailOtpDTO::fromUser($existingUser);
-                $otpResult = $this->emailOtpService->sendOtp($dto);
-
-                if (! $otpResult['success']) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Could not send verification email. Please try again.',
-                    ], 500);
-                }
-
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'A new verification code has been sent to your email.',
-                ], 200);
-
-            } catch (\Throwable $e) {
-                Log::error('Signup: resend OTP failed (Path A)', [
-                    'user_id' => $existingUser->id,
-                    'email' => $existingUser->email,
-                    'error' => $e->getMessage(),
-                    'class' => get_class($e),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
-
-                return $this->serverError($e);
-            }
+            return $this->handleExistingAccount($existingUser);
         }
 
         // ── PATH B: new user ──────────────────────────────────────────────────
+        return $this->createNewAccount($request);
+    }
+
+    /**
+     * PATH A entry: the address already has a row.
+     *
+     * A fully verified account is refused with 409; a still-unverified one only gets a new code.
+     */
+    private function handleExistingAccount($existingUser): JsonResponse
+    {
+        // Already fully verified → reject
+        if ($existingUser->email_verified_at !== null) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'This email address is already registered. Please log in.',
+            ], 409);
+        }
+
+        return $this->resendVerificationCode($existingUser);
+    }
+
+    /**
+     * Resend the signup OTP for an existing, still-unverified account.
+     *
+     * The stored password is deliberately NOT touched on this path.
+     */
+    private function resendVerificationCode($existingUser): JsonResponse
+    {
+        // Unverified → resend the verification code ONLY.
+        //
+        // This branch used to overwrite the existing account's password with
+        // the request-supplied value. Nothing here proves the caller controls
+        // the mailbox, so anyone who knew an abandoned (unverified) address
+        // could set that account's password to a value of their choosing —
+        // a pre-account-takeover: the victim's own password stops working and
+        // the attacker's chosen one becomes the live credential.
+        //
+        // Requesting a new code must not be a credential-change primitive.
+        // The password is left untouched; it can only be changed through the
+        // OTP-verified reset flow under /api/auth/password/*.
+        //
+        // The response is deliberately neutral: it echoes no account identity
+        // (id/first_name/email) and no otp_code. The dev affordance for the
+        // code is the existing Log::info in EmailOtpService::sendOtp().
+        try {
+            $dto = SendEmailOtpDTO::fromUser($existingUser);
+            $otpResult = $this->emailOtpService->sendOtp($dto);
+
+            if (! $otpResult['success']) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Could not send verification email. Please try again.',
+                ], 500);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'A new verification code has been sent to your email.',
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Signup: resend OTP failed (Path A)', [
+                'user_id' => $existingUser->id,
+                'email' => $existingUser->email,
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return $this->serverError($e);
+        }
+    }
+
+    /**
+     * PATH B entry: commit the new account first, then send the code.
+     */
+    private function createNewAccount(Request $request): JsonResponse
+    {
         // RV-16 (R2 sec 69): the account is committed BEFORE the mail is sent. The mail used to go
         // out from inside this transaction, with a rollBack whenever the send failed.
         //
@@ -138,18 +165,7 @@ class SignupRegistrationHandler
         try {
             DB::beginTransaction();
 
-            $user = $this->userRepository->createUser([
-                'first_name' => $request->first_name,
-                'last_name' => $request->last_name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'gender' => $request->gender,
-                'address' => $request->address,
-                // FIX: was 1 (active). The user must verify email before they can log in;
-                // LoginController enforces email_verified_at, and starting at 0 adds a
-                // second layer of defence.
-                'status' => 0,
-            ]);
+            $user = $this->createUserRow($request);
 
             DB::commit();
         } catch (\Throwable $e) {
@@ -166,6 +182,33 @@ class SignupRegistrationHandler
         }
 
         // Past this point the account EXISTS. Nothing below may roll it back.
+        return $this->sendSignupOtp($request, $user);
+    }
+
+    /**
+     * Insert the new user row. Runs inside the caller's transaction.
+     */
+    private function createUserRow(Request $request)
+    {
+        return $this->userRepository->createUser([
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'gender' => $request->gender,
+            'address' => $request->address,
+            // FIX: was 1 (active). The user must verify email before they can log in;
+            // LoginController enforces email_verified_at, and starting at 0 adds a
+            // second layer of defence.
+            'status' => 0,
+        ]);
+    }
+
+    /**
+     * Send the verification code and answer 201, or 500 when the mail could not be sent.
+     */
+    private function sendSignupOtp(Request $request, $user): JsonResponse
+    {
         $dto = SendEmailOtpDTO::fromUser($user);
         $otpResult = $this->emailOtpService->sendOtp($dto);
 

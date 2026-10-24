@@ -82,6 +82,16 @@ final class StaffJwtMiddleware
         $request->attributes->set('staffEmployee', $employee);
 
         // ── 8. Bind a user resolver ───────────────────────────────────────────
+        $this->bindUserResolver($request, $employee);
+
+        return $next($request);
+    }
+
+    /**
+     * Step 8: attach the lazy shadow-user resolver to the request.
+     */
+    private function bindUserResolver(Request $request, Employee $employee): void
+    {
         // Admin controllers attribute writes to `$request->user()?->id`
         // (wallet_requests.processed_by, users.banned_by, wallet_transactions
         // .user_id, the admin photo lookup, ...). Without a resolver the default
@@ -107,8 +117,6 @@ final class StaffJwtMiddleware
 
             return $this->managementService->ensureShadowUser($employee);
         });
-
-        return $next($request);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

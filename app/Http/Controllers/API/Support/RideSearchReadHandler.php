@@ -43,21 +43,8 @@ class RideSearchReadHandler
         ]);
 
         try {
-            $source = $request->filled('source_address')
-                ? $this->geocodingService->geocodeAddress($validated['source_address'])
-                : ['lat' => (float) $validated['source_lat'], 'lng' => (float) $validated['source_lng']];
-            // RV-50: an unresolved address must not search from (0,0). Refusal stays inside the
-            // catch below, so the public response is unchanged.
-            if ($source === []) {
-                throw new \InvalidArgumentException("Could not find a location for the source address: {$validated['source_address']}");
-            }
-
-            $destination = $request->filled('destination_address')
-                ? $this->geocodingService->geocodeAddress($validated['destination_address'])
-                : ['lat' => (float) $validated['dest_lat'], 'lng' => (float) $validated['dest_lng']];
-            if ($destination === []) {
-                throw new \InvalidArgumentException("Could not find a location for the destination address: {$validated['destination_address']}");
-            }
+            $source = $this->resolveSearchPoint($request, $validated, 'source_address', 'source_lat', 'source_lng', 'source');
+            $destination = $this->resolveSearchPoint($request, $validated, 'destination_address', 'dest_lat', 'dest_lng', 'destination');
 
             $rides = $this->rideService->searchRides([
                 'departure_date' => $validated['departure_date'],
@@ -74,16 +61,7 @@ class RideSearchReadHandler
             ]);
 
         } catch (\InvalidArgumentException $e) {
-            // RV-50 / owner ruling: an unresolved address is a curated refusal the user can correct,
-            // not a fault. Only the RV-50 "Could not find a location" refusal is curated here; every
-            // other exception still reaches the generic 500 below (RV-13).
-            if (str_starts_with($e->getMessage(), 'Could not find a location for the')) {
-                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-            }
-
-            Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
-
-            return response()->json(['success' => false, 'message' => 'Search failed.'], 500);
+            return $this->respondSearchRefusalOrFail($e, $request);
         } catch (\Throwable $e) {
             Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
 
@@ -92,6 +70,43 @@ class RideSearchReadHandler
                 'message' => 'Search failed.',
             ], 500);
         }
+    }
+
+    /**
+     * Resolve one search endpoint: an address through the geocoder, or raw coordinates.
+     */
+    private function resolveSearchPoint(Request $request, array $validated, string $addressKey, string $latKey, string $lngKey, string $label): array
+    {
+        $point = $request->filled($addressKey)
+            ? $this->geocodingService->geocodeAddress($validated[$addressKey])
+            : ['lat' => (float) $validated[$latKey], 'lng' => (float) $validated[$lngKey]];
+
+        // RV-50: an unresolved address must not search from (0,0). Refusal stays inside the
+        // catch below, so the public response is unchanged.
+        if ($point === []) {
+            throw new \InvalidArgumentException("Could not find a location for the {$label} address: {$validated[$addressKey]}");
+        }
+
+        return $point;
+    }
+
+    /**
+     * Turn an InvalidArgumentException into the curated 422 or the generic 500.
+     */
+    private function respondSearchRefusalOrFail(\InvalidArgumentException $e, Request $request): JsonResponse
+    {
+        // RV-50 / owner ruling: an unresolved address is a curated refusal the user can correct,
+        // not a fault. Only the RV-50 "Could not find a location" refusal is curated here; every
+        // other exception still reaches the generic 500 below (RV-13).
+        if (str_starts_with($e->getMessage(), 'Could not find a location for the')) {
+            $message = $e->getMessage();
+
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
+
+        return response()->json(['success' => false, 'message' => 'Search failed.'], 500);
     }
 
     public function autocomplete(Request $request): JsonResponse
@@ -168,55 +183,20 @@ class RideSearchReadHandler
             $ride = $this->rideService->getRideById($rideId);
 
             // ── Hard authorization check ──────────────────────────────────────
-            if ($request->user()->id !== (int) $ride->driver_id) {
+            if (! $this->driverOwnsRide($ride, $request)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied. Only the driver of this ride can view passenger details.',
                 ], 403);
             }
 
-            // ── Eager-load bookings with passenger profile ────────────────────
-            $ride->load([
-                'driver',           // RV-38: RideResource reads driver + driver.profile
-                'driver.profile',
-                'bookings' => fn ($q) => $q
-                    ->with([
-                        'user:id,first_name,last_name',
-                        'user.profile:user_id,profile_photo',
-                    ])
-                    ->orderBy('created_at'),
-            ]);
-
-            $ride->loadCount(['bookings as total_booked_seats' => fn ($q) => $q->select(DB::raw('COALESCE(SUM(seats), 0)')),
-            ]);
+            $this->loadDriverViewRelations($ride);
 
             // ── Seat summary (in-memory, bookings already loaded) ─────────────
-            $seatsByStatus = $ride->bookings
-                ->groupBy('status')
-                ->map(fn ($group) => (int) $group->sum('seats'));
-
-            $confirmedSeats = $seatsByStatus['confirmed'] ?? 0;
-            $pendingSeats = $seatsByStatus['pending'] ?? 0;
+            [$confirmedSeats, $pendingSeats, $seatsByStatus] = $this->driverViewSeatSummary($ride);
 
             // ── Build passenger list ──────────────────────────────────────────
-            $bookingList = $ride->bookings->map(function ($booking) {
-                $avatar = $booking->user?->profile?->profile_photo
-                    ? asset('storage/'.$booking->user->profile->profile_photo)
-                    : null;
-
-                return [
-                    'id' => $booking->id,
-                    'status' => $booking->status,
-                    'seats' => $booking->seats,
-                    'communication_number' => $booking->communication_number, // safe: driver only
-                    'booked_at' => $booking->created_at->toIso8601String(),
-                    'passenger' => $booking->user ? [
-                        'id' => $booking->user->id,
-                        'name' => trim("{$booking->user->first_name} {$booking->user->last_name}"),
-                        'avatar' => $avatar,
-                    ] : null,
-                ];
-            })->values();
+            $bookingList = $ride->bookings->map(fn ($booking) => $this->driverViewBooking($booking))->values();
 
             return response()->json([
                 'success' => true,
@@ -241,6 +221,73 @@ class RideSearchReadHandler
                 'message' => 'Ride not found',
             ], 404);
         }
+    }
+
+    /**
+     * True when the authenticated user is the ride's driver.
+     */
+    private function driverOwnsRide($ride, Request $request): bool
+    {
+        return $request->user()->id === (int) $ride->driver_id;
+    }
+
+    /**
+     * Eager-load everything the driver view renders.
+     */
+    private function loadDriverViewRelations($ride): void
+    {
+        // ── Eager-load bookings with passenger profile ────────────────────
+        $ride->load([
+            'driver',           // RV-38: RideResource reads driver + driver.profile
+            'driver.profile',
+            'bookings' => fn ($q) => $q
+                ->with([
+                    'user:id,first_name,last_name',
+                    'user.profile:user_id,profile_photo',
+                ])
+                ->orderBy('created_at'),
+        ]);
+
+        $ride->loadCount(['bookings as total_booked_seats' => fn ($q) => $q->select(DB::raw('COALESCE(SUM(seats), 0)')),
+        ]);
+    }
+
+    /**
+     * Aggregate booked seats per booking status from the loaded collection.
+     */
+    private function driverViewSeatSummary($ride): array
+    {
+        $seatsByStatus = $ride->bookings
+            ->groupBy('status')
+            ->map(fn ($group) => (int) $group->sum('seats'));
+
+        $confirmedSeats = $seatsByStatus['confirmed'] ?? 0;
+        $pendingSeats = $seatsByStatus['pending'] ?? 0;
+
+        return [$confirmedSeats, $pendingSeats, $seatsByStatus];
+    }
+
+    /**
+     * Shape one booking row for the driver passenger list.
+     */
+    private function driverViewBooking($booking): array
+    {
+        $avatar = $booking->user?->profile?->profile_photo
+            ? asset('storage/'.$booking->user->profile->profile_photo)
+            : null;
+
+        return [
+            'id' => $booking->id,
+            'status' => $booking->status,
+            'seats' => $booking->seats,
+            'communication_number' => $booking->communication_number, // safe: driver only
+            'booked_at' => $booking->created_at->toIso8601String(),
+            'passenger' => $booking->user ? [
+                'id' => $booking->user->id,
+                'name' => trim("{$booking->user->first_name} {$booking->user->last_name}"),
+                'avatar' => $avatar,
+            ] : null,
+        ];
     }
 
     public function getRouteOptions(Request $request): JsonResponse

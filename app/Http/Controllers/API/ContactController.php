@@ -19,12 +19,44 @@ final class ContactController extends Controller
     // POST /api/contact
     public function __invoke(Request $request): JsonResponse
     {
-        // Pick the least-loaded active support agent.
-        //
-        // "Least-loaded" = fewest open support conversations.
-        // The subquery joins through the shadow User account (matched by email)
-        // so we never need a direct Employee → Conversation relationship.
-        $agent = Employee::where('role', 'support_agent')
+        $agent = $this->leastLoadedSupportAgent();
+
+        if (! $agent) {
+            return $this->errorResponse('No support agents are available at the moment.', 503);
+        }
+
+        // Ensure the agent's shadow User account exists (permanent self-heal).
+        $agentUser = $this->managementService->ensureShadowUser($agent);
+        $currentUser = $request->user();
+
+        // Edge case: authenticated user IS the agent.
+        if ($currentUser->id === $agentUser->id) {
+            return $this->errorResponse('Cannot open support chat.', 422);
+        }
+
+        // Return existing support conversation if one already exists.
+        $existing = $this->chatRepository->findSupportConversation($currentUser, $agentUser);
+
+        if ($existing) {
+            return $this->successResponse($existing->id, 'Support chat ready.', $agent);
+        }
+
+        // Create a new support conversation with correct type and per-role.
+        $conversation = $this->startConversation($currentUser->id, $agentUser->id);
+
+        return $this->successResponse($conversation->id, 'Support chat started.', $agent, 201);
+    }
+
+    /**
+     * Pick the least-loaded active support agent.
+     *
+     * "Least-loaded" = fewest open support conversations.
+     * The subquery joins through the shadow User account (matched by email)
+     * so we never need a direct Employee → Conversation relationship.
+     */
+    private function leastLoadedSupportAgent(): ?Employee
+    {
+        return Employee::where('role', 'support_agent')
             ->where('is_active', true)
             ->whereNotNull('email')
             ->orderByRaw('(
@@ -36,58 +68,41 @@ final class ContactController extends Controller
                   AND c.type  = "support"
             ) ASC')
             ->first();
+    }
 
-        if (! $agent) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'No support agents are available at the moment.',
-            ], 503);
-        }
-
-        // Ensure the agent's shadow User account exists (permanent self-heal).
-        $agentUser = $this->managementService->ensureShadowUser($agent);
-        $currentUser = $request->user();
-
-        // Edge case: authenticated user IS the agent.
-        if ($currentUser->id === $agentUser->id) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Cannot open support chat.',
-            ], 422);
-        }
-
-        // Return existing support conversation if one already exists.
-        $existing = $this->chatRepository->findSupportConversation($currentUser, $agentUser);
-
-        if ($existing) {
-            return response()->json([
-                'status' => 'success',
-                'conversation_id' => $existing->id,
-                'message' => 'Support chat ready.',
-                'agent' => [
-                    'name' => $agent->first_name.' '.$agent->last_name,
-                ],
-            ]);
-        }
-
-        // Create a new support conversation with correct type and per-role.
-        $conversation = $this->chatRepository->createConversation(
-            participants: [$currentUser->id, $agentUser->id],
+    /**
+     * Open the support conversation and let the caller render its id.
+     */
+    private function startConversation(int $currentUserId, int $agentUserId)
+    {
+        return $this->chatRepository->createConversation(
+            participants: [$currentUserId, $agentUserId],
             type: 'support',
             title: null,
             roles: [
-                $currentUser->id => 'customer',
-                $agentUser->id => 'agent',
+                $currentUserId => 'customer',
+                $agentUserId => 'agent',
             ],
         );
+    }
 
+    private function errorResponse(string $message, int $status): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => $message,
+        ], $status);
+    }
+
+    private function successResponse(int $conversationId, string $message, $agent, int $status = 200): JsonResponse
+    {
         return response()->json([
             'status' => 'success',
-            'conversation_id' => $conversation->id,
-            'message' => 'Support chat started.',
+            'conversation_id' => $conversationId,
+            'message' => $message,
             'agent' => [
                 'name' => $agent->first_name.' '.$agent->last_name,
             ],
-        ], 201);
+        ], $status);
     }
 }

@@ -30,6 +30,26 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        // Registration order below is load-bearing: these methods are called in the same
+        // order the commands were registered in before they were extracted.
+        $this->scheduleTokenCleanup($schedule);
+        $this->scheduleOtpCleanup($schedule);
+        $this->scheduleBookingMaintenance($schedule);
+        $this->scheduleLedgerReconciliation($schedule);
+
+        // ── ADMIN PASSWORD ROTATION ──────────────────────────────────────────
+        // Uncomment and adjust frequency to your security policy.
+        //
+        // $schedule->command('admin:rotate-password')
+        //     ->monthly()
+        //     ->onOneServer()
+        //     ->emailOutputOnFailure(config('admin.alert_email'));
+
+        $this->scheduleNoshowResolution($schedule);
+    }
+
+    private function scheduleTokenCleanup(Schedule $schedule): void
+    {
         // ── TOKEN CLEANUP ────────────────────────────────────────────────────
         // User JWT refresh tokens — runs daily is fine since these are long-lived.
         $schedule->command('tokens:cleanup')
@@ -49,7 +69,10 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/scheduled/staff-tokens-cleanup.log'));
+    }
 
+    private function scheduleOtpCleanup(Schedule $schedule): void
+    {
         // ── OTP CLEANUP ──────────────────────────────────────────────────────
         // OTPs expire after a few minutes but rows stay in the DB forever if
         // never cleaned. In a ride-sharing app with thousands of daily signups
@@ -61,7 +84,10 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/scheduled/otps-cleanup.log'));
+    }
 
+    private function scheduleBookingMaintenance(Schedule $schedule): void
+    {
         // ── BOOKING REQUEST EXPIRY (decision 2) ──────────────────────────────
         // A booking request the driver never answered now lapses once the ride departs,
         // instead of being auto-confirmed (the owner ruled against auto-confirm: it would
@@ -75,7 +101,10 @@ class Kernel extends ConsoleKernel
             ->onOneServer()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/scheduled/booking-expiry.log'));
+    }
 
+    private function scheduleLedgerReconciliation(Schedule $schedule): void
+    {
         // ── LEDGER RECONCILIATION (decision un3) ───────────────────────────────
         // Proactive counterpart to the invariant test: checks on real data that every wallet
         // balance change is explained by its ledger legs. Catches a converted money path moving a
@@ -87,15 +116,10 @@ class Kernel extends ConsoleKernel
             ->onOneServer()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/scheduled/ledger-reconcile.log'));
+    }
 
-        // ── ADMIN PASSWORD ROTATION ──────────────────────────────────────────
-        // Uncomment and adjust frequency to your security policy.
-        //
-        // $schedule->command('admin:rotate-password')
-        //     ->monthly()
-        //     ->onOneServer()
-        //     ->emailOutputOnFailure(config('admin.alert_email'));
-
+    private function scheduleNoshowResolution(Schedule $schedule): void
+    {
         // ── NO-SHOW RESOLUTION ───────────────────────────────────────────────
         $schedule->command('noshow:resolve')
             ->everyMinute()
@@ -110,12 +134,22 @@ class Kernel extends ConsoleKernel
      *
      * $this->load() auto-discovers every class inside Commands/ that extends
      * Command, so you do NOT need to manually list individual commands here.
-     * This includes GetLoadTestTokens, CleanupExpiredOtps, etc. — they are all
+     * This includes CleanupExpiredOtps, BackfillBookingMoneySnapshot, etc. — they are all
      * picked up automatically the moment the file exists in the directory.
+     *
+     * Testing/ is loaded separately and ONLY outside production. It holds the
+     * state-fabricating tools (Testfullrideflow, Testridecompletionflow,
+     * Testridegatedinteractioncommand, TestNotificationCommand, Getloadtesttokens),
+     * which must stay runnable locally and in the test suite but must not be
+     * invocable on a production box.
      */
     protected function commands(): void
     {
         $this->load(__DIR__.'/Commands');
+
+        if ($this->app->environment(['local', 'testing'])) {
+            $this->load(__DIR__.'/Testing');
+        }
 
         require base_path('routes/console.php');
     }

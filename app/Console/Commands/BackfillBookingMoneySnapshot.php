@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
+use App\Models\Ride;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -54,18 +55,7 @@ class BackfillBookingMoneySnapshot extends Command
         $dry = (bool) $this->option('dry-run');
 
         // e-pay bookings still unfilled (amount_paid = 0) that DO have an escrow ledger row.
-        $escrowByBooking = DB::table('wallet_transactions')
-            ->where('type', 'escrow_received')
-            ->whereNotNull('reference')
-            ->get()
-            ->reduce(function (array $carry, $tx) {
-                if (preg_match('/^booking:(\d+)$/', (string) $tx->reference, $m)) {
-                    // Sum in case a booking was charged across multiple rows (partial re-charge).
-                    $carry[(int) $m[1]] = ($carry[(int) $m[1]] ?? 0.0) + (float) $tx->amount;
-                }
-
-                return $carry;
-            }, []);
+        $escrowByBooking = $this->escrowTotalsByBooking();
 
         $ePayUpdated = 0;
         $cashMarked = 0;
@@ -77,53 +67,114 @@ class BackfillBookingMoneySnapshot extends Command
         $unfilled = Booking::with('ride')->where('amount_paid', 0)->cursor();
 
         foreach ($unfilled as $booking) {
-            $ride = $booking->relationLoaded('ride') ? $booking->ride : $booking->load('ride')->ride;
+            $outcome = $this->backfillBooking($booking, $escrowByBooking, $dry);
 
-            if ($ride && $ride->payment_method === 'e-pay') {
-                $paid = $escrowByBooking[$booking->id] ?? null;
-
-                if ($paid === null || $paid <= 0) {
-                    // An e-pay booking with no escrow ledger row: money was never proven
-                    // to have moved here. Do not guess. Leave it for manual/review.
-                    $skippedNoLedger++;
-
-                    continue;
-                }
-
-                // `R2 sec 117`: dividing money is a money operation. `divide()` rounds once, in minor
-                // units; the `$booking->seats > 0` guard is what makes its `divisor must be positive`
-                // precondition hold.
-                $unitPrice = $booking->seats > 0
-                    ? Money::from((float) $paid)->divide((float) $booking->seats)->amount()
-                    : $paid;
-
-                if (! $dry) {
-                    $booking->forceFill([
-                        'unit_price' => $unitPrice,
-                        'amount_paid' => $paid,
-                        'payment_method' => 'e-pay',
-                        // RV-02 L2: what this booking has in SyCash RIGHT NOW, taken from the
-                        // escrow ledger row this command already located (`$paid`). Writing 0
-                        // here would strip a live, unreleased escrow of the only record that
-                        // makes its settlement safe to run. Clamped at 0 because this command
-                        // reads only money IN, never money already paid back out.
-                        'escrow_held' => max(0.0, (float) $paid),
-                    ])->save();
-                }
+            if ($outcome === 'e-pay') {
                 $ePayUpdated++;
-
-                continue;
+            } elseif ($outcome === 'cash') {
+                $cashMarked++;
+            } else {
+                $skippedNoLedger++;
             }
-
-            // Cash (or ride-less): no escrow amount is recoverable; mark the method
-            // snapshot only. escrow_held stays 0; amount is settled offline.
-            if (! $dry && $booking->payment_method === null) {
-                $booking->forceFill(['payment_method' => $ride?->payment_method ?? 'cash'])
-                    ->save();
-            }
-            $cashMarked++;
         }
 
+        $this->reportSummary($dry, $ePayUpdated, $cashMarked, $skippedNoLedger);
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Escrow money actually received, keyed by booking id, read from the ledger.
+     *
+     * @return array<int, float>
+     */
+    private function escrowTotalsByBooking(): array
+    {
+        return DB::table('wallet_transactions')
+            ->where('type', 'escrow_received')
+            ->whereNotNull('reference')
+            ->get()
+            ->reduce(function (array $carry, $tx) {
+                if (preg_match('/^booking:(\d+)$/', (string) $tx->reference, $m)) {
+                    // Sum in case a booking was charged across multiple rows (partial re-charge).
+                    $carry[(int) $m[1]] = ($carry[(int) $m[1]] ?? 0.0) + (float) $tx->amount;
+                }
+
+                return $carry;
+            }, []);
+    }
+
+    /**
+     * @param  array<int, float>  $escrowByBooking
+     * @return 'e-pay'|'cash'|'skipped'
+     */
+    private function backfillBooking(Booking $booking, array $escrowByBooking, bool $dry): string
+    {
+        $ride = $booking->relationLoaded('ride') ? $booking->ride : $booking->load('ride')->ride;
+
+        if ($ride && $ride->payment_method === 'e-pay') {
+            return $this->fillEPaySnapshot($booking, $escrowByBooking, $dry);
+        }
+
+        return $this->markCashMethodSnapshot($booking, $ride, $dry);
+    }
+
+    /**
+     * @param  array<int, float>  $escrowByBooking
+     * @return 'e-pay'|'skipped'
+     */
+    private function fillEPaySnapshot(Booking $booking, array $escrowByBooking, bool $dry): string
+    {
+        $paid = $escrowByBooking[$booking->id] ?? null;
+
+        if ($paid === null || $paid <= 0) {
+            // An e-pay booking with no escrow ledger row: money was never proven
+            // to have moved here. Do not guess. Leave it for manual/review.
+            return 'skipped';
+        }
+
+        // `R2 sec 117`: dividing money is a money operation. `divide()` rounds once, in minor
+        // units; the `$booking->seats > 0` guard is what makes its `divisor must be positive`
+        // precondition hold.
+        $unitPrice = $booking->seats > 0
+            ? Money::from((float) $paid)->divide((float) $booking->seats)->amount()
+            : $paid;
+
+        if (! $dry) {
+            $booking->forceFill([
+                'unit_price' => $unitPrice,
+                'amount_paid' => $paid,
+                'payment_method' => 'e-pay',
+                // RV-02 L2: what this booking has in SyCash RIGHT NOW, taken from the
+                // escrow ledger row this command already located (`$paid`). Writing 0
+                // here would strip a live, unreleased escrow of the only record that
+                // makes its settlement safe to run. Clamped at 0 because this command
+                // reads only money IN, never money already paid back out.
+                'escrow_held' => max(0.0, (float) $paid),
+            ])->save();
+        }
+
+        return 'e-pay';
+    }
+
+    /**
+     * Cash (or ride-less): no escrow amount is recoverable; mark the method
+     * snapshot only. escrow_held stays 0; amount is settled offline.
+     *
+     * @return 'cash'
+     */
+    private function markCashMethodSnapshot(Booking $booking, ?Ride $ride, bool $dry): string
+    {
+        if (! $dry && $booking->payment_method === null) {
+            $booking->forceFill(['payment_method' => $ride?->payment_method ?? 'cash'])
+                ->save();
+        }
+
+        return 'cash';
+    }
+
+    private function reportSummary(bool $dry, int $ePayUpdated, int $cashMarked, int $skippedNoLedger): void
+    {
         $this->info(sprintf(
             '%s e-pay filled: %d | cash method-snapshotted: %d | e-pay skipped (no ledger): %d',
             $dry ? '[DRY-RUN] would fill —' : 'Filled —',
@@ -131,7 +182,5 @@ class BackfillBookingMoneySnapshot extends Command
             $cashMarked,
             $skippedNoLedger
         ));
-
-        return self::SUCCESS;
     }
 }

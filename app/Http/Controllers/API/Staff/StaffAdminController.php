@@ -174,22 +174,17 @@ final class StaffAdminController extends Controller
 
     public function rejectVerification(int $userId, Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'reason' => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        $validationError = $this->validateRejectRequest($request);
+        if ($validationError) {
+            return $validationError;
         }
 
         try {
             $user = User::findOrFail($userId);
 
-            if ($user->verification_status !== 'pending') {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'User does not have a pending verification request.',
-                ], 422);
+            $pendingError = $this->pendingVerificationGuard($user);
+            if ($pendingError) {
+                return $pendingError;
             }
 
             $user->update([
@@ -198,20 +193,7 @@ final class StaffAdminController extends Controller
                 'is_verified_driver' => false,
             ]);
 
-            try {
-                app(NotificationService::class)->createNotification(
-                    $user,
-                    'verification_rejected',
-                    'طلب التوثيق مرفوض',
-                    'تم رفض طلب توثيق حسابك.'
-                    .($request->input('reason') ? ' السبب: '.$request->input('reason') : ' يمكنك إعادة التقديم بعد تصحيح البيانات.'),
-                    ['user_id' => $user->id],
-                    'high',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('user verification decision notification failed (non-fatal): '.$e->getMessage());
-            }
+            $this->notifyVerificationRejected($user, $request);
 
             // User leaves the pending list; their staff profile now shows new verification status
             Cache::forget('staff.pending-verifications');
@@ -235,6 +217,60 @@ final class StaffAdminController extends Controller
             ]);
 
             return $this->serverError();
+        }
+    }
+
+    /**
+     * Validation for rejectVerification(). Returns the 422 response, or null when valid.
+     */
+    private function validateRejectRequest(Request $request): ?JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Only a user whose request is still pending can be rejected.
+     * Returns the 422 response, or null when the rejection may proceed.
+     */
+    private function pendingVerificationGuard(User $user): ?JsonResponse
+    {
+        if ($user->verification_status !== 'pending') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User does not have a pending verification request.',
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Tell the user their verification was rejected. Non-fatal: a failed
+     * notification must not undo the decision that was already persisted.
+     */
+    private function notifyVerificationRejected(User $user, Request $request): void
+    {
+        try {
+            app(NotificationService::class)->createNotification(
+                $user,
+                'verification_rejected',
+                'طلب التوثيق مرفوض',
+                'تم رفض طلب توثيق حسابك.'
+                .($request->input('reason') ? ' السبب: '.$request->input('reason') : ' يمكنك إعادة التقديم بعد تصحيح البيانات.'),
+                ['user_id' => $user->id],
+                'high',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('user verification decision notification failed (non-fatal): '.$e->getMessage());
         }
     }
 

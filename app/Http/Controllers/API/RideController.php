@@ -12,11 +12,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\BookRideRequest;
 use App\Http\Requests\CreateRideRequest;
 use App\Http\Resources\RideResource;
-use App\Models\Booking;
 use App\Services\Geocoding\GeocodingService;
 use App\Services\Geocoding\RouteCalculationService;
-use App\Services\NotificationService;
-use App\Services\Ride\BookingService;
+use App\Services\Ride\BookingActionService;
 use App\Services\Ride\RideService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,15 +43,14 @@ class RideController extends Controller
 {
     public function __construct(
         private readonly RideService $rideService,
-        private readonly BookingService $bookingService,
         private readonly GeocodingService $geocodingService,
         private readonly RouteCalculationService $routeService,
-        private readonly NotificationService $notificationService,
         private readonly RideCancellationHandler $cancellation,
         private readonly RideBookingResponseHandler $bookingResponses,
         private readonly RideLifecycleHandler $lifecycle,
         private readonly RideSearchReadHandler $searchRead,
         private readonly RideBookingHandler $booking,
+        private readonly BookingActionService $bookingActions,
     ) {}
 
     // =========================================================================
@@ -270,51 +267,7 @@ class RideController extends Controller
     public function passengerConfirmCompletion(Request $request, int $booking): JsonResponse
     {
         try {
-            $result = $this->bookingService->passengerConfirmCompletion(
-                $booking,
-                $request->user()
-            );
-
-            // ── Notifications ──────────────────────────────────────────────────
-            // Always notify the driver that this passenger confirmed (and was paid).
-            // If the ride is now fully finished, send a separate "all done" notice.
-            try {
-                $b = Booking::with('ride.driver')->find($booking);
-
-                if ($b?->ride?->driver) {
-                    if ($result['ride_finished']) {
-                        // All passengers confirmed — ride is closed
-                        $this->notificationService->createNotification(
-                            $b->ride->driver,
-                            'ride_completed',
-                            'اكتملت رحلتك',
-                            'أكد جميع الركاب وصولهم. تم تحويل جميع المبالغ إلى محفظتك.',
-                            ['ride_id' => $b->ride_id],
-                            'high',
-                            'ride'
-                        );
-                    } else {
-                        // Partial — this passenger confirmed, others still pending
-                        $passengerName = trim(
-                            ($request->user()->first_name ?? '').' '.
-                            ($request->user()->last_name ?? '')
-                        );
-
-                        $this->notificationService->createNotification(
-                            $b->ride->driver,
-                            'passenger_confirmed',
-                            'تأكيد ركاب',
-                            "أكد {$passengerName} وصوله. تم تحويل حصته إلى محفظتك.",
-                            ['booking_id' => $booking, 'ride_id' => $b->ride_id],
-                            'normal',
-                            'ride'
-                        );
-                    }
-                }
-            } catch (\Throwable $e) {
-                // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('ride confirmation notification failed (non-fatal): '.$e->getMessage());
-            }
+            $result = $this->bookingActions->confirmPassengerCompletion($booking, $request->user());
 
             return response()->json([
                 'status' => 'success',
@@ -327,15 +280,8 @@ class RideController extends Controller
             // InvalidArgumentException for every "you cannot confirm this" case and
             // DomainException for the typed subclasses. Both are mapped by RV-13's
             // shared error model in App\Exceptions\Handler (422 / 403 / 409, with the
-            // `errors` bag preserved).
-            //
-            // Before this branch existed, the catch-all below swallowed them and
-            // answered every refusal with a bare 500 and "please try again", so a
-            // passenger who tapped confirm before the ride had departed was told the
-            // server was broken rather than that they were early.
-            //
-            // Genuine internal faults (payment release failures, DB errors) still fall
-            // through to the catch-all below and are logged and reported as 500.
+            // `errors` bag preserved). Genuine internal faults (payment release
+            // failures, DB errors) fall through to the catch-all below.
             throw $e;
         } catch (\Throwable $e) {
             Log::error('Passenger confirmation failed', [
@@ -365,28 +311,11 @@ class RideController extends Controller
         ]);
 
         try {
-            $result = $this->bookingService->cancelPartialSeats(
+            $result = $this->bookingActions->cancelPartialSeats(
                 $bookingId,
-                $validated['seats_to_cancel'],
+                $validated,
                 $request->user()
             );
-
-            try {
-                $booking = Booking::with('ride.driver')->find($bookingId);
-                if ($booking?->ride?->driver) {
-                    $this->notificationService->createNotification(
-                        $booking->ride->driver,
-                        'seats_partially_cancelled',
-                        'إلغاء جزئي للمقاعد',
-                        "ألغى أحد الركاب {$validated['seats_to_cancel']} مقعد من حجزه.",
-                        ['booking_id' => $bookingId, 'ride_id' => $booking->ride_id],
-                        'normal',
-                        'ride'
-                    );
-                }
-            } catch (\Throwable $e) {
-                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
-            }
 
             return response()->json([
                 'status' => 'success',
@@ -415,24 +344,7 @@ class RideController extends Controller
     public function reportPassengerNoShow(Request $request, int $bookingId): JsonResponse
     {
         try {
-            $result = $this->bookingService->reportPassengerNoShow($bookingId, $request->user());
-
-            try {
-                $booking = Booking::with('user')->find($bookingId);
-                if ($booking?->user) {
-                    $this->notificationService->createNotification(
-                        $booking->user,
-                        'no_show_recorded',
-                        'تسجيل غياب',
-                        'أفاد السائق بغيابك في موعد انطلاق الرحلة. تم تسجيل ذلك في ملفك.',
-                        ['booking_id' => $bookingId],
-                        'high',
-                        'ride'
-                    );
-                }
-            } catch (\Throwable $e) {
-                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
-            }
+            $result = $this->bookingActions->reportPassengerNoShow($bookingId, $request->user());
 
             return response()->json(['status' => 'success', 'message' => $result['message']]);
 

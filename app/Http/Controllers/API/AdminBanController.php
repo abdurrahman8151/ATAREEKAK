@@ -53,21 +53,8 @@ final class AdminBanController extends Controller
      */
     public function ban(int $userId, Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'reason' => 'required|string|min:10|max:1000',
-            'type' => 'required|in:permanent,temporary',
-            'expires_at' => 'required_if:type,temporary|nullable|date|after:now',
-        ], [
-            'reason.required' => 'A ban reason is required.',
-            'reason.min' => 'Ban reason must be at least 10 characters.',
-            'type.required' => 'Ban type is required (permanent or temporary).',
-            'type.in' => 'Ban type must be permanent or temporary.',
-            'expires_at.required_if' => 'An expiry date is required for temporary bans.',
-            'expires_at.after' => 'Expiry date must be in the future.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        if ($error = $this->banRequestError($request)) {
+            return $error;
         }
 
         try {
@@ -101,24 +88,7 @@ final class AdminBanController extends Controller
             ]);
 
             // Notify user
-            try {
-                $expiryNote = $request->input('type') === 'temporary'
-                    ? ' Your ban expires at '.$request->input('expires_at').'.'
-                    : '';
-
-                app(NotificationService::class)->createNotification(
-                    $user,
-                    'account_banned',
-                    'Account Banned',
-                    'Your account has been banned. Reason: '.$request->input('reason').$expiryNote,
-                    ['ban_type' => $request->input('type')],
-                    'high',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('ban notification failed (non-fatal): '.$e->getMessage());
-            }
+            $this->notifyBannedUser($user, $request);
 
             return response()->json([
                 'status' => 'success',
@@ -147,12 +117,8 @@ final class AdminBanController extends Controller
      */
     public function unban(int $userId, Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'admin_notes' => 'nullable|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        if ($error = $this->unbanRequestError($request)) {
+            return $error;
         }
 
         try {
@@ -175,23 +141,7 @@ final class AdminBanController extends Controller
             ]);
 
             // Notify user
-            try {
-                app(NotificationService::class)->createNotification(
-                    $user,
-                    'account_unbanned',
-                    'Account Restored',
-                    'Your account ban has been lifted. You can now log in again.'
-                    .($request->input('admin_notes')
-                        ? ' Note: '.$request->input('admin_notes')
-                        : ''),
-                    [],
-                    'high',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('unban notification failed (non-fatal): '.$e->getMessage());
-            }
+            $this->notifyUnbannedUser($user, $request);
 
             return response()->json([
                 'status' => 'success',
@@ -276,6 +226,90 @@ final class AdminBanController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Validate the ban payload. Returns the 422 response on failure, null when valid.
+     */
+    private function banRequestError(Request $request): ?JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'reason' => 'required|string|min:10|max:1000',
+            'type' => 'required|in:permanent,temporary',
+            'expires_at' => 'required_if:type,temporary|nullable|date|after:now',
+        ], [
+            'reason.required' => 'A ban reason is required.',
+            'reason.min' => 'Ban reason must be at least 10 characters.',
+            'type.required' => 'Ban type is required (permanent or temporary).',
+            'type.in' => 'Ban type must be permanent or temporary.',
+            'expires_at.required_if' => 'An expiry date is required for temporary bans.',
+            'expires_at.after' => 'Expiry date must be in the future.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Validate the unban payload. Returns the 422 response on failure, null when valid.
+     */
+    private function unbanRequestError(Request $request): ?JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'admin_notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        return null;
+    }
+
+    private function notifyBannedUser(User $user, Request $request): void
+    {
+        try {
+            $expiryNote = $request->input('type') === 'temporary'
+                ? ' Your ban expires at '.$request->input('expires_at').'.'
+                : '';
+
+            app(NotificationService::class)->createNotification(
+                $user,
+                'account_banned',
+                'Account Banned',
+                'Your account has been banned. Reason: '.$request->input('reason').$expiryNote,
+                ['ban_type' => $request->input('type')],
+                'high',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            // T3-13: non-fatal by intent, but it must be visible.
+            Log::warning('ban notification failed (non-fatal): '.$e->getMessage());
+        }
+    }
+
+    private function notifyUnbannedUser(User $user, Request $request): void
+    {
+        try {
+            app(NotificationService::class)->createNotification(
+                $user,
+                'account_unbanned',
+                'Account Restored',
+                'Your account ban has been lifted. You can now log in again.'
+                .($request->input('admin_notes')
+                    ? ' Note: '.$request->input('admin_notes')
+                    : ''),
+                [],
+                'high',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            // T3-13: non-fatal by intent, but it must be visible.
+            Log::warning('unban notification failed (non-fatal): '.$e->getMessage());
+        }
     }
 
     private function serverError(): JsonResponse

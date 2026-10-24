@@ -21,61 +21,21 @@ class RideResource extends JsonResource
         return [
             'id' => $this->id,
 
-            'driver' => [
-                'id' => $this->driver->id,
-                'name' => trim($this->driver->first_name.' '.$this->driver->last_name),
-                'avatar' => $this->driver->profile?->profile_photo
-                    ? asset('storage/'.$this->driver->profile->profile_photo)
-                    : $this->driver->avatar,
-                // AF-4: `driver_rating` is not a column on users; it evaluated
-                // to null and `?? 0` silently returned a rating of 0 for EVERY
-                // driver — a fake number in the API response. average_rating is
-                // the model's single-source accessor; it reads the batch-loaded
-                // relation when present (search/list eager-load driver.
-                // receivedRatings) and falls back to one query for single-model
-                // paths, so this never turns a list into an N+1.
-                'rating' => round((float) $this->driver->average_rating, 2),
-            ],
+            'driver' => $this->driverPayload(),
 
-            'pickup' => [
-                'address' => $this->pickup_address,
-                'coordinates' => $this->pickup_location ? [
-                    'lat' => $this->pickup_location['lat'],
-                    'lng' => $this->pickup_location['lng'],
-                ] : null,
-            ],
-
-            'destination' => [
-                'address' => $this->destination_address,
-                'coordinates' => $this->destination_location ? [
-                    'lat' => $this->destination_location['lat'],
-                    'lng' => $this->destination_location['lng'],
-                ] : null,
-            ],
+            'pickup' => $this->endpointPayload($this->pickup_address, $this->pickup_location),
+            'destination' => $this->endpointPayload($this->destination_address, $this->destination_location),
 
             'departure_time' => $this->departure_time->toIso8601String(),
             'departure_time_human' => $this->departure_time->format('M j, Y \a\t g:i A'),
 
-            'seats' => [
-                'available' => $this->available_seats,
-                // FIXED: Use pre-loaded count instead of querying
-                'booked' => (int) ($this->total_booked_seats ?? 0),
-                'total' => $this->available_seats + (int) ($this->total_booked_seats ?? 0),
-            ],
+            'seats' => $this->seatsPayload(),
 
             'price_per_seat' => $this->price_per_seat,
             'status' => $this->status,
 
-            'distance' => [
-                'meters' => $this->distance,
-                'kilometers' => round($this->distance / 1000, 1),
-            ],
-
-            'duration' => [
-                'seconds' => $this->duration,
-                'minutes' => round($this->duration / 60),
-                'human' => $this->formatDuration($this->duration),
-            ],
+            'distance' => $this->distancePayload(),
+            'duration' => $this->durationPayload(),
 
             'vehicle_type' => $this->vehicle_type,
             'payment_method' => $this->payment_method,
@@ -95,6 +55,72 @@ class RideResource extends JsonResource
 
             'created_at' => $this->created_at->toIso8601String(),
             'updated_at' => $this->updated_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * The driver block: identity, avatar and the AF-4 rating source.
+     */
+    private function driverPayload(): array
+    {
+        return [
+            'id' => $this->driver->id,
+            'name' => trim($this->driver->first_name.' '.$this->driver->last_name),
+            'avatar' => $this->driver->profile?->profile_photo
+                ? asset('storage/'.$this->driver->profile->profile_photo)
+                : $this->driver->avatar,
+            // AF-4: `driver_rating` is not a column on users; it evaluated
+            // to null and `?? 0` silently returned a rating of 0 for EVERY
+            // driver — a fake number in the API response. average_rating is
+            // the model's single-source accessor; it reads the batch-loaded
+            // relation when present (search/list eager-load driver.
+            // receivedRatings) and falls back to one query for single-model
+            // paths, so this never turns a list into an N+1.
+            'rating' => round((float) $this->driver->average_rating, 2),
+        ];
+    }
+
+    /**
+     * One endpoint block (pickup or destination): the address plus its coordinates, or null.
+     */
+    private function endpointPayload($address, $location): array
+    {
+        return [
+            'address' => $address,
+            'coordinates' => $location ? [
+                'lat' => $location['lat'],
+                'lng' => $location['lng'],
+            ] : null,
+        ];
+    }
+
+    /**
+     * Seat counts, from the pre-loaded booking count.
+     */
+    private function seatsPayload(): array
+    {
+        return [
+            'available' => $this->available_seats,
+            // FIXED: Use pre-loaded count instead of querying
+            'booked' => (int) ($this->total_booked_seats ?? 0),
+            'total' => $this->available_seats + (int) ($this->total_booked_seats ?? 0),
+        ];
+    }
+
+    private function distancePayload(): array
+    {
+        return [
+            'meters' => $this->distance,
+            'kilometers' => round($this->distance / 1000, 1),
+        ];
+    }
+
+    private function durationPayload(): array
+    {
+        return [
+            'seconds' => $this->duration,
+            'minutes' => round($this->duration / 60),
+            'human' => $this->formatDuration($this->duration),
         ];
     }
 

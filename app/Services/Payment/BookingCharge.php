@@ -3,16 +3,11 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
-use App\Enums\WalletKind;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Support\FeeSplit;
-use App\Support\PostingKey;
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -20,13 +15,12 @@ use Illuminate\Support\Str;
 /** Money path split out of WalletTransactionService (behaviour unchanged). */
 class BookingCharge
 {
-
     public function __construct(
         private readonly WalletAccess $access,
         private readonly LedgerService $ledger = new LedgerService,
     ) {}
 
-/**
+    /**
      * Charge passenger for an e-pay booking.
      * Full amount goes to SyCash (escrow) — driver receives nothing yet.
      *
@@ -38,6 +32,35 @@ class BookingCharge
     {
         $amount = $booking->seats * $ride->price_per_seat;
 
+        $escrowInKey = $this->guardAgainstDoubleCharge($booking);
+
+        [$syCashWallet, $passengerWallet] = $this->lockChargeWallets($passenger, $amount);
+
+        [$passengerPrev, $syCashPrev] = $this->movePassengerFundsIntoEscrow($passengerWallet, $syCashWallet, $amount);
+
+        $this->snapshotBookingCharge($booking, $ride, $amount);
+
+        $txId = 'RB_'.time().'_'.Str::random(8);
+
+        $this->recordChargeTransactions(
+            $booking, $ride, $passenger, $passengerWallet, $syCashWallet,
+            $amount, $passengerPrev, $syCashPrev, $txId, $escrowInKey
+        );
+
+        $this->postChargeLegs($booking, $passengerWallet, $syCashWallet, $amount);
+
+        Log::info('Passenger charged — escrow held in SyCash', [
+            'booking_id' => $booking->id,
+            'passenger_id' => $passenger->id,
+            'amount' => $amount,
+        ]);
+    }
+
+    /**
+     * The replay guard, FIRST — before any wallet is locked or any balance is written.
+     */
+    private function guardAgainstDoubleCharge(Booking $booking): string
+    {
         // ── RV-02 L2 (D1): the replay guard, FIRST — before any wallet is locked or
         // any balance is written.
         //
@@ -52,6 +75,16 @@ class BookingCharge
         $escrowInKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-in');
         $this->access->assertPostingKeyUnused($escrowInKey);
 
+        return $escrowInKey;
+    }
+
+    /**
+     * Lock the global escrow wallet before the passenger's own wallet, then check the balance.
+     *
+     * @return array{0: Wallet, 1: Wallet}
+     */
+    private function lockChargeWallets(User $passenger, $amount): array
+    {
         // RV-09: acquire the GLOBAL serialization lock (SyCash) FIRST, then the
         // passenger's own wallet. Every other money path (release/refund/no-show) already
         // locks SyCash before any user wallet; charge was the lone exception, locking
@@ -70,6 +103,16 @@ class BookingCharge
             'Current: '.number_format($passengerWallet->balance, 0).' SYP.'
         );
 
+        return [$syCashWallet, $passengerWallet];
+    }
+
+    /**
+     * Move the amount off the passenger and into SyCash, returning both previous balances.
+     *
+     * @return array{0: mixed, 1: mixed}
+     */
+    private function movePassengerFundsIntoEscrow(Wallet $passengerWallet, Wallet $syCashWallet, $amount): array
+    {
         $passengerPrev = $passengerWallet->balance;
         $syCashPrev = $syCashWallet->balance;
 
@@ -79,6 +122,12 @@ class BookingCharge
         $passengerWallet->save();
         $syCashWallet->save();
 
+        return [$passengerPrev, $syCashPrev];
+    }
+
+    /** Persist what this booking paid as an immutable snapshot on the booking itself. */
+    private function snapshotBookingCharge(Booking $booking, Ride $ride, $amount): void
+    {
         // RV-40: persist the money as an immutable snapshot on the booking, the moment it
         // is actually charged. Before this, nothing recorded what a booking paid; every
         // later refund/settlement re-derived `seats * ride.price_per_seat`, so a mutable
@@ -101,9 +150,21 @@ class BookingCharge
             'payment_method' => $ride->payment_method,
             'escrow_held' => $amount,
         ])->save();
+    }
 
-        $txId = 'RB_'.time().'_'.Str::random(8);
-
+    /** Write the single-sided wallet_transactions rows for this charge. */
+    private function recordChargeTransactions(
+        Booking $booking,
+        Ride $ride,
+        User $passenger,
+        Wallet $passengerWallet,
+        Wallet $syCashWallet,
+        $amount,
+        $passengerPrev,
+        $syCashPrev,
+        string $txId,
+        string $escrowInKey
+    ): void {
         WalletTransaction::create([
             'wallet_id' => $passengerWallet->id,
             'user_id' => $passenger->id,
@@ -130,7 +191,11 @@ class BookingCharge
             'reference' => "booking:{$booking->id}",
             'posting_key' => $escrowInKey,
         ]);
+    }
 
+    /** Post the double-entry legs that witness the passenger → SyCash movement. */
+    private function postChargeLegs(Booking $booking, Wallet $passengerWallet, Wallet $syCashWallet, $amount): void
+    {
         // ── Decision un3: double-entry legs ────────────────────────────────────
         // The two `wallet_transactions` rows above are the SINGLE-SIDED record: one row per wallet
         // that moved. These legs state that they are two halves of ONE movement - the passenger's
@@ -153,12 +218,6 @@ class BookingCharge
                 'amount' => $amount,
                 'description' => "booking #{$booking->id}: escrow credit",
             ],
-        ]);
-
-        Log::info('Passenger charged — escrow held in SyCash', [
-            'booking_id' => $booking->id,
-            'passenger_id' => $passenger->id,
-            'amount' => $amount,
         ]);
     }
 }

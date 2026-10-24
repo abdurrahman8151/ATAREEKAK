@@ -58,18 +58,10 @@ class MigrateKycDocumentsCommand extends Command
         $to = (string) ($this->option('to') ?: config('filesystems.documents_disk', 'local'));
         $dryRun = (bool) $this->option('dry-run');
 
-        if ($from === $to) {
-            $this->error("Source and target disks are the same ('{$from}'). Nothing to do.");
+        if (($error = $this->diskConfigurationError($from, $to)) !== null) {
+            $this->error($error);
 
             return self::FAILURE;
-        }
-
-        foreach ([$from, $to] as $disk) {
-            if (config("filesystems.disks.{$disk}") === null) {
-                $this->error("Disk '{$disk}' is not defined in config/filesystems.php.");
-
-                return self::FAILURE;
-            }
         }
 
         $total = Photo::query()->count();
@@ -80,10 +72,7 @@ class MigrateKycDocumentsCommand extends Command
             return self::SUCCESS;
         }
 
-        $this->line("KYC documents: {$total}");
-        $this->line("From disk    : {$from}");
-        $this->line("To disk      : {$to}");
-        $this->line($dryRun ? 'Mode         : DRY RUN (nothing will be moved)' : 'Mode         : LIVE');
+        $this->renderPlan($total, $from, $to, $dryRun);
 
         if (! $dryRun && ! $this->option('force') && ! $this->confirm('Move these documents? Old public URLs will stop resolving.', false)) {
             $this->warn('Aborted. Nothing was moved.');
@@ -91,81 +80,130 @@ class MigrateKycDocumentsCommand extends Command
             return self::SUCCESS;
         }
 
-        $moved = $skipped = $missing = $failed = 0;
+        $counts = ['moved' => 0, 'skipped' => 0, 'missing' => 0, 'failed' => 0];
 
-        Photo::query()->orderBy('id')->each(function (Photo $photo) use ($from, $to, $dryRun, &$moved, &$skipped, &$missing, &$failed): void {
-            $path = $photo->path;
-
-            // Already on the target: this is what makes a re-run after an interruption safe.
-            if (Storage::disk($to)->exists($path)) {
-                $skipped++;
-
-                return;
-            }
-
-            // A row whose bytes are on neither disk is REPORTED, never deleted. The row is left
-            // exactly as it was so an operator can investigate it.
-            if (! Storage::disk($from)->exists($path)) {
-                $missing++;
-                $this->warn("  missing (on neither disk, row left alone): id={$photo->id} {$path}");
-
-                return;
-            }
-
-            if ($dryRun) {
-                $moved++;
-                $this->line("  would move: id={$photo->id} {$path}");
-
-                return;
-            }
-
-            $sourceSize = Storage::disk($from)->size($path);
-
-            try {
-                Storage::disk($to)->put($path, Storage::disk($from)->get($path));
-            } catch (\Throwable $e) {
-                $failed++;
-                $this->error("  copy failed: id={$photo->id} {$path} - {$e->getMessage()}");
-
-                return;
-            }
-
-            // Verify BEFORE deleting the source. A wrong size means a truncated write; keep the
-            // original rather than trading a good file for a bad one.
-            if (! Storage::disk($to)->exists($path) || Storage::disk($to)->size($path) !== $sourceSize) {
-                $failed++;
-                $this->error("  size mismatch after copy, source kept: id={$photo->id} {$path}");
-
-                return;
-            }
-
-            try {
-                Storage::disk($from)->delete($path);
-            } catch (\Throwable $e) {
-                // The copy is good; a failed delete only leaves a duplicate, which is the safe
-                // direction to fail in. Report it rather than pretending it is done.
-                $this->warn("  copied but source delete failed (duplicate left): id={$photo->id} {$path}");
-            }
-
-            $moved++;
+        Photo::query()->orderBy('id')->each(function (Photo $photo) use ($from, $to, $dryRun, &$counts): void {
+            $this->migratePhoto($photo, $from, $to, $dryRun, $counts);
         });
 
+        $this->renderReport($dryRun, $counts, $to);
+
+        return $counts['failed'] > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Returns the operator-facing error for an unusable disk pair, or null when the pair is usable.
+     */
+    private function diskConfigurationError(string $from, string $to): ?string
+    {
+        if ($from === $to) {
+            return "Source and target disks are the same ('{$from}'). Nothing to do.";
+        }
+
+        foreach ([$from, $to] as $disk) {
+            if (config("filesystems.disks.{$disk}") === null) {
+                return "Disk '{$disk}' is not defined in config/filesystems.php.";
+            }
+        }
+
+        return null;
+    }
+
+    private function renderPlan(int $total, string $from, string $to, bool $dryRun): void
+    {
+        $this->line("KYC documents: {$total}");
+        $this->line("From disk    : {$from}");
+        $this->line("To disk      : {$to}");
+        $this->line($dryRun ? 'Mode         : DRY RUN (nothing will be moved)' : 'Mode         : LIVE');
+    }
+
+    /**
+     * One `photos` row through the copy / verify / delete sequence, updating $counts in place.
+     */
+    private function migratePhoto(Photo $photo, string $from, string $to, bool $dryRun, array &$counts): void
+    {
+        $path = $photo->path;
+
+        // Already on the target: this is what makes a re-run after an interruption safe.
+        if (Storage::disk($to)->exists($path)) {
+            $counts['skipped']++;
+
+            return;
+        }
+
+        // A row whose bytes are on neither disk is REPORTED, never deleted. The row is left
+        // exactly as it was so an operator can investigate it.
+        if (! Storage::disk($from)->exists($path)) {
+            $counts['missing']++;
+            $this->warn("  missing (on neither disk, row left alone): id={$photo->id} {$path}");
+
+            return;
+        }
+
+        if ($dryRun) {
+            $counts['moved']++;
+            $this->line("  would move: id={$photo->id} {$path}");
+
+            return;
+        }
+
+        $this->copyAndRemoveSource($photo, $from, $to, $counts);
+    }
+
+    /**
+     * COPY, VERIFY, THEN DELETE: the source is removed only once the target copy exists at the
+     * matching byte size.
+     */
+    private function copyAndRemoveSource(Photo $photo, string $from, string $to, array &$counts): void
+    {
+        $path = $photo->path;
+        $sourceSize = Storage::disk($from)->size($path);
+
+        try {
+            Storage::disk($to)->put($path, Storage::disk($from)->get($path));
+        } catch (\Throwable $e) {
+            $counts['failed']++;
+            $this->error("  copy failed: id={$photo->id} {$path} - {$e->getMessage()}");
+
+            return;
+        }
+
+        // Verify BEFORE deleting the source. A wrong size means a truncated write; keep the
+        // original rather than trading a good file for a bad one.
+        if (! Storage::disk($to)->exists($path) || Storage::disk($to)->size($path) !== $sourceSize) {
+            $counts['failed']++;
+            $this->error("  size mismatch after copy, source kept: id={$photo->id} {$path}");
+
+            return;
+        }
+
+        try {
+            Storage::disk($from)->delete($path);
+        } catch (\Throwable $e) {
+            // The copy is good; a failed delete only leaves a duplicate, which is the safe
+            // direction to fail in. Report it rather than pretending it is done.
+            $this->warn("  copied but source delete failed (duplicate left): id={$photo->id} {$path}");
+        }
+
+        $counts['moved']++;
+    }
+
+    private function renderReport(bool $dryRun, array $counts, string $to): void
+    {
         $this->newLine();
         $this->line($dryRun ? 'Dry run complete.' : 'Migration complete.');
         $this->table(
             ['moved', 'already on target', 'missing', 'failed'],
             [[
-                $dryRun ? "{$moved} (would move)" : $moved,
-                $skipped,
-                $missing,
-                $failed,
+                $dryRun ? "{$counts['moved']} (would move)" : $counts['moved'],
+                $counts['skipped'],
+                $counts['missing'],
+                $counts['failed'],
             ]]
         );
 
-        if (! $dryRun && $moved > 0) {
+        if (! $dryRun && $counts['moved'] > 0) {
             $this->comment("Next step: set DOCUMENTS_DISK={$to} so the read path follows the files.");
         }
-
-        return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

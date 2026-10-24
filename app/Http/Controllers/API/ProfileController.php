@@ -114,136 +114,35 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        $validator = Validator::make($request->all(), [
-            'first_name' => 'sometimes|string|max:255',
-            'last_name' => 'sometimes|string|max:255',
-            'description' => 'nullable|string|max:500',
-            'address' => 'nullable|in:دمشق,درعا,القنيطرة,السويداء,ريف دمشق,حمص,حماة,اللاذقية,طرطوس,حلب,إدلب,الحسكة,الرقة,دير الزور',
-            'gender' => 'nullable|in:M,F',
-            'type_of_car' => 'nullable|string|max:255',
-            'color_of_car' => 'nullable|string|max:50',
-            'number_of_seats' => 'nullable|integer|min:1|max:12',
-            'radio' => 'nullable|boolean',
-            'smoking' => 'nullable|boolean',
-            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'car_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'face_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'back_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'driving_license_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'mechanic_card_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+        $validator = Validator::make($request->all(), $this->profileUpdateRules());
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->validationFailed($validator);
         }
 
-        $data = $validator->validated();
-
-        // Cast booleans
-        foreach (['radio', 'smoking'] as $key) {
-            if ($request->has($key)) {
-                $data[$key] = (bool) $request->input($key);
-            }
-        }
+        $data = $this->castBooleanFields($request, $validator->validated());
 
         if (isset($data['number_of_rides'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Ride count cannot be updated manually.',
-            ], 422);
+            return $this->rideCountRefused();
         }
 
         try {
-            // ── Load current profile for vehicle-field comparison ─────────────
-            // We need the old values BEFORE the service writes new ones so we
-            // can detect a genuine change (same value submitted → no revocation).
             $profile = $this->profileRepo->getProfileByUserId($user->id);
 
-            // ── Determine what is actually changing ───────────────────────────
-
-            // Identity fields: name and gender appear on the national ID card.
-            // Any change means the document the admin reviewed no longer matches
-            // the current account holder → revoke ALL verification.
-            $identityChanging =
-                (isset($data['first_name']) && $data['first_name'] !== $user->first_name)
-                || (isset($data['last_name']) && $data['last_name'] !== $user->last_name)
-                || (isset($data['gender']) && $data['gender'] !== $user->gender);
-
-            // Vehicle fields: only relevant for driver verification.
-            // The admin checked these against the mechanic card during approval.
-            $vehicleChanging = $profile !== null && (
-                (isset($data['type_of_car']) && $data['type_of_car'] !== $profile->type_of_car)
-                || (isset($data['color_of_car']) && $data['color_of_car'] !== $profile->color_of_car)
-                || (isset($data['number_of_seats']) && (int) $data['number_of_seats'] !== (int) $profile->number_of_seats)
-            );
-
-            // ── Decide revocation scope ───────────────────────────────────────
-            $revokeAll = $identityChanging
-                && ($user->is_verified_passenger || $user->is_verified_driver);
-
-            // Driver-only revocation only fires when identity is NOT already
-            // being revoked (avoids a redundant double-write to the user row).
-            $revokeDriver = ! $revokeAll
-                && $vehicleChanging
-                && $user->is_verified_driver;
+            $scope = $this->determineRevocationScope($user, $profile, $data);
 
             // ── Apply changes atomically ──────────────────────────────────────
-            $result = DB::transaction(function () use ($user, $data, $revokeAll, $revokeDriver) {
-
-                if ($revokeAll) {
-                    $user->update([
-                        'is_verified_passenger' => false,
-                        'is_verified_driver' => false,
-                        'verification_status' => 'none',
-                    ]);
-                } elseif ($revokeDriver) {
-                    $updates = ['is_verified_driver' => false];
-
-                    // If the user has no remaining verification keep
-                    // verification_status consistent.
-                    if (! $user->is_verified_passenger) {
-                        $updates['verification_status'] = 'none';
-                    }
-
-                    $user->update($updates);
-                }
+            $result = DB::transaction(function () use ($user, $data, $scope) {
+                $this->applyRevocation($user, $scope['revoke_all'], $scope['revoke_driver']);
 
                 return $this->updateService->updateProfile($user, $data);
             });
 
-            // ── Cache busting ─────────────────────────────────────────────────
-            // ── Cache busting ─────────────────────────────────────────────────
-            Cache::forget("profile.user.{$user->id}");
-            Cache::forget("profile.user.owner.{$user->id}");
-            Cache::forget("admin.driver.profile.{$user->id}");
-            Cache::forget("admin.driver.dashboard.{$user->id}");
-            Cache::forget("admin.passenger.full-profile.{$user->id}");
-            Cache::forget("admin.passenger.stats.{$user->id}");
+            $this->bustProfileCaches($user->id, $scope['revoke_all'], $scope['revoke_driver']);
 
-            if ($revokeAll || $revokeDriver) {
-                Cache::forget("verification.status.{$user->id}");
-                Cache::forget('staff.pending-verifications');
-            }
-
-            // ── Response ──────────────────────────────────────────────────────
-            $response = [
-                'success' => true,
-                'message' => 'Profile updated successfully',
-                'data' => $this->formatProfileData($result['profile'], $result['user']),
-            ];
-
-            if ($revokeAll) {
-                $response['warning'] = 'Changing your name or gender has revoked your verification. '
-                    .'Please re-submit your documents to become verified again.';
-            } elseif ($revokeDriver) {
-                $response['warning'] = 'Changing your vehicle information has revoked your driver verification. '
-                    .'Please re-submit your vehicle documents.';
-            }
-
-            return response()->json($response);
+            return response()->json(
+                $this->profileUpdateResponse($result, $scope['revoke_all'], $scope['revoke_driver'])
+            );
 
         } catch (\Exception $e) {
             // RV-13: the message goes to the LOG, not the client - a QueryException carries the SQL
@@ -384,53 +283,235 @@ class ProfileController extends Controller
     // PRIVATE — FORMAT
     // =========================================================================
 
-    private function formatProfileData($profile, $user, bool $isOwner = false): array
+    /** The 422 validation envelope of POST /profile. */
+    private function validationFailed(\Illuminate\Contracts\Validation\Validator $validator)
     {
-        // ── Comments & rating ─────────────────────────────────────────────────
-        $comments = $this->interactionService->getProfileComments($user->id);
-        $ratingStats = $this->interactionService->getRatingStats($user->id);
+        return response()->json([
+            'success' => false,
+            'errors' => $validator->errors(),
+        ], 422);
+    }
 
-        // ── Documents ─────────────────────────────────────────────────────────
-        // RV-01: face/back ID and licence scans are personal data. $isOwner was
-        // accepted and then ignored, so GET /api/profile/{anyUserId} returned
-        // the document URLs of ANY user to ANY authenticated caller. Documents
-        // are now emitted for the owner only; other callers get the profile
-        // without them. Owner and non-owner payloads are cached under different
-        // keys (profile.user.owner.{id} vs profile.user.{id}), so this gate
-        // cannot be defeated by the cache.
-        $docs = [];
-        if ($isOwner) {
-            $docs = $this->photoRepo->getUserDocumentsByType(
-                $user->id,
-                ['face_id', 'back_id', 'license', 'mechanic_card']
-            )->mapWithKeys(fn ($d) => ["{$d->type}_pic" => asset("storage/{$d->path}")])->toArray();
+    /** ride count is server-owned: it is derived from ride history, never submitted. */
+    private function rideCountRefused()
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Ride count cannot be updated manually.',
+        ], 422);
+    }
+
+    /** The accepted fields of POST /profile (riders/vehicles/documents). */
+    private function profileUpdateRules(): array
+    {
+        return [
+            'first_name' => 'sometimes|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'description' => 'nullable|string|max:500',
+            'address' => 'nullable|in:دمشق,درعا,القنيطرة,السويداء,ريف دمشق,حمص,حماة,اللاذقية,طرطوس,حلب,إدلب,الحسكة,الرقة,دير الزور',
+            'gender' => 'nullable|in:M,F',
+            'type_of_car' => 'nullable|string|max:255',
+            'color_of_car' => 'nullable|string|max:50',
+            'number_of_seats' => 'nullable|integer|min:1|max:12',
+            'radio' => 'nullable|boolean',
+            'smoking' => 'nullable|boolean',
+            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'car_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'face_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'back_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'driving_license_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'mechanic_card_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ];
+    }
+
+    /**
+     * The validated data with the booleans cast.
+     *
+     * `sometimes|boolean` accepts "1"/"0" as strings; the columns want real booleans, and the
+     * cast only happens for keys the request actually carried.
+     *
+     * @return array<string, mixed>
+     */
+    private function castBooleanFields(Request $request, array $data): array
+    {
+        foreach (['radio', 'smoking'] as $key) {
+            if ($request->has($key)) {
+                $data[$key] = (bool) $request->input($key);
+            }
         }
 
-        // ── Score ─────────────────────────────────────────────────────────────
-        $userScore = $this->scoreService->getScore($user);
+        return $data;
+    }
 
-        // ── Ride history: as driver — 1 query instead of 4 ───────────────────
-        // AF-7: the query lives in UserRideStatsService; this was duplicated verbatim in
-        // StaffOperationsController. The reshaping below stays here because `total_created` /
-        // `no_show` are THIS endpoint's public shape.
+    /**
+     * Which verification(s) this update invalidates - see the class-level revocation matrix.
+     *
+     * Identity fields: name and gender appear on the national ID card. Any change means the
+     * document the admin reviewed no longer matches the current account holder, so ALL
+     * verification is revoked (the old values are read BEFORE the service writes new ones, so
+     * the same value submitted again does NOT revoke anything).
+     *
+     * Vehicle fields: only relevant for driver verification, because the admin checked them
+     * against the mechanic card during approval. Driver-only revocation only fires when
+     * identity is NOT already being revoked (avoids a redundant double-write to the user row).
+     *
+     * @return array{revoke_all: bool, revoke_driver: bool}
+     */
+    private function determineRevocationScope($user, $profile, array $data): array
+    {
+        $identityChanging =
+            (isset($data['first_name']) && $data['first_name'] !== $user->first_name)
+            || (isset($data['last_name']) && $data['last_name'] !== $user->last_name)
+            || (isset($data['gender']) && $data['gender'] !== $user->gender);
+
+        $vehicleChanging = $profile !== null && (
+            (isset($data['type_of_car']) && $data['type_of_car'] !== $profile->type_of_car)
+            || (isset($data['color_of_car']) && $data['color_of_car'] !== $profile->color_of_car)
+            || (isset($data['number_of_seats']) && (int) $data['number_of_seats'] !== (int) $profile->number_of_seats)
+        );
+
+        $revokeAll = $identityChanging
+            && ($user->is_verified_passenger || $user->is_verified_driver);
+
+        $revokeDriver = ! $revokeAll
+            && $vehicleChanging
+            && $user->is_verified_driver;
+
+        return ['revoke_all' => $revokeAll, 'revoke_driver' => $revokeDriver];
+    }
+
+    /** Clear the verification flags the updated fields invalidated (idempotent). */
+    private function applyRevocation($user, bool $revokeAll, bool $revokeDriver): void
+    {
+        if ($revokeAll) {
+            $user->update([
+                'is_verified_passenger' => false,
+                'is_verified_driver' => false,
+                'verification_status' => 'none',
+            ]);
+
+            return;
+        }
+
+        if (! $revokeDriver) {
+            return;
+        }
+
+        $updates = ['is_verified_driver' => false];
+
+        // If the user has no remaining verification keep verification_status consistent.
+        if (! $user->is_verified_passenger) {
+            $updates['verification_status'] = 'none';
+        }
+
+        $user->update($updates);
+    }
+
+    /** Bust every cached profile view, plus the verification caches after a revocation. */
+    private function bustProfileCaches(int $userId, bool $revokeAll, bool $revokeDriver): void
+    {
+        Cache::forget("profile.user.{$userId}");
+        Cache::forget("profile.user.owner.{$userId}");
+        Cache::forget("admin.driver.profile.{$userId}");
+        Cache::forget("admin.driver.dashboard.{$userId}");
+        Cache::forget("admin.passenger.full-profile.{$userId}");
+        Cache::forget("admin.passenger.stats.{$userId}");
+
+        if ($revokeAll || $revokeDriver) {
+            Cache::forget("verification.status.{$userId}");
+            Cache::forget('staff.pending-verifications');
+        }
+    }
+
+    /**
+     * The update response, with the revocation warning when one applies.
+     *
+     * @param  array{profile: mixed, user: mixed}  $result
+     * @return array<string, mixed>
+     */
+    private function profileUpdateResponse(array $result, bool $revokeAll, bool $revokeDriver): array
+    {
+        $response = [
+            'success' => true,
+            'message' => 'Profile updated successfully',
+            'data' => $this->formatProfileData($result['profile'], $result['user']),
+        ];
+
+        if ($revokeAll) {
+            $response['warning'] = 'Changing your name or gender has revoked your verification. '
+                .'Please re-submit your documents to become verified again.';
+        } elseif ($revokeDriver) {
+            $response['warning'] = 'Changing your vehicle information has revoked your driver verification. '
+                .'Please re-submit your vehicle documents.';
+        }
+
+        return $response;
+    }
+
+    /**
+     * The owner's document URLs, and an empty list for anyone else.
+     *
+     * RV-01: face/back ID and licence scans are personal data. $isOwner was accepted and then
+     * ignored, so GET /api/profile/{anyUserId} returned the document URLs of ANY user to ANY
+     * authenticated caller. Documents are now emitted for the owner only; other callers get the
+     * profile without them. Owner and non-owner payloads are cached under different keys
+     * (profile.user.owner.{id} vs profile.user.{id}), so this gate cannot be defeated by the cache.
+     */
+    private function ownerDocuments($user, bool $isOwner): array
+    {
+        if (! $isOwner) {
+            return [];
+        }
+
+        return $this->photoRepo->getUserDocumentsByType(
+            $user->id,
+            ['face_id', 'back_id', 'license', 'mechanic_card']
+        )->mapWithKeys(fn ($d) => ["{$d->type}_pic" => asset("storage/{$d->path}")])->toArray();
+    }
+
+    /**
+     * Ride history as driver - 1 query instead of 4.
+     *
+     * AF-7: the query lives in UserRideStatsService; this was duplicated verbatim in
+     * StaffOperationsController. The reshaping below stays here because `total_created` /
+     * `no_show` are THIS endpoint's public shape.
+     */
+    private function rideHistoryAsDriver($user): array
+    {
         $driverStats = $this->rideStats->ridesAsDriver($user->id);
 
-        $asDriver = [
+        return [
             'total_created' => $driverStats->sum(),
             'completed' => $driverStats->get('finished', 0),
             'cancelled' => $driverStats->get('cancelled', 0),
             'no_show' => $driverStats->get('awaiting_confirmation', 0),
         ];
+    }
 
-        // ── Ride history: as passenger — 1 query instead of 4 ────────────────
+    /** Ride history as passenger - 1 query instead of 4 (same AF-7 reshaping rule). */
+    private function rideHistoryAsPassenger($user): array
+    {
         $passengerStats = $this->rideStats->bookingsAsPassenger($user->id);
 
-        $asPassenger = [
+        return [
             'total_booked' => $passengerStats->sum(),
             'completed' => $passengerStats->get('completed', 0),
             'cancelled' => $passengerStats->get('cancelled', 0),
             'no_show' => $passengerStats->get('no_show', 0),
         ];
+    }
+
+    private function formatProfileData($profile, $user, bool $isOwner = false): array
+    {
+        $comments = $this->interactionService->getProfileComments($user->id);
+        $ratingStats = $this->interactionService->getRatingStats($user->id);
+
+        $docs = $this->ownerDocuments($user, $isOwner);
+
+        $userScore = $this->scoreService->getScore($user);
+
+        $asDriver = $this->rideHistoryAsDriver($user);
+        $asPassenger = $this->rideHistoryAsPassenger($user);
 
         // ── Assemble ──────────────────────────────────────────────────────────
         return [

@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\AppFuture;
 
-use App\Console\Commands\Getloadtesttokens;
-use App\Console\Commands\Testfullrideflow;
+use App\Console\Testing\Getloadtesttokens;
+use App\Console\Testing\Testfullrideflow;
 use App\Enums\BookingStatus;
 use App\Interfaces\RideRepositoryInterface;
 use App\Models\Booking;

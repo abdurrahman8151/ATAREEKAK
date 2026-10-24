@@ -325,122 +325,39 @@ final class PassengerProfileController extends Controller
             $user = User::with('wallet')->findOrFail($userId);
 
             if (! $user->wallet) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'This user does not have a wallet yet.',
-                ], 422);
+                return $this->noWalletResponse();
             }
 
             $amount = (float) $request->input('amount');
 
             DB::transaction(function () use ($user, $amount, $request) {
-                $wallet = Wallet::lockForUpdate()->findOrFail($user->wallet->id);
-
-                $previousBalance = (float) $wallet->balance;
-                $newBalance = $previousBalance + $amount;
-                $wallet->balance = $newBalance;
-                $wallet->save();
-
-                WalletTransaction::create([
-                    'wallet_id' => $wallet->id,
-                    'user_id' => $request->user()?->id,  // the admin
-                    'type' => 'admin_charge',
-                    'amount' => $amount,
-                    'previous_balance' => $previousBalance,
-                    'new_balance' => $newBalance,
-                    'description' => $request->input('admin_notes') ?? 'Admin wallet charge',
-                    // T3-1: was 'ADM-'.$user->id.'-'.now()->timestamp, i.e.
-                    // unique only per-second per-user. wallet_transactions
-                    // .transaction_id is UNIQUE, so two charges for the same
-                    // passenger inside one second threw and rolled back a
-                    // legitimate money movement. UUID makes it collision-free;
-                    // the readable prefix is kept for ops.
-                    'transaction_id' => 'ADM-'.$user->id.'-'.(string) Str::uuid(),
-                    'status' => 'completed',
-                    'reference' => 'admin_charge:'.$user->id,
-                ]);
+                $credit = $this->creditWalletBalance($user, $amount);
+                $this->recordAdminChargeTransaction($credit, $user, $amount, $request);
 
                 // ── Decision un3 (owner choice (a)): external flow ──────────────────────
                 // An admin charge is money arriving from OUTSIDE the platform. Recorded against the
                 // External Capital account so the ledger closes - without it this was a balance
                 // change no ledger entry could explain.
-                $external = Wallet::where('phone_number', config('admin.external.phone'))
-                    ->where('kind', 'system')
-                    ->whereNull('user_id')
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($external === null) {
-                    throw new \RuntimeException(
-                        'External Capital wallet not found for phone: '.config('admin.external.phone')
-                        .'. Run: php artisan db:seed --class=SystemWalletSeeder'
-                    );
-                }
-
-                $externalPrev = (float) $external->balance;
-                $external->balance -= $amount;
-                $external->save();
-
-                WalletTransaction::create([
-                    'wallet_id' => $external->id,
-                    'user_id' => null,
-                    'type' => 'external_inbound',
-                    'amount' => -$amount,
-                    'previous_balance' => $externalPrev,
-                    'new_balance' => (float) $external->balance,
-                    'description' => 'Injected into wallet #'.$wallet->id.' by admin charge',
-                    'transaction_id' => 'EXT-ADM-'.$user->id.'-'.(string) Str::uuid(),
-                    'status' => 'completed',
-                    'reference' => 'admin_charge:'.$user->id,
-                ]);
-
-                app(LedgerService::class)->postExternalTransfer(
-                    $external,
-                    $wallet,
-                    (float) $amount,
-                    inbound: true,
-                    description: "admin charge to user #{$user->id}",
-                );
+                $this->injectExternalCapital($credit['wallet'], $user, $amount);
 
                 Log::info('Admin charged passenger wallet', [
                     'passenger_id' => $user->id,
                     'admin_id' => $request->user()?->id,
                     'amount' => $amount,
-                    'previous_balance' => $previousBalance,
-                    'new_balance' => $newBalance,
+                    'previous_balance' => $credit['previous'],
+                    'new_balance' => $credit['current'],
                 ]);
             });
 
             // Bust caches — wallet balance and transaction list are now stale
-            Cache::forget("admin.passenger.full-profile.{$userId}");
-            Cache::forget("admin.passenger.stats.{$userId}");
-            Cache::forget('admin.dashboard.data');
-            Cache::forget('admin.dashboard.stats');
+            $this->bustWalletChargeCaches($userId);
 
             // Notify the user
-            try {
-                $this->notificationService->createNotification(
-                    $user,
-                    'wallet_charged',
-                    'تم شحن محفظتك',
-                    "تم إضافة {$amount} ر.س إلى محفظتك بواسطة الإدارة.".
-                    ($request->input('admin_notes') ? ' ملاحظة: '.$request->input('admin_notes') : ''),
-                    ['amount' => $amount],
-                    'normal',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                // T3-13: non-fatal by intent, but it must be visible.
-                Log::warning('wallet charge notification failed (non-fatal): '.$e->getMessage());
-            }
+            $this->notifyWalletCharged($user, $amount, $request);
 
             $user->wallet->refresh();
 
-            return response()->json([
-                'status' => 'success',
-                'message' => "Wallet charged successfully. New balance: {$user->wallet->balance} SYP.",
-                'new_balance' => (float) $user->wallet->balance,
-            ]);
+            return $this->chargeSuccessResponse($user->wallet);
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
@@ -454,6 +371,145 @@ final class PassengerProfileController extends Controller
     }
 
     // =========================================================================
+    /** The 422 for a passenger who has no wallet row yet. */
+    private function noWalletResponse(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'This user does not have a wallet yet.',
+        ], 422);
+    }
+
+    /**
+     * Lock the passenger wallet and add the amount.
+     *
+     * @return array{wallet: Wallet, previous: float, current: float}
+     */
+    private function creditWalletBalance(User $user, float $amount): array
+    {
+        $wallet = Wallet::lockForUpdate()->findOrFail($user->wallet->id);
+
+        $previousBalance = (float) $wallet->balance;
+        $newBalance = $previousBalance + $amount;
+        $wallet->balance = $newBalance;
+        $wallet->save();
+
+        return ['wallet' => $wallet, 'previous' => $previousBalance, 'current' => $newBalance];
+    }
+
+    /**
+     * The admin_charge wallet row, then the matching inbound leg from External Capital.
+     *
+     * @param  array{wallet: Wallet, previous: float, current: float}  $credit
+     */
+    private function recordAdminChargeTransaction(array $credit, User $user, float $amount, Request $request): void
+    {
+        WalletTransaction::create([
+            'wallet_id' => $credit['wallet']->id,
+            'user_id' => $request->user()?->id,  // the admin
+            'type' => 'admin_charge',
+            'amount' => $amount,
+            'previous_balance' => $credit['previous'],
+            'new_balance' => $credit['current'],
+            'description' => $request->input('admin_notes') ?? 'Admin wallet charge',
+            // T3-1: was 'ADM-'.$user->id.'-'.now()->timestamp, i.e.
+            // unique only per-second per-user. wallet_transactions
+            // .transaction_id is UNIQUE, so two charges for the same
+            // passenger inside one second threw and rolled back a
+            // legitimate money movement. UUID makes it collision-free;
+            // the readable prefix is kept for ops.
+            'transaction_id' => 'ADM-'.$user->id.'-'.(string) Str::uuid(),
+            'status' => 'completed',
+            'reference' => 'admin_charge:'.$user->id,
+        ]);
+
+        $this->injectExternalCapital($credit['wallet'], $user, $amount);
+    }
+
+    /**
+     * Record the inbound leg against the External Capital system wallet and post the
+     * matching ledger transfer.
+     */
+    private function injectExternalCapital($wallet, User $user, float $amount): void
+    {
+        $external = Wallet::where('phone_number', config('admin.external.phone'))
+            ->where('kind', 'system')
+            ->whereNull('user_id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($external === null) {
+            throw new \RuntimeException(
+                'External Capital wallet not found for phone: '.config('admin.external.phone')
+                .'. Run: php artisan db:seed --class=SystemWalletSeeder'
+            );
+        }
+
+        $externalPrev = (float) $external->balance;
+        $external->balance -= $amount;
+        $external->save();
+
+        WalletTransaction::create([
+            'wallet_id' => $external->id,
+            'user_id' => null,
+            'type' => 'external_inbound',
+            'amount' => -$amount,
+            'previous_balance' => $externalPrev,
+            'new_balance' => (float) $external->balance,
+            'description' => 'Injected into wallet #'.$wallet->id.' by admin charge',
+            'transaction_id' => 'EXT-ADM-'.$user->id.'-'.(string) Str::uuid(),
+            'status' => 'completed',
+            'reference' => 'admin_charge:'.$user->id,
+        ]);
+
+        app(LedgerService::class)->postExternalTransfer(
+            $external,
+            $wallet,
+            (float) $amount,
+            inbound: true,
+            description: "admin charge to user #{$user->id}",
+        );
+    }
+
+    /** Bust every cached admin view that embeds the wallet balance or its charges. */
+    private function bustWalletChargeCaches(int $userId): void
+    {
+        Cache::forget("admin.passenger.full-profile.{$userId}");
+        Cache::forget("admin.passenger.stats.{$userId}");
+        Cache::forget('admin.dashboard.data');
+        Cache::forget('admin.dashboard.stats');
+    }
+
+    /** Tell the passenger the administration topped up their wallet (non-fatal on failure). */
+    private function notifyWalletCharged(User $user, float $amount, Request $request): void
+    {
+        try {
+            $this->notificationService->createNotification(
+                $user,
+                'wallet_charged',
+                'تم شحن محفظتك',
+                "تم إضافة {$amount} ر.س إلى محفظتك بواسطة الإدارة.".
+                ($request->input('admin_notes') ? ' ملاحظة: '.$request->input('admin_notes') : ''),
+                ['amount' => $amount],
+                'normal',
+                'system'
+            );
+        } catch (\Throwable $e) {
+            // T3-13: non-fatal by intent, but it must be visible.
+            Log::warning('wallet charge notification failed (non-fatal): '.$e->getMessage());
+        }
+    }
+
+    /** The POST charge-wallet success envelope, read from the refreshed wallet row. */
+    private function chargeSuccessResponse($wallet): JsonResponse
+    {
+        return response()->json([
+            'status' => 'success',
+            'message' => "Wallet charged successfully. New balance: {$wallet->balance} SYP.",
+            'new_balance' => (float) $wallet->balance,
+        ]);
+    }
+
     // PRIVATE BUILDERS
     // =========================================================================
 

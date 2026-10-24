@@ -134,6 +134,19 @@ final class AdminUserService
             'photos:id,user_id,type',
         ]);
 
+        $this->applyTypeFilter($query, $typeFilter);
+        $this->applyStatusFilter($query, $statusFilter);
+        $this->applyDateFilter($query, $dateFilter);
+        $this->applySearchFilter($query, $search);
+
+        return $query->orderByDesc('created_at');
+    }
+
+    /**
+     * Type filter: driver | passenger (anything else adds no constraint).
+     */
+    private function applyTypeFilter($query, string $typeFilter): void
+    {
         // ── Type filter ───────────────────────────────────────────────────
         match ($typeFilter) {
 
@@ -152,6 +165,13 @@ final class AdminUserService
             default => null,   // 'all' — no constraint
         };
 
+    }
+
+    /**
+     * Status filter: verified | pending | suspended (anything else adds no constraint).
+     */
+    private function applyStatusFilter($query, string $statusFilter): void
+    {
         // ── Status filter ─────────────────────────────────────────────────
         match ($statusFilter) {
 
@@ -166,7 +186,13 @@ final class AdminUserService
 
             default => null,   // 'all' — no constraint
         };
+    }
 
+    /**
+     * Date filter. Only the four named windows constrain the query.
+     */
+    private function applyDateFilter($query, string $dateFilter): void
+    {
         // ── Date / join filter ────────────────────────────────────────────
         $cutoff = match ($dateFilter) {
             'last_30_days' => Carbon::now()->subDays(30),
@@ -179,7 +205,13 @@ final class AdminUserService
         if ($cutoff) {
             $query->where('created_at', '>=', $cutoff);
         }
+    }
 
+    /**
+     * Free-text search across first name, last name and email.
+     */
+    private function applySearchFilter($query, ?string $search): void
+    {
         // ── Search ────────────────────────────────────────────────────────
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -188,8 +220,6 @@ final class AdminUserService
                     ->orWhere('email', 'like', "%{$search}%");
             });
         }
-
-        return $query->orderByDesc('created_at');
     }
 
     // =========================================================================

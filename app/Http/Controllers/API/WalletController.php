@@ -40,37 +40,17 @@ class WalletController extends Controller
         $user->loadMissing('wallet');
 
         if ($user->wallet) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You already have a wallet.',
-            ], 409);
+            return $this->walletAlreadyExistsResponse();
         }
 
-        $validator = Validator::make($request->all(), [
-            'phone_number' => 'required|string|unique:wallets,phone_number',
-            'password' => 'required|string',
-        ], [
-            'phone_number.required' => 'A phone number is required to create a wallet.',
-            'phone_number.unique' => 'This phone number is already linked to another wallet.',
-            'password.required' => 'Your account password is required to create a wallet.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+        $validationError = $this->validateInitiateRequest($request);
+        if ($validationError) {
+            return $validationError;
         }
 
-        // Re-confirm the account password before starting wallet creation. The JWT-cached user
-        // deliberately omits the password hash (decision un11), so read it fresh from the primary.
-        $passwordHash = User::query()->useWritePdo()->whereKey($user->id)->value('password');
-        if (! $passwordHash || ! Hash::check($request->password, $passwordHash)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid credentials',
-                'code' => 'INVALID_CREDENTIALS',
-            ], 401);
+        $credentialsError = $this->checkAccountPassword($user, (string) $request->password);
+        if ($credentialsError) {
+            return $credentialsError;
         }
 
         // Cache the phone number for the verification step (10 minutes).
@@ -80,35 +60,7 @@ class WalletController extends Controller
             'phone_number' => $request->phone_number,
         ], 600);
 
-        // Send OTP to the user's Gmail (identical to signup / email verification).
-        $dto = new SendEmailOtpDTO(
-            email: Email::from($user->email),
-            userName: $user->first_name,
-            type: 'EMAIL_VERIFICATION',   // isolated from signup OTPs
-        );
-        $result = $this->emailOtpService->sendOtp($dto);
-
-        if (! $result['success']) {
-            Cache::forget($cacheKey);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to send verification email. Please try again.',
-            ], 500);
-        }
-
-        $response = [
-            'success' => true,
-            'message' => "A 6-digit verification code has been sent to {$user->email}. It expires in 10 minutes.",
-            'email_hint' => $this->maskEmail($user->email),
-        ];
-
-        // Expose the code only when EMAIL_OTP_MODE != production (dev / local).
-        if (isset($result['otp_code'])) {
-            $response['otp_code'] = $result['otp_code'];
-        }
-
-        return response()->json($response);
+        return $this->sendWalletOtp($user, $cacheKey);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -120,19 +72,9 @@ class WalletController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function verifyAndCreateWallet(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'otp_code' => ['required', 'string', 'size:6', 'regex:/^[0-9]{6}$/'],
-        ], [
-            'otp_code.required' => 'Verification code is required.',
-            'otp_code.size' => 'Code must be exactly 6 digits.',
-            'otp_code.regex' => 'Code must contain numbers only.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+        $validationError = $this->validateVerifyRequest($request);
+        if ($validationError) {
+            return $validationError;
         }
 
         /** @var User $user */
@@ -143,10 +85,7 @@ class WalletController extends Controller
         $user->loadMissing('wallet');
 
         if ($user->wallet) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You already have a wallet.',
-            ], 409);
+            return $this->walletAlreadyExistsResponse();
         }
 
         // Retrieve cached phone number from step 1.
@@ -160,38 +99,12 @@ class WalletController extends Controller
             ], 400);
         }
 
-        // Verify OTP against the user's email — same DTO / service as signup.
-        $dto = new VerifyEmailOtpDTO(
-            email: Email::from($user->email),
-            otpCode: $request->otp_code,
-        );
-        $result = $this->emailOtpService->verifyOtp($dto);
-
-        if (! $result['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['message'] ?? 'Invalid or expired code.',
-            ], 400);
+        $otpError = $this->verifyWalletOtp($user, (string) $request->otp_code);
+        if ($otpError) {
+            return $otpError;
         }
 
-        // OTP valid — create wallet and link it to the user.
-        $wallet = Wallet::create([
-            'user_id' => $user->id,
-            'phone_number' => $walletData['phone_number'],
-            'balance' => 0,
-        ]);
-
-        $user->wallet_id = $wallet->id;
-        $user->save();
-
-        Cache::forget($cacheKey);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Wallet created successfully.',
-            'wallet_number' => $wallet->wallet_number,
-            'phone_number' => $wallet->phone_number,
-        ], 201);
+        return $this->createWalletFor($user, $walletData, $cacheKey);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -235,6 +148,170 @@ class WalletController extends Controller
         $masked = substr($local, 0, $visible).str_repeat('*', max(0, strlen($local) - $visible));
 
         return $masked.'@'.$domain;
+    }
+
+    /**
+     * One wallet per account — shared by both wallet-creation steps.
+     */
+    private function walletAlreadyExistsResponse(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'You already have a wallet.',
+        ], 409);
+    }
+
+    /**
+     * Step 1 validation: phone number + account password.
+     * Returns the 422 response, or null when the input is valid.
+     */
+    private function validateInitiateRequest(Request $request): ?JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'phone_number' => 'required|string|unique:wallets,phone_number',
+            'password' => 'required|string',
+        ], [
+            'phone_number.required' => 'A phone number is required to create a wallet.',
+            'phone_number.unique' => 'This phone number is already linked to another wallet.',
+            'password.required' => 'Your account password is required to create a wallet.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Step 2 validation: the 6-digit OTP code.
+     * Returns the 422 response, or null when the input is valid.
+     */
+    private function validateVerifyRequest(Request $request): ?JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'otp_code' => ['required', 'string', 'size:6', 'regex:/^[0-9]{6}$/'],
+        ], [
+            'otp_code.required' => 'Verification code is required.',
+            'otp_code.size' => 'Code must be exactly 6 digits.',
+            'otp_code.regex' => 'Code must contain numbers only.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * Re-confirm the account password. Returns the 401 response, or null when it matches.
+     */
+    private function checkAccountPassword(User $user, string $password): ?JsonResponse
+    {
+        // Re-confirm the account password before starting wallet creation. The JWT-cached user
+        // deliberately omits the password hash (decision un11), so read it fresh from the primary.
+        $passwordHash = User::query()->useWritePdo()->whereKey($user->id)->value('password');
+        if (! $passwordHash || ! Hash::check($password, $passwordHash)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid credentials',
+                'code' => 'INVALID_CREDENTIALS',
+            ], 401);
+        }
+
+        return null;
+    }
+
+    /**
+     * Send the OTP to the user's Gmail and build the step-1 response.
+     */
+    private function sendWalletOtp(User $user, string $cacheKey): JsonResponse
+    {
+        // Send OTP to the user's Gmail (identical to signup / email verification).
+        $dto = new SendEmailOtpDTO(
+            email: Email::from($user->email),
+            userName: $user->first_name,
+            type: 'EMAIL_VERIFICATION',   // isolated from signup OTPs
+        );
+        $result = $this->emailOtpService->sendOtp($dto);
+
+        if (! $result['success']) {
+            Cache::forget($cacheKey);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send verification email. Please try again.',
+            ], 500);
+        }
+
+        $response = [
+            'success' => true,
+            'message' => "A 6-digit verification code has been sent to {$user->email}. It expires in 10 minutes.",
+            'email_hint' => $this->maskEmail($user->email),
+        ];
+
+        // Expose the code only when EMAIL_OTP_MODE != production (dev / local).
+        if (isset($result['otp_code'])) {
+            $response['otp_code'] = $result['otp_code'];
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Verify the OTP against the user's email. Returns the 400 response, or null when valid.
+     */
+    private function verifyWalletOtp(User $user, string $otpCode): ?JsonResponse
+    {
+        // Verify OTP against the user's email — same DTO / service as signup.
+        $dto = new VerifyEmailOtpDTO(
+            email: Email::from($user->email),
+            otpCode: $otpCode,
+        );
+        $result = $this->emailOtpService->verifyOtp($dto);
+
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Invalid or expired code.',
+            ], 400);
+        }
+
+        return null;
+    }
+
+    /**
+     * The OTP is valid: create the wallet, link it to the user, drop the cache entry.
+     *
+     * @param  array<string, mixed>  $walletData
+     */
+    private function createWalletFor(User $user, array $walletData, string $cacheKey): JsonResponse
+    {
+        // OTP valid — create wallet and link it to the user.
+        $wallet = Wallet::create([
+            'user_id' => $user->id,
+            'phone_number' => $walletData['phone_number'],
+            'balance' => 0,
+        ]);
+
+        $user->wallet_id = $wallet->id;
+        $user->save();
+
+        Cache::forget($cacheKey);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Wallet created successfully.',
+            'wallet_number' => $wallet->wallet_number,
+            'phone_number' => $wallet->phone_number,
+        ], 201);
     }
 
     // POST /api/wallet/create-direct

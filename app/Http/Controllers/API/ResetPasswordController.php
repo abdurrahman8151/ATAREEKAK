@@ -59,10 +59,7 @@ class ResetPasswordController extends Controller
         $email = Cache::get($cacheKey);
 
         if (! $email) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This reset link has expired or has already been used. Please request a new code.',
-            ], 400);
+            return $this->expiredLinkResponse();
         }
 
         $user = User::where('email', $email)->first();
@@ -74,13 +71,22 @@ class ResetPasswordController extends Controller
             // expired-or-used branch above already returns.
             Cache::forget($cacheKey);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'This reset link has expired or has already been used. Please request a new code.',
-            ], 400);
+            return $this->expiredLinkResponse();
         }
 
-        // Update password
+        $this->resetPassword($request, $user, $cacheKey);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Your password has been reset successfully. You can now log in.',
+        ]);
+    }
+
+    /**
+     * Apply the new hash, consume the reset token, and revoke every live JWT.
+     */
+    private function resetPassword(Request $request, User $user, string $cacheKey): void
+    {
         // Update password
         $user->password = Hash::make($request->input('password'));
         $user->save();
@@ -95,10 +101,16 @@ class ResetPasswordController extends Controller
             'email' => $user->email,
             'ip' => $request->ip(),
         ]);
+    }
 
+    /**
+     * The one 400 that "no token", "expired/used token" and "no such account" all share.
+     */
+    private function expiredLinkResponse(): JsonResponse
+    {
         return response()->json([
-            'success' => true,
-            'message' => 'Your password has been reset successfully. You can now log in.',
-        ]);
+            'success' => false,
+            'message' => 'This reset link has expired or has already been used. Please request a new code.',
+        ], 400);
     }
 }

@@ -32,10 +32,7 @@ final class StaffUserProfileService
      */
     public function build(int $userId): array
     {
-        $profile = Profile::with([
-            'user',
-            'comments.commenter:id,first_name,last_name',
-        ])->where('user_id', $userId)->firstOrFail();
+        $profile = $this->loadProfile($userId);
 
         $user = $profile->user;
 
@@ -43,41 +40,13 @@ final class StaffUserProfileService
         $userScore = $this->scoreService->getScore($user);
 
         // ── Rating stats ───────────────────────────────────────────────────
-        $ratingStats = UserRating::where('rated_user_id', $userId)
-            ->selectRaw('COUNT(*) as total, ROUND(AVG(rating), 2) as average')
-            ->first();
+        $ratingStats = $this->loadRatingStats($userId);
 
-        // ── Ride history: as driver — 1 query instead of 3 ────────────────
-        // AF-7: the query lives in UserRideStatsService; this was duplicated verbatim in
-        // ProfileController. The reshaping below stays here because `total` (rather than
-        // ProfileController's `total_created`) is THIS endpoint's public shape.
-        $driverStats = $this->rideStats->ridesAsDriver($userId);
-
-        $asDriver = [
-            'total' => $driverStats->sum(),
-            'completed' => $driverStats->get('finished', 0),
-            'cancelled' => $driverStats->get('cancelled', 0),
-        ];
-
-        // ── Ride history: as passenger — 1 query instead of 3 ─────────────
-        $passengerStats = $this->rideStats->bookingsAsPassenger($userId);
-
-        $asPassenger = [
-            'total' => $passengerStats->sum(),
-            'completed' => $passengerStats->get('completed', 0),
-            'cancelled' => $passengerStats->get('cancelled', 0),
-        ];
+        // ── Ride history ───────────────────────────────────────────────────
+        $rideHistory = $this->buildRideHistory($userId);
 
         // ── Comments received ──────────────────────────────────────────────
-        $comments = $profile->comments->map(fn ($c) => [
-            'id' => $c->id,
-            'comment' => $c->comment,
-            'commenter' => [
-                'id' => $c->commenter?->id,
-                'name' => trim(($c->commenter?->first_name ?? '').' '.($c->commenter?->last_name ?? '')),
-            ],
-            'created_at' => $c->created_at->toIso8601String(),
-        ])->values()->all();
+        $comments = $this->buildComments($profile);
 
         return [
             'id' => $user->id,
@@ -105,11 +74,83 @@ final class StaffUserProfileService
                 'average' => $ratingStats->average ?? 0,
                 'total_ratings' => (int) ($ratingStats->total ?? 0),
             ],
-            'ride_history' => [
-                'as_driver' => $asDriver,
-                'as_passenger' => $asPassenger,
-            ],
+            'ride_history' => $rideHistory,
             'comments_received' => $comments,
         ];
+    }
+
+    /**
+     * The profile row and the relations the response needs.
+     *
+     * @throws ModelNotFoundException when the user has no profile.
+     */
+    private function loadProfile(int $userId): Profile
+    {
+        return Profile::with([
+            'user',
+            'comments.commenter:id,first_name,last_name',
+        ])->where('user_id', $userId)->firstOrFail();
+    }
+
+    /**
+     * Aggregate rating row for the rated user.
+     */
+    private function loadRatingStats(int $userId): ?UserRating
+    {
+        return UserRating::where('rated_user_id', $userId)
+            ->selectRaw('COUNT(*) as total, ROUND(AVG(rating), 2) as average')
+            ->first();
+    }
+
+    /**
+     * Ride counters split by the role the user played.
+     *
+     * @return array{as_driver: array<string, mixed>, as_passenger: array<string, mixed>}
+     */
+    private function buildRideHistory(int $userId): array
+    {
+        // ── Ride history: as driver — 1 query instead of 3 ────────────────
+        // AF-7: the query lives in UserRideStatsService; this was duplicated verbatim in
+        // ProfileController. The reshaping below stays here because `total` (rather than
+        // ProfileController's `total_created`) is THIS endpoint's public shape.
+        $driverStats = $this->rideStats->ridesAsDriver($userId);
+
+        $asDriver = [
+            'total' => $driverStats->sum(),
+            'completed' => $driverStats->get('finished', 0),
+            'cancelled' => $driverStats->get('cancelled', 0),
+        ];
+
+        // ── Ride history: as passenger — 1 query instead of 3 ─────────────
+        $passengerStats = $this->rideStats->bookingsAsPassenger($userId);
+
+        $asPassenger = [
+            'total' => $passengerStats->sum(),
+            'completed' => $passengerStats->get('completed', 0),
+            'cancelled' => $passengerStats->get('cancelled', 0),
+        ];
+
+        return [
+            'as_driver' => $asDriver,
+            'as_passenger' => $asPassenger,
+        ];
+    }
+
+    /**
+     * Comments received, reshaped for the public response.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildComments(Profile $profile): array
+    {
+        return $profile->comments->map(fn ($c) => [
+            'id' => $c->id,
+            'comment' => $c->comment,
+            'commenter' => [
+                'id' => $c->commenter?->id,
+                'name' => trim(($c->commenter?->first_name ?? '').' '.($c->commenter?->last_name ?? '')),
+            ],
+            'created_at' => $c->created_at->toIso8601String(),
+        ])->values()->all();
     }
 }

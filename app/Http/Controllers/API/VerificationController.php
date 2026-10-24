@@ -5,15 +5,13 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
-use App\Models\Photo;
 use App\Models\User;
-use App\Services\NotificationService;
+use App\Services\Verification\VerificationSubmissionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 
 class VerificationController extends Controller
 {
@@ -21,16 +19,13 @@ class VerificationController extends Controller
 
     private ProfileRepositoryInterface $profileRepo;
 
-    private NotificationService $notificationService;
-
     public function __construct(
         PhotoRepositoryInterface $photoRepo,
         ProfileRepositoryInterface $profileRepo,
-        NotificationService $notificationService,
+        private readonly VerificationSubmissionService $submissions,
     ) {
         $this->photoRepo = $photoRepo;
         $this->profileRepo = $profileRepo;
-        $this->notificationService = $notificationService;
     }
 
     /* ------------------------------------------
@@ -39,89 +34,13 @@ class VerificationController extends Controller
      * ------------------------------------------ */
     public function verifyPassenger(Request $request)
     {
-        return DB::transaction(function () use ($request) {
-            $user = User::lockForUpdate()->findOrFail($request->user()->id);
+        $result = $this->submissions->submitPassenger(
+            $request->user()->id,
+            $request->all(),
+            $this->uploadedDocuments($request, ['face_id_pic', 'back_id_pic'])
+        );
 
-            if ($user->verification_status === 'pending') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You already have a pending verification request',
-                ], 409);
-            }
-
-            $validator = Validator::make($request->all(), [
-                'face_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                'back_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => $validator->errors(),
-                ], 422);
-            }
-
-            $profile = $this->profileRepo->getProfileByUserId($user->id)
-                ?: $this->profileRepo->updateProfile($user->id, []);
-
-            $map = [
-                'face_id_pic' => 'face_id',
-                'back_id_pic' => 'back_id',
-            ];
-
-            $profileData = [];
-            foreach ($map as $inputName => $enumType) {
-                if ($request->hasFile($inputName)) {
-                    // RV-01: the stored name used the CLIENT-supplied extension
-                    // and {userId}_{time()} (both guessable). guessExtension() is
-                    // derived from the file's actual content, and a UUID removes
-                    // the guessable prefix.
-                    $upload = $request->file($inputName);
-                    $filename = Str::uuid().'.'.$upload->guessExtension();
-                    // AF-5: these are identity documents, so they share the `documents_disk` key that
-                    // `DocumentController` writes to and `StaffDocumentController` reads from. RV-01:
-                    // that key now defaults to the PRIVATE `local` disk, and the fallback here is
-                    // 'local' to match so a missing config key cannot re-open the public exposure.
-                    $path = $upload->storeAs("verifications/{$enumType}", $filename, config('filesystems.documents_disk', 'local'));
-
-                    $this->photoRepo->deleteDocumentsByType($user->id, $enumType);
-                    $this->photoRepo->storeDocument($user->id, $enumType, $path);
-                    $profileData[$inputName] = $path;
-                }
-            }
-
-            if (! empty($profileData)) {
-                $this->profileRepo->updateProfile($user->id, $profileData);
-            }
-
-            $user->update([
-                'verification_status' => 'pending',
-                'is_verified_driver' => false,
-                'is_verified_passenger' => false,
-            ]);
-
-            try {
-                $this->notificationService->createNotification(
-                    $user,
-                    'verification_submitted',
-                    'تم استلام طلب التحقق',
-                    'تم استلام مستنداتك وستتم مراجعتها من قِبل الفريق قريباً.',
-                    [],
-                    'normal',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('verification notification failed (non-fatal): '.$e->getMessage());
-            }
-
-            Cache::forget("verification.status.{$user->id}");
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Verification request submitted',
-                'status' => $user->fresh()->verification_status,
-            ], 201);
-        });
+        return response()->json($result['body'], $result['status']);
     }
 
     /* ------------------------------------------
@@ -130,129 +49,15 @@ class VerificationController extends Controller
      * ------------------------------------------ */
     public function verifyDriver(Request $request)
     {
-        $user = $request->user();
+        $result = $this->submissions->submitDriver(
+            $request->user(),
+            $request->all(),
+            $this->uploadedDocuments($request, [
+                'face_id_pic', 'back_id_pic', 'driving_license_pic', 'mechanic_card_pic', 'car_pic',
+            ])
+        );
 
-        if ($user->verification_status === 'pending') {
-            return response()->json([
-                'success' => false,
-                'message' => 'You already have a pending verification request',
-            ], 409);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'face_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'back_id_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'driving_license_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'mechanic_card_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'car_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'type_of_car' => 'nullable|string|max:255',
-            'color_of_car' => 'nullable|string|max:50',
-            'number_of_seats' => 'nullable|integer|min:1|max:12',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        // Row 11 (owner ruling: reject until every required document is attached). The
-        // required set is the one ride-create already enforces (RV-53). A document counts
-        // if it is on file already OR uploaded in this request. Checked before any write.
-        $required = ['face_id' => 'face_id_pic', 'back_id' => 'back_id_pic',
-            'license' => 'driving_license_pic', 'mechanic_card' => 'mechanic_card_pic'];
-        $storedTypes = $this->storedDocumentTypes($user->id);
-        $missing = [];
-        foreach ($required as $type => $inputName) {
-            $uploadedNow = $request->hasFile($inputName);
-            $storedAlready = in_array($type, $storedTypes, true);
-            if (! $uploadedNow && ! $storedAlready) {
-                $missing[] = $type;
-            }
-        }
-        if (! empty($missing)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Missing required driver verification documents: '.implode(', ', $missing),
-                'missing' => $missing,
-            ], 422);
-        }
-
-        return DB::transaction(function () use ($request, $user) {
-            $userId = $user->id;
-            $profile = $this->profileRepo->getProfileByUserId($userId)
-                ?: $this->profileRepo->updateProfile($userId, []);
-
-            $map = [
-                'face_id_pic' => 'face_id',
-                'back_id_pic' => 'back_id',
-                'driving_license_pic' => 'license',
-                'mechanic_card_pic' => 'mechanic_card',
-                'car_pic' => 'car_pic',
-            ];
-
-            $profileData = [];
-            foreach ($map as $inputName => $folder) {
-                if ($request->hasFile($inputName)) {
-                    // RV-01: content-derived extension + UUID name (see the
-                    // passenger branch above for the rationale).
-                    $upload = $request->file($inputName);
-                    $filename = Str::uuid().'.'.$upload->guessExtension();
-                    $path = $upload->storeAs("verifications/{$folder}", $filename, config('filesystems.documents_disk', 'local'));
-
-                    if (in_array($inputName, ['face_id_pic', 'back_id_pic', 'driving_license_pic', 'mechanic_card_pic'], true)) {
-                        $this->photoRepo->deleteDocumentsByType($userId, $map[$inputName]);
-                        $this->photoRepo->storeDocument($userId, $map[$inputName], $path);
-                    }
-
-                    $profileData[$inputName] = $path;
-                }
-            }
-
-            $vehicleData = [];
-            foreach (['type_of_car', 'color_of_car', 'number_of_seats'] as $key) {
-                if ($request->filled($key)) {
-                    $vehicleData[$key] = $request->input($key);
-                }
-            }
-
-            $merged = array_merge($profileData, $vehicleData);
-            if (! empty($merged)) {
-                $this->profileRepo->updateProfile($user->id, $merged);
-            }
-
-            $user->update([
-                'verification_status' => 'pending',
-                'is_verified_driver' => false,
-                'is_verified_passenger' => false,
-            ]);
-
-            // RV-56: the 409 guard reads the user through the auth cache (findUserCached,
-            // key auth.user.{id}, 5 min). Clear it so a re-submit sees 'pending' at once.
-            Cache::forget("auth.user.{$user->id}");
-
-            try {
-                $this->notificationService->createNotification(
-                    $user,
-                    'verification_submitted',
-                    'تم استلام طلب التحقق',
-                    'تم استلام مستنداتك وستتم مراجعتها من قِبل الفريق قريباً.',
-                    [],
-                    'normal',
-                    'system'
-                );
-            } catch (\Throwable $e) {
-                Log::warning('verification notification failed (non-fatal): '.$e->getMessage());
-            }
-
-            Cache::forget("verification.status.{$user->id}");
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Driver verification request submitted for review',
-            ], 201);
-        });
+        return response()->json($result['body'], $result['status']);
     }
 
     /* ------------------------------------------
@@ -261,64 +66,12 @@ class VerificationController extends Controller
      * ------------------------------------------ */
     public function status(int $userId, Request $request)
     {
-        // RV-01: this endpoint returns another user's KYC document URLs and
-        // vehicle data and had NO ownership check, so any authenticated caller
-        // could read any user's ID scans. Owner-only here; staff review runs
-        // through the admin/staff verification surface, which is authenticated
-        // separately.
-        // Unknown user id => 404 (R2 acceptance item: this used to be a 500
-        // from findOrFail, and a test pinned that); known user, not the caller
-        // => 403.
-        if (! User::where('id', $userId)->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found',
-            ], 404);
-        }
-
-        if ($request->user()->id !== $userId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You can only view your own verification status',
-            ], 403);
+        if ($refusal = $this->ownershipRefusal($userId, $request)) {
+            return $refusal;
         }
 
         try {
-            $data = Cache::remember("verification.status.{$userId}", 120, function () use ($userId) {
-                $user = User::findOrFail($userId);
-
-                $statusLabels = [
-                    'none' => 'not_verified',
-                    'pending' => 'pending',
-                    'rejected' => 'rejected',
-                    'approved' => 'approved',
-                ];
-
-                $documents = $this->photoRepo
-                    ->getUserDocumentsByType($userId, ['face_id', 'back_id', 'license', 'mechanic_card'])
-                    ->mapWithKeys(fn ($doc) => [$doc->type => asset("storage/{$doc->path}")])
-                    ->toArray();
-
-                $profile = $this->profileRepo->getProfileByUserId($userId);
-
-                return [
-                    'success' => true,
-                    'status' => $statusLabels[$user->verification_status] ?? 'unknown',
-                    'documents' => $documents,
-                    'vehicle' => $profile ? [
-                        'type' => $profile->type_of_car,
-                        'color' => $profile->color_of_car,
-                        'seats' => $profile->number_of_seats,
-                        'photo' => $profile->car_pic ? asset("storage/{$profile->car_pic}") : null,
-                    ] : null,
-                    'verified' => [
-                        'passenger' => (bool) $user->is_verified_passenger,
-                        'driver' => (bool) $user->is_verified_driver,
-                    ],
-                ];
-            });
-
-            return response()->json($data);
+            return response()->json($this->buildStatusPayload($userId));
         } catch (\Exception $e) {
             // RV-13: message to the log, not the client - a QueryException here would carry the SQL
             // and the table names of the verification tables.
@@ -335,13 +88,92 @@ class VerificationController extends Controller
     }
 
     /**
-     * Document types already on file for a user. Same source as the ride-create rule
-     * (DocumentVerificationService::getUserDocumentTypes), so both agree on what "on file" means.
+     * Owner-only access.
      *
-     * @return array<int, string>
+     * RV-01: this endpoint returns another user's KYC document URLs and vehicle data and had
+     * NO ownership check, so any authenticated caller could read any user's ID scans.
+     * Owner-only here; staff review runs through the admin/staff verification surface, which
+     * is authenticated separately.
+     *
+     * Unknown user id => 404 (R2 acceptance item: this used to be a 500 from findOrFail, and
+     * a test pinned that); known user, not the caller => 403.
      */
-    private function storedDocumentTypes(int $userId): array
+    private function ownershipRefusal(int $userId, Request $request): ?JsonResponse
     {
-        return Photo::where('user_id', $userId)->pluck('type')->toArray();
+        if (! User::where('id', $userId)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+            ], 404);
+        }
+
+        if ($request->user()->id !== $userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only view your own verification status',
+            ], 403);
+        }
+
+        return null;
+    }
+
+    /** The cached verification status payload (120 seconds). */
+    private function buildStatusPayload(int $userId): array
+    {
+        return Cache::remember("verification.status.{$userId}", 120, function () use ($userId) {
+            $user = User::findOrFail($userId);
+
+            $statusLabels = [
+                'none' => 'not_verified',
+                'pending' => 'pending',
+                'rejected' => 'rejected',
+                'approved' => 'approved',
+            ];
+
+            $documents = $this->photoRepo
+                ->getUserDocumentsByType($userId, ['face_id', 'back_id', 'license', 'mechanic_card'])
+                ->mapWithKeys(fn ($doc) => [$doc->type => asset("storage/{$doc->path}")])
+                ->toArray();
+
+            $profile = $this->profileRepo->getProfileByUserId($userId);
+
+            return [
+                'success' => true,
+                'status' => $statusLabels[$user->verification_status] ?? 'unknown',
+                'documents' => $documents,
+                'vehicle' => $profile ? [
+                    'type' => $profile->type_of_car,
+                    'color' => $profile->color_of_car,
+                    'seats' => $profile->number_of_seats,
+                    'photo' => $profile->car_pic ? asset("storage/{$profile->car_pic}") : null,
+                ] : null,
+                'verified' => [
+                    'passenger' => (bool) $user->is_verified_passenger,
+                    'driver' => (bool) $user->is_verified_driver,
+                ],
+            ];
+        });
+    }
+
+    /**
+     * The uploaded files named by the caller, keyed by their input name.
+     *
+     * The service never sees the Request; the HTTP layer hands it only the files that
+     * were actually uploaded.
+     *
+     * @param  array<int, string>  $inputNames
+     * @return array<string, UploadedFile>
+     */
+    private function uploadedDocuments(Request $request, array $inputNames): array
+    {
+        $uploads = [];
+
+        foreach ($inputNames as $inputName) {
+            if ($request->hasFile($inputName)) {
+                $uploads[$inputName] = $request->file($inputName);
+            }
+        }
+
+        return $uploads;
     }
 }

@@ -38,57 +38,15 @@ class RideRepository implements RideRepositoryInterface
     public function createRide(array $data): Ride
     {
         return DB::transaction(function () use ($data) {
-            // ────────────────────────────────────────────────────────────
-            // 1) Pickup: use 'pickup_location' array if provided, otherwise geocode 'pickup_address'
-            // ────────────────────────────────────────────────────────────
-            $pickupPoint = $this->resolveEndpoint($data, 'pickup');
-            $pickup = ['lat' => $pickupPoint['lat'], 'lng' => $pickupPoint['lng']];
-            $pickupLabel = $pickupPoint['label'];
-
-            // ────────────────────────────────────────────────────────────
-            // 2) Destination: same pattern as pickup
-            // ────────────────────────────────────────────────────────────
-            $destinationPoint = $this->resolveEndpoint($data, 'destination');
-            $destination = ['lat' => $destinationPoint['lat'], 'lng' => $destinationPoint['lng']];
-            $destinationLabel = $destinationPoint['label'];
+            $points = $this->resolveRidePoints($data);
 
             // ────────────────────────────────────────────────────────────
             // 3) Route summary: distance, duration, geometry (LineString)
             // ✅ NEW: Use RouteCalculationService
             // ────────────────────────────────────────────────────────────
-            $route = $this->routeService->getRouteDetails($pickup, $destination);
+            $route = $this->routeService->getRouteDetails($points['pickup'], $points['destination']);
 
-            // ────────────────────────────────────────────────────────────
-            // 4) Create the Ride model and fill non-spatial fields
-            // ────────────────────────────────────────────────────────────
-            $ride = new Ride;
-            $ride->driver_id = $data['driver_id'];
-            $ride->pickup_address = $pickupLabel;
-            $ride->destination_address = $destinationLabel;
-            $ride->distance = $route['distance'];
-            $ride->duration = $route['duration'];
-            $ride->departure_time = Carbon::parse($data['departure_time'])->toDateTimeString();
-            $ride->available_seats = $data['available_seats'];
-            $ride->payment_method = $data['payment_method'];
-            $ride->price_per_seat = $data['price_per_seat'];
-            $ride->vehicle_type = $data['vehicle_type'];
-            $ride->notes = $data['notes'] ?? null;
-            $ride->booking_type = $data['booking_type'] ?? 'direct';
-
-            // ────────────────────────────────────────────────────────────
-            // 5) Assign spatial columns via Eloquent mutators
-            // ────────────────────────────────────────────────────────────
-            $ride->pickup_location = [
-                'lat' => $pickup['lat'],
-                'lng' => $pickup['lng'],
-            ];
-            $ride->destination_location = [
-                'lat' => $destination['lat'],
-                'lng' => $destination['lng'],
-            ];
-
-            // 6) Assign route_geometry as GeoJSON - WITH VALIDATION
-            $ride->route_geometry = $this->validRouteGeometry($route);
+            $ride = $this->buildRide($data, $points, $route);
 
             // ────────────────────────────────────────────────────────────
             // 7) Save and return
@@ -97,6 +55,77 @@ class RideRepository implements RideRepositoryInterface
 
             return $ride->fresh();
         });
+    }
+
+    /**
+     * Resolve the pickup and destination endpoints of a ride about to be created.
+     *
+     * @return array{pickup: array{lat: float, lng: float}, destination: array{lat: float, lng: float}, pickup_label: string, destination_label: string}
+     */
+    private function resolveRidePoints(array $data): array
+    {
+        // ────────────────────────────────────────────────────────────
+        // 1) Pickup: use 'pickup_location' array if provided, otherwise geocode 'pickup_address'
+        // ────────────────────────────────────────────────────────────
+        $pickupPoint = $this->resolveEndpoint($data, 'pickup');
+        $pickup = ['lat' => $pickupPoint['lat'], 'lng' => $pickupPoint['lng']];
+
+        // ────────────────────────────────────────────────────────────
+        // 2) Destination: same pattern as pickup
+        // ────────────────────────────────────────────────────────────
+        $destinationPoint = $this->resolveEndpoint($data, 'destination');
+        $destination = ['lat' => $destinationPoint['lat'], 'lng' => $destinationPoint['lng']];
+
+        return [
+            'pickup' => $pickup,
+            'destination' => $destination,
+            'pickup_label' => $pickupPoint['label'],
+            'destination_label' => $destinationPoint['label'],
+        ];
+    }
+
+    /**
+     * Build the unsaved Ride for the resolved points and route.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array{pickup: array{lat: float, lng: float}, destination: array{lat: float, lng: float}, pickup_label: string, destination_label: string}  $points
+     * @param  array<string, mixed>  $route
+     */
+    private function buildRide(array $data, array $points, array $route): Ride
+    {
+        // ────────────────────────────────────────────────────────────
+        // 4) Create the Ride model and fill non-spatial fields
+        // ────────────────────────────────────────────────────────────
+        $ride = new Ride;
+        $ride->driver_id = $data['driver_id'];
+        $ride->pickup_address = $points['pickup_label'];
+        $ride->destination_address = $points['destination_label'];
+        $ride->distance = $route['distance'];
+        $ride->duration = $route['duration'];
+        $ride->departure_time = Carbon::parse($data['departure_time'])->toDateTimeString();
+        $ride->available_seats = $data['available_seats'];
+        $ride->payment_method = $data['payment_method'];
+        $ride->price_per_seat = $data['price_per_seat'];
+        $ride->vehicle_type = $data['vehicle_type'];
+        $ride->notes = $data['notes'] ?? null;
+        $ride->booking_type = $data['booking_type'] ?? 'direct';
+
+        // ────────────────────────────────────────────────────────────
+        // 5) Assign spatial columns via Eloquent mutators
+        // ────────────────────────────────────────────────────────────
+        $ride->pickup_location = [
+            'lat' => $points['pickup']['lat'],
+            'lng' => $points['pickup']['lng'],
+        ];
+        $ride->destination_location = [
+            'lat' => $points['destination']['lat'],
+            'lng' => $points['destination']['lng'],
+        ];
+
+        // 6) Assign route_geometry as GeoJSON - WITH VALIDATION
+        $ride->route_geometry = $this->validRouteGeometry($route);
+
+        return $ride;
     }
 
     /**

@@ -42,6 +42,32 @@ class RotateAdminPasswordCommand extends Command
     {
         $username = $this->argument('account');
 
+        $employee = $this->resolveRestrictedEmployee($username);
+
+        if (! $employee) {
+            return self::FAILURE;
+        }
+
+        $password = $this->resolveNewPassword($username, $employee);
+
+        if ($password === null) {
+            return self::FAILURE;
+        }
+
+        if (! $this->confirmRotation($username, $employee)) {
+            return self::SUCCESS;
+        }
+
+        $this->applyRotation($username, $employee, $password);
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Load the account and refuse anything that is not a restricted admin role.
+     */
+    private function resolveRestrictedEmployee(string $username): ?Employee
+    {
         // ── Load & validate ───────────────────────────────────────────────────
 
         $employee = Employee::where('username', $username)->first();
@@ -49,7 +75,7 @@ class RotateAdminPasswordCommand extends Command
         if (! $employee) {
             $this->error("No employee found with username: {$username}");
 
-            return self::FAILURE;
+            return null;
         }
 
         if (! $employee->role->isRestricted()) {
@@ -58,9 +84,17 @@ class RotateAdminPasswordCommand extends Command
                 'Use the management API to reset passwords for regular staff.'
             );
 
-            return self::FAILURE;
+            return null;
         }
 
+        return $employee;
+    }
+
+    /**
+     * Read the new password (prompting when needed) and validate it.
+     */
+    private function resolveNewPassword(string $username, Employee $employee): ?string
+    {
         // ── Get new password ──────────────────────────────────────────────────
 
         $password = $this->option('password');
@@ -74,7 +108,7 @@ class RotateAdminPasswordCommand extends Command
         if (! $password || mb_strlen($password) < 12) {
             $this->error('Password must be at least 12 characters.');
 
-            return self::FAILURE;
+            return null;
         }
 
         if (! $this->option('force') && ! $this->option('password')) {
@@ -82,10 +116,18 @@ class RotateAdminPasswordCommand extends Command
             if ($password !== $confirmed) {
                 $this->error('Passwords do not match.');
 
-                return self::FAILURE;
+                return null;
             }
         }
 
+        return $password;
+    }
+
+    /**
+     * Ask for confirmation unless --force was passed.
+     */
+    private function confirmRotation(string $username, Employee $employee): bool
+    {
         // ── Confirm (unless --force) ──────────────────────────────────────────
 
         if (! $this->option('force')) {
@@ -96,10 +138,18 @@ class RotateAdminPasswordCommand extends Command
             if (! $proceed) {
                 $this->info('Aborted.');
 
-                return self::SUCCESS;
+                return false;
             }
         }
 
+        return true;
+    }
+
+    /**
+     * Write the new hash and invalidate every active session.
+     */
+    private function applyRotation(string $username, Employee $employee, string $password): void
+    {
         // ── Apply ─────────────────────────────────────────────────────────────
 
         $employee->password = Hash::make($password);
@@ -110,7 +160,5 @@ class RotateAdminPasswordCommand extends Command
 
         $this->info("✓ Password rotated for {$employee->role->label()} ({$username}).");
         $this->info('✓ All active sessions have been invalidated.');
-
-        return self::SUCCESS;
     }
 }

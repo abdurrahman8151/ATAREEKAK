@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Testing;
 
+use App\Console\Commands\GuardsAgainstProductionExecution;
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
 use App\Models\Complaint;
@@ -63,13 +64,68 @@ class Testfullrideflow extends Command
     {
         $this->hash = Hash::make('test');
 
+        $this->renderHeader();
+
+        // ── S1: gate check ──────────────────────────────────────────────────
+        $this->scenarioGateBeforeOneHour($noshowService);
+
+        // ── S2: passenger reports driver; driver −15 ─────────────────────────
+        $this->scenarioCashPassengerReportsDriver($noshowService);
+
+        // ── S3: driver reports passenger; passenger −15 ───────────────────────
+        $this->scenarioCashDriverReportsPassenger($noshowService);
+
+        // ── S4: both report → dispute → auto-complaint ────────────────────────
+        $this->scenarioBothReportDispute($noshowService);
+
+        // ── S5: disputed → scheduler skips → no penalties ─────────────────────
+        $this->scenarioDisputedSkipsPenalties($noshowService);
+
+        // ── S6: e-pay — driver no-show → escrow back to passenger ─────────────
+        $this->scenarioEPayDriverNoShowRefund($noshowService);
+
+        // ── S7: e-pay — passenger no-show → escrow released to driver ─────────
+        $this->scenarioEPayPassengerNoShowRelease($noshowService);
+
+        // ── S8: duplicate report by same role rejected ─────────────────────────
+        $this->scenarioDuplicateReportRejected($noshowService);
+
+        // ── Summary ─────────────────────────────────────────────────────────────
+        $this->renderSummary();
+
+        return $this->fail > 0 ? 1 : 0;
+    }
+
+    private function renderHeader(): void
+    {
         $this->line('');
         $this->line('  ═══════════════════════════════════════════════════════');
         $this->line('    🧪 SyRide — No-Show System Test Suite');
         $this->line('    gate · penalties · refunds · disputes · complaints');
         $this->line('  ═══════════════════════════════════════════════════════');
+    }
 
-        // ── S1: gate check ──────────────────────────────────────────────────
+    private function renderSummary(): void
+    {
+        $this->line('');
+        $this->line('  ═══════════════════════════════════════════════════════');
+        $total = $this->pass + $this->fail;
+        $colour = $this->fail > 0 ? 'red' : 'green';
+        $this->line("  <fg={$colour}>  RESULTS: {$this->pass}/{$total} passed".($this->fail ? ", {$this->fail} failed" : ' — all green ✅').'</>');
+        $this->line('  ═══════════════════════════════════════════════════════');
+
+        if ($this->option('commit')) {
+            $this->info('  Committed — check the DB.');
+        } else {
+            $this->info('  All transactions rolled back — DB untouched. Use --commit to persist.');
+        }
+    }
+
+    /**
+     * S1 — gate check: a no-show cannot be reported before 1 h after departure.
+     */
+    private function scenarioGateBeforeOneHour(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '1 — Gate: cannot report before 1 h after departure',
             function () use ($noshowService) {
@@ -88,8 +144,13 @@ class Testfullrideflow extends Command
                 $this->check('No NoshowReport row created', 0, NoshowReport::where('booking_id', $booking->id)->count());
             }
         );
+    }
 
-        // ── S2: passenger reports driver; driver −15 ─────────────────────────
+    /**
+     * S2 — cash: passenger reports driver no-show; driver −15.
+     */
+    private function scenarioCashPassengerReportsDriver(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '2 — Cash: passenger reports driver no-show → driver −15 pts',
             function () use ($noshowService) {
@@ -110,8 +171,13 @@ class Testfullrideflow extends Command
                 $this->check('Driver score −15', -15, $this->score($driver) - $scoreBefore);
             }
         );
+    }
 
-        // ── S3: driver reports passenger; passenger −15 ───────────────────────
+    /**
+     * S3 — cash: driver reports passenger no-show; passenger −15.
+     */
+    private function scenarioCashDriverReportsPassenger(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '3 — Cash: driver reports passenger no-show → passenger −15 pts',
             function () use ($noshowService) {
@@ -129,8 +195,13 @@ class Testfullrideflow extends Command
                 $this->check('Passenger score −15', -15, $this->score($passenger) - $scoreBefore);
             }
         );
+    }
 
-        // ── S4: both report → dispute → auto-complaint ────────────────────────
+    /**
+     * S4 — both sides report within 2 h → disputed + auto-complaint (type = no_show).
+     */
+    private function scenarioBothReportDispute(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '4 — Both report within 2 h → disputed + auto-complaint (type=no_show)',
             function () use ($noshowService) {
@@ -161,8 +232,13 @@ class Testfullrideflow extends Command
                 );
             }
         );
+    }
 
-        // ── S5: disputed → scheduler skips → no penalties ─────────────────────
+    /**
+     * S5 — disputed reports: the scheduler skips them, so nobody is penalised.
+     */
+    private function scenarioDisputedSkipsPenalties(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '5 — Disputed: scheduler skips; zero penalties applied',
             function () use ($noshowService) {
@@ -183,8 +259,13 @@ class Testfullrideflow extends Command
                 $this->check('Passenger score unchanged', 0, $this->score($passenger) - $pScoreBefore);
             }
         );
+    }
 
-        // ── S6: e-pay — driver no-show → escrow back to passenger ─────────────
+    /**
+     * S6 — e-pay: the passenger reports the driver; escrow is refunded to the passenger.
+     */
+    private function scenarioEPayDriverNoShowRefund(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '6 — E-pay: passenger reports driver no-show → escrow refunded to passenger',
             function () use ($noshowService) {
@@ -221,8 +302,13 @@ class Testfullrideflow extends Command
                 $this->check('Booking = no_show', 'no_show', $booking->fresh()->status);
             }
         );
+    }
 
-        // ── S7: e-pay — passenger no-show → escrow released to driver ─────────
+    /**
+     * S7 — e-pay: the driver reports the passenger; escrow is released to the driver.
+     */
+    private function scenarioEPayPassengerNoShowRelease(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '7 — E-pay: driver reports passenger no-show → escrow released to driver',
             function () use ($noshowService) {
@@ -255,8 +341,13 @@ class Testfullrideflow extends Command
                 $this->check('Booking = no_show', 'no_show', $booking->fresh()->status);
             }
         );
+    }
 
-        // ── S8: duplicate report by same role rejected ─────────────────────────
+    /**
+     * S8 — a duplicate report by the same role is rejected.
+     */
+    private function scenarioDuplicateReportRejected(Noshowservice $noshowService): void
+    {
         $this->runScenario(
             '8 — Duplicate report by same role is rejected',
             function () use ($noshowService) {
@@ -275,22 +366,6 @@ class Testfullrideflow extends Command
                 $this->check('Still only 1 NoshowReport row', 1, NoshowReport::where('booking_id', $booking->id)->count());
             }
         );
-
-        // ── Summary ─────────────────────────────────────────────────────────────
-        $this->line('');
-        $this->line('  ═══════════════════════════════════════════════════════');
-        $total = $this->pass + $this->fail;
-        $colour = $this->fail > 0 ? 'red' : 'green';
-        $this->line("  <fg={$colour}>  RESULTS: {$this->pass}/{$total} passed".($this->fail ? ", {$this->fail} failed" : ' — all green ✅').'</>');
-        $this->line('  ═══════════════════════════════════════════════════════');
-
-        if ($this->option('commit')) {
-            $this->info('  Committed — check the DB.');
-        } else {
-            $this->info('  All transactions rolled back — DB untouched. Use --commit to persist.');
-        }
-
-        return $this->fail > 0 ? 1 : 0;
     }
 
     // =========================================================================
@@ -369,6 +444,20 @@ class Testfullrideflow extends Command
         $this->seq++;
         $n = $this->seq;
 
+        [$driver, $passenger] = $this->makeScenarioUsers($n);
+
+        $ride = $this->makeScenarioRide($driver, $payment, $n);
+
+        $booking = $this->makeScenarioBooking($ride, $passenger, $n);
+
+        return compact('ride', 'booking', 'driver', 'passenger');
+    }
+
+    /**
+     * Create the scenario's driver and passenger rows.
+     */
+    private function makeScenarioUsers(int $n): array
+    {
         $driver = User::forceCreate([
             'first_name' => 'NS',
             'last_name' => "Driver {$n}",
@@ -389,6 +478,14 @@ class Testfullrideflow extends Command
             'token_version' => 1,
         ]);
 
+        return [$driver, $passenger];
+    }
+
+    /**
+     * Create the scenario ride (raw insert so spatial columns always land).
+     */
+    private function makeScenarioRide(User $driver, string $payment, int $n): Ride
+    {
         $rideId = DB::table('rides')->insertGetId([
             'driver_id' => $driver->id,
             'pickup_address' => 'Test Pickup — Damascus',
@@ -413,6 +510,14 @@ class Testfullrideflow extends Command
 
         $ride = Ride::with('driver')->findOrFail($rideId);
 
+        return $ride;
+    }
+
+    /**
+     * Create the scenario booking for the passenger.
+     */
+    private function makeScenarioBooking(Ride $ride, User $passenger, int $n): Booking
+    {
         $bookingId = DB::table('bookings')->insertGetId([
             'ride_id' => $ride->id,
             'user_id' => $passenger->id,
@@ -425,7 +530,7 @@ class Testfullrideflow extends Command
 
         $booking = Booking::with(['ride', 'user'])->findOrFail($bookingId);
 
-        return compact('ride', 'booking', 'driver', 'passenger');
+        return $booking;
     }
 
     // =========================================================================
@@ -469,52 +574,13 @@ class Testfullrideflow extends Command
         ];
 
         foreach ($roles as $role => $configPhone) {
-            // ── Find the wallet by the SAME phone key the service uses ─────────
-            $wallet = Wallet::where('phone_number', $configPhone)->first();
-
-            if (! $wallet) {
-                // Wallet not seeded yet — create one the service will find.
-                // We need a user_id: try to resolve it from the employee record first.
-                $employee = Employee::where('role', $role)->orderBy('id')->first();
-                $adminUser = null;
-
-                if ($employee?->user_id) {
-                    $adminUser = User::find($employee->user_id);
-                }
-                if (! $adminUser && ! empty($employee?->email)) {
-                    $adminUser = User::where('email', $employee->email)->first();
-                }
-                if (! $adminUser) {
-                    // No employee row exists either — create a shadow user just
-                    // to satisfy the wallets.user_id FK.
-                    $adminUser = User::forceCreate([
-                        'first_name' => 'Test',
-                        'last_name' => $role,
-                        'email' => "wallet.{$role}.{$n}@test.local",
-                        'password' => $this->hash,
-                        'status' => 1,
-                        'verification_status' => 'none',
-                        'token_version' => 1,
-                    ]);
-                }
-
-                $wallet = Wallet::create([
-                    'user_id' => $adminUser->id,
-                    'phone_number' => $configPhone,
-                    'balance' => 0,
-                ]);
-            }
-
-            // Top up so the service's assertSufficientBalance check passes.
-            $wallet->increment('balance', $escrowAmount);
-            $wallet->refresh();
+            $wallet = $this->resolveAdminWallet($role, $configPhone, $escrowAmount, $n);
 
             // sycash is the wallet actually debited by no-show settlements.
             if ($role === 'sycash' || $adminWallet === null) {
                 $adminWallet = $wallet;
             }
         }
-
         // ── Driver wallet (empty — receives payment on passenger no-show) ──────
         $driverWallet = Wallet::create([
             'user_id' => $driver->id,
@@ -530,6 +596,55 @@ class Testfullrideflow extends Command
         ]);
 
         return [$adminWallet, $driverWallet, $passengerWallet];
+    }
+
+    /**
+     * Find (or create) the admin wallet the settlement service looks up by phone,
+     * then top it up so assertSufficientBalance passes.
+     */
+    private function resolveAdminWallet(string $role, $configPhone, float $escrowAmount, int $n): Wallet
+    {
+        // ── Find the wallet by the SAME phone key the service uses ─────────
+        $wallet = Wallet::where('phone_number', $configPhone)->first();
+
+        if (! $wallet) {
+            // Wallet not seeded yet — create one the service will find.
+            // We need a user_id: try to resolve it from the employee record first.
+            $employee = Employee::where('role', $role)->orderBy('id')->first();
+            $adminUser = null;
+
+            if ($employee?->user_id) {
+                $adminUser = User::find($employee->user_id);
+            }
+            if (! $adminUser && ! empty($employee?->email)) {
+                $adminUser = User::where('email', $employee->email)->first();
+            }
+            if (! $adminUser) {
+                // No employee row exists either — create a shadow user just
+                // to satisfy the wallets.user_id FK.
+                $adminUser = User::forceCreate([
+                    'first_name' => 'Test',
+                    'last_name' => $role,
+                    'email' => "wallet.{$role}.{$n}@test.local",
+                    'password' => $this->hash,
+                    'status' => 1,
+                    'verification_status' => 'none',
+                    'token_version' => 1,
+                ]);
+            }
+
+            $wallet = Wallet::create([
+                'user_id' => $adminUser->id,
+                'phone_number' => $configPhone,
+                'balance' => 0,
+            ]);
+        }
+
+        // Top up so the service's assertSufficientBalance check passes.
+        $wallet->increment('balance', $escrowAmount);
+        $wallet->refresh();
+
+        return $wallet;
     }
 
     // =========================================================================

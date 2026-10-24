@@ -114,48 +114,22 @@ final class ScoreLedger
             $reason = $reasonOverride ?? $result->reason;
 
             $previousScore = (int) $userScore->score;
+            $newScore = $this->clampScore($previousScore, $points);
 
-            // ONE clamp, both ends. `applyDelta` clamped [0, 100] on the no-show paths while
-            // `applyAction` carried its own clamp; a single clamp is the point of this class.
-            $newScore = max(
-                ScoreService::MIN_SCORE,
-                min(ScoreService::MAX_SCORE, $previousScore + $points)
-            );
-
-            $userScore->score = $newScore;
-
-            // Counters assigned, then ONE save. `applyDelta()` followed by `incrementNoShows()`
-            // saved twice, so a failure in between left the score moved and the counter not.
-            if (in_array($action, self::RIDES_INCREMENTING, true)) {
-                $userScore->total_rides = (int) $userScore->total_rides + 1;
-            }
-
-            if (in_array($action, self::NO_SHOWS_INCREMENTING, true)) {
-                $userScore->total_no_shows = (int) $userScore->total_no_shows + 1;
-            }
-
-            $userScore->save();
+            $this->persistScore($userScore, $action, $newScore);
 
             // Reference resolution kept from `applyAction`: the passed model wins, otherwise fall
             // back to the context keys for callers that still use the old style.
             [$referenceType, $referenceId] = $this->resolveReference($reference, $context);
 
-            ScoreTransaction::create([
-                'user_id' => $user->id,
-                'action' => $action->value,
+            $this->recordTransaction($user, $action, $metadata, [
                 'points' => $points,
                 'previous_score' => $previousScore,
                 'new_score' => $newScore,
                 'reason' => $reason,
-                // The policy's OWN value, on every path - never a literal. The two no-show paths used
-                // to hard-code it here. That was correct at the time (the no-show policies do not
-                // apply the gate; only the two cancel policies do), but it made the row a constant
-                // instead of a mirror of the policy.
-                'high_cancel_rate_applied' => $result->highCancelRateApplied,
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
-                'metadata' => $metadata !== [] ? $metadata : null,
-            ]);
+            ], $result);
 
             Log::info('Score action applied', [
                 'user_id' => $user->id,
@@ -166,13 +140,86 @@ final class ScoreLedger
                 'high_cancel_rate_applied' => $result->highCancelRateApplied,
             ]);
 
-            return [
-                'previous_score' => $previousScore,
-                'new_score' => $newScore,
-                'points' => $points,
-                'high_cancel_rate_applied' => $result->highCancelRateApplied,
-            ];
+            return $this->resultPayload($previousScore, $newScore, $points, $result);
         });
+    }
+
+    /**
+     * ONE clamp, both ends. `applyDelta` clamped [0, 100] on the no-show paths while
+     * `applyAction` carried its own clamp; a single clamp is the point of this class.
+     */
+    private function clampScore(int $previousScore, int $points): int
+    {
+        return max(
+            ScoreService::MIN_SCORE,
+            min(ScoreService::MAX_SCORE, $previousScore + $points)
+        );
+    }
+
+    /**
+     * Assign the new score and the counters the action implies, then save ONCE.
+     */
+    private function persistScore(UserScore $userScore, ScoreAction $action, int $newScore): void
+    {
+        $userScore->score = $newScore;
+
+        // Counters assigned, then ONE save. `applyDelta()` followed by `incrementNoShows()`
+        // saved twice, so a failure in between left the score moved and the counter not.
+        if (in_array($action, self::RIDES_INCREMENTING, true)) {
+            $userScore->total_rides = (int) $userScore->total_rides + 1;
+        }
+
+        if (in_array($action, self::NO_SHOWS_INCREMENTING, true)) {
+            $userScore->total_no_shows = (int) $userScore->total_no_shows + 1;
+        }
+
+        $userScore->save();
+    }
+
+    /**
+     * Write the audit row for one applied action.
+     *
+     * `$values` carries the already-resolved numbers (points, previous_score, new_score, reason,
+     * reference_type, reference_id), so the row cannot disagree with the score that was saved and
+     * returned. The high-cancel flag is read off the policy result itself, never from a literal and
+     * never from a copy.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @param  array<string, mixed>  $values
+     */
+    private function recordTransaction(User $user, ScoreAction $action, array $metadata, array $values, object $result): void
+    {
+        ScoreTransaction::create([
+            'user_id' => $user->id,
+            'action' => $action->value,
+            'points' => $values['points'],
+            'previous_score' => $values['previous_score'],
+            'new_score' => $values['new_score'],
+            'reason' => $values['reason'],
+            // The policy's OWN value, on every path - never a literal. The two no-show paths used
+            // to hard-code it here. That was correct at the time (the no-show policies do not
+            // apply the gate; only the two cancel policies do), but it made the row a constant
+            // instead of a mirror of the policy.
+            'high_cancel_rate_applied' => $result->highCancelRateApplied,
+            'reference_type' => $values['reference_type'],
+            'reference_id' => $values['reference_id'],
+            'metadata' => $metadata !== [] ? $metadata : null,
+        ]);
+    }
+
+    /**
+     * The result returned to `ScoreService` callers.
+     *
+     * @return array{previous_score: int, new_score: int, points: int, high_cancel_rate_applied: bool}
+     */
+    private function resultPayload(int $previousScore, int $newScore, int $points, object $result): array
+    {
+        return [
+            'previous_score' => $previousScore,
+            'new_score' => $newScore,
+            'points' => $points,
+            'high_cancel_rate_applied' => $result->highCancelRateApplied,
+        ];
     }
 
     /**

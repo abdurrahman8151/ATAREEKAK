@@ -6,6 +6,7 @@ use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Http\Controllers\Controller;
 use App\Interfaces\EmailOtpServiceInterface;
 use App\Interfaces\UserRepositoryInterface;
+use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -66,6 +67,17 @@ class VerifyPasswordOtpController extends Controller
             ], 422);
         }
 
+        return $this->handleVerifiedCode($request, $validator);
+    }
+
+    /**
+     * Resolve the account, run the OTP check, and issue the reset token on success.
+     *
+     * The reason an OTP was rejected is logged, never returned (decision 8). The validator is
+     * passed through untouched so `validated()` is still read at its original call site.
+     */
+    private function handleVerifiedCode(Request $request, ValidatorContract $validator): JsonResponse
+    {
         $knownAccount = $this->userRepository->findByEmail($request->input('email')) !== null;
 
         if (! $knownAccount) {
@@ -92,6 +104,14 @@ class VerifyPasswordOtpController extends Controller
             return $this->invalidCodeResponse();
         }
 
+        return $this->issueResetToken($request);
+    }
+
+    /**
+     * Store the single-use reset token against the verified email and return it.
+     */
+    private function issueResetToken(Request $request): JsonResponse
+    {
         /*
          * OTP is valid.
          * Issue a single-use UUID token the client must present at /api/password/reset.
