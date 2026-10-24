@@ -3,21 +3,17 @@
 namespace App\Http\Controllers\API\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\Admin\AdminTripService;
 use App\Services\Admin\AdminUserService;
-use App\Services\NotificationService;
-use App\Services\Payment\CancellationRefund;
 use App\Services\Staff\StaffBookingQueryService;
+use App\Services\Staff\StaffCancellationService;
 use App\Services\Staff\StaffUserProfileService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -40,6 +36,7 @@ final class StaffOperationsController extends Controller
         private readonly AdminTripService $tripService,
         private readonly StaffBookingQueryService $bookingQueries,
         private readonly StaffUserProfileService $userProfiles,
+        private readonly StaffCancellationService $cancellations,
     ) {}
 
     // =========================================================================
@@ -266,314 +263,12 @@ final class StaffOperationsController extends Controller
 
     public function cancelTrip(int $rideId, Request $request): JsonResponse
     {
-        if ($reasonFailure = $this->cancellationReasonFailure($request)) {
-            return $reasonFailure;
-        }
-
-        try {
-            $agent = $request->attributes->get('staffEmployee');
-            $ride = Ride::findOrFail($rideId);
-
-            // Only cancel active/full rides
-            if (! in_array($ride->status, ['active', 'full', 'awaiting_confirmation'])) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "Cannot cancel a ride with status: {$ride->status}.",
-                ], 422);
-            }
-
-            $refund = ['refunded' => 0.0, 'bookings' => 0, 'needs_review' => 0, 'amount_source' => 'none'];
-
-            DB::transaction(function () use ($ride, $request, $agent, &$refund) {
-                $refund = $this->cancelTripWithinTransaction($ride, $request, $agent);
-            }, attempts: 3);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Trip cancelled successfully. All affected passengers have been notified.',
-                'data' => [
-                    'ride_id' => $ride->id,
-                    'new_status' => 'cancelled',
-                    'bookings_cancelled' => $ride->bookings()->where('status', 'cancelled')->count(),
-                    // Decision 6: surfaced so staff can see the money actually moved, and so a
-                    // legacy booking with no snapshot is visible instead of silently dropped.
-                    'refund_total' => $refund['refunded'],
-                    'refund_bookings' => $refund['bookings'],
-                    'refund_amount_source' => $refund['amount_source'],
-                    'needs_manual_review' => $refund['needs_review'],
-                ],
-            ]);
-
-        } catch (ModelNotFoundException) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Ride not found.',
-            ], 404);
-        } catch (\Exception $e) {
-            Log::error('Staff trip cancellation failed', [
-                'ride_id' => $rideId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->serverError();
-        }
+        return $this->cancellations->cancelTrip($rideId, $request->all(), $request->attributes->get('staffEmployee'));
     }
 
     // POST /api/staff/bookings/{bookingId}/cancel
     public function cancelBooking(int $bookingId, Request $request): JsonResponse
     {
-        if ($reasonFailure = $this->cancellationReasonFailure($request)) {
-            return $reasonFailure;
-        }
-
-        try {
-            $agent = $request->attributes->get('staffEmployee');
-            $booking = Booking::with(['ride', 'user'])->findOrFail($bookingId);
-
-            // Only cancel active bookings
-            if (! in_array($booking->status, ['pending', 'confirmed'])) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "Cannot cancel a booking with status: {$booking->status}.",
-                ], 422);
-            }
-
-            $refund = ['refunded' => 0.0, 'bookings' => 0, 'needs_review' => 0, 'amount_source' => 'none'];
-
-            DB::transaction(function () use ($booking, $request, $agent, &$refund) {
-                $refund = $this->cancelBookingWithinTransaction($booking, $request, $agent);
-            }, attempts: 3);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Booking cancelled successfully. The passenger has been notified.',
-                'data' => [
-                    'booking_id' => $booking->id,
-                    'new_status' => 'cancelled',
-                    'seats_restored_to_ride' => $booking->seats,
-                    'refund_total' => $refund['refunded'],
-                    'refund_amount_source' => $refund['amount_source'],
-                    'needs_manual_review' => $refund['needs_review'],
-                ],
-            ]);
-
-        } catch (ModelNotFoundException) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Booking not found.',
-            ], 404);
-        } catch (\Exception $e) {
-            Log::error('Staff booking cancellation failed', [
-                'booking_id' => $bookingId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->serverError();
-        }
-    }
-
-    // =========================================================================
-    // CANCELLATION HELPERS
-    // =========================================================================
-
-    /**
-     * Shared reason validation for both staff cancellation endpoints.
-     * Returns the 422 response to send back, or null when the input is valid.
-     */
-    private function cancellationReasonFailure(Request $request): ?JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'reason' => 'required|string|min:10|max:500',
-        ], [
-            'reason.required' => 'A cancellation reason is required.',
-            'reason.min' => 'Reason must be at least 10 characters.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        return null;
-    }
-
-    /**
-     * Work performed inside the staff trip-cancellation transaction.
-     *
-     * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
-     */
-    private function cancelTripWithinTransaction(Ride $ride, Request $request, $agent): array
-    {
-        // The bookings this cancellation actually affects.
-        $affectedBookings = $ride->bookings()
-            ->whereIn('status', ['confirmed', 'pending'])
-            ->get();
-
-        // Decision 6 (owner 2026-10-02): a staff-initiated cancellation refunds every
-        // affected passenger IN FULL and applies NO driver score penalty. Before this the
-        // endpoint only flipped the status - the comment above claimed "refund all
-        // confirmed bookings" but no money ever moved, so e-pay escrow stayed stranded in
-        // SyCash (RV-03). The amount comes from the RV-40 `amount_paid` snapshot, never
-        // from the mutable ride price.
-        //
-        // Money first: if the refund cannot be funded the transaction rolls back and the
-        // ride is NOT cancelled, so we can never leave a cancelled ride with stranded money.
-        $refund = app(CancellationRefund::class)
-            ->refundPassengersForStaffCancellation($ride, $affectedBookings);
-
-        // Cancel every affected booking.
-        foreach ($affectedBookings as $booking) {
-            $booking->update(['status' => 'cancelled']);
-        }
-
-        // Cancel the ride
-        $ride->update(['status' => 'cancelled']);
-
-        // Notify affected passengers
-        $this->notifyPassengersOfCancelledTrip($affectedBookings, $ride, $request);
-
-        $this->logCancelledTrip($ride, $agent, $request, $affectedBookings, $refund);
-
-        return $refund;
-    }
-
-    /**
-     * Notify every passenger whose booking was cancelled along with the ride.
-     */
-    private function notifyPassengersOfCancelledTrip($affectedBookings, Ride $ride, Request $request): void
-    {
-        $notificationService = app(NotificationService::class);
-
-        foreach ($affectedBookings as $booking) {
-            $notificationService->createNotification(
-                User::find($booking->user_id),
-                'ride_cancelled',
-                'رحلتك تم إلغاؤها',
-                "تم إلغاء الرحلة من قِبل فريق الدعم. السبب: {$request->input('reason')}",
-                ['ride_id' => $ride->id],
-                'high',
-                'ride'
-            );
-        }
-    }
-
-    /**
-     * Audit trail for a staff-initiated trip cancellation.
-     */
-    private function logCancelledTrip(Ride $ride, $agent, Request $request, $affectedBookings, array $refund): void
-    {
-        Log::info('Staff cancelled trip', [
-            'ride_id' => $ride->id,
-            'agent_id' => $agent->id,
-            'agent_name' => $agent->fullName(),
-            'reason' => $request->input('reason'),
-            'bookings_affected' => $affectedBookings->count(),
-            'refunded_total' => $refund['refunded'],
-            'refunded_bookings' => $refund['bookings'],
-            'needs_review' => $refund['needs_review'],
-            'driver_score_penalty' => 'none (decision 6: not the driver\'s fault)',
-        ]);
-    }
-
-    /**
-     * Work performed inside the staff booking-cancellation transaction.
-     *
-     * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
-     */
-    private function cancelBookingWithinTransaction(Booking $booking, Request $request, $agent): array
-    {
-        $seatsToRestore = $booking->seats;
-        $ride = $booking->ride;
-
-        $refund = $this->refundCancelledBooking($booking, $ride);
-
-        // Cancel booking
-        $booking->update(['status' => 'cancelled']);
-
-        $this->restoreSeatsForCancelledBooking($ride, $seatsToRestore);
-
-        // Notify the passenger
-        $this->notifyPassengerOfCancelledBooking($booking, $ride, $request);
-
-        $this->logCancelledBooking($booking, $agent, $request, $seatsToRestore, $refund);
-
-        return $refund;
-    }
-
-    /**
-     * Refund the cancelled booking in full.
-     *
-     * Decision 6 (owner 2026-10-02): full refund, no driver score penalty. Same reason
-     * as cancelTrip - this endpoint used to move no money at all, stranding e-pay
-     * escrow. Refund BEFORE the status flip so a failed refund rolls the whole thing back.
-     *
-     * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
-     */
-    private function refundCancelledBooking(Booking $booking, ?Ride $ride): array
-    {
-        if (! $ride) {
-            return ['refunded' => 0.0, 'bookings' => 0, 'needs_review' => 0, 'amount_source' => 'none'];
-        }
-
-        // An ELOQUENT collection, not collect(): the service signature is typed to
-        // Eloquent's Collection and a support-collection here was a hard 500.
-        return app(CancellationRefund::class)
-            ->refundPassengersForStaffCancellation($ride, Booking::whereIn('id', [$booking->id])->get());
-    }
-
-    /**
-     * Give the seats back to the ride when it is still cancellable.
-     */
-    private function restoreSeatsForCancelledBooking($ride, $seatsToRestore): void
-    {
-        // Restore seats on the ride if it's still active
-        if ($ride && in_array($ride->status, ['active', 'full', 'awaiting_confirmation'])) {
-            $ride->increment('available_seats', $seatsToRestore);
-
-            // If ride was full, set back to active
-            if ($ride->status === 'full') {
-                $ride->update(['status' => 'active']);
-            }
-        }
-    }
-
-    /**
-     * Notify the passenger whose booking was cancelled.
-     */
-    private function notifyPassengerOfCancelledBooking(Booking $booking, ?Ride $ride, Request $request): void
-    {
-        if (! $booking->user) {
-            return;
-        }
-
-        app(NotificationService::class)->createNotification(
-            $booking->user,
-            'booking_cancelled',
-            'تم إلغاء حجزك',
-            "تم إلغاء حجزك من قِبل فريق الدعم. السبب: {$request->input('reason')}",
-            ['booking_id' => $booking->id, 'ride_id' => $ride?->id],
-            'high',
-            'ride'
-        );
-    }
-
-    /**
-     * Audit trail for a staff-initiated booking cancellation.
-     */
-    private function logCancelledBooking(Booking $booking, $agent, Request $request, $seatsToRestore, array $refund): void
-    {
-        Log::info('Staff cancelled booking', [
-            'booking_id' => $booking->id,
-            'ride_id' => $booking->ride_id,
-            'agent_id' => $agent->id,
-            'agent_name' => $agent->fullName(),
-            'reason' => $request->input('reason'),
-            'seats' => $seatsToRestore,
-            'refunded_total' => $refund['refunded'],
-            'needs_review' => $refund['needs_review'],
-            'driver_score_penalty' => 'none (decision 6: not the driver\'s fault)',
-        ]);
+        return $this->cancellations->cancelBooking($bookingId, $request->all(), $request->attributes->get('staffEmployee'));
     }
 }

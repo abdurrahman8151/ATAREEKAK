@@ -151,7 +151,12 @@ class SharedTestSupportTest extends TestCase
         $passenger = User::factory()->create(['is_verified_passenger' => true]);
         $passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
 
+        // Idempotent: the reserved phones are shared across the whole suite, and `seedSystemWallet` is a
+        // firstOrCreate, so the escrow wallet can already hold a balance left by an earlier test in the
+        // same process. This test asserts that the FARE lands in escrow, so the escrow wallet starts at
+        // zero here; the assertions below are unchanged.
         $syCash = $this->syCashWallet();
+        $syCash->forceFill(['balance' => 0.0])->save();
         // Idempotent: the reserved primary phone is shared across the suite, so a raw Wallet::create collided.
         $this->seedSystemWallet(config('admin.system_admin.phone'), 0.0);
 

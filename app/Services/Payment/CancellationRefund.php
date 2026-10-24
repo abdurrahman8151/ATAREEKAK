@@ -2,25 +2,30 @@
 
 namespace App\Services\Payment;
 
-use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
-use App\Support\PostingKey;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** Money path split out of WalletTransactionService (behaviour unchanged). */
 class CancellationRefund
 {
+    /** The pre-movement escrow/funds guard of every cancellation path. */
+    private readonly CancellationEscrowGuard $guard;
+
+    /** Writes the balances, the `wallet_transactions` rows and the double-entry legs. */
+    private readonly CancellationLedgerWriter $writer;
+
     public function __construct(
-        private readonly WalletAccess $access,
-        private readonly LedgerService $ledger = new LedgerService,
-    ) {}
+        WalletAccess $access,
+        LedgerService $ledger = new LedgerService,
+    ) {
+        $this->guard = new CancellationEscrowGuard($access);
+        $this->writer = new CancellationLedgerWriter($access, $ledger);
+    }
 
     /**
      * Full refund to all confirmed passengers when driver cancels.
@@ -34,19 +39,19 @@ class CancellationRefund
         }
 
         $totalRefund = $bookings->sum(fn ($b) => $b->seats * $ride->price_per_seat);
-        $syCashWallet = $this->lockDriverCancellationSyCash($totalRefund);
+        $syCashWallet = $this->guard->lockDriverCancellationSyCash($totalRefund);
 
-        $escrowOutKey = $this->guardDriverCancellationEscrow($ride, $bookings);
+        $escrowOutKey = $this->guard->guardDriverCancellationEscrow($ride, $bookings);
 
         $txId = 'DRIVER_CANCEL_'.time().'_'.Str::random(6);
 
-        $this->recordDriverCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
+        $this->writer->recordDriverCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
 
         foreach ($bookings as $booking) {
-            $this->refundPassengerForDriverCancellation($ride, $booking, $txId);
+            $this->writer->refundPassengerForDriverCancellation($ride, $booking, $txId);
         }
 
-        $this->postDriverCancellationRefundLegs($ride, $bookings, $syCashWallet, $totalRefund);
+        $this->writer->postDriverCancellationRefundLegs($ride, $bookings, $syCashWallet, $totalRefund);
     }
 
     /**
@@ -88,19 +93,19 @@ class CancellationRefund
         }
 
         $totalRefund = (float) $refundable->sum(fn (Booking $b) => (float) $b->amount_paid);
-        $syCashWallet = $this->lockStaffCancellationSyCash($totalRefund);
+        $syCashWallet = $this->guard->lockStaffCancellationSyCash($totalRefund);
 
-        $escrowOutKey = $this->guardStaffCancellationEscrow($ride, $refundable);
+        $escrowOutKey = $this->guard->guardStaffCancellationEscrow($ride, $refundable);
 
         $txId = 'STAFF_CANCEL_'.time().'_'.Str::random(6);
 
-        $this->recordStaffCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
+        $this->writer->recordStaffCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
 
         foreach ($refundable as $booking) {
             $this->refundPassengerForStaffCancellation($ride, $booking, $txId);
         }
 
-        $this->postStaffCancellationRefundLegs($ride, $refundable, $syCashWallet, $totalRefund);
+        $this->writer->postStaffCancellationRefundLegs($ride, $refundable, $syCashWallet, $totalRefund);
 
         return [
             'refunded' => $totalRefund,
@@ -113,33 +118,7 @@ class CancellationRefund
     /** One passenger's full refund for a staff cancellation: credit the wallet and write the refund row. */
     public function refundPassengerForStaffCancellation(Ride $ride, Booking $booking, string $txId): void
     {
-        $refundAmount = (float) $booking->amount_paid;
-        $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
-        $passengerPrev = $passengerWallet->balance;
-
-        $passengerWallet->balance += $refundAmount;
-        $passengerWallet->save();
-
-        WalletTransaction::create([
-            'wallet_id' => $passengerWallet->id,
-            'user_id' => $booking->user_id,
-            'type' => 'staff_cancellation_refund',
-            'amount' => $refundAmount,
-            'previous_balance' => $passengerPrev,
-            'new_balance' => $passengerWallet->balance,
-            'description' => "Full refund — cancelled by support: {$ride->pickup_address} → {$ride->destination_address}",
-            'transaction_id' => 'PASS_'.$txId.'_'.$booking->id,
-            'status' => 'completed',
-            'reference' => "booking:{$booking->id}",
-        ]);
-
-        Log::info('Passenger refunded for staff cancellation', [
-            'ride_id' => $ride->id,
-            'booking_id' => $booking->id,
-            'passenger_id' => $booking->user_id,
-            'amount' => $refundAmount,
-            'source' => 'booking.amount_paid snapshot',
-        ]);
+        $this->writer->refundPassengerForStaffCancellation($ride, $booking, $txId);
     }
 
     /**
@@ -196,19 +175,19 @@ class CancellationRefund
         $refundAmount = ($totalPaid * $refundPolicy['refund_percentage']) / 100;
         $driverAmount = $totalPaid - $refundAmount;
 
-        [$syCashWallet, $passengerWallet, $driverWallet] = $this->lockTimeBasedCancellationWallets(
+        [$syCashWallet, $passengerWallet, $driverWallet] = $this->guard->lockTimeBasedCancellationWallets(
             $booking, $ride, $totalPaid
         );
 
-        $escrowOutKey = $this->guardTimeBasedCancellationEscrow($booking, $seatsCancelled, $totalPaid);
+        $escrowOutKey = $this->guard->guardTimeBasedCancellationEscrow($booking, $seatsCancelled, $totalPaid);
 
-        [$syCashPrev, $passengerPrev, $driverPrev] = $this->applyTimeBasedCancellationBalances(
+        [$syCashPrev, $passengerPrev, $driverPrev] = $this->writer->applyTimeBasedCancellationBalances(
             $syCashWallet, $passengerWallet, $driverWallet, $totalPaid, $refundAmount, $driverAmount
         );
 
         $txId = 'TIME_CANCEL_'.time().'_'.Str::random(6);
 
-        $this->recordTimeBasedCancellationEscrowRow(
+        $this->writer->recordTimeBasedCancellationEscrowRow(
             $booking, $syCashWallet, $totalPaid, $refundAmount, $driverAmount, $syCashPrev, $escrowOutKey, $txId
         );
 
@@ -218,7 +197,7 @@ class CancellationRefund
         // Driver compensation
         $this->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
 
-        $this->postTimeBasedCancellationLegs(
+        $this->writer->postTimeBasedCancellationLegs(
             $booking, $syCashWallet, $passengerWallet, $driverWallet, $totalPaid, $refundAmount, $driverAmount
         );
 
@@ -235,176 +214,13 @@ class CancellationRefund
     /** Passenger side of a time-based cancellation: a refund row, or an audit row when the refund is zero. */
     public function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId): void
     {
-        if ($refundAmount > 0) {
-            WalletTransaction::create([
-                'wallet_id' => $passengerWallet->id,
-                'user_id' => $booking->user_id,
-                'type' => 'time_based_refund',
-                'amount' => $refundAmount,
-                'previous_balance' => $passengerPrev,
-                'new_balance' => $passengerWallet->balance,
-                'description' => "Refund ({$refundPolicy['refund_percentage']}%) — {$seatsCancelled} seat(s) cancelled ({$refundPolicy['policy_tier']})",
-                'transaction_id' => 'REFUND_'.$txId,
-                'status' => 'completed',
-                'reference' => "booking:{$booking->id}",
-            ]);
-        } else {
-            // Audit trail for zero-refund so passenger sees it in history
-            WalletTransaction::create([
-                'wallet_id' => $passengerWallet->id,
-                'user_id' => $booking->user_id,
-                'type' => 'cancellation_no_refund',
-                'amount' => 0,
-                'previous_balance' => $passengerPrev,
-                'new_balance' => $passengerWallet->balance,
-                'description' => "No refund — late cancellation ({$refundPolicy['policy_tier']})",
-                'transaction_id' => 'NO_REFUND_'.$txId,
-                'status' => 'completed',
-                'reference' => "booking:{$booking->id}",
-            ]);
-        }
+        $this->writer->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
     }
 
     /** Driver side of a time-based cancellation: the compensation row, when the driver is owed anything. */
     public function recordDriverCompensation(Ride $ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): void
     {
-        if ($driverAmount > 0) {
-            WalletTransaction::create([
-                'wallet_id' => $driverWallet->id,
-                'user_id' => $ride->driver_id,
-                'type' => 'cancellation_fee_earnings',
-                'amount' => $driverAmount,
-                'previous_balance' => $driverPrev,
-                'new_balance' => $driverWallet->balance,
-                'description' => "Cancellation compensation — {$seatsCancelled} seat(s) ({$refundPolicy['policy_tier']})",
-                'transaction_id' => 'DRIVER_'.$txId,
-                'status' => 'completed',
-                'reference' => "booking:{$booking->id}",
-            ]);
-        }
-    }
-
-    /** Lock SyCash for a driver-cancellation refund and check it holds the whole refund. */
-    private function lockDriverCancellationSyCash($totalRefund): Wallet
-    {
-        $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
-
-        $this->access->assertSufficientBalance(
-            $syCashWallet,
-            $totalRefund,
-            "Insufficient SyCash balance for passenger refunds. Required: {$totalRefund}"
-        );
-
-        return $syCashWallet;
-    }
-
-    /**
-     * The escrow guard pair over the whole booking set, before any balance moves: 100% of each
-     * booking's escrow goes back, so every booking's row is cleared to zero by this call.
-     */
-    private function guardDriverCancellationEscrow(Ride $ride, Collection $bookings): string
-    {
-        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
-        // 100% of each booking's escrow goes back, so every booking's row is cleared to zero by
-        // this call. The refund TIER is untouched — this only decides whether it may happen once.
-        $escrowOutKey = PostingKey::buildForSet($ride->id, 'driver-cancel', $bookings);
-        $this->access->assertPostingKeyUnused($escrowOutKey);
-        $this->access->debitEscrowForSet(
-            $bookings,
-            fn (Booking $b) => (float) $b->seats * (float) $ride->price_per_seat
-        );
-
-        return $escrowOutKey;
-    }
-
-    /** The single SyCash debit row covering every passenger refund of a driver cancellation. */
-    private function recordDriverCancellationEscrowRow(
-        Ride $ride,
-        Wallet $syCashWallet,
-        $totalRefund,
-        string $escrowOutKey,
-        string $txId
-    ): void {
-        $syCashPrev = $syCashWallet->balance;
-        $syCashWallet->balance -= $totalRefund;
-        $syCashWallet->save();
-
-        WalletTransaction::create([
-            'wallet_id' => $syCashWallet->id,
-            'user_id' => null,
-            'type' => 'driver_cancellation_refunds',
-            'amount' => -$totalRefund,
-            'previous_balance' => $syCashPrev,
-            'new_balance' => $syCashWallet->balance,
-            'description' => "Refunds for driver-cancelled ride: {$ride->pickup_address} → {$ride->destination_address}",
-            'transaction_id' => 'SYCASH_'.$txId,
-            'status' => 'completed',
-            'reference' => "ride:{$ride->id}",
-            'posting_key' => $escrowOutKey,
-        ]);
-    }
-
-    /** One passenger's full refund for a driver cancellation: credit the wallet and write the refund row. */
-    private function refundPassengerForDriverCancellation(Ride $ride, Booking $booking, string $txId): void
-    {
-        $refundAmount = $booking->seats * $ride->price_per_seat;
-        $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
-        $passengerPrev = $passengerWallet->balance;
-
-        $passengerWallet->balance += $refundAmount;
-        $passengerWallet->save();
-
-        WalletTransaction::create([
-            'wallet_id' => $passengerWallet->id,
-            'user_id' => $booking->user_id,
-            'type' => 'driver_cancellation_refund',
-            'amount' => $refundAmount,
-            'previous_balance' => $passengerPrev,
-            'new_balance' => $passengerWallet->balance,
-            'description' => "Full refund — driver cancelled: {$ride->pickup_address} → {$ride->destination_address}",
-            'transaction_id' => 'PASS_'.$txId.'_'.$booking->id,
-            'status' => 'completed',
-            'reference' => "booking:{$booking->id}",
-        ]);
-
-        Log::info('Passenger refunded for driver cancellation', [
-            'booking_id' => $booking->id,
-            'passenger_id' => $booking->user_id,
-            'amount' => $refundAmount,
-        ]);
-    }
-
-    /** The refund fan-out as ONE transfer with N+1 legs, posted after the per-passenger loop. */
-    private function postDriverCancellationRefundLegs(
-        Ride $ride,
-        Collection $bookings,
-        Wallet $syCashWallet,
-        $totalRefund
-    ): void {
-        // ── Decision un3: double-entry legs for the whole refund ───────────────
-        // One transfer, N+1 legs - NOT one transfer per passenger. `postTransfer` checks the fan-out
-        // sums to zero, so the refunds can never exceed what SyCash actually gave.
-        //
-        // The AMOUNTS here still come from `seats * ride.price_per_seat` (decision 3's territory,
-        // owner-flagged "reconsider") - this records what the code actually did, it does not change
-        // what that is. Changing the refund amount and recording it are separate decisions.
-        if ($bookings->isNotEmpty()) {
-            $legs = [[
-                'wallet_id' => $syCashWallet->id,
-                'amount' => -$totalRefund,
-                'description' => "ride #{$ride->id}: driver cancellation refund out",
-            ]];
-
-            foreach ($bookings as $booking) {
-                $legs[] = [
-                    'wallet_id' => $this->access->lockWalletByUserId($booking->user_id)->id,
-                    'amount' => (float) $booking->seats * (float) $ride->price_per_seat,
-                    'description' => "ride #{$ride->id}: refund to booking #{$booking->id}",
-                ];
-            }
-
-            $this->ledger->postTransfer($legs);
-        }
+        $this->writer->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
     }
 
     /**
@@ -436,235 +252,5 @@ class CancellationRefund
         }
 
         return [$refundable, $needsReview];
-    }
-
-    /** Lock SyCash for a staff-cancellation refund and check it holds the whole refund. */
-    private function lockStaffCancellationSyCash($totalRefund): Wallet
-    {
-        $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
-
-        $this->access->assertSufficientBalance(
-            $syCashWallet,
-            $totalRefund,
-            "Insufficient SyCash balance for staff-cancellation refunds. Required: {$totalRefund}"
-        );
-
-        return $syCashWallet;
-    }
-
-    /**
-     * The escrow guard pair over the refundable set, before any balance moves.
-     *
-     * Debited against the SAME `amount_paid` snapshot this method already refunds from, so the
-     * escrow row can never disagree with the money about how much this booking held. Only
-     * `$refundable` is touched: the needs-review rows were never charged, so they hold no escrow,
-     * and this is deliberately not a second place to guess an amount at them.
-     */
-    private function guardStaffCancellationEscrow(Ride $ride, Collection $refundable): string
-    {
-        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
-        $escrowOutKey = PostingKey::buildForSet($ride->id, 'staff-cancel', $refundable);
-        $this->access->assertPostingKeyUnused($escrowOutKey);
-        $this->access->debitEscrowForSet(
-            $refundable,
-            fn (Booking $b) => (float) $b->amount_paid
-        );
-
-        return $escrowOutKey;
-    }
-
-    /** The single SyCash debit row covering every passenger refund of a staff cancellation. */
-    private function recordStaffCancellationEscrowRow(
-        Ride $ride,
-        Wallet $syCashWallet,
-        $totalRefund,
-        string $escrowOutKey,
-        string $txId
-    ): void {
-        $syCashPrev = $syCashWallet->balance;
-        $syCashWallet->balance -= $totalRefund;
-        $syCashWallet->save();
-
-        WalletTransaction::create([
-            'wallet_id' => $syCashWallet->id,
-            'user_id' => null,
-            'type' => 'staff_cancellation_refunds',
-            'amount' => -$totalRefund,
-            'previous_balance' => $syCashPrev,
-            'new_balance' => $syCashWallet->balance,
-            'description' => "Full refunds for staff-cancelled ride: {$ride->pickup_address} → {$ride->destination_address}",
-            'transaction_id' => 'SYCASH_'.$txId,
-            'status' => 'completed',
-            'reference' => "ride:{$ride->id}",
-            'posting_key' => $escrowOutKey,
-        ]);
-    }
-
-    /** The refund fan-out as ONE transfer with N+1 legs, posted after the per-passenger loop. */
-    private function postStaffCancellationRefundLegs(
-        Ride $ride,
-        Collection $refundable,
-        Wallet $syCashWallet,
-        $totalRefund
-    ): void {
-        // ── Decision un3: double-entry legs for the whole refund ───────────────
-        // N passengers, so N+1 legs: SyCash gives once, each passenger receives. The sum is checked,
-        // so the fan-out can never refund more (or less) than SyCash actually gave. Note the legs
-        // are posted ONCE after the loop, not per passenger - a refund to five people is ONE
-        // transfer with six legs, not five transfers.
-        if ($refundable->isNotEmpty()) {
-            $legs = [[
-                'wallet_id' => $syCashWallet->id,
-                'amount' => -$totalRefund,
-                'description' => "ride #{$ride->id}: staff cancellation refund out",
-            ]];
-
-            foreach ($refundable as $booking) {
-                $legs[] = [
-                    'wallet_id' => $this->access->lockWalletByUserId($booking->user_id)->id,
-                    'amount' => (float) $booking->amount_paid,
-                    'description' => "ride #{$ride->id}: refund to booking #{$booking->id}",
-                ];
-            }
-
-            $this->ledger->postTransfer($legs);
-        }
-    }
-
-    /**
-     * Lock SyCash, the passenger and the driver for a time-based cancellation, and check SyCash.
-     *
-     * @return array{0: Wallet, 1: Wallet, 2: Wallet}
-     */
-    private function lockTimeBasedCancellationWallets(Booking $booking, Ride $ride, $totalPaid): array
-    {
-        $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
-        $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
-        $driverWallet = $this->access->lockWalletByUserId($ride->driver_id);
-
-        $this->access->assertSufficientBalance(
-            $syCashWallet,
-            $totalPaid,
-            "Insufficient SyCash balance for cancellation refund. Required: {$totalPaid}"
-        );
-
-        return [$syCashWallet, $passengerWallet, $driverWallet];
-    }
-
-    /**
-     * The escrow guard pair for a (possibly partial) time-based cancellation, before any balance
-     * moves.
-     *
-     * The refund TIER is untouched — this guards whether the movement may happen, not what it pays.
-     * `$totalPaid` is debited, not the full booking: the seats that stay booked keep their escrow,
-     * and `BookingService` reduces `$booking->seats` immediately afterwards, so a later completion
-     * of the same booking releases exactly what is left here.
-     */
-    private function guardTimeBasedCancellationEscrow(Booking $booking, int $seatsCancelled, $totalPaid): string
-    {
-        // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
-        // THE KEY MUST DISTINGUISH A PARTIAL CANCEL FROM THE FULL SETTLEMENT — and successive
-        // partial cancels from each other, which is why it names the REMAINING seat count rather
-        // than the cancelled one or the amount. Cancelling one of two seats then the other is two
-        // movements (`:cancel:1`, then `:cancel:0`); a single full cancel of two seats is the same
-        // end state and correctly shares the final key. The caller still holds the PRE-cancel
-        // `$booking->seats` at this point, so the arithmetic is exact and deterministic.
-        $seatsRemaining = max(0, (int) $booking->seats - $seatsCancelled);
-        $escrowOutKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-out', 'cancel:'.$seatsRemaining);
-        $this->access->assertPostingKeyUnused($escrowOutKey);
-        $this->access->debitEscrow($booking, (float) $totalPaid);
-
-        return $escrowOutKey;
-    }
-
-    /**
-     * Move SyCash's money out to the passenger and the driver, returning the previous balances.
-     *
-     * @return array{0: mixed, 1: mixed, 2: mixed}
-     */
-    private function applyTimeBasedCancellationBalances(
-        Wallet $syCashWallet,
-        Wallet $passengerWallet,
-        Wallet $driverWallet,
-        $totalPaid,
-        $refundAmount,
-        $driverAmount
-    ): array {
-        $syCashPrev = $syCashWallet->balance;
-        $passengerPrev = $passengerWallet->balance;
-        $driverPrev = $driverWallet->balance;
-
-        $syCashWallet->balance -= $totalPaid;
-        if ($refundAmount > 0) {
-            $passengerWallet->balance += $refundAmount;
-        }
-        if ($driverAmount > 0) {
-            $driverWallet->balance += $driverAmount;
-        }
-
-        $syCashWallet->save();
-        $passengerWallet->save();
-        $driverWallet->save();
-
-        return [$syCashPrev, $passengerPrev, $driverPrev];
-    }
-
-    /** The SyCash debit row for a time-based cancellation. */
-    private function recordTimeBasedCancellationEscrowRow(
-        Booking $booking,
-        Wallet $syCashWallet,
-        $totalPaid,
-        $refundAmount,
-        $driverAmount,
-        $syCashPrev,
-        string $escrowOutKey,
-        string $txId
-    ): void {
-        WalletTransaction::create([
-            'wallet_id' => $syCashWallet->id,
-            'user_id' => null,
-            'type' => 'cancellation_processing',
-            'amount' => -$totalPaid,
-            'previous_balance' => $syCashPrev,
-            'new_balance' => $syCashWallet->balance,
-            'description' => 'Cancellation: refund '.number_format($refundAmount, 0).' SYP to passenger, '.number_format($driverAmount, 0).' SYP to driver',
-            'transaction_id' => 'SYCASH_'.$txId,
-            'status' => 'completed',
-            'reference' => "booking:{$booking->id}",
-            'posting_key' => $escrowOutKey,
-        ]);
-    }
-
-    /**
-     * Double-entry legs for the three-party time-based cancellation.
-     *
-     * Only legs are built if the amounts are non-zero, so a transfer that (correctly) owes nothing
-     * to one side does not post a 0.00 leg - a zero leg is noise, and `postTransfer` would still
-     * balance it, which would be misleading rather than wrong.
-     */
-    private function postTimeBasedCancellationLegs(
-        Booking $booking,
-        Wallet $syCashWallet,
-        Wallet $passengerWallet,
-        Wallet $driverWallet,
-        $totalPaid,
-        $refundAmount,
-        $driverAmount
-    ): void {
-        // ── Decision un3: double-entry legs (SyCash → passenger + driver) ────────
-        // Three parties, one event. Only legs are built if the amounts are non-zero, so a transfer
-        // that (correctly) owes nothing to one side does not post a 0.00 leg - a zero leg is noise,
-        // and `postTransfer` would still balance it, which would be misleading rather than wrong.
-        $legs = [['wallet_id' => $syCashWallet->id, 'amount' => -$totalPaid, 'description' => "booking #{$booking->id}: cancellation out"]];
-
-        if ($refundAmount > 0) {
-            $legs[] = ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger"];
-        }
-
-        if ($driverAmount > 0) {
-            $legs[] = ['wallet_id' => $driverWallet->id, 'amount' => $driverAmount, 'description' => "booking #{$booking->id}: driver compensation"];
-        }
-
-        $this->ledger->postTransfer($legs);
     }
 }

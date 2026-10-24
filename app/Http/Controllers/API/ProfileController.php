@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Http\Controllers\API\Support\ProfileInteractionHandler;
 use App\Http\Controllers\Controller;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
@@ -56,6 +57,7 @@ class ProfileController extends Controller
         private readonly PhotoRepositoryInterface $photoRepo,
         private readonly ScoreService $scoreService,
         private readonly UserRideStatsService $rideStats,
+        private readonly ProfileInteractionHandler $interactionHandler,
     ) {}
 
     // =========================================================================
@@ -174,54 +176,8 @@ class ProfileController extends Controller
      */
     public function comment(Request $request, int $userId)
     {
-        $validator = Validator::make($request->all(), [
-            'comment' => 'required|string|max:500',
-            'ride_id' => 'required|integer|exists:rides,id',  // ← new required field
-        ], [
-            'ride_id.required' => 'A ride ID is required. You can only comment after completing a ride.',
-            'ride_id.exists' => 'The specified ride does not exist.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            $comment = $this->interactionService->addComment(
-                $request->user()->id,
-                $userId,
-                $request->input('comment'),
-                (int) $request->input('ride_id'),  // ← pass ride_id to service
-            );
-
-            Cache::forget("profile.user.{$userId}");
-            Cache::forget("profile.user.owner.{$userId}");
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Comment added',
-                'data' => $comment,
-            ], 201);
-
-        } catch (\Exception $e) {
-            // RV-13: message to the log, not the client. Fixed 500, not $e->getCode() - an
-            // exception code is not an HTTP status (a PDOException carries 23000, and
-            // response()->json($body, 23000) is not a valid response).
-            Log::error('Profile: add comment failed', [
-                'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to add the comment. Please try again.',
-            ], 500);
-        }
+        return $this->interactionHandler->comment($request->user()->id, $userId, $request->all());
     }
-
     // =========================================================================
     // RATE
     // =========================================================================
@@ -231,54 +187,8 @@ class ProfileController extends Controller
      */
     public function rateUser(Request $request, int $userId)
     {
-        $validator = Validator::make($request->all(), [
-            'rating' => 'required|numeric|min:1|max:5',
-            'ride_id' => 'required|integer|exists:rides,id',  // ← new required field
-        ], [
-            'ride_id.required' => 'A ride ID is required. You can only rate after completing a ride.',
-            'ride_id.exists' => 'The specified ride does not exist.',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            $ratingStats = $this->interactionService->rateUser(
-                $request->user()->id,
-                $userId,
-                (float) $request->input('rating'),
-                (int) $request->input('ride_id'),  // ← pass ride_id to service
-            );
-
-            Cache::forget("profile.user.{$userId}");
-            Cache::forget("profile.user.owner.{$userId}");
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Rating submitted successfully',
-                'data' => $ratingStats,
-            ]);
-
-        } catch (\Exception $e) {
-            // RV-13: message to the log, not the client. Fixed 500, not $e->getCode() - an
-            // exception code is not an HTTP status (a PDOException carries 23000, and
-            // response()->json($body, 23000) is not a valid response).
-            Log::error('Profile: rating stats failed', [
-                'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to load rating statistics. Please try again.',
-            ], 500);
-        }
+        return $this->interactionHandler->rateUser($request->user()->id, $userId, $request->all());
     }
-
     // =========================================================================
     // PRIVATE — FORMAT
     // =========================================================================
