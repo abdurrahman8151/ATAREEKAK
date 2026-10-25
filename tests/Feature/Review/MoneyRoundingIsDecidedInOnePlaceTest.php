@@ -38,15 +38,40 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     /**
      * Files whose money arithmetic was converted at `R2 sec 117`.
      *
+     * Batch 226 moved code between files - the driver-dashboard maths now lives in
+     * `AdminDriverPresenting`/`AdminDashboardActivityService`, and the passenger wallet-charge and
+     * profile-panel maths in `Services/Profile`. The list follows the code, so this is a location
+     * update rather than a relaxation: the same arithmetic must still round no money and must
+     * still use the value object.
+     *
      * @var array<int, string>
      */
     private const CONVERTED = [
         'app/Services/Payment/LedgerService.php',
-        'app/Services/Payment/CashRideFeeService.php',
+        'app/Services/Payment/CashRideFeeRefundService.php',
         'app/Services/Payment/RidePayout.php',
-        'app/Services/Admin/AdminDriverService.php',
-        'app/Http/Controllers/API/PassengerProfileController.php',
+        'app/Services/Admin/Concerns/AdminDriverPresenting.php',
+        'app/Services/Profile/BuildsPassengerProfilePanels.php',
         'app/Console/Commands/BackfillBookingMoneySnapshot.php',
+        'app/Console/Testing/Support/FullRideFlowScenarios.php',
+    ];
+
+    /**
+     * Files that received converted arithmetic when batch 226 split the oversized files.
+     *
+     * They are not in CONVERTED because the negative control below requires every CONVERTED file to
+     * use the value object, and these carry converted arithmetic without naming `Money::` in their
+     * own body. They are still ratcheted: the code they hold was covered before the move, so it must
+     * keep rounding no money. Coverage moved with the code, it did not shrink.
+     *
+     * @var array<int, string>
+     */
+    private const CONVERTED_HOMES = [
+        'app/Services/Admin/AdminDashboardActivityService.php',
+        'app/Services/Admin/AdminDriverDashboardService.php',
+        'app/Services/Profile/ChargesPassengerWallet.php',
+        'app/Services/Payment/CashRideFeeService.php',
+        'app/Services/Payment/CashRideDebtClearanceService.php',
         'app/Console/Testing/Testfullrideflow.php',
     ];
 
@@ -68,7 +93,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     {
         $offenders = [];
 
-        foreach (self::CONVERTED as $relative) {
+        foreach (array_merge(self::CONVERTED, self::CONVERTED_HOMES) as $relative) {
             $path = base_path($relative);
             $this->assertFileExists($path, 'a converted file moved or was deleted');
 
@@ -121,19 +146,19 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     {
         $this->assertStringContainsString(
             'round($elapsedPct, 2)',
-            file_get_contents(base_path('app/Services/Payment/CashRideFeeService.php')),
+            file_get_contents(base_path('app/Services/Payment/CashRideFeeRefundService.php')),
             'a PERCENTAGE is not money and is still rounded for the log payload'
         );
 
         $this->assertStringContainsString(
             'round((float) $avgRating',
-            file_get_contents(base_path('app/Services/Admin/AdminDriverService.php')),
+            file_get_contents(base_path('app/Services/Admin/AdminDashboardActivityService.php')),
             'a RATING is not money and stays at its own scale'
         );
 
         $this->assertStringContainsString(
             "'avg_rating' => round((float) \$avgRating, 1)",
-            file_get_contents(base_path('app/Http/Controllers/API/PassengerProfileController.php')),
+            file_get_contents(base_path('app/Services/Profile/BuildsPassengerProfilePanels.php')),
             'the 1dp average rating is deliberately NOT money - recorded at R2 sec 117 so it is not "fixed"'
         );
     }
