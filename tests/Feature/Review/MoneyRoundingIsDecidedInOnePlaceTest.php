@@ -50,8 +50,8 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
         'app/Services/Payment/LedgerService.php',
         'app/Services/Payment/CashRideFeeRefundService.php',
         'app/Services/Payment/RidePayout.php',
-        'app/Services/Admin/Concerns/AdminDriverPresenting.php',
-        'app/Services/Profile/BuildsPassengerProfilePanels.php',
+        'app/Services/Admin/AdminDriverPresenter.php',
+        'app/Services/Profile/PassengerProfilePanelBuilder.php',
         'app/Console/Commands/BackfillBookingMoneySnapshot.php',
         'app/Console/Testing/Support/FullRideFlowScenarios.php',
     ];
@@ -69,7 +69,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     private const CONVERTED_HOMES = [
         'app/Services/Admin/AdminDashboardActivityService.php',
         'app/Services/Admin/AdminDriverDashboardService.php',
-        'app/Services/Profile/ChargesPassengerWallet.php',
+        'app/Services/Profile/PassengerWalletCharger.php',
         'app/Services/Payment/CashRideFeeService.php',
         'app/Services/Payment/CashRideDebtClearanceService.php',
         'app/Console/Testing/Testfullrideflow.php',
@@ -158,7 +158,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
 
         $this->assertStringContainsString(
             "'avg_rating' => round((float) \$avgRating, 1)",
-            file_get_contents(base_path('app/Services/Profile/BuildsPassengerProfilePanels.php')),
+            file_get_contents(base_path('app/Services/Profile/PassengerProfilePanelBuilder.php')),
             'the 1dp average rating is deliberately NOT money - recorded at R2 sec 117 so it is not "fixed"'
         );
     }

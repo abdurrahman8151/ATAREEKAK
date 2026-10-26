@@ -13389,3 +13389,30 @@ off in production code rather than in a boundary rule.
   `tests/Unit/Providers` is in this run because of slice 10's lesson: any slice that changes what the
   container builds belongs there.
 - Left in batch 227: trait 5 (`FullRideFlowScenarios`).
+### 227 continued — slice 13: the three trait renames had left a pinned ratchet red
+
+This slice is a repair, not new work, and the third instance of the same mistake in this batch.
+
+- Slices 5, 6 and 7 renamed three files (`ChargesPassengerWallet` -> `PassengerWalletCharger`,
+  `BuildsPassengerProfilePanels` -> `PassengerProfilePanelBuilder`,
+  `Concerns/AdminDriverPresenting` -> `AdminDriverPresenter`). Each slice verified its own context
+  (Profile, Admin, AppFuture, T3Batch...) but none of them ran `tests/Feature/Review` as a whole - only
+  single files from it - so three file paths in
+  `tests/Feature/Review/MoneyRoundingIsDecidedInOnePlaceTest`'s `CONVERTED` / `CONVERTED_HOMES` lists kept
+  pointing at files that no longer exist. The test asserts `assertFileExists` on every listed path, so it
+  was red (2 errors + 1 failure) from slice 5 until this commit.
+- Fix: the three paths now name the files the code moved to. That is exactly the update the test's own
+  docblock sanctions - "The list follows the code, so this is a location update rather than a
+  relaxation: the same arithmetic must still round no money and must still use the value object" - and no
+  assertion, threshold or expectation was touched.
+- Verification: `tests/Feature/Review` in full -> 651 tests, 2217 assertions, **Failures: 2** - the known
+  pre-existing pair (`BacklogTableShapeTest` over the owner's BACKLOG.md and
+  `NoDuplicatedFixtureHelpersTest::test_no_test_file_logs_in_to_a_staff_or_admin_door_with_an_email`),
+  the same two names slice 4 recorded before any of this moved. Both `MoneyRoundingIsDecidedInOnePlaceTest`
+  errors and its failure are gone.
+- Lesson, added to the batch's floor discipline: after renaming or moving any file under `app/`, the whole
+  `tests/Feature/Review` directory belongs in the run, not just the one review test that happens to name
+  the class. Three slices of this batch have now paid for that gap - slice 10's `tests/Unit/Providers`,
+  slices 5-7's `tests/Feature/Review`, and the general reminder that pinned ratchets fail by path, not by
+  symbol, so `git grep` for the symbol does not find them.
+- Still left in batch 227: trait 5 (`FullRideFlowScenarios`).
