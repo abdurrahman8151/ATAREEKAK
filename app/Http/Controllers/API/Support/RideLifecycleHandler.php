@@ -33,6 +33,7 @@ class RideLifecycleHandler
         private readonly BookingService $bookingService,
         private readonly GeocodingService $geocodingService,
         private readonly RouteCalculationService $routeService,
+        private readonly ScoreService $scoreService,
     ) {}
 
     public function create(CreateRideRequest $request): JsonResponse
@@ -44,7 +45,7 @@ class RideLifecycleHandler
             // here — a freshly created ride carries no relation, so rendering it lazy-loaded the
             // driver (one extra query per response, and a lazy-load violation under strictness).
             $ride->load(['driver', 'driver.profile']);
-            $score = app(ScoreService::class)->getScore($request->user());
+            $score = $this->scoreService->getScore($request->user());
 
             return response()->json([
                 'success' => true,

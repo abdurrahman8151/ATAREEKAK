@@ -13358,3 +13358,34 @@ off in production code rather than in a boundary rule.
   `Services/Profile/PassengerWalletCharger` but it is the docblock sentence that describes the change that
   removed it.
 - Then: trait 5 (`FullRideFlowScenarios`).
+### 227 continued — slice 12: the last three container lookups; the app() item is done
+
+- `Http/Controllers/API/AdminDashboardController.php`: constructor gained
+  `private readonly VerificationApprovalService $verificationApprovalService`;
+  `app(VerificationApprovalService::class)->approve($userId, $nationalId)` became
+  `$this->verificationApprovalService->approve($userId, $nationalId)`.
+- `Http/Controllers/API/Support/RideLifecycleHandler.php`: constructor gained
+  `private readonly ScoreService $scoreService`; `$score = app(ScoreService::class)->getScore($request->user())`
+  became `$score = $this->scoreService->getScore($request->user())`.
+- `Http/Middleware/Support/JwtAuthHandler.php`: the constructor already took `JwtService` and now also
+  takes `protected BanService $banService` (matched to the file's existing `protected` style);
+  `app(BanService::class)->liftExpiredBan($user->id)` became `$this->banService->liftExpiredBan($user->id)`.
+  Middleware is resolved through the container, so nothing else had to change.
+- All three classes already had constructors and none is instantiated with `new` anywhere in `app/` or
+  `tests/`, and all three collaborators were already imported in their host files.
+
+- Measured result, so the item can be closed: `app(SomeClass::class)` matches in `app/` are now **1**, and
+  that one is the docblock sentence in `Services/Profile/PassengerWalletCharger` that describes the change
+  which removed its call. Every real container lookup of a collaborator in `app/` is gone; the remaining
+  `app(` uses under `app/` are `app()->environment(...)` predicates and prose, parked in slice 9's record
+  with the reason (`WhatsAppOtpService`, `Support/BootGuards`, `Support/OtpDisclosure`,
+  `Support/HorizonAccess`, `Providers/AppServiceProvider`, `Middleware/GateDocumentation`,
+  `Console/Commands/GuardsAgainstProductionExecution`).
+
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on all three files:
+  `tests/Feature/Admin tests/Unit/Services/Admin tests/Feature/Auth tests/Feature/Security
+  tests/Unit/Middleware tests/Feature/Staff tests/Feature/Rides tests/Feature/Bookings tests/Unit/Domain
+  tests/Feature/AppFuture tests/Feature/T3Batch tests/Unit/Providers` -> **OK (999 tests, 2977 assertions)**.
+  `tests/Unit/Providers` is in this run because of slice 10's lesson: any slice that changes what the
+  container builds belongs there.
+- Left in batch 227: trait 5 (`FullRideFlowScenarios`).

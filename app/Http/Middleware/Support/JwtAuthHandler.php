@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class JwtAuthHandler
 {
-    public function __construct(protected JwtService $jwtService) {}
+    public function __construct(protected JwtService $jwtService, protected BanService $banService) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -125,7 +125,7 @@ class JwtAuthHandler
         }
 
         if ($user->banHasExpired()) {
-            app(BanService::class)->liftExpiredBan($user->id);
+            $this->banService->liftExpiredBan($user->id);
 
             // Fall through to the inactive check below (status is now LOGGED_OUT)
             return null;

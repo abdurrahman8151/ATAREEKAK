@@ -31,6 +31,7 @@ final class AdminDashboardController extends Controller
         private readonly AdminWalletService $walletService,
         private readonly AdminReportService $reportService,
         private readonly AdminExportService $exportService,
+        private readonly VerificationApprovalService $verificationApprovalService,
     ) {
         $this->reads = new AdminDashboardReadService($reportService);
         $this->verificationQueue = new AdminVerificationQueueService;
@@ -430,7 +431,7 @@ final class AdminDashboardController extends Controller
         $nationalId = trim($request->input('national_id'));
 
         try {
-            $approved = app(VerificationApprovalService::class)->approve($userId, $nationalId);
+            $approved = $this->verificationApprovalService->approve($userId, $nationalId);
             $verifiedUser = $approved->user;
 
             // Bust caches that reflect user/driver counts and verification stats
