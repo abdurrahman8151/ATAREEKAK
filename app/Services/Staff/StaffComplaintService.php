@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\Log;
 
 final class StaffComplaintService
 {
+    public function __construct(
+        private readonly NotificationService $notificationService,
+    ) {}
+
     // ── eager-load for every query ──────────────────────────────────────────
     private const WITH = [
         'user:id,first_name,last_name,email',
@@ -328,7 +332,7 @@ final class StaffComplaintService
         try {
             $user = User::find($complaint->user_id);
             if ($user) {
-                app(NotificationService::class)->createNotification(
+                $this->notificationService->createNotification(
                     $user,
                     $type,
                     $title,

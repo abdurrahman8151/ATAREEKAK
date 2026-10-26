@@ -11,7 +11,8 @@ use Illuminate\Http\Request;
 class PushNotificationController extends Controller
 {
     public function __construct(
-        private PushNotificationService $pushService
+        private PushNotificationService $pushService,
+        private NotificationService $notificationService
     ) {}
 
     public function registerToken(Request $request): JsonResponse
@@ -83,7 +84,7 @@ class PushNotificationController extends Controller
             ], 403);
         }
 
-        $notification = app(NotificationService::class)->createNotification(
+        $notification = $this->notificationService->createNotification(
             $request->user(),
             'test',
             'Test Notification',

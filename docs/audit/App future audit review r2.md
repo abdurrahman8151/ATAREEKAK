@@ -13319,3 +13319,42 @@ The slice itself is small; the more important part of this record is the defect 
   NotificationService x2), `PushNotificationController` and `StaffComplaintService` (NotificationService),
   `AdminDashboardController` (VerificationApprovalService), `RideLifecycleHandler` (ScoreService),
   `JwtAuthHandler` middleware (BanService). Then trait 5.
+### 227 continued — slice 11: the notification trio and the staff cancellation refunds take collaborators
+
+Six container lookups removed in three files. One of them is the first place where a slice-4 port pays
+off in production code rather than in a boundary rule.
+
+- `Http/Controllers/API/PushNotificationController.php`: the existing constructor (which already took
+  `PushNotificationService` in the non-readonly style) gained `private NotificationService $notificationService`,
+  and `app(NotificationService::class)->createNotification(...)` became
+  `$this->notificationService->createNotification(...)`. The `app()->environment('local')` guard in the
+  same file is an environment predicate, not a container lookup, and was left alone.
+- `Services/Staff/StaffComplaintService.php`: had no constructor; gained
+  `__construct(private readonly NotificationService $notificationService)`. Its single
+  `app(NotificationService::class)` call is now `$this->notificationService`. Its test already takes it
+  with `app(StaffComplaintService::class)`, so no test changed.
+- `Services/Staff/StaffCancellationService.php`: had no constructor and four lookups; gained
+  `__construct(private readonly CancellationRefundInterface $cancellationRefund, private readonly NotificationService $notificationService)`.
+  Both `app(CancellationRefund::class)` expressions became `$this->cancellationRefund`, the
+  `$notificationService = app(NotificationService::class);` local became
+  `$notificationService = $this->notificationService;`, and the remaining direct call is now
+  `$this->notificationService->createNotification(`. This is the point of the slice-4 port: the service
+  now names `App\Interfaces\Payment\CancellationRefundInterface`, which `registerBoundaryPorts()` binds
+  to the same `CancellationRefund` the container was resolving before, so the refund object graph and the
+  money movements are identical. The interface import was added in order and the concrete
+  `App\Services\Payment\CancellationRefund` import stayed only because the class name is still mentioned
+  once in prose (the script checks that and would have removed it otherwise).
+
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on all three files:
+  `tests/Unit/Services/Staff tests/Feature/Staff tests/Feature/Notifications
+  tests/Feature/Review/RV27PushTokenFlowTest.php tests/Feature/Wallet tests/Feature/Payment
+  tests/Unit/Domain tests/Feature/T3Batch tests/Feature/AppFuture` -> **OK (569 tests, 1779 assertions)**.
+  Money floors are never reduced, and the cancellation path refunds passengers, so the wallet, payment,
+  unit-domain and T3Batch suites were all part of the run.
+- Container lookups left in `app/`: **three**, all with a clear injection point -
+  `AdminDashboardController` (`VerificationApprovalService`), `Support/RideLifecycleHandler`
+  (`ScoreService`), `Middleware/Support/JwtAuthHandler` (`BanService`; Laravel resolves middleware through
+  the container, so its constructor works the same way). A fourth match remains in
+  `Services/Profile/PassengerWalletCharger` but it is the docblock sentence that describes the change that
+  removed it.
+- Then: trait 5 (`FullRideFlowScenarios`).

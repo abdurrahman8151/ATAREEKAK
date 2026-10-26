@@ -2,11 +2,11 @@
 
 namespace App\Services\Staff;
 
+use App\Interfaces\Payment\CancellationRefundInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\NotificationService;
-use App\Services\Payment\CancellationRefund;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +25,11 @@ use Illuminate\Support\Facades\Validator;
  */
 final class StaffCancellationService
 {
+    public function __construct(
+        private readonly CancellationRefundInterface $cancellationRefund,
+        private readonly NotificationService $notificationService,
+    ) {}
+
     private function serverError(): JsonResponse
     {
         return response()->json([
@@ -182,7 +187,7 @@ final class StaffCancellationService
         //
         // Money first: if the refund cannot be funded the transaction rolls back and the
         // ride is NOT cancelled, so we can never leave a cancelled ride with stranded money.
-        $refund = app(CancellationRefund::class)
+        $refund = $this->cancellationRefund
             ->refundPassengersForStaffCancellation($ride, $affectedBookings);
 
         // Cancel every affected booking.
@@ -206,7 +211,7 @@ final class StaffCancellationService
      */
     private function notifyPassengersOfCancelledTrip($affectedBookings, Ride $ride, array $input): void
     {
-        $notificationService = app(NotificationService::class);
+        $notificationService = $this->notificationService;
         $reason = $input['reason'] ?? null;
 
         foreach ($affectedBookings as $booking) {
@@ -282,7 +287,7 @@ final class StaffCancellationService
 
         // An ELOQUENT collection, not collect(): the service signature is typed to
         // Eloquent's Collection and a support-collection here was a hard 500.
-        return app(CancellationRefund::class)
+        return $this->cancellationRefund
             ->refundPassengersForStaffCancellation($ride, Booking::whereIn('id', [$booking->id])->get());
     }
 
@@ -313,7 +318,7 @@ final class StaffCancellationService
 
         $reason = $input['reason'] ?? null;
 
-        app(NotificationService::class)->createNotification(
+        $this->notificationService->createNotification(
             $booking->user,
             'booking_cancelled',
             'تم إلغاء حجزك',
