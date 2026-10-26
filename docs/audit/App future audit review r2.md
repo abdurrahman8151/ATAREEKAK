@@ -13200,3 +13200,37 @@ private and reachable only because a trait's methods share the host's scope.
   That run covers the 16 `formatDriver` assertions in `AdminDriverServiceTest`, the admin floor, and the
   boundary test (a file under `app/` was added and one deleted).
 - Traits left: `FullRideFlowScenarios` only.
+### 227 continued — slice 8: the first two `app()` locator calls become constructor dependencies
+
+The trait work is at 4 of 5; this slice took the `app()` half of the batch's last item for the two
+cheapest, best-covered cases, and it is a two-for-one: `AdminWalletService` was reaching for
+`AdminWalletCharger` through the container, and `AdminWalletCharger` was reaching for `LedgerService`
+the same way.
+
+- `Services/Admin/AdminWalletCharger.php`: gained `__construct(private readonly LedgerService $ledgerService)`;
+  the `app(LedgerService::class)->postExternalTransfer(...)` call inside the credit path is now
+  `$this->ledgerService->postExternalTransfer(...)`. The arguments, the named `inbound:`/`transaction:`
+  arguments and the description string are untouched.
+- `Services/Admin/AdminWalletService.php`: gained `__construct(private readonly AdminWalletCharger $charger)`
+  and `chargeWallet()` now delegates with `$this->charger->chargeWallet($phoneNumber, $amount, $adminConfig)`
+  - same signature, same return type, same transaction boundary (the body still lives in the charger).
+  `AdminWalletCharger` is in the same namespace, so no import was needed.
+- Neither class had a constructor before, and the only `new` of either in the repository is one line of
+  `AdminWalletServiceTest`: `$this->service = new AdminWalletService;` became
+  `$this->service = app(AdminWalletService::class);`. That is the sanctioned mechanical constructor
+  update; no assertion, fixture or expectation was touched, and the container resolves the same class.
+- Regression caught by the floor and fixed before the commit: the first run of
+  `tests/Unit/Services/Admin` produced 17 errors in `AdminWalletServiceTest` because that `new` bypassed
+  the container and the new required argument was missing - exactly the class of failure this batch has
+  hit before (`Noshowservice`) and the reason the diff-driven test selection is run before committing.
+
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on all three files:
+  `tests/Feature/Wallet tests/Feature/Payment tests/Unit/Domain tests/Feature/Admin
+  tests/Unit/Services/Admin tests/Feature/T3Batch tests/Feature/AppFuture` ->
+  **OK (536 tests, 1724 assertions)**. Money and identity floors are never reduced, so this run covers the
+  wallet/payment path, the admin panel suite, the T3Batch money path and the boundary test.
+
+- Metric: `app_locator_calls` 28 -> **26**. Still to come: the remaining 26, largest first
+  (`StaffCancellationService` 4, `WhatsAppOtpService` 4, `PushNotificationController` 2,
+  `AppServiceProvider` 2, `Support/BootGuards` 2, then the single-call files), and trait 5
+  (`FullRideFlowScenarios`), which is mapped in the previous record and ready to execute.

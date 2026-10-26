@@ -22,6 +22,10 @@ use RuntimeException;
  */
 class AdminWalletCharger
 {
+    public function __construct(
+        private readonly LedgerService $ledgerService,
+    ) {}
+
     public function chargeWallet(string $phoneNumber, Money $amount, array $adminConfig): array
     {
         // Body moved verbatim from AdminWalletService::chargeWallet.
@@ -150,7 +154,7 @@ class AdminWalletCharger
             'status' => 'completed',
         ]);
 
-        app(LedgerService::class)->postExternalTransfer(
+        $this->ledgerService->postExternalTransfer(
             $external,
             $wallet,
             (float) $amount->amount(),

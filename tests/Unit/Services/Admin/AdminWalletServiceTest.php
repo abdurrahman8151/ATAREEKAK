@@ -29,7 +29,7 @@ class AdminWalletServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new AdminWalletService;
+        $this->service = app(AdminWalletService::class);
 
         $this->primaryConfig = [
             'email' => 'primary@admin.test',

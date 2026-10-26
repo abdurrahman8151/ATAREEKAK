@@ -18,6 +18,10 @@ use RuntimeException;
  */
 class AdminWalletService
 {
+    public function __construct(
+        private readonly AdminWalletCharger $charger,
+    ) {}
+
     // =========================================================================
     // LOOKUP
     // =========================================================================
@@ -55,7 +59,7 @@ class AdminWalletService
      */
     public function chargeWallet(string $phoneNumber, Money $amount, array $adminConfig): array
     {
-        return app(AdminWalletCharger::class)->chargeWallet($phoneNumber, $amount, $adminConfig);
+        return $this->charger->chargeWallet($phoneNumber, $amount, $adminConfig);
     }
 
     // =========================================================================
