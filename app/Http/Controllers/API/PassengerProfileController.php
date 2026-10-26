@@ -6,7 +6,7 @@ use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
 use App\Services\JwtService;
 use App\Services\NotificationService;
-use App\Services\Profile\BuildsPassengerProfilePanels;
+use App\Services\Profile\PassengerProfilePanelBuilder;
 use App\Services\Profile\PassengerProfileQueryService;
 use App\Services\Profile\PassengerWalletCharger;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -52,13 +52,12 @@ use Illuminate\Support\Str;
  */
 final class PassengerProfileController extends Controller
 {
-    use BuildsPassengerProfilePanels;
-
     public function __construct(
         private readonly JwtService $jwtService,
         private readonly NotificationService $notificationService,
         private readonly PassengerProfileQueryService $profileQueries,
         private readonly PassengerWalletCharger $walletCharger,
+        private readonly PassengerProfilePanelBuilder $panels,
     ) {}
 
     // =========================================================================
@@ -81,12 +80,12 @@ final class PassengerProfileController extends Controller
                 $user = $this->profileQueries->profileBundle($userId);
 
                 return [
-                    'user' => $this->formatUser($user),
-                    'stats' => $this->buildStats($user),
-                    'monthly_trips' => $this->buildMonthlyTrips($userId),
-                    'recent_trips' => $this->buildRecentTrips($userId),
-                    'complaints' => $this->buildComplaints($userId),
-                    'wallet_charges' => $this->buildWalletCharges($userId),
+                    'user' => $this->panels->formatUser($user),
+                    'stats' => $this->panels->buildStats($user),
+                    'monthly_trips' => $this->panels->buildMonthlyTrips($userId),
+                    'recent_trips' => $this->panels->buildRecentTrips($userId),
+                    'complaints' => $this->panels->buildComplaints($userId),
+                    'wallet_charges' => $this->panels->buildWalletCharges($userId),
                 ];
             });
 
@@ -121,7 +120,7 @@ final class PassengerProfileController extends Controller
             $data = Cache::remember("admin.passenger.stats.{$userId}", 300, function () use ($userId) {
                 $user = $this->profileQueries->withWalletOrFail($userId);
 
-                return $this->buildStats($user);
+                return $this->panels->buildStats($user);
             });
 
             return response()->json(['status' => 'success', 'data' => $data]);
@@ -146,7 +145,7 @@ final class PassengerProfileController extends Controller
         $months = min(12, max(1, (int) $request->get('months', 6)));
 
         $data = Cache::remember("admin.passenger.monthly-trips.{$userId}.{$months}", 900, function () use ($userId, $months) {
-            return $this->buildMonthlyTrips($userId, $months);
+            return $this->panels->buildMonthlyTrips($userId, $months);
         });
 
         return response()->json([
@@ -171,7 +170,7 @@ final class PassengerProfileController extends Controller
         $limit = min(50, max(1, (int) $request->get('limit', 10)));
 
         $data = Cache::remember("admin.passenger.recent-trips.{$userId}.{$limit}", 180, function () use ($userId, $limit) {
-            return $this->buildRecentTrips($userId, $limit);
+            return $this->panels->buildRecentTrips($userId, $limit);
         });
 
         return response()->json([
@@ -220,7 +219,7 @@ final class PassengerProfileController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $paginator->getCollection()
-                ->map(fn ($c) => $this->formatComplaint($c))
+                ->map(fn ($c) => $this->panels->formatComplaint($c))
                 ->values(),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
@@ -229,7 +228,7 @@ final class PassengerProfileController extends Controller
                 'total' => $paginator->total(),
             ],
             // Tab badge counts for this user only
-            'counts' => $this->complaintCounts($userId),
+            'counts' => $this->panels->complaintCounts($userId),
         ]);
     }
 
@@ -258,7 +257,7 @@ final class PassengerProfileController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $paginator->getCollection()
-                ->map(fn ($tx) => $this->formatWalletCharge($tx))
+                ->map(fn ($tx) => $this->panels->formatWalletCharge($tx))
                 ->values(),
             'meta' => [
                 'current_page' => $paginator->currentPage(),

@@ -24,9 +24,9 @@ use App\Models\WalletTransaction;
  * Unlike the controller, nothing here builds an HTTP response, so the trait carries no
  * Illuminate\Http\Request.
  */
-trait BuildsPassengerProfilePanels
+final class PassengerProfilePanelBuilder
 {
-    private function buildStats(User $user): array
+    public function buildStats(User $user): array
     {
         $userId = $user->id;
 
@@ -57,7 +57,7 @@ trait BuildsPassengerProfilePanels
     /**
      * Monthly trip counts + total cost (seats × price_per_seat) for each month.
      */
-    private function buildMonthlyTrips(int $userId, int $months = 6): array
+    public function buildMonthlyTrips(int $userId, int $months = 6): array
     {
         $rows = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->where('bookings.user_id', $userId)
@@ -92,7 +92,7 @@ trait BuildsPassengerProfilePanels
     /**
      * Recent bookings with correct total cost = seats × price_per_seat.
      */
-    private function buildRecentTrips(int $userId, int $limit = 10): array
+    public function buildRecentTrips(int $userId, int $limit = 10): array
     {
         return Booking::with([
             'ride:id,pickup_address,destination_address,departure_time,price_per_seat,driver_id',
@@ -126,7 +126,7 @@ trait BuildsPassengerProfilePanels
      * Complaints for this user.
      * No ride_id exposed — only complaint ID, type, and status.
      */
-    private function buildComplaints(int $userId, string $status = 'all', string $type = 'all'): array
+    public function buildComplaints(int $userId, string $status = 'all', string $type = 'all'): array
     {
         $query = Complaint::with(['assignedAgent:id,first_name,last_name'])
             ->where('user_id', $userId);
@@ -150,7 +150,7 @@ trait BuildsPassengerProfilePanels
     /**
      * Wallet top-up transactions (admin_charge type only).
      */
-    private function buildWalletCharges(int $userId): array
+    public function buildWalletCharges(int $userId): array
     {
         $user = User::with('wallet')->find($userId);
         if (! $user?->wallet) {
@@ -171,7 +171,7 @@ trait BuildsPassengerProfilePanels
             ->all();
     }
 
-    private function formatUser(User $user): array
+    public function formatUser(User $user): array
     {
         $profile = $user->profile;
 
@@ -197,7 +197,7 @@ trait BuildsPassengerProfilePanels
         ];
     }
 
-    private function formatComplaint(Complaint $c): array
+    public function formatComplaint(Complaint $c): array
     {
         $typeLabels = [
             'trip_safety' => 'أمان الرحلة',
@@ -229,7 +229,7 @@ trait BuildsPassengerProfilePanels
         ];
     }
 
-    private function formatWalletCharge(WalletTransaction $tx): array
+    public function formatWalletCharge(WalletTransaction $tx): array
     {
         $admin = $tx->user;
 
@@ -253,7 +253,7 @@ trait BuildsPassengerProfilePanels
         ];
     }
 
-    private function complaintCounts(int $userId): array
+    public function complaintCounts(int $userId): array
     {
         $rows = Complaint::where('user_id', $userId)
             ->selectRaw('status, COUNT(*) as total')

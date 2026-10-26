@@ -13139,3 +13139,30 @@ The batch's last item is the five behaviour traits. Two are done (both verified)
   other traits in `app/` are out of scope: `GuardsAgainstProductionExecution` and
   `RideGatedInteractionScenarios` are console-only concerns, and `Models/Concerns/GuardsLazyLoading`
   is a model concern.
+### 227 continued — slice 6: trait 3 of 5 (`BuildsPassengerProfilePanels` -> `PassengerProfilePanelBuilder`)
+
+`Services/Profile/BuildsPassengerProfilePanels.php` (273 lines) became
+`Services/Profile/PassengerProfilePanelBuilder.php`, a `final class` with no dependencies (the trait
+had no constructor and no `app()` call; its only `$this->` uses were its own `formatComplaint()` and
+`formatWalletCharge()`). The nine methods the controller calls are public now, everything else moved
+byte-for-byte - the method line numbers are unchanged, which is the cheapest proof that the bodies were
+not retyped.
+
+- `PassengerProfileController` dropped `use BuildsPassengerProfilePanels;`, injects the builder as
+  `$panels` and routes twelve call sites (`buildStats` x2, `buildMonthlyTrips` x2, `buildRecentTrips`
+  x2, `buildComplaints`, `buildWalletCharges`, `formatUser`, `formatComplaint`, `formatWalletCharge`,
+  `complaintCounts`) through it. The controller is 416 lines and still holds only the caching, the
+  response shapes and the two HTTP-boundary helpers.
+
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on both files:
+  1. `tests/Feature/Profile tests/Feature/Admin tests/Feature/AppFuture
+     tests/Feature/Review/L24ApproveAutoClearDebtTest.php tests/Feature/Wallet` -> 190 tests, 3
+     failures, exactly the pre-existing `ProfileTest` trio.
+  2. `tests/Feature/T3Batch` -> **OK (40 tests, 558 assertions)**. This is the suite that actually
+     exercises `/api/admin/passengers/{userId}/...`: `MoneyPathBatchTest` charges a wallet through the
+     endpoint, so it covers both this builder and slice 5's `PassengerWalletCharger` end to end. The
+     three files that name the route were found with `git grep -l "admin/passengers" -- tests`, which is
+     why this run was added to the floor rather than assuming the area floor covered it.
+
+- Traits left: `AdminDriverPresenting` (247 lines, three hosts) and `FullRideFlowScenarios` (269 lines,
+  needs a reporting strategy for the Command's `$this->info()/error()` calls).
