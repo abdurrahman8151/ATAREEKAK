@@ -13166,3 +13166,37 @@ not retyped.
 
 - Traits left: `AdminDriverPresenting` (247 lines, three hosts) and `FullRideFlowScenarios` (269 lines,
   needs a reporting strategy for the Command's `$this->info()/error()` calls).
+### 227 continued — slice 7: trait 4 of 5 (`AdminDriverPresenting` -> `AdminDriverPresenter`)
+
+This is the trait with three hosts, so it needed the most care. `Services/Admin/Concerns/AdminDriverPresenting.php`
+(247 lines) became `Services/Admin/AdminDriverPresenter.php`, a `final class` with no dependencies. Bodies
+moved byte-for-byte; all ten methods are public now, because the hosts call nine of them directly
+(`humanTime` from the activity service, `formatDriverDashboard` from the dashboard service,
+`driverProfileIdentity/Vehicle/Rating/RecentRides` from the query service) - under the trait those were
+private and reachable only because a trait's methods share the host's scope.
+
+- The three hosts each lost `use AdminDriverPresenting;`, gained
+  `private readonly AdminDriverPresenter $presenter`, and route their call sites through it (2 + 1 + 4
+  call sites). `AdminDriverService`, which builds all three by hand, now creates one shared presenter and
+  passes it to each constructor - no `app()` call, same stateless behaviour.
+- `AdminDriverQueryService` keeps a one-line `formatDriver(User): array` delegate. That is deliberate and
+  not a leftover: `AdminDriverService::formatDriver()` forwards to it and `AdminDriverServiceTest` asserts
+  through that path (16 call sites in the unit test), so removing it would have changed a public API and
+  forced test edits. The delegate is documented as such.
+- Two things this slice got wrong first and fixed before the commit, both caught by running the floor
+  rather than by lint:
+  1. The moved file kept `namespace App\Services\Admin\Concerns;` while living in `Services/Admin/`. The
+     class still resolved, but the stale composer classmap for the deleted trait file made PHP declare
+     `App\Services\Admin\Concerns\AdminDriverPresenter` twice - PHPUnit exited 255 with a fatal. Fixed by
+     correcting the namespace and refreshing the classmap.
+  2. `composer dump-autoload` ran its `post-autoload-dump` script (`artisan package:discover`) without the
+     scratch DB variables in that shell, and the script failed on `BootGuards::guardOtpTestingModes()`. The
+     autoloader itself had already been written, and the classmap was verified by hand; `package:discover`
+     was then re-run with the scratch variables set and `bootstrap/cache/packages.php` confirmed present.
+     No migration, seeder or wipe was run, and no credential was printed. This is a process slip worth
+     noting: every Laravel-booting command needs the scratch variables, including composer's scripts.
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on all five files:
+  `tests/Unit/Services/Admin tests/Feature/Admin tests/Feature/AppFuture` -> **OK (301 tests, 888 assertions)**.
+  That run covers the 16 `formatDriver` assertions in `AdminDriverServiceTest`, the admin floor, and the
+  boundary test (a file under `app/` was added and one deleted).
+- Traits left: `FullRideFlowScenarios` only.

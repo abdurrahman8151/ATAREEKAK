@@ -6,7 +6,6 @@ use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserRating;
-use App\Services\Admin\Concerns\AdminDriverPresenting;
 use Carbon\Carbon;
 
 /**
@@ -17,7 +16,9 @@ use Carbon\Carbon;
  */
 final class AdminDashboardActivityService
 {
-    use AdminDriverPresenting;
+    public function __construct(
+        private readonly AdminDriverPresenter $presenter,
+    ) {}
 
     /**
      * Returns every widget the driver dashboard page needs in a single response.
@@ -139,7 +140,7 @@ final class AdminDashboardActivityService
                 'actor' => $status === 'pending' ? $name : 'Admin',
                 'user_id' => $user->id,
                 'occurred_at' => $user->updated_at->toIso8601String(),
-                'human_time' => $this->humanTime($user->updated_at),
+                'human_time' => $this->presenter->humanTime($user->updated_at),
             ];
         }
 
@@ -174,7 +175,7 @@ final class AdminDashboardActivityService
                 'actor' => $name,
                 'user_id' => $profile->user_id,
                 'occurred_at' => $profile->updated_at->toIso8601String(),
-                'human_time' => $this->humanTime($profile->updated_at),
+                'human_time' => $this->presenter->humanTime($profile->updated_at),
             ];
         }
 

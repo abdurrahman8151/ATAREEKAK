@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Admin\Concerns;
+namespace App\Services\Admin;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Profile;
@@ -17,7 +17,7 @@ use Carbon\Carbon;
  * moved verbatim, so the response keys, the Arabic labels and the fallbacks are exactly as they
  * were.
  */
-trait AdminDriverPresenting
+final class AdminDriverPresenter
 {
     /**
      * Shape a single User (driver) model into the table-row array
@@ -58,7 +58,7 @@ trait AdminDriverPresenting
     }
 
     /** Identity, contact and verification keys of the driver profile payload, in their order. */
-    private function driverProfileIdentity(User $driver): array
+    public function driverProfileIdentity(User $driver): array
     {
         $profile = $driver->profile;
 
@@ -80,7 +80,7 @@ trait AdminDriverPresenting
         ];
     }
 
-    private function driverProfileVehicle(?Profile $profile): array
+    public function driverProfileVehicle(?Profile $profile): array
     {
         return [
             'type' => $profile?->type_of_car,
@@ -92,7 +92,7 @@ trait AdminDriverPresenting
         ];
     }
 
-    private function driverProfileRating($ratingStats): array
+    public function driverProfileRating($ratingStats): array
     {
         return [
             'average' => $ratingStats->average
@@ -102,7 +102,7 @@ trait AdminDriverPresenting
         ];
     }
 
-    private function driverProfileRecentRides(User $driver): array
+    public function driverProfileRecentRides(User $driver): array
     {
         return $driver->rides->map(fn ($r) => [
             'id' => $r->id,
@@ -117,7 +117,7 @@ trait AdminDriverPresenting
     /**
      * Assemble the driver dashboard payload. Money is rounded once, here (R2 sec 117).
      */
-    private function formatDriverDashboard(
+    public function formatDriverDashboard(
         User $driver,
         ?Profile $profile,
         $ratingStats,
@@ -176,7 +176,7 @@ trait AdminDriverPresenting
     /**
      * Identity and rating keys of the dashboard payload, in their original order.
      */
-    private function dashboardIdentityBlock(User $driver, ?Profile $profile, $ratingStats): array
+    public function dashboardIdentityBlock(User $driver, ?Profile $profile, $ratingStats): array
     {
         return [
             'id' => $driver->id,
@@ -202,7 +202,7 @@ trait AdminDriverPresenting
         ];
     }
 
-    private function resolveDriverStatus(User $driver): string
+    public function resolveDriverStatus(User $driver): string
     {
         // RV-42a: "suspended" means BANNED (status -1) - see `User::scopeBannedNow()`.
         // It was `status == 0`, which is LOGGED_OUT, so every driver who was simply
@@ -223,7 +223,7 @@ trait AdminDriverPresenting
         return 'unverified';
     }
 
-    private function resolveDriverPhone(int $driverId): ?string
+    public function resolveDriverPhone(int $driverId): ?string
     {
         return Ride::where('driver_id', $driverId)
             ->whereNotNull('communication_number')
@@ -231,7 +231,7 @@ trait AdminDriverPresenting
             ->value('communication_number');
     }
 
-    private function humanTime(Carbon $time): string
+    public function humanTime(Carbon $time): string
     {
         $diffMins = $time->diffInMinutes(now());
 

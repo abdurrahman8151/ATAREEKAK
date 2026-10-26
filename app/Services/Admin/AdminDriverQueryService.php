@@ -7,18 +7,28 @@ use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
-use App\Services\Admin\Concerns\AdminDriverPresenting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
  * The driver list and driver profile queries (the paginated table and the profile view).
  *
  * Split out of AdminDriverService (behaviour unchanged). It loads the rows and shapes them
- * through AdminDriverPresenting; it does not touch the dashboard widgets. Bodies moved verbatim.
+ * through the driver presenter; it does not touch the dashboard widgets. Bodies moved verbatim.
  */
 final class AdminDriverQueryService
 {
-    use AdminDriverPresenting;
+    public function __construct(
+        private readonly AdminDriverPresenter $presenter,
+    ) {}
+
+    /**
+     * Kept as the public entry point AdminDriverService (and AdminDriverServiceTest) call; the
+     * formatting body now lives in the injected presenter.
+     */
+    public function formatDriver(User $driver): array
+    {
+        return $this->presenter->formatDriver($driver);
+    }
 
     /**
      * Returns a paginated, filterable list of drivers for the admin table.
@@ -93,18 +103,18 @@ final class AdminDriverQueryService
             ->count();
 
         return [
-            ...$this->driverProfileIdentity($driver),
-            'vehicle' => $this->driverProfileVehicle($driver->profile),
+            ...$this->presenter->driverProfileIdentity($driver),
+            'vehicle' => $this->presenter->driverProfileVehicle($driver->profile),
             'documents' => $driver->photos->mapWithKeys(
                 fn ($p) => [$p->type => asset('storage/'.$p->path)]
             ),
-            'rating' => $this->driverProfileRating($ratingStats),
+            'rating' => $this->presenter->driverProfileRating($ratingStats),
             'stats' => [
                 'completed_rides' => $completedRides,
                 // RV-19 item 5: the uncapped count, not the 5-row recent collection.
                 'total_rides' => (int) $driver->rides_count,
             ],
-            'recent_rides' => $this->driverProfileRecentRides($driver),
+            'recent_rides' => $this->presenter->driverProfileRecentRides($driver),
         ];
     }
 

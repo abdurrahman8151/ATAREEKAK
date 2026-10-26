@@ -47,9 +47,10 @@ final class AdminDriverService
 
     public function __construct()
     {
-        $this->drivers = new AdminDriverQueryService;
-        $this->dashboard = new AdminDriverDashboardService;
-        $this->activity = new AdminDashboardActivityService;
+        $presenter = new AdminDriverPresenter;
+        $this->drivers = new AdminDriverQueryService($presenter);
+        $this->dashboard = new AdminDriverDashboardService($presenter);
+        $this->activity = new AdminDashboardActivityService($presenter);
     }
 
     // =========================================================================

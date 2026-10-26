@@ -11,7 +11,6 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
 use App\Models\WalletTransaction;
-use App\Services\Admin\Concerns\AdminDriverPresenting;
 
 /**
  * The per-driver dashboard widget: ratings, ride counts, recent rides, favourite destination,
@@ -21,7 +20,9 @@ use App\Services\Admin\Concerns\AdminDriverPresenting;
  */
 final class AdminDriverDashboardService
 {
-    use AdminDriverPresenting;
+    public function __construct(
+        private readonly AdminDriverPresenter $presenter,
+    ) {}
 
     /**
      * GET /api/admin/drivers/{driverId}/dashboard
@@ -74,7 +75,7 @@ final class AdminDriverDashboardService
         // ── Documents ─────────────────────────────────────────────────────────
         $documents = $this->dashboardDocuments($driver);
 
-        return $this->formatDriverDashboard(
+        return $this->presenter->formatDriverDashboard(
             $driver,
             $profile,
             $ratingStats,
