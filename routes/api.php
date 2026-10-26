@@ -335,7 +335,7 @@ Route::prefix('admin')->group(function () {
 
         // ── Wallet [system_admin only] ─────────────────────────────────────
         // These endpoints act on the CALLER'S OWN system wallet, resolved by
-        // AdminAuthService::getAdminConfigFromRequest() as
+        // AdminAuthService::adminConfigFor() as
         // config("admin.<role>.phone"). config/admin.php defines that phone only
         // for system_admin and sycash — there is no `admin` entry. The outer
         // gate (staff:admin,system_admin) nevertheless admitted the `admin`

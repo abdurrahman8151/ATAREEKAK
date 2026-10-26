@@ -2,6 +2,7 @@
 
 namespace App\Services\Geocoding;
 
+use App\Interfaces\Geocoding\RouteCalculationServiceInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Log;
  *
  * Uses OpenRouteService API for routing only
  */
-final class RouteCalculationService
+final class RouteCalculationService implements RouteCalculationServiceInterface
 {
     private string $apiKey;
 

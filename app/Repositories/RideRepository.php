@@ -2,11 +2,11 @@
 
 namespace App\Repositories;
 
+use App\Interfaces\Geocoding\GeocodingServiceInterface;
+use App\Interfaces\Geocoding\RouteCalculationServiceInterface;
 use App\Interfaces\RideRepositoryInterface;
 use App\Models\Booking;
 use App\Models\Ride;
-use App\Services\Geocoding\GeocodingService;
-use App\Services\Geocoding\RouteCalculationService;
 use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -28,8 +28,8 @@ class RideRepository implements RideRepositoryInterface
 {
     public function __construct(
         // ✅ NEW: Split services
-        private GeocodingService $geocodingService,
-        private RouteCalculationService $routeService
+        private GeocodingServiceInterface $geocodingService,
+        private RouteCalculationServiceInterface $routeService
     ) {}
 
     /**

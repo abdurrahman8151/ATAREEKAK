@@ -2,6 +2,7 @@
 
 namespace App\Services\Geocoding;
 
+use App\Interfaces\Geocoding\GeocodingServiceInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Log;
  * Before: 500+ line OpenRouteService doing everything
  * After: 150 lines focused on geocoding only
  */
-final class GeocodingService
+final class GeocodingService implements GeocodingServiceInterface
 {
     private const CACHE_TTL = 3600; // 1 hour
 

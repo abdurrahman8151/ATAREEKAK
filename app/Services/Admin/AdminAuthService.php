@@ -4,7 +4,6 @@ namespace App\Services\Admin;
 
 use App\Models\Employee;
 use App\Services\Staff\StaffJwtService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
@@ -105,7 +104,7 @@ final class AdminAuthService
     }
 
     // =========================================================================
-    // REQUEST HELPERS
+    // ADMIN CONFIG
     // =========================================================================
 
     /**
@@ -114,10 +113,9 @@ final class AdminAuthService
      * StaffJwtMiddleware sets the authenticated employee on every request,
      * so this is just a projection — no DB hit.
      */
-    public function getAdminConfigFromRequest(Request $request): array
+    public function adminConfigFor($employee): array
     {
         /** @var Employee $employee */
-        $employee = $request->attributes->get('staffEmployee');
 
         // role->value is 'system_admin' or 'sycash' — matches config/admin.php keys exactly
         $roleKey = $employee->role->value;

@@ -3,12 +3,12 @@
 namespace App\Repositories;
 
 use App\Interfaces\PasswordResetRepositoryInterface;
-use App\Services\JwtService;
+use App\Interfaces\TokenRevokerInterface;
 use Illuminate\Support\Facades\Password;
 
 class PasswordResetRepository implements PasswordResetRepositoryInterface
 {
-    public function __construct(private readonly JwtService $jwtService) {}
+    public function __construct(private readonly TokenRevokerInterface $tokenRevoker) {}
 
     public function sendResetLink(array $credentials)
     {
@@ -25,7 +25,7 @@ class PasswordResetRepository implements PasswordResetRepositoryInterface
 
             // This is the critical line — revokes all refresh tokens
             // AND increments token_version to kill all access tokens
-            $this->jwtService->revokeAllTokens($user->id);
+            $this->tokenRevoker->revokeAllTokens($user->id);
         });
     }
 }

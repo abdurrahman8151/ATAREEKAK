@@ -3,9 +3,9 @@
 namespace App\Domain\Payment\Strategies;
 
 use App\Enums\PaymentMethod;
-use App\Services\Payment\BookingCharge;
-use App\Services\Payment\CancellationRefund;
-use App\Services\Payment\RidePayout;
+use App\Interfaces\Payment\BookingChargeInterface;
+use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\RidePayoutInterface;
 use InvalidArgumentException;
 
 /**
@@ -21,9 +21,9 @@ final class PaymentStrategyFactory
     private array $strategies = [];
 
     public function __construct(
-        private readonly BookingCharge $bookingCharge,
-        private readonly RidePayout $ridePayout,
-        private readonly CancellationRefund $cancellationRefund,
+        private readonly BookingChargeInterface $bookingCharge,
+        private readonly RidePayoutInterface $ridePayout,
+        private readonly CancellationRefundInterface $cancellationRefund,
     ) {
         $this->strategies = [
             new CashPaymentStrategy,

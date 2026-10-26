@@ -2,9 +2,9 @@
 
 namespace App\Domain\Payment\Strategies;
 
-use App\Services\Payment\BookingCharge;
-use App\Services\Payment\CancellationRefund;
-use App\Services\Payment\RidePayout;
+use App\Interfaces\Payment\BookingChargeInterface;
+use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\RidePayoutInterface;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /**
@@ -36,9 +36,9 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 final class EPayPaymentStrategy implements PaymentStrategy
 {
     public function __construct(
-        private readonly BookingCharge $bookingCharge,
-        private readonly RidePayout $ridePayout,
-        private readonly CancellationRefund $cancellationRefund,
+        private readonly BookingChargeInterface $bookingCharge,
+        private readonly RidePayoutInterface $ridePayout,
+        private readonly CancellationRefundInterface $cancellationRefund,
     ) {}
 
     // ── Book ─────────────────────────────────────────────────────────────────

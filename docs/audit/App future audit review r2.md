@@ -13006,3 +13006,83 @@ lowered from 10 to 0. Two halves:
 
 - Metric after slice 3 (app/ only): php_files 321, methods_total 1658, files_over_500 0,
   methods_85_plus 0, app_locator_calls 29.
+### 227 continued — slice 4: `domain_to_services`, `repos_to_services`, `request_in_services` all 0; `models_to_enums` parked
+
+Three of the four remaining rules are now empty; the fourth is parked with the reason below.
+
+| rule | baseline at batch start | baseline now | measured now |
+|---|---|---|---|
+| controllers_to_models | 18 | 0 | 0 |
+| domain_to_models | 10 | 0 | 0 |
+| domain_to_services | 2 | **0** | 0 |
+| repos_to_services | 2 | **0** | 0 |
+| request_in_services | 1 | **0** | 0 |
+| models_to_enums | 3 | 3 (PARKED) | 3 |
+| request_below_http / async_to_http / domain_to_http | 0 (HARD) | 0 | 0 |
+
+- The method used for all three: the offenders were depending on *concrete* services, so each one
+  now depends on a port declared outside `app/Services`, and the container binds that port to the
+  very same singleton. No caller changed what it passes, no call site moved, no method body was
+  touched beyond the constructor type. Ports added, all in `app/Interfaces` (a namespace no rule
+  inspects, which is why the ports may still name Eloquent models without recreating
+  `domain_to_models`):
+    * `Payment\BookingChargeInterface` -> `Services\Payment\BookingCharge` (`implements` added),
+      `chargePassengerForBooking(Booking, Ride, User): void`.
+    * `Payment\RidePayoutInterface` -> `Services\Payment\RidePayout`, `releaseEscrowToDriver(...)`.
+    * `Payment\CancellationRefundInterface` -> `Services\Payment\CancellationRefund`, both refund
+      paths with their exact return shapes (`void` and `array`).
+    * `TokenRevokerInterface` -> `Services\JwtService::revokeAllTokens(int): void`.
+    * `Geocoding\GeocodingServiceInterface` -> `Services\Geocoding\GeocodingService`
+      (`geocodeAddress`, `reverseGeocode`).
+    * `Geocoding\RouteCalculationServiceInterface` -> `Services\Geocoding\RouteCalculationService`,
+      declaring only `getRouteDetails()` - the method `RideRepository` actually calls - so the port
+      states what its consumer needs.
+  All six bindings live in a new `ContainerBindings::registerBoundaryPorts()`, called from
+  `register()` after `registerRepositories()`.
+
+- `domain_to_services` (2 -> 0): `Domain\Payment\Strategies\EPayPaymentStrategy` and
+  `PaymentStrategyFactory` take the three payment ports; their constructors, the objects they build
+  and the order of every money call are unchanged. The 23 model type-hints dropped in slice 3 stay
+  dropped.
+
+- `repos_to_services` (2 -> 0): `PasswordResetRepository` takes `TokenRevokerInterface` (property
+  renamed `$jwtService` -> `$tokenRevoker`, the `revokeAllTokens($user->id)` call inside the
+  `Password::reset` callback is byte-identical). `RideRepository` takes the two Geocoding ports; its
+  geocoding/routing calls are untouched.
+
+- `request_in_services` (1 -> 0): `AdminAuthService::getAdminConfigFromRequest(Request $request)` became
+  `adminConfigFor($employee)` - the `Employee` the middleware already put on the request is now
+  unwrapped by the caller, which is a controller and may read the Request. The service no longer
+  imports `Illuminate\Http\Request`. The two call sites in `AdminDashboardController` pass
+  `$request->attributes->get('staffEmployee')`, exactly the value the old body read, so the projection
+  and its failure mode (a missing attribute) are unchanged. The comment in `routes/api.php` that named
+  the old method was updated; two prose comments in `tests/Feature/Admin` still name it as history and
+  were deliberately left alone (no assertion touched).
+
+- `models_to_enums` PARKED at 3, with the reason, and the same reason is now a comment next to the
+  baseline: `Complaint`, `Employee` and `Wallet` reference their enum only through a `$casts` entry
+  (`'status' => ComplaintStatus::class` and friends). Replacing the built-in enum cast with a cast
+  class outside `App\Models` changes serialization - a custom `CastsAttributes::get()` returns the enum
+  object, which is what `toArray()`/JSON would then carry, while the built-in enum cast returns the
+  backing value - and removing the cast changes the attribute's type (enum -> string). Both are public
+  response-shape changes, which REFACTORING MODE forbids, so this one is parked rather than forced.
+
+- Files: six new interfaces under `app/Interfaces`, `implements` added to six services,
+  `app/Support/ContainerBindings.php`, `app/Repositories/{PasswordResetRepository,RideRepository}.php`,
+  both payment strategy files, `app/Services/Admin/AdminAuthService.php`,
+  `app/Http/Controllers/API/AdminDashboardController.php`, `routes/api.php`, and
+  `tests/Feature/AppFuture/BoundaryDependencyTest.php` (four baseline edits, three lowered and one
+  annotated as parked).
+
+- Verification, serialized on the scratch DB, `pint --test` PASS on all 20 changed files and `php -l`
+  clean:
+  1. `BoundaryDependencyTest` -> OK (9 tests, 36 assertions) with the three new 0s.
+  2. Ride, money, identity, admin and boundary floors -
+     `tests/Feature/Rides tests/Feature/Bookings tests/Feature/Payment tests/Feature/Wallet
+     tests/Feature/Auth tests/Feature/Admin tests/Feature/AppFuture tests/Unit/Domain
+     tests/Unit/Middleware` -> **OK (578 tests, 1327 assertions)**. This is the run that proves the six
+     container bindings resolve: every one of those suites boots the app and builds constructs that
+     now take a port.
+  3. `tests/Feature/Review` (the pinned ratchet floor) -> 651 tests, 2 failures, the identical
+     pre-existing pair (`BacklogTableShapeTest` on the owner's BACKLOG.md and
+     `NoDuplicatedFixtureHelpersTest::test_no_test_file_logs_in_to_a_staff_or_admin_door_with_an_email`).

@@ -40,10 +40,18 @@ use Tests\TestCase;
 class BoundaryDependencyTest extends TestCase
 {
     private const BASELINES = [
-        'domain_to_services' => 2,
-        'repos_to_services' => 2,
+        // Batch 227 item 3: no file under app/Domain names App\Services any more. The two
+        // strategies take ports from app/Interfaces/Payment (implemented by the same services
+        // and bound to them in ContainerBindings::registerBoundaryPorts()).
+        'domain_to_services' => 0,
+        // Batch 227 item 3: PasswordResetRepository takes TokenRevokerInterface and
+        // RideRepository takes the two Geocoding ports, all bound to the same singletons, so no
+        // repository names App\Services.
+        'repos_to_services' => 0,
         'request_below_http' => 0,
-        'request_in_services' => 1,
+        // Batch 227 item 3: AdminAuthService::adminConfigFor() takes the employee the middleware
+        // already authenticated, so no service imports Illuminate\Http\Request.
+        'request_in_services' => 0,
         'async_to_http' => 0,
         // RV-19 item 2 / AF-7, owner-approved 2026-10-08: 21 -> 20. LOWERED ONCE, after the reduction was
         // MEASURED, never assumed - the run above printed "only 20 violations remain ... lower the
@@ -111,6 +119,13 @@ class BoundaryDependencyTest extends TestCase
         // The old budget was 2 "because Complaint, Employee" (see the R7 note above); `Wallet` arrived
         // later. All three are genuine domain enums, not violations - the baseline predates them.
         // Still a CEILING, not a target: a fourth file referencing Enums fails again.
+        // PARKED at its measured 3 (batch 227). Complaint, Employee and Wallet reference their
+        // enum only through its $casts entry ('status' => ComplaintStatus::class and friends). Replacing
+        // that cast with a cast class outside App\Models changes serialization: a custom
+        // CastsAttributes::get() returns the enum object, which is what toArray()/JSON would then
+        // carry, where the built-in enum cast returns the backing value. Removing the cast instead
+        // changes the attribute's type (enum -> string). Both are public response-shape changes,
+        // which this mode forbids, so the number stays where it is measured.
         'models_to_enums' => 3,
         // Batch 227 item 2: no file under app/Domain names App\Models at all any more. The seven
         // Score policies (and their interface) take App\DTOs\Score\ScoreSnapshot instead of a

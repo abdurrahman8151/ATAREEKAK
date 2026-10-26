@@ -204,7 +204,7 @@ final class AdminDashboardController extends Controller
 
     public function getAdminWallet(Request $request): JsonResponse
     {
-        $adminConfig = $this->authService->getAdminConfigFromRequest($request);
+        $adminConfig = $this->authService->adminConfigFor($request->attributes->get('staffEmployee'));
         $wallet = $this->walletService->getOrCreateWallet($adminConfig);
 
         return response()->json([
@@ -244,7 +244,7 @@ final class AdminDashboardController extends Controller
         }
 
         try {
-            $adminConfig = $this->authService->getAdminConfigFromRequest($request);
+            $adminConfig = $this->authService->adminConfigFor($request->attributes->get('staffEmployee'));
             $amount = Money::from((float) $request->amount);
             $result = $this->walletService->chargeWallet(
                 $request->phone_number,

@@ -2,6 +2,7 @@
 
 namespace App\Services\Payment;
 
+use App\Interfaces\Payment\CancellationRefundInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\Wallet;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** Money path split out of WalletTransactionService (behaviour unchanged). */
-class CancellationRefund
+class CancellationRefund implements CancellationRefundInterface
 {
     /** The pre-movement escrow/funds guard of every cancellation path. */
     private readonly CancellationEscrowGuard $guard;

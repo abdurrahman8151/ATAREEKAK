@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\DTOs\Auth\CachedUser;
+use App\Interfaces\TokenRevokerInterface;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Carbon\Carbon;
@@ -10,7 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-class JwtService
+class JwtService implements TokenRevokerInterface
 {
     // =========================================================================
     // PUBLIC — TOKEN PAIR

@@ -10,11 +10,17 @@ use App\Interfaces\ChatRepositoryInterface;
 use App\Interfaces\ComplaintRepositoryInterface;
 use App\Interfaces\EmailOtpServiceInterface;
 use App\Interfaces\EmployeeRepositoryInterface;
+use App\Interfaces\Geocoding\GeocodingServiceInterface;
+use App\Interfaces\Geocoding\RouteCalculationServiceInterface;
 use App\Interfaces\OtpRepositoryInterface;
 use App\Interfaces\PasswordResetRepositoryInterface;
+use App\Interfaces\Payment\BookingChargeInterface;
+use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\RidePayoutInterface;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
 use App\Interfaces\RideRepositoryInterface;
+use App\Interfaces\TokenRevokerInterface;
 use App\Interfaces\UserRepositoryInterface;
 use App\Interfaces\VerificationRepositoryInterface;
 use App\Repositories\ChatRepository;
@@ -94,6 +100,7 @@ class ContainerBindings
         $this->registerStaffServices();
         $this->registerSupportServices();
         $this->registerRepositories();
+        $this->registerBoundaryPorts();
         $this->registerOtpServices();
     }
 
@@ -310,6 +317,22 @@ class ContainerBindings
     /**
      * OTP services (special binding).
      */
+    /**
+     * Batch 227 ports: the interfaces the Repository and Domain layers may depend on, each bound
+     * to the singleton that already implemented the behaviour. Nothing about the implementations
+     * changed - these bindings only let the container hand the same instance to a port-typed
+     * constructor.
+     */
+    private function registerBoundaryPorts(): void
+    {
+        $this->app->bind(TokenRevokerInterface::class, JwtService::class);
+        $this->app->bind(GeocodingServiceInterface::class, GeocodingService::class);
+        $this->app->bind(RouteCalculationServiceInterface::class, RouteCalculationService::class);
+        $this->app->bind(BookingChargeInterface::class, BookingCharge::class);
+        $this->app->bind(RidePayoutInterface::class, RidePayout::class);
+        $this->app->bind(CancellationRefundInterface::class, CancellationRefund::class);
+    }
+
     private function registerOtpServices(): void
     {
         // ========================================
