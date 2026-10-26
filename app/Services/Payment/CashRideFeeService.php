@@ -59,10 +59,10 @@ final class CashRideFeeService
 
     private readonly CashRideDebtClearanceService $debtClearance;
 
-    public function __construct(private readonly PrimaryAdminWallet $primaryAdminWallet)
+    public function __construct(private readonly PrimaryAdminWallet $primaryAdminWallet, private readonly LedgerService $ledgerService, private readonly CashRideCreationFeeCharger $creationFeeCharger)
     {
-        $this->refunds = new CashRideFeeRefundService($primaryAdminWallet);
-        $this->debtClearance = new CashRideDebtClearanceService($primaryAdminWallet);
+        $this->refunds = new CashRideFeeRefundService($primaryAdminWallet, $ledgerService);
+        $this->debtClearance = new CashRideDebtClearanceService($primaryAdminWallet, $ledgerService);
     }
 
     // =========================================================================
@@ -178,7 +178,7 @@ final class CashRideFeeService
      */
     public function chargeCashRideCreationFee(Ride $ride, User $driver): void
     {
-        app(CashRideCreationFeeCharger::class)->chargeCashRideCreationFee($ride, $driver);
+        $this->creationFeeCharger->chargeCashRideCreationFee($ride, $driver);
     }
 
     // =========================================================================

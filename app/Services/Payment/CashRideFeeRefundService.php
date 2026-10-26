@@ -25,6 +25,7 @@ final class CashRideFeeRefundService
 {
     public function __construct(
         private readonly PrimaryAdminWallet $primaryAdminWallet,
+        private readonly LedgerService $ledgerService,
     ) {}
 
     /**
@@ -311,7 +312,7 @@ final class CashRideFeeRefundService
         // A PARTIAL refund: only `$refundAmount` moves back to the driver; the platform keeps
         // `$platformKeeps`. The legs cover what actually moved, not the original fee - which is why
         // the sum is the refund and not the fee.
-        app(LedgerService::class)->postTransfer([
+        $this->ledgerService->postTransfer([
             ['wallet_id' => $primaryWallet->id, 'amount' => -$refundAmount, 'description' => "ride #{$ride->id}: fee refund issued"],
             ['wallet_id' => $driverWallet->id, 'amount' => $refundAmount, 'description' => "ride #{$ride->id}: fee refund to driver"],
         ]);

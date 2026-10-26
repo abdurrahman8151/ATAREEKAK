@@ -13234,3 +13234,52 @@ the same way.
   (`StaffCancellationService` 4, `WhatsAppOtpService` 4, `PushNotificationController` 2,
   `AppServiceProvider` 2, `Support/BootGuards` 2, then the single-call files), and trait 5
   (`FullRideFlowScenarios`), which is mapped in the previous record and ready to execute.
+### 227 continued — slice 9: the CashRide fee services take their LedgerService, and a correction to the app() count
+
+Four services in the cash-ride fee path were resolving collaborators through the container. All four
+now take them by constructor; the bodies, the ledger arguments and the posting order are untouched.
+
+- `Services/Payment/CashRideCreationFeeCharger.php`: constructor gained
+  `private readonly LedgerService $ledgerService`; `app(LedgerService::class)->postTransfer([...])`
+  became `$this->ledgerService->postTransfer([...])`.
+- `Services/Payment/CashRideDebtClearanceService.php` and `Services/Payment/CashRideFeeRefundService.php`:
+  same change, one `postTransfer` each.
+- `Services/Payment/CashRideFeeService.php`: constructor gained `LedgerService` **and**
+  `CashRideCreationFeeCharger`; the two hand-built collaborators now receive the ledger
+  (`new CashRideFeeRefundService($primaryAdminWallet, $ledgerService)` and the debt-clearance twin),
+  and `app(CashRideCreationFeeCharger::class)->chargeCashRideCreationFee($ride, $driver)` became
+  `$this->creationFeeCharger->chargeCashRideCreationFee($ride, $driver)`.
+- Every one of the four is in `App\Services\Payment` with `LedgerService`, so no import changed. The
+  container already built `CashRideFeeService` as a singleton and the tests already took it with
+  `app(CashRideFeeService::class)` - no test needed an edit, and none was made.
+
+**Correction to this batch's app() accounting.** The "39 app() calls" figure (and the 28/26 the batch
+has been reporting) counts every `app(` occurrence, which includes `app()->environment('testing')`
+predicates and mentions inside comments. Measured properly - `app(SomeClass::class)`, i.e. a real
+container lookup - `app/` went from **16 to 12** with this slice. The remaining 12 are:
+
+| file | lookups |
+|---|---|
+| `Services/Staff/StaffCancellationService.php` | `CancellationRefund` x2, `NotificationService` x2 |
+| `Services/Ride/{BookingCompletionService,RideService}.php` | `Noshowservice` each |
+| `Http/Controllers/API/PushNotificationController.php` | `NotificationService` |
+| `Services/Staff/StaffComplaintService.php` | `NotificationService` |
+| `Http/Controllers/API/AdminDashboardController.php` | `VerificationApprovalService` |
+| `Http/Controllers/API/Support/RideLifecycleHandler.php` | `ScoreService` |
+| `Http/Middleware/Support/JwtAuthHandler.php` | `BanService` |
+| `Services/Payment/PassengerWalletCharger.php` | none - the one match is the docblock describing the change |
+
+Parked, with the reason: `Services/WhatsAppOtpService.php` looks like four `app()` calls but they are
+`app()->environment('testing'|['local','testing'])` environment predicates (two of them inside FIX
+comments, which is why they appear at all). There is nothing to inject there - the correct change would
+be replacing an environment check with a config lookup, which is a behaviour change, not a refactor, so
+it stays. The same applies to `Support/{BootGuards,OtpDisclosure,HorizonAccess}.php`,
+`Providers/AppServiceProvider.php` and `Middleware/GateDocumentation.php`: their `app(` uses are
+environment/`app()->make`-style or prose, not container lookups of a collaborator.
+
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on all four files:
+  `tests/Unit/Services/Payment tests/Feature/Payment tests/Feature/Wallet tests/Unit/Domain
+  tests/Feature/T3Batch tests/Feature/Review/CashRideCreationFeeCharacterizationTest.php
+  tests/Feature/AppFuture` -> **OK (283 tests, 1160 assertions)**, including the characterization test
+  that pins the cash-ride creation fee outcome.
+- Still to come: the 12 lookups above, and trait 5 (`FullRideFlowScenarios`).

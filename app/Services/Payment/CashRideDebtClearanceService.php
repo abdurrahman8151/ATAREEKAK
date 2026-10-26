@@ -19,6 +19,7 @@ final class CashRideDebtClearanceService
 {
     public function __construct(
         private readonly PrimaryAdminWallet $primaryAdminWallet,
+        private readonly LedgerService $ledgerService,
     ) {}
 
     /**
@@ -126,7 +127,7 @@ final class CashRideDebtClearanceService
         // This is where the DEFERRED fee from `chargeCashRideCreationFee` finally becomes a real
         // movement: the driver topped up, so the debt is collected now. The deferred branch posted no
         // legs because nothing moved then; this is the leg pair for that obligation being settled.
-        app(LedgerService::class)->postTransfer([
+        $this->ledgerService->postTransfer([
             ['wallet_id' => $lockedWallet->id, 'amount' => -$debt, 'description' => "driver #{$driver->id}: deferred fee debt cleared"],
             ['wallet_id' => $primaryWallet->id, 'amount' => $debt, 'description' => "driver #{$driver->id}: deferred fee received"],
         ]);

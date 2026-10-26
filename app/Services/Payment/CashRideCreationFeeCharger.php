@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
  */
 class CashRideCreationFeeCharger
 {
-    public function __construct(private readonly PrimaryAdminWallet $primaryAdminWallet) {}
+    public function __construct(private readonly PrimaryAdminWallet $primaryAdminWallet, private readonly LedgerService $ledgerService) {}
 
     public function chargeCashRideCreationFee(Ride $ride, User $driver): void
     {
@@ -181,7 +181,7 @@ class CashRideCreationFeeCharger
      */
     private function postFeeTransfer(Ride $ride, Wallet $driverWallet, Wallet $primaryWallet, float $feeAmount): void
     {
-        app(LedgerService::class)->postTransfer([
+        $this->ledgerService->postTransfer([
             ['wallet_id' => $driverWallet->id, 'amount' => -$feeAmount, 'description' => "ride #{$ride->id}: cash creation fee"],
             ['wallet_id' => $primaryWallet->id, 'amount' => $feeAmount, 'description' => "ride #{$ride->id}: fee received by platform"],
         ]);
