@@ -84,9 +84,21 @@ class BoundaryDependencyTest extends TestCase
         // plus three new ones: Auth/EmailVerificationService, Auth/PasswordResetService, Score/ScoreHistoryService).
         // Seven app() calls in those files became constructor injection on the way.
         //
-        // The two that remain are the money-path wallet-request controller and the passenger-profile
-        // controller; they are the next step of the same batch, not parked exceptions.
-        'controllers_to_models' => 2,
+        // The two that remained when this slice landed - AdminWalletRequestController (the money-path
+        // review queue) and PassengerProfileController - are now done too, so the edge is at zero:
+        //
+        //   AdminWalletRequestController 493 -> 468: App\Services\Admin\AdminWalletRequestService (new)
+        //     owns the filtered review list, the GROUP BY tab counts, the two row lookups, the two
+        //     lockForUpdate() wallet reads (the decision wallet and the External Capital account) and
+        //     both WalletTransaction::create() rows. The controller keeps the transaction boundaries,
+        //     the ledger posting and the response shapes; its three app() calls became constructor
+        //     injection. No amount, tier, split, posting key or escrow semantic was touched.
+        //   PassengerProfileController 442 -> 417: App\Services\Profile\PassengerProfileQueryService
+        //     (new) owns the two cached bundles, the filtered complaint list, the admin-charge history
+        //     and the charge row.
+        //
+        // app() locator calls in the same two files went 39 -> 29 for the batch so far.
+        'controllers_to_models' => 0,
         // RV-11-B, owner decision D10 = A (2026-10-04): 2 -> 3. Raised ONCE, on instruction, with
         // the edges named rather than a bare number - a bare raise is indistinguishable from drift.
         //

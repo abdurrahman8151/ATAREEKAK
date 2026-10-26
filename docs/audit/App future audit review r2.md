@@ -12892,3 +12892,65 @@ supersedes the older comment in the same file which called wrapping each `User::
   docs/audit/render-backlog-status.py, phpunit.xml, scripts/rv13-sweep-ridecontroller.php,
   tests/Feature/Review/RV42aSuspendedMeansBannedTest.php and untracked docker-compose.local.yml were
   already modified in the working tree and are NOT part of this commit.
+### 227 continued — slice 2: `controllers_to_models` 2 -> 0 (rule empty)
+
+The two files slice 1 left are done, so the rule now has NO violation and its baseline is at 0:
+
+  17. `API/AdminWalletRequestController.php` 493 -> 467 (money path). The new
+      `Services/Admin/AdminWalletRequestService.php` owns the filtered review list (same eager loads,
+      same `orderByDesc`, same page size), the `selectRaw` GROUP BY tab counts, the two row lookups
+      (`findOrFail` kept, so 404 is unchanged), the two `lockForUpdate()` reads (the request's wallet
+      and the External Capital account) and both `WalletTransaction::create()` rows with their
+      attributes in the original order. The controller keeps the `DB::transaction` boundary, the
+      ledger posting, the auto-debt-clear call and every response shape; its three `app()` calls became
+      constructor injection (`LedgerService`, `NotificationService`) and its ten private helpers lost
+      their Eloquent type-hints. No amount, refund tier, 95/5 split, posting key or escrow semantic was
+      touched.
+  18. `API/PassengerProfileController.php` 442 -> 417. The new
+      `Services/Profile/PassengerProfileQueryService.php` owns the two cached bundles, the filtered
+      complaint list (status/type filters and page size included) and the admin-charge history; the
+      controller keeps the `Cache::remember` wrappers, the 404/422 shapes and the trait-shared
+      formatting.
+
+- Boundary result after slice 2: `controllers_to_models` baseline 2 -> **0**, measured 0. Every other
+  rule is where section 227 left it (domain_to_services 2, repos_to_services 2, request_below_http 0
+  hard, request_in_services 1, async_to_http 0 hard, models_to_enums 3, domain_to_models 10,
+  domain_to_http 0 hard). `app()` locator calls 32 -> 29 for the batch so far.
+
+- Files added: `app/Services/Admin/AdminWalletRequestService.php`,
+  `app/Services/Profile/PassengerProfileQueryService.php`.
+
+- Metric after slice 2 (app/ only): php_files 320, methods_total 1656, files_over_500 0,
+  methods_85_plus 0, app_locator_calls 29; largest files AdminDashboardController 476,
+  EmployeeManagementService 475, AdminWalletRequestController 468 (was 493), BookingService 463.
+
+- Regression this slice introduced, caught and fixed before the commit: `resolveApprovedMovement()`
+  kept `Wallet $wallet` in its signature after the `use App\Models\Wallet;` line was deleted, so PHP
+  resolved the bare name to `App\Http\Controllers\API\Wallet` and both
+  `StaffAdminIdentityAttributionTest` approval tests answered 500 (TypeError, not a domain error).
+  It was invisible in the log because `phpunit.xml` leaves the log channel unset for tests; re-running
+  the one test with `LOG_CHANNEL=single` in the shell (a real env var wins over the `<env>` block)
+  printed the TypeError and the exact line. Fix: the hint is gone. Lesson recorded: a leftover-hint
+  check must be run with a real regex tool - an ad-hoc `substr_count` counter in the patch script
+  reported zero while the correct pattern found one.
+
+- Verification after the fix, serialized on the scratch DB:
+  1. `tests/Feature/Admin tests/Feature/Profile tests/Feature/Wallet tests/Feature/Payment
+     tests/Feature/AppFuture tests/Unit/Domain`: 349 tests, 3 failures, all three in
+     `Tests\Feature\Profile\ProfileTest` (comment 201, rate 200, second rating 200 - all answered 422).
+  2. Those three are PRE-EXISTING and this was proven, not assumed: the batch's uncommitted files were
+     stashed (`git stash push -- app tests/Feature/AppFuture/BoundaryDependencyTest.php`, so the tree
+     was exactly the slice-1 commit) and the same three tests were run again - identical three names,
+     three failures - then the stash was popped and `git status` confirmed the working tree returned to
+     the same set of files. The endpoints they exercise (`POST /api/profile/{id}/comments`, `/rate`) are
+     in ProfileController, which this batch does not touch, and `git grep` shows no test for my changed
+     classes references them.
+  3. Every test that names a changed symbol (`git grep -l -E
+     "leastLoadedSupportAgent|AdminWalletRequestService|PassengerProfileQueryService|PassengerProfileController|AdminWalletRequestController|EmployeeManagementService"
+     -- tests`): `tests/Feature/Review/L24ApproveAutoClearDebtTest.php`,
+     `RV45RestrictedRoleRefusalTest.php`, `RVWalletRequestEmployeeAttributionTest.php`,
+     `tests/Feature/Staff/EmployeeManagementControllerTest.php`,
+     `tests/Unit/Services/Staff/EmployeeManagementServiceTest.php` -> **OK (43 tests, 108 assertions)**,
+     with `tests/Feature/Admin/StaffAdminIdentityAttributionTest.php` and `BoundaryDependencyTest`
+     green (`OK (19 tests, 80 assertions)`).
+  4. `php -l` and `pint --test` on all four files: no syntax errors, no style issues.

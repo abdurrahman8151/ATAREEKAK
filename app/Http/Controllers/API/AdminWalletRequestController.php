@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Wallet;
-use App\Models\WalletRequest;
-use App\Models\WalletTransaction;
+use App\Services\Admin\AdminWalletRequestService;
 use App\Services\NotificationService;
 use App\Services\Payment\CashRideFeeService;
 use App\Services\Payment\LedgerService;
@@ -38,6 +36,9 @@ final class AdminWalletRequestController extends Controller
 {
     public function __construct(
         private readonly CashRideFeeService $cashRideFeeService,
+        private readonly AdminWalletRequestService $walletRequests,
+        private readonly LedgerService $ledgerService,
+        private readonly NotificationService $notificationService,
     ) {}
 
     // ── GET /api/admin/wallet/requests ──────────────────────────────────────
@@ -54,36 +55,14 @@ final class AdminWalletRequestController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
-        $query = WalletRequest::with([
-            'user:id,first_name,last_name,email',
-            'wallet:id,wallet_number,phone_number,balance,cash_ride_debt',
-        ])->orderByDesc('created_at');
-
-        $status = $request->get('status', 'pending');
-        $query->where('status', $status);
-
-        if ($request->filled('type')) {
-            $query->where('type', $request->input('type'));
-        }
-
-        $paginator = $query->paginate(
-            (int) $request->get('per_page', 15),
-            ['*'],
-            'page',
-            (int) $request->get('page', 1)
+        $paginator = $this->walletRequests->reviewList(
+            status: $request->get('status', 'pending'),
+            type: $request->filled('type') ? $request->input('type') : null,
+            perPage: (int) $request->get('per_page', 15),
+            page: (int) $request->get('page', 1),
         );
 
-        // 1 GROUP BY query instead of 3 separate COUNTs
-        $countRows = WalletRequest::selectRaw('status, COUNT(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
-
-        $counts = [
-            'pending' => (int) ($countRows['pending'] ?? 0),
-            'approved' => (int) ($countRows['approved'] ?? 0),
-            'rejected' => (int) ($countRows['rejected'] ?? 0),
-            'cancelled' => (int) ($countRows['cancelled'] ?? 0),
-        ];
+        $counts = $this->walletRequests->statusCounts();
 
         return response()->json([
             'status' => 'success',
@@ -108,7 +87,7 @@ final class AdminWalletRequestController extends Controller
         }
 
         try {
-            $walletRequest = WalletRequest::with('wallet')->findOrFail($id);
+            $walletRequest = $this->walletRequests->findOrFail($id, ['wallet']);
 
             if (! $walletRequest->isPending()) {
                 return $this->alreadyDecided($walletRequest);
@@ -153,10 +132,10 @@ final class AdminWalletRequestController extends Controller
         try {
             // FIX 2: eager-load relationships so formatRequest() and the
             //         notification call below have no lazy-load N+1 queries.
-            $walletRequest = WalletRequest::with([
+            $walletRequest = $this->walletRequests->findOrFail($id, [
                 'user:id,first_name,last_name,email',
                 'wallet:id,wallet_number,phone_number,balance,cash_ride_debt',
-            ])->findOrFail($id);
+            ]);
 
             if (! $walletRequest->isPending()) {
                 return $this->alreadyDecided($walletRequest);
@@ -213,7 +192,7 @@ final class AdminWalletRequestController extends Controller
     }
 
     /** The 422 a decision endpoint returns for a request that is no longer pending. */
-    private function alreadyDecided(WalletRequest $walletRequest): JsonResponse
+    private function alreadyDecided($walletRequest): JsonResponse
     {
         return response()->json([
             'status' => 'error',
@@ -225,9 +204,9 @@ final class AdminWalletRequestController extends Controller
      * Body of the approval transaction: lock the wallet, apply the movement, mirror it against
      * the External Capital account, post the ledger leg, then mark the request approved.
      */
-    private function applyApprovedRequest(WalletRequest $walletRequest, Request $request): void
+    private function applyApprovedRequest($walletRequest, Request $request): void
     {
-        $wallet = Wallet::lockForUpdate()->findOrFail($walletRequest->wallet_id);
+        $wallet = $this->walletRequests->lockWalletOrFail($walletRequest->wallet_id);
         $movement = $this->resolveApprovedMovement($walletRequest, $wallet);
 
         $wallet->balance = $movement['new_balance'];
@@ -253,7 +232,7 @@ final class AdminWalletRequestController extends Controller
      *
      * @return array{amount: float, previous_balance: float, new_balance: float, type: string, transaction_amount: float, description: string}
      */
-    private function resolveApprovedMovement(WalletRequest $walletRequest, Wallet $wallet): array
+    private function resolveApprovedMovement($walletRequest, $wallet): array
     {
         $amount = (float) $walletRequest->amount;
 
@@ -293,9 +272,9 @@ final class AdminWalletRequestController extends Controller
      *
      * @param  array{previous_balance: float, new_balance: float, type: string, transaction_amount: float, description: string}  $movement
      */
-    private function recordWalletMovement(WalletRequest $walletRequest, Wallet $wallet, array $movement): void
+    private function recordWalletMovement($walletRequest, $wallet, array $movement): void
     {
-        WalletTransaction::create([
+        $this->walletRequests->createTransaction([
             'wallet_id' => $wallet->id,
             'user_id' => $walletRequest->user_id,
             'type' => $movement['type'],
@@ -320,18 +299,14 @@ final class AdminWalletRequestController extends Controller
     /**
      * Mirror the movement against the External Capital account and close it on the ledger.
      */
-    private function settleExternalCapital(WalletRequest $walletRequest, Wallet $wallet, float $transactionAmount): void
+    private function settleExternalCapital($walletRequest, $wallet, float $transactionAmount): void
     {
         // ── Decision un3 (owner choice (a)): external flow ──────────────────────
         // A top-up is money ARRIVING from outside; a withdrawal is money LEAVING to outside.
         // Both are recorded against the External Capital account, which is what closes the
         // ledger. `$transactionAmount`'s sign already encodes the direction, so the inbound
         // flag is derived from it rather than re-decided here.
-        $external = Wallet::where('phone_number', config('admin.external.phone'))
-            ->where('kind', 'system')
-            ->whereNull('user_id')
-            ->lockForUpdate()
-            ->first();
+        $external = $this->walletRequests->lockedExternalWallet();
 
         if ($external === null) {
             throw new \RuntimeException(
@@ -346,7 +321,7 @@ final class AdminWalletRequestController extends Controller
         $external->balance += $externalDelta;
         $external->save();
 
-        WalletTransaction::create([
+        $this->walletRequests->createTransaction([
             'wallet_id' => $external->id,
             'user_id' => null,
             'type' => $transactionAmount > 0 ? 'external_inbound' : 'external_outbound',
@@ -360,7 +335,7 @@ final class AdminWalletRequestController extends Controller
             'reference' => 'wallet_request:'.$walletRequest->id,
         ]);
 
-        app(LedgerService::class)->postExternalTransfer(
+        $this->ledgerService->postExternalTransfer(
             $external,
             $wallet,
             abs((float) $transactionAmount),
@@ -370,7 +345,7 @@ final class AdminWalletRequestController extends Controller
     }
 
     /** Persist the approval decision and its audit columns on the request row. */
-    private function markRequestApproved(WalletRequest $walletRequest, Request $request): void
+    private function markRequestApproved($walletRequest, Request $request): void
     {
         $walletRequest->update([
             'status' => 'approved',
@@ -387,13 +362,13 @@ final class AdminWalletRequestController extends Controller
     }
 
     /** Tell the requesting user their request was rejected. Non-fatal: a failure is logged only. */
-    private function notifyRequestRejected(WalletRequest $walletRequest, Request $request): void
+    private function notifyRequestRejected($walletRequest, Request $request): void
     {
         try {
             $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
             $reason = $request->input('admin_notes') ? ' Reason: '.$request->input('admin_notes') : '';
 
-            app(NotificationService::class)->createNotification(
+            $this->notificationService->createNotification(
                 $walletRequest->user,
                 'wallet_request_rejected',
                 $label.' - Rejected',
@@ -407,7 +382,7 @@ final class AdminWalletRequestController extends Controller
         }
     }
 
-    private function formatRequest(WalletRequest $r): array
+    private function formatRequest($r): array
     {
         return [
             'id' => $r->id,
@@ -438,7 +413,7 @@ final class AdminWalletRequestController extends Controller
      * clearing would fail the balance >= debt check anyway. Wrapped in its own transaction so the
      * lockForUpdate() inside autoClearDebt is effective. A failure here never blocks the approval.
      */
-    private function autoClearDebtAfterCharge(WalletRequest $walletRequest): void
+    private function autoClearDebtAfterCharge($walletRequest): void
     {
         if (! ($walletRequest->isCharge() && $walletRequest->user && $walletRequest->wallet)) {
             return;
@@ -460,7 +435,7 @@ final class AdminWalletRequestController extends Controller
     }
 
     /** Tell the requesting user their request was approved. Non-fatal: a failure is logged only. */
-    private function notifyRequestDecided(WalletRequest $walletRequest): void
+    private function notifyRequestDecided($walletRequest): void
     {
         try {
             $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
@@ -468,7 +443,7 @@ final class AdminWalletRequestController extends Controller
                 ? "Your wallet charge request of {$walletRequest->amount} SYP has been approved."
                 : "Your withdrawal request of {$walletRequest->amount} SYP has been approved.";
 
-            app(NotificationService::class)->createNotification(
+            $this->notificationService->createNotification(
                 $walletRequest->user,
                 'wallet_request_approved',
                 $label.' - موافق',

@@ -4,16 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
-use App\Models\Booking;
-use App\Models\Complaint;
-use App\Models\Profile;
-use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Services\JwtService;
 use App\Services\NotificationService;
 use App\Services\Profile\BuildsPassengerProfilePanels;
 use App\Services\Profile\ChargesPassengerWallet;
+use App\Services\Profile\PassengerProfileQueryService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,6 +58,7 @@ final class PassengerProfileController extends Controller
     public function __construct(
         private readonly JwtService $jwtService,
         private readonly NotificationService $notificationService,
+        private readonly PassengerProfileQueryService $profileQueries,
     ) {}
 
     // =========================================================================
@@ -82,7 +78,7 @@ final class PassengerProfileController extends Controller
     {
         try {
             $data = Cache::remember("admin.passenger.full-profile.{$userId}", 300, function () use ($userId) {
-                $user = User::with(['profile', 'wallet', 'photos'])->findOrFail($userId);
+                $user = $this->profileQueries->profileBundle($userId);
 
                 return [
                     'user' => $this->formatUser($user),
@@ -123,7 +119,7 @@ final class PassengerProfileController extends Controller
     {
         try {
             $data = Cache::remember("admin.passenger.stats.{$userId}", 300, function () use ($userId) {
-                $user = User::with('wallet')->findOrFail($userId);
+                $user = $this->profileQueries->withWalletOrFail($userId);
 
                 return $this->buildStats($user);
             });
@@ -213,27 +209,13 @@ final class PassengerProfileController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
-        $query = Complaint::with(['assignedAgent:id,first_name,last_name', 'attachments'])
-            ->where('user_id', $userId);
-
-        $status = $request->get('status', 'all');
-        if ($status !== 'all') {
-            $query->where('status', $status);
-        }
-
-        $type = $request->get('type', 'all');
-        if ($type !== 'all') {
-            $query->where('type', $type);
-        }
-
-        $paginator = $query
-            ->orderByDesc('created_at')
-            ->paginate(
-                (int) $request->get('per_page', 15),
-                ['*'],
-                'page',
-                (int) $request->get('page', 1)
-            );
+        $paginator = $this->profileQueries->complaintsFor(
+            userId: $userId,
+            status: $request->get('status', 'all'),
+            type: $request->get('type', 'all'),
+            perPage: (int) $request->get('per_page', 15),
+            page: (int) $request->get('page', 1),
+        );
 
         return response()->json([
             'status' => 'success',
@@ -262,24 +244,16 @@ final class PassengerProfileController extends Controller
      */
     public function walletCharges(int $userId, Request $request): JsonResponse
     {
-        $user = User::with('wallet')->find($userId);
+        $user = $this->profileQueries->withWallet($userId);
         if (! $user || ! $user->wallet) {
             return response()->json(['status' => 'success', 'data' => [], 'meta' => []]);
         }
 
-        $paginator = WalletTransaction::with([
-            'user:id,first_name,last_name',
-            'user.profile:user_id,profile_photo',
-        ])
-            ->where('wallet_id', $user->wallet->id)
-            ->where('type', 'admin_charge')
-            ->orderByDesc('created_at')
-            ->paginate(
-                (int) $request->get('per_page', 15),
-                ['*'],
-                'page',
-                (int) $request->get('page', 1)
-            );
+        $paginator = $this->profileQueries->adminChargesFor(
+            $user->wallet->id,
+            (int) $request->get('per_page', 15),
+            (int) $request->get('page', 1),
+        );
 
         return response()->json([
             'status' => 'success',
@@ -323,7 +297,7 @@ final class PassengerProfileController extends Controller
         }
 
         try {
-            $user = User::with('wallet')->findOrFail($userId);
+            $user = $this->profileQueries->withWalletOrFail($userId);
 
             if (! $user->wallet) {
                 return $this->noWalletResponse();
@@ -377,9 +351,9 @@ final class PassengerProfileController extends Controller
      *
      * @param  array{wallet: Wallet, previous: float, current: float}  $credit
      */
-    private function recordAdminChargeTransaction(array $credit, User $user, float $amount, Request $request): void
+    private function recordAdminChargeTransaction(array $credit, $user, float $amount, Request $request): void
     {
-        WalletTransaction::create([
+        $this->profileQueries->createTransaction([
             'wallet_id' => $credit['wallet']->id,
             'user_id' => $request->user()?->id,  // the admin
             'type' => 'admin_charge',
@@ -402,7 +376,7 @@ final class PassengerProfileController extends Controller
     }
 
     /** Tell the passenger the administration topped up their wallet (non-fatal on failure). */
-    private function notifyWalletCharged(User $user, float $amount, Request $request): void
+    private function notifyWalletCharged($user, float $amount, Request $request): void
     {
         try {
             $this->notificationService->createNotification(
