@@ -47,6 +47,7 @@ use App\Services\File\FileUploadService;
 use App\Services\Geocoding\ArabicPlaceNameService;
 use App\Services\Geocoding\GeocodingService;
 use App\Services\Geocoding\RouteCalculationService;
+use App\Services\JwtService;
 use App\Services\NotificationService;
 use App\Services\Payment\BookingCharge;
 use App\Services\Payment\CancellationRefund;

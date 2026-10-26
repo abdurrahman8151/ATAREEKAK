@@ -13283,3 +13283,39 @@ environment/`app()->make`-style or prose, not container lookups of a collaborato
   tests/Feature/AppFuture` -> **OK (283 tests, 1160 assertions)**, including the characterization test
   that pins the cash-ride creation fee outcome.
 - Still to come: the 12 lookups above, and trait 5 (`FullRideFlowScenarios`).
+### 227 continued — slice 10: Noshowservice injected into the ride lifecycle, and a slice-4 binding defect fixed
+
+The slice itself is small; the more important part of this record is the defect it exposed.
+
+- `Services/Ride/BookingCompletionService.php` and `Services/Ride/RideService.php`: each constructor
+  gained `private readonly Noshowservice $noshowService`, and the two `app(Noshowservice::class)`
+  lookups became `$this->noshowService`. `Services/Ride/BookingService.php` gained the same parameter
+  and passes it to the `BookingCompletionService` it hand-builds
+  (`new BookingCompletionService($paymentFactory, $scoreService, $noshowService)`). All three files are
+  in `App\Services\Ride`, so no import changed, and a cycle check came first: `NoShowReportService`,
+  `NoShowConflictService`, `NoShowPenaltyService` and `Domain` reference neither `RideService` nor
+  `BookingCompletionService`. Container lookups in `app/`: 12 -> **10**.
+
+- **Defect introduced in slice 4 and fixed here.** `app/Support/ContainerBindings.php` registered the
+  new port with `$this->app->bind(TokenRevokerInterface::class, JwtService::class)` but the file has no
+  `use App\Services\JwtService;` import, and the file's own namespace is `App\Support` - so that
+  unqualified name resolved to `App\Support\JwtService`, which does not exist. Resolving
+  `PasswordResetRepositoryInterface` therefore threw
+  `BindingResolutionException: Target class [App\Support\JwtService] does not exist`, i.e. the
+  password-reset path was broken from slice 4 until this commit. The fix is the one-line import
+  (`use App\Services\JwtService;`, placed in order before `use App\Services\Staff\StaffJwtService;`);
+  the binding itself was correct. Caught by `Tests\Unit\Providers\AppServiceProviderTest::test_password_reset_repository_is_bound`,
+  which asserts exactly that this interface resolves - the test the slice-4 floors should have included.
+- Lesson: the area-floor map lists `app/Providers` -> `tests/Unit/Providers`, and `ContainerBindings` is
+  the de-facto provider code, so every slice that adds a binding belongs in `tests/Unit/Providers`, not
+  only in the context that consumes the interface. Slices 4-9 never ran it; this record closes the gap.
+
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on all four changed files
+  (`tests/Unit/Providers tests/Feature/Auth tests/Feature/Rides tests/Feature/Bookings tests/Unit/Domain
+  tests/Feature/AppFuture tests/Feature/Review/RV20ChargeThroughStrategyTest.php tests/Feature/T3Batch`)
+  -> **OK (413 tests, 1490 assertions)**. The first run of this slice, before the import fix, reported
+  exactly one error: the password-reset binding test above.
+- Container lookups left in `app/`: 10 - `Services/Staff/StaffCancellationService` (CancellationRefund x2,
+  NotificationService x2), `PushNotificationController` and `StaffComplaintService` (NotificationService),
+  `AdminDashboardController` (VerificationApprovalService), `RideLifecycleHandler` (ScoreService),
+  `JwtAuthHandler` middleware (BanService). Then trait 5.

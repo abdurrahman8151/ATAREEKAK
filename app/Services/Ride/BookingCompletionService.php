@@ -26,6 +26,7 @@ final class BookingCompletionService
     public function __construct(
         private readonly PaymentStrategyFactory $paymentFactory,
         private readonly ScoreService $scoreService,
+        private readonly Noshowservice $noshowService,
     ) {}
 
     /**
@@ -72,7 +73,7 @@ final class BookingCompletionService
      */
     public function reportPassengerNoShow(int $bookingId, User $driver): array
     {
-        return app(Noshowservice::class)
+        return $this->noshowService
             ->reportPassengerNoShow($bookingId, $driver);
     }
 

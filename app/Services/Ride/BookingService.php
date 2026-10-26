@@ -34,10 +34,11 @@ final class BookingService
         private readonly NotificationService $notificationService,
         private readonly RideValidationService $validationService,
         private readonly ScoreService $scoreService,
+        private readonly Noshowservice $noshowService,
         private readonly PaymentStrategyFactory $paymentFactory,   // ← NEW
     ) {
         $this->cancellations = new BookingCancellationService($cancellationRefund, $notificationService, $scoreService);
-        $this->completions = new BookingCompletionService($paymentFactory, $scoreService);
+        $this->completions = new BookingCompletionService($paymentFactory, $scoreService, $noshowService);
     }
 
     // =========================================================================

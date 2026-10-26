@@ -31,6 +31,7 @@ final class RideService
         private readonly RidePayout $ridePayout,
         private readonly NotificationService $notificationService,
         private readonly ScoreService $scoreService,
+        private readonly Noshowservice $noshowService,
         private readonly CashRideFeeService $cashRideFeeService,
         private readonly RouteCalculationService $routeService,
     ) {
@@ -163,7 +164,7 @@ final class RideService
      */
     public function reportDriverNoShow(int $rideId, User $passenger): array
     {
-        return app(Noshowservice::class)
+        return $this->noshowService
             ->reportDriverNoShow($rideId, $passenger);
     }
 
