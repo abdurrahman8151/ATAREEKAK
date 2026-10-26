@@ -112,7 +112,12 @@ class BoundaryDependencyTest extends TestCase
         // later. All three are genuine domain enums, not violations - the baseline predates them.
         // Still a CEILING, not a target: a fourth file referencing Enums fails again.
         'models_to_enums' => 3,
-        'domain_to_models' => 10,
+        // Batch 227 item 2: no file under app/Domain names App\Models at all any more. The seven
+        // Score policies (and their interface) take App\DTOs\Score\ScoreSnapshot instead of a
+        // UserScore row, built once in ScoreLedger::apply() via ScoreSnapshot::fromUserScore();
+        // the three Payment strategies lost their Booking/Ride/User type-hints and their three
+        // model imports (their App\Services imports are the separate domain_to_services item).
+        'domain_to_models' => 0,
         'domain_to_http' => 0,
     ];
 

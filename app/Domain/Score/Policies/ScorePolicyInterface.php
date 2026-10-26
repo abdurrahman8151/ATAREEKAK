@@ -3,8 +3,8 @@
 namespace App\Domain\Score\Policies;
 
 use App\Domain\Score\ScoreResult;
+use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
-use App\Models\UserScore;
 
 /**
  * Score Policy Interface
@@ -22,9 +22,9 @@ interface ScorePolicyInterface
     /**
      * Calculate the ScoreResult for this action.
      *
-     * @param  UserScore  $userScore  Current score stats (used for cancel-rate check)
+     * @param  ScoreSnapshot  $snapshot  Current score stats (used for cancel-rate check)
      * @param  array  $context  Additional data the policy may need
      *                          (e.g. ['elapsed_pct' => 35.0])
      */
-    public function calculate(ScoreAction $action, UserScore $userScore, array $context = []): ScoreResult;
+    public function calculate(ScoreAction $action, ScoreSnapshot $snapshot, array $context = []): ScoreResult;
 }

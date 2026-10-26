@@ -5,8 +5,8 @@ namespace Tests\Unit\Domain;
 use App\Domain\Score\Policies\DriverNoShowPolicy;
 use App\Domain\Score\Policies\ScorePolicyInterface;
 use App\Domain\Score\ScoreResult;
+use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
-use App\Models\UserScore;
 use PHPUnit\Framework\TestCase;
 
 class DriverNoShowPolicyTest extends TestCase
@@ -98,11 +98,7 @@ class DriverNoShowPolicyTest extends TestCase
     public function test_high_cancel_rate_does_not_override_no_show_penalty(): void
     {
         // No-show is always fixed at -15; cancel rate has no effect.
-        $highRate = new UserScore([
-            'score' => 70,
-            'total_rides' => 5,
-            'total_cancellations' => 5,  // 50% cancel rate
-        ]);
+        $highRate = new ScoreSnapshot(totalCancellations: 5, cancelRate: 50.0);
 
         $result = $this->policy->calculate(ScoreAction::DRIVER_NO_SHOW, $highRate);
 
@@ -112,8 +108,8 @@ class DriverNoShowPolicyTest extends TestCase
 
     public function test_penalty_is_identical_regardless_of_cancel_rate(): void
     {
-        $low = new UserScore(['score' => 70, 'total_rides' => 10, 'total_cancellations' => 0]);
-        $high = new UserScore(['score' => 70, 'total_rides' => 10, 'total_cancellations' => 9]);
+        $low = new ScoreSnapshot(totalCancellations: 0, cancelRate: 0.0);
+        $high = new ScoreSnapshot(totalCancellations: 9, cancelRate: 47.37);
 
         $r1 = $this->policy->calculate(ScoreAction::DRIVER_NO_SHOW, $low);
         $r2 = $this->policy->calculate(ScoreAction::DRIVER_NO_SHOW, $high);
@@ -152,12 +148,12 @@ class DriverNoShowPolicyTest extends TestCase
 
     // ─── Helper ───────────────────────────────────────────────────────────────
 
-    private function makeScore(int $rides = 5, int $cancellations = 1): UserScore
+    private function makeScore(int $cancellations = 1): ScoreSnapshot
     {
-        return new UserScore([
-            'score' => 70,
-            'total_rides' => $rides,
-            'total_cancellations' => $cancellations,
-        ]);
+        return new ScoreSnapshot(
+            totalCancellations: $cancellations,
+            // same rate the model accessor derived from its 5-ride default
+            cancelRate: round($cancellations / max(1, $cancellations + 5) * 100, 2),
+        );
     }
 }

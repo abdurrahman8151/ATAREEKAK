@@ -3,8 +3,8 @@
 namespace App\Domain\Score\Policies;
 
 use App\Domain\Score\ScoreResult;
+use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
-use App\Models\UserScore;
 
 /**
  * Driver Cancel Seat Policy
@@ -20,7 +20,7 @@ final class DriverCancelSeatPolicy implements ScorePolicyInterface
         return $action === ScoreAction::DRIVER_CANCEL_SEAT;
     }
 
-    public function calculate(ScoreAction $action, UserScore $userScore, array $context = []): ScoreResult
+    public function calculate(ScoreAction $action, ScoreSnapshot $snapshot, array $context = []): ScoreResult
     {
         return ScoreResult::of(
             points: self::POINTS,

@@ -2,9 +2,6 @@
 
 namespace App\Domain\Payment\Strategies;
 
-use App\Models\Booking;
-use App\Models\Ride;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Log;
 
@@ -21,9 +18,9 @@ final class CashPaymentStrategy implements PaymentStrategy
     // ── Book ─────────────────────────────────────────────────────────────────
 
     public function processBookingPayment(
-        Booking $booking,
-        Ride $ride,
-        User $passenger,
+        $booking,
+        $ride,
+        $passenger,
     ): PaymentResult {
         Log::info('Cash booking recorded – payment will be collected offline', [
             'booking_id' => $booking->id,
@@ -43,9 +40,9 @@ final class CashPaymentStrategy implements PaymentStrategy
      * created (CashRideFeeService). Nothing more to do digitally.
      */
     public function processRideCompletionPayment(
-        Booking $booking,
-        Ride $ride,
-        User $driver,
+        $booking,
+        $ride,
+        $driver,
     ): PaymentResult {
         Log::info('Cash ride completion acknowledged – no digital transfer required', [
             'booking_id' => $booking->id,
@@ -67,7 +64,7 @@ final class CashPaymentStrategy implements PaymentStrategy
      * `R2 sec 87` pinned as wrong.
      */
     public function processRefund(
-        Ride $ride,
+        $ride,
         EloquentCollection $bookings,
         string $reason,
     ): RefundResult {

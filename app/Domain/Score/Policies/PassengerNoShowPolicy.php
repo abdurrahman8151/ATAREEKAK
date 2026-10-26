@@ -3,8 +3,8 @@
 namespace App\Domain\Score\Policies;
 
 use App\Domain\Score\ScoreResult;
+use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
-use App\Models\UserScore;
 
 /**
  * Passenger No-Show Policy
@@ -20,7 +20,7 @@ final class PassengerNoShowPolicy implements ScorePolicyInterface
         return $action === ScoreAction::PASSENGER_NO_SHOW;
     }
 
-    public function calculate(ScoreAction $action, UserScore $userScore, array $context = []): ScoreResult
+    public function calculate(ScoreAction $action, ScoreSnapshot $snapshot, array $context = []): ScoreResult
     {
         return ScoreResult::of(
             points: self::POINTS,

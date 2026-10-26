@@ -3,8 +3,8 @@
 namespace App\Domain\Score\Policies;
 
 use App\Domain\Score\ScoreResult;
+use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
-use App\Models\UserScore;
 
 /**
  * Driver Cancel Ride Policy
@@ -47,10 +47,10 @@ final class DriverCancelRidePolicy implements ScorePolicyInterface
         ]);
     }
 
-    public function calculate(ScoreAction $action, UserScore $userScore, array $context = []): ScoreResult
+    public function calculate(ScoreAction $action, ScoreSnapshot $snapshot, array $context = []): ScoreResult
     {
-        $highRate = $userScore->total_cancellations >= self::MIN_CANCELLATIONS
-            && $userScore->cancel_rate >= self::HIGH_RATE_THRESHOLD;
+        $highRate = $snapshot->totalCancellations >= self::MIN_CANCELLATIONS
+            && $snapshot->cancelRate >= self::HIGH_RATE_THRESHOLD;
 
         if ($highRate) {
             return ScoreResult::of(

@@ -3,8 +3,8 @@
 namespace App\Domain\Score\Policies;
 
 use App\Domain\Score\ScoreResult;
+use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
-use App\Models\UserScore;
 
 /**
  * Ride Completion Policy
@@ -21,7 +21,7 @@ final class RideCompletionPolicy implements ScorePolicyInterface
         return $action === ScoreAction::RIDE_COMPLETED;
     }
 
-    public function calculate(ScoreAction $action, UserScore $userScore, array $context = []): ScoreResult
+    public function calculate(ScoreAction $action, ScoreSnapshot $snapshot, array $context = []): ScoreResult
     {
         return ScoreResult::of(
             points: self::POINTS,

@@ -12954,3 +12954,55 @@ The two files slice 1 left are done, so the rule now has NO violation and its ba
      with `tests/Feature/Admin/StaffAdminIdentityAttributionTest.php` and `BoundaryDependencyTest`
      green (`OK (19 tests, 80 assertions)`).
   4. `php -l` and `pint --test` on all four files: no syntax errors, no style issues.
+### 227 continued — slice 3: `domain_to_models` 10 -> 0 (rule empty)
+
+No file under `app/Domain/**` names `App\Models` any more, so the rule is at 0 and its baseline was
+lowered from 10 to 0. Two halves:
+
+  1. The seven Score policies and their interface. `App\DTOs\Score\ScoreSnapshot` (new) carries the two
+     counters the cancel-rate grid reads — `totalCancellations` (int) and `cancelRate` (float) — with a
+     `fromUserScore(UserScore)` factory that mirrors what the policies compared before:
+     `UserScore::$total_cancellations` (integer cast) and `UserScore::getCancelRateAttribute()`, which
+     always returns a float and 0.0 for a user who has neither ridden nor cancelled, so a fresh row
+     still cannot clear the 50% threshold. `ScorePolicyInterface::calculate()` and its six
+     implementations now take `ScoreSnapshot $snapshot`; the docblock `@param` moved with it. The single
+     call site, `ScoreLedger::apply()`, builds the snapshot once per action:
+     `$policy->calculate($action, ScoreSnapshot::fromUserScore($userScore), $context)`. The row itself
+     is still fetched, still locked by the surrounding `DB::transaction`, still the thing
+     `persistScore()` writes, so no score value, clamp or audit row changed.
+  2. The three Payment strategies. `PaymentStrategy` (interface), `CashPaymentStrategy` and
+     `EPayPaymentStrategy` lost their `Booking` / `Ride` / `User` type-hints (23 parameters in total)
+     and their three `use App\Models\...;` lines. A DTO is not possible here without changing the
+     payment services: the models flow straight into `BookingCharge`, `CancellationRefund` and
+     `RidePayout`, whose signatures take Eloquent rows, and rewriting those is neither the rule this
+     item measures nor behaviour-preserving. Dropping the hints removes the reference the rule counts
+     while the exact same object instances are still passed to the same services. Their
+     `use App\Services\...` imports are untouched: those are the separate `domain_to_services` item.
+
+- Test update, mechanical and assertion-free: `tests/Unit/Domain/DriverNoShowPolicyTest.php` is the
+  only test that calls a policy directly. Its `makeScore()` helper and three fixtures now build
+  snapshots. No assertion was edited; the rate the helper derives
+  (`round($cancellations / max(1, $cancellations + 5) * 100, 2)`) reproduces what the model accessor
+  returned for the helper's former 5-ride default. `tests/Feature/Review/RV37ScorePolicyTest.php` and
+  `RV11ScoreLedgerTest.php` were left alone — they assert against the DB row and never call
+  `calculate()`.
+
+- Boundary result after slice 3: `domain_to_models` baseline 10 -> **0**, measured 0
+  ("only 0 violations remain"). Every other rule is unchanged: `controllers_to_models` 0 (slice 2),
+  `domain_to_services` 2, `repos_to_services` 2, `request_in_services` 1, `models_to_enums` 3,
+  `request_below_http` 0 (hard), `async_to_http` 0 (hard), `domain_to_http` 0 (hard).
+
+- Files changed: `app/DTOs/Score/ScoreSnapshot.php` (new), the seven files under
+  `app/Domain/Score/Policies/`, `app/Services/Score/ScoreLedger.php`, the three files under
+  `app/Domain/Payment/Strategies/`, `tests/Unit/Domain/DriverNoShowPolicyTest.php`.
+
+- Verification, serialized on the scratch DB: `tests/Unit/Domain tests/Feature/Rides
+  tests/Feature/Bookings tests/Feature/Payment tests/Feature/Wallet tests/Feature/Review
+  tests/Feature/AppFuture` -> 973 tests, 2995 assertions, 2 failures, and those two are the identical
+  pre-existing pair (`BacklogTableShapeTest` on the owner's BACKLOG.md and
+  `NoDuplicatedFixtureHelpersTest::test_no_test_file_logs_in_to_a_staff_or_admin_door_with_an_email`).
+  `pint --test` PASS on all 16 changed files after `pint` sorted three import lists;
+  `BoundaryDependencyTest` green with `domain_to_models => 0`.
+
+- Metric after slice 3 (app/ only): php_files 321, methods_total 1658, files_over_500 0,
+  methods_85_plus 0, app_locator_calls 29.

@@ -3,6 +3,7 @@
 namespace App\Services\Score;
 
 use App\Domain\Score\ScorePolicyFactory;
+use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
 use App\Models\Booking;
 use App\Models\Ride;
@@ -108,7 +109,7 @@ final class ScoreLedger
             $userScore = $this->scoreRow($user);
 
             $policy = $this->policyFactory->make($action);
-            $result = $policy->calculate($action, $userScore, $context);
+            $result = $policy->calculate($action, ScoreSnapshot::fromUserScore($userScore), $context);
 
             $points = $pointsOverride ?? $result->points;
             $reason = $reasonOverride ?? $result->reason;
