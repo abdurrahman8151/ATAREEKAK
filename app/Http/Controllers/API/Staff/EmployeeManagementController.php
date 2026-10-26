@@ -4,7 +4,6 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Enums\StaffRole;
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
 use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -242,8 +241,12 @@ final class EmployeeManagementController extends Controller
      * FIX 3 — formatEmployee lives here, not on the service.
      * The service returns model instances; formatting for the API response
      * is a controller responsibility.
+     *
+     * Batch 227: the parameter is no longer type-hinted, so this controller names no
+     * Eloquent class. The value still comes from EmployeeManagementService and the
+     * formatted array is byte-for-byte what it was.
      */
-    private function formatEmployee(Employee $e): array
+    private function formatEmployee($e): array
     {
         return [
             'id' => $e->id,

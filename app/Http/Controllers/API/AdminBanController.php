@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Services\Admin\BanService;
 use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -37,6 +36,11 @@ use Illuminate\Support\Facades\Validator;
  */
 final class AdminBanController extends Controller
 {
+    public function __construct(
+        private readonly BanService $banService,
+        private readonly NotificationService $notificationService,
+    ) {}
+
     // ── POST /api/admin/users/{userId}/ban ────────────────────────────────────
 
     /**
@@ -58,7 +62,7 @@ final class AdminBanController extends Controller
         }
 
         try {
-            $user = User::findOrFail($userId);
+            $user = $this->banService->findUserOrFail($userId);
 
             // Prevent banning admin accounts
 
@@ -72,7 +76,7 @@ final class AdminBanController extends Controller
             // Decision un13: the ban write itself (status + ban fields + token revocation + cache busting)
             // now lives in BanService. This controller validated the input and notifies; it does not
             // decide what a ban IS. Previously the same write existed in three places.
-            $user = app(BanService::class)->ban(
+            $user = $this->banService->ban(
                 $user,
                 $request->input('reason'),
                 $request->input('type'),
@@ -93,7 +97,7 @@ final class AdminBanController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'User has been banned successfully.',
-                'data' => $this->formatUserStatus($user->fresh()),
+                'data' => $this->banService->formatUserStatus($user->fresh()),
             ]);
 
         } catch (ModelNotFoundException) {
@@ -122,7 +126,7 @@ final class AdminBanController extends Controller
         }
 
         try {
-            $user = User::findOrFail($userId);
+            $user = $this->banService->findUserOrFail($userId);
 
             if ($user->status != -1) {
                 return response()->json([
@@ -132,7 +136,7 @@ final class AdminBanController extends Controller
             }
 
             // Decision un13: same service, same write - see ban() above.
-            app(BanService::class)->unban($user, $request->user()?->id);
+            $this->banService->unban($user, $request->user()?->id);
 
             Log::info('User unbanned', [
                 'user_id' => $userId,
@@ -146,7 +150,7 @@ final class AdminBanController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'User has been unbanned. They can now log in again.',
-                'data' => $this->formatUserStatus($user->fresh()),
+                'data' => $this->banService->formatUserStatus($user->fresh()),
             ]);
 
         } catch (ModelNotFoundException) {
@@ -170,7 +174,7 @@ final class AdminBanController extends Controller
     {
         try {
             $data = Cache::remember("admin.user.status.{$userId}", 300, function () use ($userId) {
-                return $this->formatUserStatus(User::findOrFail($userId));
+                return $this->banService->formatUserStatus($this->banService->findUserOrFail($userId));
             });
 
             return response()->json([
@@ -181,51 +185,6 @@ final class AdminBanController extends Controller
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         }
-    }
-
-    // ── Private ───────────────────────────────────────────────────────────────
-
-    private function formatUserStatus(User $user): array
-    {
-        $accountStatus = match ((int) $user->status) {
-            -1 => 'banned',
-            0 => 'logged_out',
-            1 => 'active',
-            default => 'unknown',
-        };
-
-        $data = [
-            'user_id' => $user->id,
-            'name' => trim("{$user->first_name} {$user->last_name}"),
-            'email' => $user->email,
-            'account_status' => $accountStatus,
-            'status_code' => (int) $user->status,
-            'ban' => null,
-        ];
-
-        if ($user->status == -1) {
-            $bannedBy = $user->banned_by
-                ? User::select('id', 'first_name', 'last_name')->find($user->banned_by)
-                : null;
-
-            $isExpired = $user->ban_type === 'temporary'
-                && $user->ban_expires_at !== null
-                && now()->gt($user->ban_expires_at);
-
-            $data['ban'] = [
-                'reason' => $user->ban_reason,
-                'type' => $user->ban_type,
-                'banned_at' => $user->banned_at?->toIso8601String(),
-                'expires_at' => $user->ban_expires_at?->toIso8601String(),
-                'is_expired' => $isExpired,
-                'banned_by' => $bannedBy ? [
-                    'id' => $bannedBy->id,
-                    'name' => trim("{$bannedBy->first_name} {$bannedBy->last_name}"),
-                ] : null,
-            ];
-        }
-
-        return $data;
     }
 
     /**
@@ -269,14 +228,14 @@ final class AdminBanController extends Controller
         return null;
     }
 
-    private function notifyBannedUser(User $user, Request $request): void
+    private function notifyBannedUser($user, Request $request): void
     {
         try {
             $expiryNote = $request->input('type') === 'temporary'
                 ? ' Your ban expires at '.$request->input('expires_at').'.'
                 : '';
 
-            app(NotificationService::class)->createNotification(
+            $this->notificationService->createNotification(
                 $user,
                 'account_banned',
                 'Account Banned',
@@ -291,10 +250,10 @@ final class AdminBanController extends Controller
         }
     }
 
-    private function notifyUnbannedUser(User $user, Request $request): void
+    private function notifyUnbannedUser($user, Request $request): void
     {
         try {
-            app(NotificationService::class)->createNotification(
+            $this->notificationService->createNotification(
                 $user,
                 'account_unbanned',
                 'Account Restored',

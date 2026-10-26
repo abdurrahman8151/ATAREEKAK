@@ -4,10 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ScoreTransactionResource;
-use App\Models\Booking;
-use App\Models\Ride;
-use App\Models\ScoreTransaction;
-use App\Models\UserScore;
+use App\Services\Score\ScoreHistoryService;
 use App\Services\Score\ScoreService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +12,10 @@ use Illuminate\Support\Facades\Cache;
 
 class ScoreController extends Controller
 {
-    public function __construct(private readonly ScoreService $scoreService) {}
+    public function __construct(
+        private readonly ScoreService $scoreService,
+        private readonly ScoreHistoryService $scoreHistoryService,
+    ) {}
 
     // =========================================================================
     // EXISTING ENDPOINTS (unchanged)
@@ -125,14 +125,11 @@ class ScoreController extends Controller
     {
         $limit = min((int) $request->get('limit', 20), 50);
 
-        $paginator = ScoreTransaction::where('user_id', $request->user()->id)
-            ->orderByDesc('created_at')
-            ->paginate($limit);
+        $paginator = $this->scoreHistoryService->paginateForUser($request->user()->id, $limit);
 
-        // Batch-load Ride / Booking models — prevents N+1 without changing
+        // The page items arrive already hydrated by ScoreHistoryService; only kept here as a
+        // reminder that the resource reads referenceModel. Batch-load Ride / Booking models — prevents N+1 without changing
         // the ScoreTransaction schema or adding a polymorphic relation.
-        $this->hydrateReferences($paginator->items());
-
         return response()->json([
             'success' => true,
             'data' => ScoreTransactionResource::collection($paginator),
@@ -150,7 +147,7 @@ class ScoreController extends Controller
     // =========================================================================
 
     /** Reusable score formatter used by other controllers. */
-    public static function formatScore(UserScore $userScore): array
+    public static function formatScore($userScore): array
     {
         return [
             'score' => $userScore->score,
@@ -161,50 +158,5 @@ class ScoreController extends Controller
             'can_create_rides' => $userScore->score >= 50,
             'can_book_rides' => $userScore->score >= 40,
         ];
-    }
-
-    /**
-     * Batch-hydrate the reference model on each ScoreTransaction to prevent N+1.
-     *
-     * Groups transactions by reference_type, issues ONE query per type,
-     * then attaches the result via setRelation('referenceModel', ...) so the
-     * ScoreTransactionResource can read it without hitting the DB again.
-     *
-     * Booking references also eager-load their parent Ride in the same query.
-     *
-     * @param  ScoreTransaction[]  $transactions
-     */
-    private function hydrateReferences(array $transactions): void
-    {
-        // Group page items by their reference class name
-        $groups = collect($transactions)->groupBy('reference_type');
-
-        foreach ($groups as $className => $txGroup) {
-            if (! $className) {
-                continue; // transactions with no reference (edge case)
-            }
-
-            $ids = $txGroup->pluck('reference_id')->filter()->unique()->values();
-            $type = class_basename($className);
-
-            // One query per reference type with any required eager loads
-            $models = match ($type) {
-                'Ride' => Ride::whereIn('id', $ids)
-                    ->get()
-                    ->keyBy('id'),
-
-                'Booking' => Booking::with('ride')
-                    ->whereIn('id', $ids)
-                    ->get()
-                    ->keyBy('id'),
-
-                default => collect(),
-            };
-
-            // Attach the resolved model so ScoreTransactionResource can read it
-            foreach ($txGroup as $tx) {
-                $tx->setRelation('referenceModel', $models->get($tx->reference_id));
-            }
-        }
     }
 }

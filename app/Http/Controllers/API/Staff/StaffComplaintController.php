@@ -4,14 +4,12 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Enums\ComplaintStatus;
 use App\Http\Controllers\Controller;
-use App\Models\Complaint;
 use App\Services\NotificationService;
 use App\Services\Staff\StaffComplaintService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -71,7 +69,7 @@ final class StaffComplaintController extends Controller
                 'total' => $paginator->total(),
             ],
             // Quick counts for the tab badges in the UI
-            'counts' => $this->statusCounts(),
+            'counts' => $this->complaintService->statusCounts(),
         ]);
     }
 
@@ -164,7 +162,7 @@ final class StaffComplaintController extends Controller
                 agent: $agent,
             );
 
-            $this->notifyComplaintUser($complaint, $complaintId, $newStatus);
+            $this->complaintService->notifyStatusChange($complaint, $complaintId, $newStatus);
 
             // Status transition changes resolved/closed/in_review badge counts
             Cache::forget('staff.complaint-counts');
@@ -210,52 +208,5 @@ final class StaffComplaintController extends Controller
         }
 
         return null;
-    }
-
-    /**
-     * Tell the complainant their complaint moved. Non-fatal: a failed
-     * notification must not undo the response that was already persisted.
-     */
-    private function notifyComplaintUser(Complaint $complaint, int $complaintId, ComplaintStatus $newStatus): void
-    {
-        try {
-            $complaint->loadMissing('user');
-            if ($complaint->user) {
-                $this->notificationService->createNotification(
-                    $complaint->user,
-                    'complaint_response',
-                    'رد على شكواك',
-                    "تم تحديث حالة شكواك إلى: {$newStatus->label()}.",
-                    ['complaint_id' => $complaintId],
-                    'normal',
-                    'system'
-                );
-            }
-        } catch (\Throwable $e) {
-            Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
-        }
-    }
-
-    // ── Private: tab badge counts ─────────────────────────────────────────────
-    private function statusCounts(): array
-    {
-        // GROUP BY aggregate drives all 5 tab badges; called on every index() load.
-        // Busted by escalate(), show(), respond() in this controller.
-        // New complaints from the passenger side self-heal within 1 min.
-        return Cache::remember('staff.complaint-counts', now()->addMinutes(1), function () {
-            $rows = Complaint::query()
-                ->selectRaw('status, COUNT(*) as total')
-                ->groupBy('status')
-                ->pluck('total', 'status')
-                ->toArray();
-
-            return [
-                'all' => array_sum($rows),
-                'pending' => $rows[ComplaintStatus::PENDING->value] ?? 0,
-                'in_review' => $rows[ComplaintStatus::IN_REVIEW->value] ?? 0,
-                'resolved' => $rows[ComplaintStatus::RESOLVED->value] ?? 0,
-                'closed' => $rows[ComplaintStatus::CLOSED->value] ?? 0,
-            ];
-        });
     }
 }

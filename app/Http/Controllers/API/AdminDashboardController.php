@@ -4,8 +4,6 @@ namespace App\Http\Controllers\API;
 
 use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
-use App\Models\User;
 use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminDashboardReadService;
 use App\Services\Admin\AdminExportService;
@@ -145,7 +143,7 @@ final class AdminDashboardController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        /** @var Employee $admin */
+        // the authenticated admin is put on the request attributes by the JWT middleware
         $admin = $request->attributes->get('staffEmployee');
 
         $this->authService->logout($admin->id);

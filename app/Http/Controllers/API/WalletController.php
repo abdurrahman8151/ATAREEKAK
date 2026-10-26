@@ -8,8 +8,7 @@ use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WalletTransactionResource;
 use App\Interfaces\EmailOtpServiceInterface;
-use App\Models\User;
-use App\Models\Wallet;
+use App\Services\Wallet\WalletProvisioningService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -20,6 +19,7 @@ class WalletController extends Controller
 {
     public function __construct(
         private readonly EmailOtpServiceInterface $emailOtpService,
+        private readonly WalletProvisioningService $walletProvisioning,
     ) {}
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ class WalletController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function initiateWalletCreation(Request $request): JsonResponse
     {
-        /** @var User $user */
+        // the authenticated user, hydrated once by the JWT middleware
         $user = $request->user();
         // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
         // hydration, which does not eager-load relations. Every $user->wallet read below
@@ -77,7 +77,7 @@ class WalletController extends Controller
             return $validationError;
         }
 
-        /** @var User $user */
+        // the authenticated user, hydrated once by the JWT middleware
         $user = $request->user();
         // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
         // hydration, which does not eager-load relations. Every $user->wallet read below
@@ -213,11 +213,11 @@ class WalletController extends Controller
     /**
      * Re-confirm the account password. Returns the 401 response, or null when it matches.
      */
-    private function checkAccountPassword(User $user, string $password): ?JsonResponse
+    private function checkAccountPassword($user, string $password): ?JsonResponse
     {
         // Re-confirm the account password before starting wallet creation. The JWT-cached user
         // deliberately omits the password hash (decision un11), so read it fresh from the primary.
-        $passwordHash = User::query()->useWritePdo()->whereKey($user->id)->value('password');
+        $passwordHash = $this->walletProvisioning->passwordHashFor($user->id);
         if (! $passwordHash || ! Hash::check($password, $passwordHash)) {
             return response()->json([
                 'success' => false,
@@ -232,7 +232,7 @@ class WalletController extends Controller
     /**
      * Send the OTP to the user's Gmail and build the step-1 response.
      */
-    private function sendWalletOtp(User $user, string $cacheKey): JsonResponse
+    private function sendWalletOtp($user, string $cacheKey): JsonResponse
     {
         // Send OTP to the user's Gmail (identical to signup / email verification).
         $dto = new SendEmailOtpDTO(
@@ -268,7 +268,7 @@ class WalletController extends Controller
     /**
      * Verify the OTP against the user's email. Returns the 400 response, or null when valid.
      */
-    private function verifyWalletOtp(User $user, string $otpCode): ?JsonResponse
+    private function verifyWalletOtp($user, string $otpCode): ?JsonResponse
     {
         // Verify OTP against the user's email — same DTO / service as signup.
         $dto = new VerifyEmailOtpDTO(
@@ -292,25 +292,18 @@ class WalletController extends Controller
      *
      * @param  array<string, mixed>  $walletData
      */
-    private function createWalletFor(User $user, array $walletData, string $cacheKey): JsonResponse
+    private function createWalletFor($user, array $walletData, string $cacheKey): JsonResponse
     {
         // OTP valid — create wallet and link it to the user.
-        $wallet = Wallet::create([
-            'user_id' => $user->id,
-            'phone_number' => $walletData['phone_number'],
-            'balance' => 0,
-        ]);
-
-        $user->wallet_id = $wallet->id;
-        $user->save();
+        $wallet = $this->walletProvisioning->createFor($user, $walletData['phone_number']);
 
         Cache::forget($cacheKey);
 
         return response()->json([
             'success' => true,
             'message' => 'Wallet created successfully.',
-            'wallet_number' => $wallet->wallet_number,
-            'phone_number' => $wallet->phone_number,
+            'wallet_number' => $wallet['wallet_number'],
+            'phone_number' => $wallet['phone_number'],
         ], 201);
     }
 
@@ -344,20 +337,13 @@ class WalletController extends Controller
             ], 422);
         }
 
-        $wallet = Wallet::create([
-            'user_id' => $user->id,
-            'phone_number' => $request->phone_number,
-            'balance' => 0,
-        ]);
-
-        $user->wallet_id = $wallet->id;
-        $user->save();
+        $wallet = $this->walletProvisioning->createFor($user, $request->phone_number);
 
         return response()->json([
             'success' => true,
             'message' => 'Wallet created successfully.',
-            'wallet_number' => $wallet->wallet_number,
-            'phone_number' => $wallet->phone_number,
+            'wallet_number' => $wallet['wallet_number'],
+            'phone_number' => $wallet['phone_number'],
             'balance' => 0,
         ], 201);
     }

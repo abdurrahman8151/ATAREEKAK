@@ -5,7 +5,6 @@ namespace App\Http\Controllers\API;
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Interfaces\ChatRepositoryInterface;
-use App\Models\User;
 use App\Services\Chat\ChatMessageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -77,7 +76,7 @@ class ChatController extends Controller
 
         try {
             $currentUser = $request->user();
-            $otherUser = User::find($request->user_id);
+            $otherUser = $this->messageHandler->conversationTarget((int) $request->user_id);
 
             // Check if conversation already exists
             $existingConversation = $this->chatRepository->findPrivateConversation(

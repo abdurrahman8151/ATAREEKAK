@@ -5,7 +5,6 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
-use App\Models\User;
 use App\Services\Verification\VerificationSubmissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -100,7 +99,7 @@ class VerificationController extends Controller
      */
     private function ownershipRefusal(int $userId, Request $request): ?JsonResponse
     {
-        if (! User::where('id', $userId)->exists()) {
+        if (! $this->submissions->userExists($userId)) {
             return response()->json([
                 'success' => false,
                 'message' => 'User not found',
@@ -121,7 +120,7 @@ class VerificationController extends Controller
     private function buildStatusPayload(int $userId): array
     {
         return Cache::remember("verification.status.{$userId}", 120, function () use ($userId) {
-            $user = User::findOrFail($userId);
+            $flags = $this->submissions->statusFlags($userId);
 
             $statusLabels = [
                 'none' => 'not_verified',
@@ -139,7 +138,7 @@ class VerificationController extends Controller
 
             return [
                 'success' => true,
-                'status' => $statusLabels[$user->verification_status] ?? 'unknown',
+                'status' => $statusLabels[$flags['verification_status']] ?? 'unknown',
                 'documents' => $documents,
                 'vehicle' => $profile ? [
                     'type' => $profile->type_of_car,
@@ -148,8 +147,8 @@ class VerificationController extends Controller
                     'photo' => $profile->car_pic ? asset("storage/{$profile->car_pic}") : null,
                 ] : null,
                 'verified' => [
-                    'passenger' => (bool) $user->is_verified_passenger,
-                    'driver' => (bool) $user->is_verified_driver,
+                    'passenger' => $flags['is_verified_passenger'],
+                    'driver' => $flags['is_verified_driver'],
                 ],
             ];
         });

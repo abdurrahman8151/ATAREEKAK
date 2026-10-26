@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 final class StaffComplaintService
@@ -341,5 +342,74 @@ final class StaffComplaintService
             // T3-13: non-fatal by intent, but it must be visible.
             Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
         }
+    }
+
+    /**
+     * Tell the complainant their complaint moved. Non-fatal: a failed
+     * notification must not undo the response that was already persisted.
+     */
+    public function notifyStatusChange(Complaint $complaint, int $complaintId, ComplaintStatus $newStatus): void
+    {
+        try {
+            $complaint->loadMissing('user');
+            if ($complaint->user) {
+                $this->notificationService->createNotification(
+                    $complaint->user,
+                    'complaint_response',
+                    'رد على شكواك',
+                    "تم تحديث حالة شكواك إلى: {$newStatus->label()}.",
+                    ['complaint_id' => $complaintId],
+                    'normal',
+                    'system'
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
+        }
+    }
+
+    // ── Private: tab badge counts ─────────────────────────────────────────────
+    public function statusCounts(): array
+    {
+        // GROUP BY aggregate drives all 5 tab badges; called on every index() load.
+        // Busted by escalate(), show(), respond() in this controller.
+        // New complaints from the passenger side self-heal within 1 min.
+        return Cache::remember('staff.complaint-counts', now()->addMinutes(1), function () {
+            $rows = Complaint::query()
+                ->selectRaw('status, COUNT(*) as total')
+                ->groupBy('status')
+                ->pluck('total', 'status')
+                ->toArray();
+
+            return [
+                'all' => array_sum($rows),
+                'pending' => $rows[ComplaintStatus::PENDING->value] ?? 0,
+                'in_review' => $rows[ComplaintStatus::IN_REVIEW->value] ?? 0,
+                'resolved' => $rows[ComplaintStatus::RESOLVED->value] ?? 0,
+                'closed' => $rows[ComplaintStatus::CLOSED->value] ?? 0,
+            ];
+        });
+    }
+
+    /**
+     * The three tab counts on the escalated-complaints page.
+     *
+     * Moved out of StaffAdminController (batch 227) so the controller holds no Eloquent reference.
+     * Same cache key, same 1-minute TTL, same three COUNT queries, and it is busted by
+     * resolveEscalated() exactly as before.
+     *
+     * @return array<string, int>
+     */
+    public function escalatedStatusCounts(): array
+    {
+        // 3 COUNT queries on every admin complaint page open.
+        // Busted by resolveEscalated(); self-heals within 1 min for cross-controller escalations.
+        return Cache::remember('staff.escalated-counts', now()->addMinutes(1), function () {
+            return [
+                'escalated' => Complaint::where('status', ComplaintStatus::ESCALATED->value)->count(),
+                'resolved' => Complaint::where('status', ComplaintStatus::RESOLVED->value)->count(),
+                'closed' => Complaint::where('status', ComplaintStatus::CLOSED->value)->count(),
+            ];
+        });
     }
 }

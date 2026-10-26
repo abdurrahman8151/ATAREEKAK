@@ -157,4 +157,59 @@ class BanService
         Cache::forget('admin.drivers.dashboard');
         Cache::forget('admin.drivers.stats');
     }
+    // =========================================================================
+    // PUBLIC - CONTROLLER LOOKUPS AND PRESENTATION (batch 227)
+    // =========================================================================
+
+    /**
+     * The row a ban decision acts on. `findOrFail` is kept, so an unknown id still throws
+     * ModelNotFoundException and the controller still answers 404.
+     */
+    public function findUserOrFail(int $userId): User
+    {
+        return User::findOrFail($userId);
+    }
+
+    public function formatUserStatus(User $user): array
+    {
+        $accountStatus = match ((int) $user->status) {
+            -1 => 'banned',
+            0 => 'logged_out',
+            1 => 'active',
+            default => 'unknown',
+        };
+
+        $data = [
+            'user_id' => $user->id,
+            'name' => trim("{$user->first_name} {$user->last_name}"),
+            'email' => $user->email,
+            'account_status' => $accountStatus,
+            'status_code' => (int) $user->status,
+            'ban' => null,
+        ];
+
+        if ($user->status == -1) {
+            $bannedBy = $user->banned_by
+                ? User::select('id', 'first_name', 'last_name')->find($user->banned_by)
+                : null;
+
+            $isExpired = $user->ban_type === 'temporary'
+                && $user->ban_expires_at !== null
+                && now()->gt($user->ban_expires_at);
+
+            $data['ban'] = [
+                'reason' => $user->ban_reason,
+                'type' => $user->ban_type,
+                'banned_at' => $user->banned_at?->toIso8601String(),
+                'expires_at' => $user->ban_expires_at?->toIso8601String(),
+                'is_expired' => $isExpired,
+                'banned_by' => $bannedBy ? [
+                    'id' => $bannedBy->id,
+                    'name' => trim("{$bannedBy->first_name} {$bannedBy->last_name}"),
+                ] : null,
+            ];
+        }
+
+        return $data;
+    }
 }

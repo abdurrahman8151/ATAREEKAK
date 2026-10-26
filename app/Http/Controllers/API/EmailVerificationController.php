@@ -9,8 +9,7 @@ use App\Http\Requests\SendEmailOtpRequest;
 use App\Http\Requests\VerifyEmailOtpRequest;
 use App\Interfaces\EmailOtpServiceInterface;
 use App\Interfaces\UserRepositoryInterface;
-use App\Models\User;
-use App\Services\JwtService;
+use App\Services\Auth\EmailVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +18,7 @@ class EmailVerificationController extends Controller
     public function __construct(
         private readonly EmailOtpServiceInterface $emailOtpService,
         private readonly UserRepositoryInterface $userRepository,
-        private readonly JwtService $jwtService,
+        private readonly EmailVerificationService $emailVerificationService,
     ) {}
 
     /**
@@ -47,25 +46,13 @@ class EmailVerificationController extends Controller
             return response()->json($result, 400);
         }
 
-        $user = User::where('email', $dto->email->address())->firstOrFail();
-        $user->update(['email_verified_at' => now()]);
-        $user->refresh();
-
-        $tokens = $this->jwtService->generateTokenPair($user);
+        $completed = $this->emailVerificationService->completeVerification($dto->email->address());
 
         return response()->json([
             'success' => true,
             'message' => 'Email verified. You are now logged in.',
-            'user' => [
-                'id' => $user->id,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
-                'email_verified_at' => $user->email_verified_at,
-                'is_verified_passenger' => $user->is_verified_passenger,
-                'is_verified_driver' => $user->is_verified_driver,
-            ],
-            'tokens' => $tokens,
+            'user' => $completed['user'],
+            'tokens' => $completed['tokens'],
         ]);
     }
 

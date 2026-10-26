@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\API\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Models\Ride;
-use App\Models\User;
 use App\Services\Admin\AdminTripService;
 use App\Services\Admin\AdminUserService;
 use App\Services\Staff\StaffBookingQueryService;

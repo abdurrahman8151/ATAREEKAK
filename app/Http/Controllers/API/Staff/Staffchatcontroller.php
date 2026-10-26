@@ -5,8 +5,6 @@ namespace App\Http\Controllers\API\Staff;
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Interfaces\ChatRepositoryInterface;
-use App\Models\Profile;
-use App\Models\User;
 use App\Services\Chat\ChatMessageHandler;
 use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Http\JsonResponse;
@@ -215,11 +213,12 @@ final class StaffChatController extends Controller
     // =========================================================================
 
     /**
-     * Resolve (or silently create) the shadow User for this employee.
+     * Resolve (or silently create) the shadow account for this employee.
      *
-     * Returns null only when the Employee has no email set.
+     * Returns null only when the employee has no email set. The account itself is built by
+     * EmployeeManagementService, so this controller never names the Eloquent class.
      */
-    private function resolveUserAccount(Request $request): ?User
+    private function resolveUserAccount(Request $request)
     {
         $employee = $request->attributes->get('staffEmployee');
 
@@ -237,7 +236,7 @@ final class StaffChatController extends Controller
      * "sent_by_agent" on the last_message block lets the UI show the correct
      * alignment (right = agent, left = user).
      */
-    private function formatConversation($conversation, User $agentUser): array
+    private function formatConversation($conversation, $agentUser): array
     {
         // Zero DB queries — uses the already eager-loaded participants collection
         $otherUser = $conversation->participants

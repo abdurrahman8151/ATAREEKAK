@@ -12730,3 +12730,165 @@ REFACTORING batch (section K): the long-method backlog (40 methods of 85+ lines,
 - Parked: nothing new. The two Review failures above are the pre-existing pair (an owner file and a test edit, both red on HEAD) and stay parked for the same reasons section 225 gives.
 
 - Owner-file note: AGENTS.md, docs/audit/BACKLOG.md, docs/audit/STATE.md, docs/audit/backlog-status.png, docs/audit/render-backlog-status.py, phpunit.xml, scripts/rv13-sweep-ridecontroller.php, tests/Feature/Review/RV42aSuspendedMeansBannedTest.php and the untracked docker-compose.local.yml still carry the owner's uncommitted edits and are excluded from this commit. The commit contains the nine refactored app files, the twenty new app files, tests/Feature/Review/MoneyRoundingIsDecidedInOnePlaceTest.php and this audit section.
+
+---
+
+## 227 — Boundary baselines, slice 1: `controllers_to_models` 18 -> 2
+
+Batch 227 (owner's standing REFACTORING MODE). The owner ordered the `BoundaryDependencyTest`
+baselines lowered to their measured numbers, in this order: (1) `controllers_to_models` 18, moving
+each controller's model queries into the service that owns that context and taking the validated
+array/DTO (the `BookingActionService` / `VerificationSubmissionService` pattern), parking files whose
+only remaining use is a plain route-model lookup; (2) `domain_to_models` 10 by replacing Eloquent
+type-hints in the Domain/Score policies with DTOs; (3) `domain_to_services` 2, `repos_to_services` 2,
+`models_to_enums` 3, `request_in_services` 1; then the five behaviour traits as injected collaborators
+and the 39 `app()` calls as constructor injection. This section records slice 1 plus the parts of the
+`app()` work that slice 1 removed on the way. Slices 2 and 3, the traits and the remaining `app()`
+sites are the continuation of the same batch and are named at the bottom.
+
+- What the boundary test counted before and after. Both columns are the rule's own output (the file
+  prints "only N violations remain ... lower the number in BASELINES to claim the improvement" and
+  names every offending file), not a doc's claim:
+
+| rule | baseline before | measured before | baseline after | measured after |
+|---|---|---|---|---|
+| controllers_to_models | 18 | 18 | **2** | 2 |
+| domain_to_services | 2 | 2 | 2 | 2 (untouched in slice 1) |
+| repos_to_services | 2 | 2 | 2 | 2 (untouched) |
+| request_below_http | 0 (HARD) | 0 | 0 | 0 |
+| request_in_services | 1 | 1 | 1 | 1 (untouched) |
+| async_to_http | 0 (HARD) | 0 | 0 | 0 |
+| models_to_enums | 3 | 3 | 3 | 3 (untouched) |
+| domain_to_models | 10 | 10 | 10 | 10 (untouched) |
+| domain_to_http | 0 (HARD) | 0 | 0 | 0 |
+
+The two files still counted are `Http/Controllers/API/AdminWalletRequestController.php` (the money
+path: `Wallet::lockForUpdate()`, two `WalletTransaction::create()` calls, `app(LedgerService::class)`)
+and `Http/Controllers/API/PassengerProfileController.php` (seven query sites across the passenger
+profile surface). Neither is parked: they are the next step of this batch. The baseline was lowered
+from 18 to the measured 2, never raised, and its comment records that the owner's instruction
+supersedes the older comment in the same file which called wrapping each `User::findOrFail($id)`
+"indirection with no benefit".
+
+- Extraction, by controller (line counts as `(Get-Content <file>).Count`; every moved body was moved
+  byte-for-byte, and the HTTP statuses, response keys and message strings are unchanged):
+
+  1. `API/AdminDashboardController.php` 477 -> 476. The `Employee` and `User` imports were dead ends:
+     the only real use was a `/** @var Employee $admin */` docblock, now a plain comment. 0 models.
+  2. `API/Staff/StaffOperationsController.php` 0 refs: two dead imports (`Ride`, `User`) removed.
+  3. `API/Staff/StaffChatController.php` 0 refs: dead `Profile` import; `resolveUserAccount(Request)`
+     and `formatConversation($conversation, $agentUser)` lost their `User` type-hints.
+  4. `API/ContactController.php` -> 87: `leastLoadedSupportAgent()` moved out with its SQL unchanged.
+  5. `API/Staff/EmployeeManagementController.php`: `formatEmployee()` keeps its home in the
+     controller (FIX 3, pinned by `tests/Feature/Staff`) and lost only its `Employee` type-hint.
+  6. `API/ChatController.php`: the `User::whereKey()` lookup became
+     `ChatMessageHandler::conversationTarget(int $userId)`.
+  7. `API/EmailVerificationController.php`: `completeVerification()` in the new
+     `Services/Auth/EmailVerificationService.php` owns the `firstOrFail()`, the `email_verified_at`
+     write and the seven response fields; `JwtService` moves there with them.
+  8. `API/VerificationController.php`: `userExists()` and `statusFlags()` on
+     `VerificationSubmissionService` (the `findOrFail` 404 behaviour is kept).
+  9. `API/NotificationController.php` -> 191: `findForUser()`, `findManyForUser()` and
+     `markAsUnread()` on `NotificationService`.
+  10. `API/ResetPasswordController.php` -> 98: the lookup, hash write, token consumption, JWT
+      revocation and log line moved to the new `Services/Auth/PasswordResetService.php`, which takes
+      the caller's ip as a string.
+  11. `API/ScoreController.php` -> 163: the paginated transaction query and its reference hydration
+      moved to the new `Services/Score/ScoreHistoryService.php`; `ScoreController::formatScore()`
+      keeps its public static surface (three callers and a `RoutesIntegrityTest` allowlist entry
+      depend on it) and lost only the `UserScore` type-hint.
+  12. `API/AdminDriverController.php` -> 355: three private helpers (`resolvePeriodBounds`,
+      `countProcessedVerifications`, `countIncomingVerifications`) were DEAD - the pairs moved to
+      `AdminDashboardActivityService` in section 226 already own the queries - so they are deleted
+      along with their banner and the `User`/`Carbon` imports.
+  13. `API/Staff/StaffComplaintController.php` -> 214: `notifyComplaintUser()` became
+      `StaffComplaintService::notifyStatusChange()` and `statusCounts()` became
+      `StaffComplaintService::statusCounts()` (same cache key and TTL), moved byte-for-byte so the
+      Arabic message strings travelled untouched.
+  14. `API/Staff/StaffAdminController.php` -> 353: the cached pending list, the row lookup and both
+      cache busts moved to the new `Services/Staff/StaffVerificationQueueService.php`;
+      `escalatedStatusCounts()` moved to `StaffComplaintService`. The notification text stayed in the
+      controller (it reads several request fields); only `app(NotificationService::class)` became an
+      injected collaborator.
+  15. `API/WalletController.php` -> 391: `Services/Wallet/WalletProvisioningService.php` (new) owns
+      the `useWritePdo()` password re-read (decision un11) and both wallet creations with their
+      `$user->save()` link, so `createWalletFor()` and `createDirect()` share one method.
+  16. `API/AdminBanController.php` -> 281: `BanService` gained `findUserOrFail()` and the
+      `formatUserStatus()` presenter (with its `User::select(...)` lookup) moved there verbatim.
+
+- `app()` -> constructor injection, as a side effect of slice 1 (measured `app_locator_calls` for the
+  `X::class` form: 39 -> 32, so seven sites went away in this slice):
+  `ResetPasswordController` (`JwtService`), `StaffAdminController` (`VerificationApprovalService`,
+  `NotificationService`), `AdminBanController` (`BanService` x2, `NotificationService` x2). No new
+  `app()` call was introduced. The remaining 32 are the next slice (AdminWalletRequestController 3,
+  PushNotificationController 2, StaffCancellationService 4, WhatsAppOtpService 4, and thirteen
+  single-site services).
+
+- File-length floor (section 226's `files_over_500: 0`) was briefly broken by this batch and is
+  restored: `EmployeeManagementService.php` reached 505 lines when the routing query landed there, so
+  that query moved once more, into the new `Services/Staff/SupportAgentRoutingService.php`, and the
+  service is back to 475 with the largest file in `app/` again `AdminWalletRequestController.php` 493.
+
+- Result (metric script, `app/` only):
+
+| metric | before this batch | after |
+|---|---|---|
+| files_over_500 | 0 | 0 |
+| methods_85_plus | 0 | 0 |
+| methods_60_plus | 0 | 0 |
+| methods_60_to_84 | 0 | 0 |
+| php_files | 312 | 318 |
+| methods_total | 1629 | 1644 |
+| app_locator_calls | 39 | 32 |
+
+- Verification, serialized against the scratch DB (127.0.0.1:3399 / t3_batch), after `php -l` and
+  `pint --test` on every changed PHP file (PASS, 0 style issues):
+  1. Identity, staff, notifications, money-adjacent and boundary floors -
+     `tests/Feature/Staff tests/Feature/Notifications tests/Feature/Auth tests/Feature/Wallet
+     tests/Feature/Chat tests/Feature/Complaints tests/Feature/Verification tests/Feature/AppFuture
+     tests/Unit/Services/Staff`: 508 tests, failures after the two regressions below were fixed: only
+     `Chat/ContactControllerTest::test_returns_503_when_agent_employee_exists_but_has_no_user_account`.
+     Re-run of the three staff paths (`tests/Feature/Staff tests/Feature/Chat
+     tests/Unit/Services/Staff`): 310 tests, 1 failure, that same one.
+  2. Admin, payment, ride and domain floors - `tests/Feature/Admin tests/Feature/Payment
+     tests/Feature/Rides tests/Feature/Bookings tests/Unit/Domain`: **OK (390 tests, 731 assertions)**.
+  3. Pinned ratchet floor plus the boundary rule - `tests/Feature/Review tests/Feature/AppFuture`:
+     671 tests, exactly the 2 failures section 226 also left (`BacklogTableShapeTest` on the owner's
+     BACKLOG.md, and `NoDuplicatedFixtureHelpersTest::test_no_test_file_logs_in_to_a_staff_or_admin_door_with_an_email`,
+     which would need a test edit). `BoundaryDependencyTest` is GREEN with the baseline now 2.
+  4. Focused re-run after the file-length split - `tests/Feature/Chat
+     tests/Feature/Staff/EmployeeManagementControllerTest.php tests/Feature/AppFuture`: 52 tests, 1
+     failure, the same pre-existing Chat one.
+
+- The pre-existing Chat failure, with its evidence rather than an assertion that it is old: HEAD's
+  `ContactController` already calls `$this->managementService->ensureShadowUser($agent)`, and
+  `EmployeeManagementService::ensureShadowUser()` CREATES the missing `User`, so the endpoint answers
+  201 where that test expects 503. `tests/Feature/Chat` was not part of any earlier batch's floor, and
+  this batch's diff on `ContactController` is one call site plus one move (the moved SQL is
+  byte-identical to HEAD's), and its diff on `EmployeeManagementService` is pure addition - so the
+  failure is red on HEAD. It is not fixed here because the fix is a behaviour change (whether a staff
+  employee without a shadow user should 503 or self-heal), which REFACTORING MODE forbids.
+
+- Regressions this batch introduced, caught by the repo's own checks, fixed before the commit:
+  1. `StaffComplaintService` had no `use Illuminate\Support\Facades\Cache;` - the class never used the
+     facade until `statusCounts()` moved into it - so thirteen staff complaint/escalation tests failed
+     with a 500. Import added; the staff re-run is 310 tests / 1 pre-existing failure.
+  2. `BanService::findUserOrFail()` was called by the refactored controller before it existed
+     ("Call to undefined method App\Services\Admin\BanService::findUserOrFail()"), which failed all
+     eighteen `AdminBanControllerTest` cases plus two identity-attribution tests. The method was
+     added, and a scratch collaborator checker (every `$this-><injected>->method(` must exist on the
+     injected class) now runs before the next test run.
+  3. The file-length floor regressed to `files_over_500: 1` via `EmployeeManagementService.php` 505 -
+     fixed by the `SupportAgentRoutingService` split described above.
+
+- Infrastructure note: the scratch MySQL went down mid-batch again and the first 508-test run of that
+  moment was 508 errors, not a result. It was restarted once with the documented command and the same
+  selection re-run, which is the run recorded above.
+
+- Parked: nothing new in slice 1. The two Review failures are the pre-existing pair (an owner file
+  and a test edit) and stay parked for the reasons sections 225 and 226 give.
+
+- Owner-file note: AGENTS.md, docs/audit/BACKLOG.md, docs/audit/STATE.md, docs/audit/backlog-status.png,
+  docs/audit/render-backlog-status.py, phpunit.xml, scripts/rv13-sweep-ridecontroller.php,
+  tests/Feature/Review/RV42aSuspendedMeansBannedTest.php and untracked docker-compose.local.yml were
+  already modified in the working tree and are NOT part of this commit.

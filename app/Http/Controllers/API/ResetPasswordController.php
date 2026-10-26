@@ -3,13 +3,10 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Services\JwtService;
+use App\Services\Auth\PasswordResetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -34,6 +31,8 @@ use Illuminate\Support\Facades\Validator;
  */
 class ResetPasswordController extends Controller
 {
+    public function __construct(private readonly PasswordResetService $passwordResetService) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -62,9 +61,14 @@ class ResetPasswordController extends Controller
             return $this->expiredLinkResponse();
         }
 
-        $user = User::where('email', $email)->first();
+        $applied = $this->passwordResetService->resetForEmail(
+            $email,
+            (string) $request->input('password'),
+            $cacheKey,
+            $request->ip(),
+        );
 
-        if (! $user) {
+        if (! $applied) {
             // Decision 8 (owner ruling A - uniform errors, no account enumeration): "Account not
             // found." was a third, distinct way of saying the same thing, and a distinct response is
             // exactly what makes a difference readable. Answer with the SAME 400 the
@@ -74,32 +78,9 @@ class ResetPasswordController extends Controller
             return $this->expiredLinkResponse();
         }
 
-        $this->resetPassword($request, $user, $cacheKey);
-
         return response()->json([
             'success' => true,
             'message' => 'Your password has been reset successfully. You can now log in.',
-        ]);
-    }
-
-    /**
-     * Apply the new hash, consume the reset token, and revoke every live JWT.
-     */
-    private function resetPassword(Request $request, User $user, string $cacheKey): void
-    {
-        // Update password
-        $user->password = Hash::make($request->input('password'));
-        $user->save();
-
-        // Consume the token — it must not be reusable
-        Cache::forget($cacheKey);
-
-        // Revoke all JWT tokens (increments token_version + deletes refresh tokens)
-        app(JwtService::class)->revokeAllTokens($user->id);
-        Log::info('Password reset via OTP flow', [
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'ip' => $request->ip(),
         ]);
     }
 

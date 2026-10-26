@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Services\Admin\AdminDriverService;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\ModelNotFoundException;      // ← added
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -352,67 +350,5 @@ final class AdminDriverController extends Controller
                 'message' => 'Failed to load verification efficiency',
             ], 500);
         }
-    }
-
-    // =========================================================================
-    // Private helpers — not endpoints, no caching
-    // =========================================================================
-
-    private function resolvePeriodBounds(string $period): array
-    {
-        $now = Carbon::now();
-
-        switch ($period) {
-            case 'day':
-                $currentStart = $now->copy()->startOfDay();
-                $currentEnd = $now->copy()->endOfDay();
-                $previousStart = $now->copy()->subDay()->startOfDay();
-                $previousEnd = $now->copy()->subDay()->endOfDay();
-                $label = 'day';
-                $prevLabel = 'day';
-                break;
-
-            case 'month':
-                $currentStart = $now->copy()->startOfMonth();
-                $currentEnd = $now->copy()->endOfMonth();
-                $previousStart = $now->copy()->subMonth()->startOfMonth();
-                $previousEnd = $now->copy()->subMonth()->endOfMonth();
-                $label = 'month';
-                $prevLabel = 'month';
-                break;
-
-            case 'week':
-            default:
-                $currentStart = $now->copy()->startOfWeek();
-                $currentEnd = $now->copy()->endOfWeek();
-                $previousStart = $now->copy()->subWeek()->startOfWeek();
-                $previousEnd = $now->copy()->subWeek()->endOfWeek();
-                $label = 'week';
-                $prevLabel = 'week';
-                break;
-        }
-
-        return [$currentStart, $currentEnd, $previousStart, $previousEnd, $label, $prevLabel];
-    }
-
-    private function countProcessedVerifications(
-        Carbon $start,
-        Carbon $end
-    ): int {
-        return User::whereIn('verification_status', ['approved', 'rejected'])
-            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
-            ->whereBetween('updated_at', [$start, $end])
-            ->count();
-    }
-
-    private function countIncomingVerifications(
-        Carbon $start,
-        Carbon $end
-    ): int {
-        return User::whereHas('photos', function ($q) use ($start, $end) {
-            $q->whereIn('type', ['license', 'mechanic_card'])
-                ->whereBetween('created_at', [$start, $end]);
-        })
-            ->count();
     }
 }

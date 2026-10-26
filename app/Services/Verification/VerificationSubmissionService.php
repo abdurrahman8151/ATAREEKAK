@@ -330,4 +330,37 @@ final class VerificationSubmissionService
             Log::warning('verification notification failed (non-fatal): '.$e->getMessage());
         }
     }
+    // =========================================================================
+    // PUBLIC — CONTROLLER LOOKUPS (batch 227)
+    // =========================================================================
+
+    /**
+     * Does this user row exist? Used by the controller's 404 branch.
+     *
+     * Moved here from VerificationController so the controller holds no Eloquent reference.
+     * Same query, same answer.
+     */
+    public function userExists(int $userId): bool
+    {
+        return User::whereKey($userId)->exists();
+    }
+
+    /**
+     * The three account flags the verification status payload reports.
+     *
+     * Moved here from VerificationController. `findOrFail` is kept, so a missing row still
+     * surfaces exactly as it did before.
+     *
+     * @return array{verification_status: string|null, is_verified_passenger: bool, is_verified_driver: bool}
+     */
+    public function statusFlags(int $userId): array
+    {
+        $user = User::findOrFail($userId);
+
+        return [
+            'verification_status' => $user->verification_status,
+            'is_verified_passenger' => (bool) $user->is_verified_passenger,
+            'is_verified_driver' => (bool) $user->is_verified_driver,
+        ];
+    }
 }

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\UserNotification;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,9 +36,7 @@ class NotificationController extends Controller
     //      so Laravel tried to resolve it from the container → 500
     public function markAsRead(Request $request, int $id): JsonResponse
     {
-        $notification = UserNotification::where('user_id', $request->user()->id)
-            ->where('id', $id)
-            ->first();
+        $notification = $this->notificationService->findForUser($request->user()->id, $id);
 
         if (! $notification) {
             return response()->json([
@@ -60,9 +57,7 @@ class NotificationController extends Controller
     // FIX: same route-binding mismatch as markAsRead
     public function markAsUnread(Request $request, int $id): JsonResponse
     {
-        $notification = UserNotification::where('user_id', $request->user()->id)
-            ->where('id', $id)
-            ->first();
+        $notification = $this->notificationService->findForUser($request->user()->id, $id);
 
         if (! $notification) {
             return response()->json([
@@ -71,7 +66,7 @@ class NotificationController extends Controller
             ], 404);
         }
 
-        $notification->update(['read_at' => null]);
+        $this->notificationService->markAsUnread($notification);
 
         return response()->json([
             'success' => true,
@@ -94,9 +89,7 @@ class NotificationController extends Controller
     // FIX: same route-binding mismatch as markAsRead
     public function destroy(Request $request, int $id): JsonResponse
     {
-        $notification = UserNotification::where('user_id', $request->user()->id)
-            ->where('id', $id)
-            ->first();
+        $notification = $this->notificationService->findForUser($request->user()->id, $id);
 
         if (! $notification) {
             return response()->json([
@@ -162,9 +155,7 @@ class NotificationController extends Controller
         // here (the middleware sets the default guard), so this is a consistency fix: the
         // method was the lone exception in a controller that uses $request->user()
         // everywhere, and it is what the RV-36 ratchet brings to zero.
-        $notifications = UserNotification::whereIn('id', $request->notification_ids)
-            ->where('user_id', $userId)
-            ->get();
+        $notifications = $this->notificationService->findManyForUser($userId, $request->notification_ids);
 
         if ($notifications->isEmpty()) {
             return response()->json([
@@ -180,7 +171,7 @@ class NotificationController extends Controller
                 break;
 
             case 'mark_unread':
-                $notifications->each(fn ($n) => $n->update(['read_at' => null]));
+                $notifications->each(fn ($n) => $this->notificationService->markAsUnread($n));
                 $message = 'Notifications marked as unread';
                 break;
 

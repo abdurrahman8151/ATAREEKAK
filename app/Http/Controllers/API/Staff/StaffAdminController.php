@@ -5,10 +5,9 @@ namespace App\Http\Controllers\API\Staff;
 use App\Enums\ComplaintStatus;
 use App\Http\Controllers\Controller;
 use App\Interfaces\VerificationRepositoryInterface;
-use App\Models\Complaint;
-use App\Models\User;
 use App\Services\NotificationService;
 use App\Services\Staff\StaffComplaintService;
+use App\Services\Staff\StaffVerificationQueueService;
 use App\Services\Verification\DuplicateNationalIdException;
 use App\Services\Verification\VerificationApprovalService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -39,6 +38,9 @@ final class StaffAdminController extends Controller
 {
     public function __construct(
         private readonly StaffComplaintService $complaintService,
+        private readonly StaffVerificationQueueService $verificationQueue,
+        private readonly VerificationApprovalService $approvalService,
+        private readonly NotificationService $notificationService,
         private readonly VerificationRepositoryInterface $verificationRepo,
     ) {}
 
@@ -52,36 +54,7 @@ final class StaffAdminController extends Controller
             // Heavy eager load (photos + profiles for every pending user).
             // Busted explicitly by approveVerification() and rejectVerification().
             // New submissions from the user side self-heal within TTL.
-            $pending = Cache::remember('staff.pending-verifications', now()->addMinutes(2), function () {
-                return User::with(['photos', 'profile'])
-                    ->where('verification_status', 'pending')
-                    ->orderByDesc('updated_at')
-                    ->get()
-                    ->map(function (User $u) {
-                        $docTypes = $u->photos->pluck('type')->toArray();
-                        $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
-
-                        return [
-                            'user_id' => $u->id,
-                            'name' => trim("{$u->first_name} {$u->last_name}"),
-                            'email' => $u->email,
-                            'gender' => $u->gender,
-                            'address' => $u->address,
-                            'type' => $isDriver ? 'driver' : 'passenger',
-                            'profile_photo' => $u->profile?->profile_photo
-                                ? asset('storage/'.$u->profile->profile_photo)
-                                : null,
-                            'documents' => $u->photos->map(fn ($p) => [
-                                'type' => $p->type,
-                                // Decision 1b: KYC documents are served by the staff-authenticated
-                                // streaming route, not as a public asset() URL. The old public URL was
-                                // an IDOR: anyone holding it could download a face ID / licence.
-                                'url' => route('staff.documents.show', ['photoId' => $p->id]),
-                            ])->values()->all(),
-                            'submitted_at' => $u->updated_at->toIso8601String(),
-                        ];
-                    })->values()->all();
-            });
+            $pending = $this->verificationQueue->pendingVerificationList();
 
             return response()->json([
                 'status' => 'success',
@@ -128,12 +101,11 @@ final class StaffAdminController extends Controller
         $nationalId = trim($request->input('national_id'));
 
         try {
-            $approved = app(VerificationApprovalService::class)->approve($userId, $nationalId);
+            $approved = $this->approvalService->approve($userId, $nationalId);
             $verified = $approved->user;
 
             // User leaves the pending list; their staff profile now shows new verification status
-            Cache::forget('staff.pending-verifications');
-            Cache::forget("staff.user-profile.{$userId}");
+            $this->verificationQueue->bustStaffCaches($userId);
 
             return response()->json([
                 'status' => 'success',
@@ -180,7 +152,7 @@ final class StaffAdminController extends Controller
         }
 
         try {
-            $user = User::findOrFail($userId);
+            $user = $this->verificationQueue->findUserOrFail($userId);
 
             $pendingError = $this->pendingVerificationGuard($user);
             if ($pendingError) {
@@ -193,11 +165,10 @@ final class StaffAdminController extends Controller
                 'is_verified_driver' => false,
             ]);
 
-            $this->notifyVerificationRejected($user, $request);
+            $this->notifyVerificationRejected($user, $request->input('reason'));
 
             // User leaves the pending list; their staff profile now shows new verification status
-            Cache::forget('staff.pending-verifications');
-            Cache::forget("staff.user-profile.{$userId}");
+            $this->verificationQueue->bustStaffCaches($userId);
 
             return response()->json([
                 'status' => 'success',
@@ -240,7 +211,7 @@ final class StaffAdminController extends Controller
      * Only a user whose request is still pending can be rejected.
      * Returns the 422 response, or null when the rejection may proceed.
      */
-    private function pendingVerificationGuard(User $user): ?JsonResponse
+    private function pendingVerificationGuard($user): ?JsonResponse
     {
         if ($user->verification_status !== 'pending') {
             return response()->json([
@@ -256,15 +227,15 @@ final class StaffAdminController extends Controller
      * Tell the user their verification was rejected. Non-fatal: a failed
      * notification must not undo the decision that was already persisted.
      */
-    private function notifyVerificationRejected(User $user, Request $request): void
+    private function notifyVerificationRejected($user, ?string $reason): void
     {
         try {
-            app(NotificationService::class)->createNotification(
+            $this->notificationService->createNotification(
                 $user,
                 'verification_rejected',
                 'طلب التوثيق مرفوض',
                 'تم رفض طلب توثيق حسابك.'
-                .($request->input('reason') ? ' السبب: '.$request->input('reason') : ' يمكنك إعادة التقديم بعد تصحيح البيانات.'),
+                .($reason ? ' السبب: '.$reason : ' يمكنك إعادة التقديم بعد تصحيح البيانات.'),
                 ['user_id' => $user->id],
                 'high',
                 'system'
@@ -311,7 +282,7 @@ final class StaffAdminController extends Controller
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
             ],
-            'counts' => $this->escalatedStatusCounts(),
+            'counts' => $this->complaintService->escalatedStatusCounts(),
         ]);
     }
 
@@ -370,19 +341,6 @@ final class StaffAdminController extends Controller
     // =========================================================================
     // SHARED
     // =========================================================================
-
-    private function escalatedStatusCounts(): array
-    {
-        // 3 COUNT queries on every admin complaint page open.
-        // Busted by resolveEscalated(); self-heals within 1 min for cross-controller escalations.
-        return Cache::remember('staff.escalated-counts', now()->addMinutes(1), function () {
-            return [
-                'escalated' => Complaint::where('status', ComplaintStatus::ESCALATED->value)->count(),
-                'resolved' => Complaint::where('status', ComplaintStatus::RESOLVED->value)->count(),
-                'closed' => Complaint::where('status', ComplaintStatus::CLOSED->value)->count(),
-            ];
-        });
-    }
 
     private function serverError(): JsonResponse
     {

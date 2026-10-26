@@ -7,6 +7,7 @@ use App\Jobs\SendPushNotificationJob;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\UserNotification;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;
 
@@ -97,5 +98,48 @@ class NotificationService
     public function deleteNotification(UserNotification $notification): void
     {
         $notification->delete();
+    }
+
+    // =========================================================================
+    // CONTROLLER LOOKUPS (batch 227)
+    // =========================================================================
+
+    /**
+     * One notification, scoped to its owner. Null means "not found for this caller",
+     * which is what the controller's 404 branch tests.
+     *
+     * Moved here from NotificationController so the controller holds no Eloquent reference.
+     */
+    public function findForUser(int $userId, int $notificationId): ?UserNotification
+    {
+        return UserNotification::where('user_id', $userId)
+            ->where('id', $notificationId)
+            ->first();
+    }
+
+    /**
+     * The caller's own rows among the given ids, in the order the database returns them.
+     *
+     * Moved here from NotificationController's bulk action. The RV-36 behaviour is unchanged:
+     * ids that belong to someone else never reach this list.
+     *
+     * @param  array<int, int|string>  $notificationIds
+     * @return Collection<int, UserNotification>
+     */
+    public function findManyForUser(int $userId, array $notificationIds)
+    {
+        return UserNotification::whereIn('id', $notificationIds)
+            ->where('user_id', $userId)
+            ->get();
+    }
+
+    /**
+     * Mark one notification unread (read_at back to null).
+     *
+     * The controller used to write the attribute itself; this keeps the same single UPDATE.
+     */
+    public function markAsUnread(UserNotification $notification): void
+    {
+        $notification->update(['read_at' => null]);
     }
 }
