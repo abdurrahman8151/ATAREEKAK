@@ -4,6 +4,7 @@ namespace App\Console\Testing;
 
 use App\Console\Commands\GuardsAgainstProductionExecution;
 use App\Console\Testing\Support\FullRideFlowScenarios;
+use App\Console\Testing\Support\RideFlowHarness;
 use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\Employee;
@@ -36,9 +37,20 @@ use Illuminate\Support\Facades\DB;
  */
 use Illuminate\Support\Facades\Hash;
 
-class Testfullrideflow extends Command
+class Testfullrideflow extends Command implements RideFlowHarness
 {
-    use FullRideFlowScenarios;
+    private ?FullRideFlowScenarios $scenarios = null;
+
+    /**
+     * The scenarios live in their own class and reach the command's helpers through the
+     * RideFlowHarness interface; the command hands itself in as that harness. Built lazily so the
+     * command keeps its parent constructor (which registers the signature) untouched.
+     */
+    private function scenarios(): FullRideFlowScenarios
+    {
+        return $this->scenarios ??= new FullRideFlowScenarios($this);
+    }
+
     use GuardsAgainstProductionExecution; // AF-4
 
     protected $signature = 'syride:test-noshow {--commit : Persist data instead of rolling back}';
@@ -67,28 +79,28 @@ class Testfullrideflow extends Command
         $this->renderHeader();
 
         // ── S1: gate check ──────────────────────────────────────────────────
-        $this->scenarioGateBeforeOneHour($noshowService);
+        $this->scenarios()->scenarioGateBeforeOneHour($noshowService);
 
         // ── S2: passenger reports driver; driver −15 ─────────────────────────
-        $this->scenarioCashPassengerReportsDriver($noshowService);
+        $this->scenarios()->scenarioCashPassengerReportsDriver($noshowService);
 
         // ── S3: driver reports passenger; passenger −15 ───────────────────────
-        $this->scenarioCashDriverReportsPassenger($noshowService);
+        $this->scenarios()->scenarioCashDriverReportsPassenger($noshowService);
 
         // ── S4: both report → dispute → auto-complaint ────────────────────────
-        $this->scenarioBothReportDispute($noshowService);
+        $this->scenarios()->scenarioBothReportDispute($noshowService);
 
         // ── S5: disputed → scheduler skips → no penalties ─────────────────────
-        $this->scenarioDisputedSkipsPenalties($noshowService);
+        $this->scenarios()->scenarioDisputedSkipsPenalties($noshowService);
 
         // ── S6: e-pay — driver no-show → escrow back to passenger ─────────────
-        $this->scenarioEPayDriverNoShowRefund($noshowService);
+        $this->scenarios()->scenarioEPayDriverNoShowRefund($noshowService);
 
         // ── S7: e-pay — passenger no-show → escrow released to driver ─────────
-        $this->scenarioEPayPassengerNoShowRelease($noshowService);
+        $this->scenarios()->scenarioEPayPassengerNoShowRelease($noshowService);
 
         // ── S8: duplicate report by same role rejected ─────────────────────────
-        $this->scenarioDuplicateReportRejected($noshowService);
+        $this->scenarios()->scenarioDuplicateReportRejected($noshowService);
 
         // ── Summary ─────────────────────────────────────────────────────────────
         $this->renderSummary();
@@ -125,7 +137,7 @@ class Testfullrideflow extends Command
     // SCENARIO RUNNER
     // =========================================================================
 
-    private function runScenario(string $name, callable $fn): void
+    public function runScenario(string $name, callable $fn): void
     {
         $this->line("\n  ┌─ {$name}");
         $this->scenFail = false;
@@ -153,7 +165,7 @@ class Testfullrideflow extends Command
     // ASSERTION HELPER
     // =========================================================================
 
-    private function check(string $label, mixed $expected, mixed $actual): void
+    public function check(string $label, mixed $expected, mixed $actual): void
     {
         $norm = fn ($v) => $v instanceof \BackedEnum ? $v->value : ($v instanceof \UnitEnum ? strtolower($v->name) : $v);
         $e = $norm($expected);
@@ -192,7 +204,7 @@ class Testfullrideflow extends Command
     // SCENARIO FACTORY
     // =========================================================================
 
-    private function makeScenario(string $payment): array
+    public function makeScenario(string $payment): array
     {
         $this->seq++;
         $n = $this->seq;
@@ -314,7 +326,7 @@ class Testfullrideflow extends Command
     // $adminWallet is the sycash wallet (the one actually debited for no-shows).
     // =========================================================================
 
-    private function setupWallets(User $driver, User $passenger, float $escrowAmount): array
+    public function setupWallets(User $driver, User $passenger, float $escrowAmount): array
     {
         $n = $this->seq;
 
@@ -404,7 +416,7 @@ class Testfullrideflow extends Command
     // SCORE HELPER — returns 100 (starting score) if no record exists yet
     // =========================================================================
 
-    private function score(User $user): int
+    public function score(User $user): int
     {
         return (int) (UserScore::where('user_id', $user->id)->value('score') ?? 100);
     }

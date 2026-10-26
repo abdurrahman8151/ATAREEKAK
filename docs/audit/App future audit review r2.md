@@ -13416,3 +13416,50 @@ This slice is a repair, not new work, and the third instance of the same mistake
   slices 5-7's `tests/Feature/Review`, and the general reminder that pinned ratchets fail by path, not by
   symbol, so `git grep` for the symbol does not find them.
 - Still left in batch 227: trait 5 (`FullRideFlowScenarios`).
+### 227 continued — slice 14: trait 5 of 5 (`FullRideFlowScenarios` -> injected collaborator) and the batch closes
+
+The last trait. It keeps its exact path because a pinned ratchet asserts that path exists and that the
+file rounds no money, so this is a trait -> class conversion in place.
+
+- `Console/Testing/Support/FullRideFlowScenarios.php`: `trait` became `final class` with
+  `__construct(private readonly RideFlowHarness $harness)`. The eight `scenario*` methods are public now
+  (the command calls them), and their five host-helper calls were re-pointed mechanically -
+  `$this->check(` -> `$this->harness->check(` (32), `score` (12), `makeScenario` (8), `runScenario` (8),
+  `setupWallets` (2). Method bodies are otherwise byte-for-byte; the trait never printed anything, so no
+  reporter was needed.
+- New `Console/Testing/Support/RideFlowHarness.php`: a five-method interface with the exact signatures the
+  scenarios use (`runScenario(string, callable): void`, `check(string, mixed, mixed): void`,
+  `makeScenario(string): array`, `setupWallets(User, User, float): array`, `score(User): int`).
+- `Console/Testing/Testfullrideflow.php`: `implements RideFlowHarness`, dropped `use FullRideFlowScenarios;`,
+  the five helpers became public (the interface requires it; the four private fixture builders stayed
+  private), the eight calls in `handle()` read `$this->scenarios()->scenarioX($noshowService)`, and the
+  collaborator is built lazily with the command as its harness.
+
+- **Failure inside this slice, found by the run and fixed before the commit.** The first attempt injected
+  `FullRideFlowScenarios` into the command's constructor. Artisan resolves commands through the container
+  at boot, so the container then tried to build the `RideFlowHarness` interface, which is not bound:
+  `Target [App\Console\Testing\Support\RideFlowHarness] is not instantiable while building
+  [App\Console\Testing\Testfullrideflow]`, and the suite collapsed with **518 errors**. Fixed by
+  hand-assembling the collaborator inside the command (`$this->scenarios ??= new FullRideFlowScenarios($this)`)
+  - the same pattern this codebase already uses for console and test tooling - which keeps the constructor
+  injection inside the collaborator and removes the container dependency entirely. Note the shape of that
+  mistake: it was invisible to `php -l` and to `pint`, and it only appeared once a suite that boots the
+  console kernel ran.
+
+- Verification: `tests/Feature/AppFuture tests/Feature/Review tests/Feature/Console` ->
+  713 tests, 2545 assertions, 6 failures, all accounted for:
+  1. the known pre-existing Review pair (`BacklogTableShapeTest`, `NoDuplicatedFixtureHelpersTest`);
+  2-4. three `CleanupExpiredTokensCommandTest` failures that are **order-dependent** - they pass when
+     `tests/Feature/Console` runs on its own (42 tests, 1 failure) and only fail when the console suite
+     runs after AppFuture and Review;
+  5. `JwtSecretCommandTest::test_show_flag_outputs_base64_encoded_key`, which fails in isolation too.
+  The batch cannot have caused the four console failures: `git diff --name-only 6f80210..HEAD -- app/Console
+  tests/Feature/Console` is empty, and no test under `tests/Feature/Console` names any symbol this batch
+  changed. Recorded here rather than papered over; they are outside this batch's scope and were not edited.
+  `AppFuture` - which holds the boundary test and `UntangleBatchTest`'s `app()->make(Testfullrideflow::class)`
+  assertion - was fully green in that run.
+
+- **Batch 227 is complete.** All five behaviour traits are injected collaborators
+  (`NoShowReportGuard`, `PassengerWalletCharger`, `PassengerProfilePanelBuilder`, `AdminDriverPresenter`,
+  `FullRideFlowScenarios`); every real container lookup of a collaborator in `app/` is gone (0 left, one
+  docblock mention); and every `BoundaryDependencyTest` baseline sits at its measured number.
