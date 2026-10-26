@@ -15,10 +15,11 @@ use App\Models\User;
  * counter-report stays open), who may report, that the ride is live, and that no report is
  * already pending.
  *
- * Split out of Noshowservice (behaviour unchanged) as a trait so the reporting flow keeps
- * calling its guards exactly as before. Bodies moved verbatim.
+ * Split out of Noshowservice (behaviour unchanged), then out of NoShowReportService as an injected
+ * collaborator (batch 227) so the service that owns the persistence no longer also holds the guard
+ * logic. Bodies moved verbatim.
  */
-trait NoShowReportGuards
+final class NoShowReportGuard
 {
     // AF-4 (app-future audit): GATE_MINUTES=1 / DISPUTE_MINUTES=2 were testing
     // values with the real hours commented out above them — a two-minute
@@ -31,7 +32,7 @@ trait NoShowReportGuards
         return (float) config('rides.noshow.gate_hours', 1);
     }
 
-    private function disputeHours(): float
+    public function disputeHours(): float
     {
         return (float) config('rides.noshow.dispute_hours', 2);
     }
@@ -40,7 +41,7 @@ trait NoShowReportGuards
      * Everything the driver path must clear before a report may be opened: ownership,
      * the booking still being confirmed, a live ride, the time gate, and no duplicate.
      */
-    private function assertDriverMayReportPassengerNoShow(
+    public function assertDriverMayReportPassengerNoShow(
         Booking $booking,
         Ride $ride,
         User $driver,
@@ -69,7 +70,7 @@ trait NoShowReportGuards
      * Everything the passenger path must clear before a report may be opened: a live
      * ride, the time gate, and no duplicate report from the same passenger on the ride.
      */
-    private function assertPassengerMayReportDriverNoShow(Ride $ride, User $passenger): void
+    public function assertPassengerMayReportDriverNoShow(Ride $ride, User $passenger): void
     {
         $this->assertRideIsLive($ride);
         $this->assertNoShowGateOpen($ride);

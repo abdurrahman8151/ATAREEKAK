@@ -7,8 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Services\JwtService;
 use App\Services\NotificationService;
 use App\Services\Profile\BuildsPassengerProfilePanels;
-use App\Services\Profile\ChargesPassengerWallet;
 use App\Services\Profile\PassengerProfileQueryService;
+use App\Services\Profile\PassengerWalletCharger;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,12 +53,12 @@ use Illuminate\Support\Str;
 final class PassengerProfileController extends Controller
 {
     use BuildsPassengerProfilePanels;
-    use ChargesPassengerWallet;
 
     public function __construct(
         private readonly JwtService $jwtService,
         private readonly NotificationService $notificationService,
         private readonly PassengerProfileQueryService $profileQueries,
+        private readonly PassengerWalletCharger $walletCharger,
     ) {}
 
     // =========================================================================
@@ -300,20 +300,20 @@ final class PassengerProfileController extends Controller
             $user = $this->profileQueries->withWalletOrFail($userId);
 
             if (! $user->wallet) {
-                return $this->noWalletResponse();
+                return $this->walletCharger->noWalletResponse();
             }
 
             $amount = (float) $request->input('amount');
 
             DB::transaction(function () use ($user, $amount, $request) {
-                $credit = $this->creditWalletBalance($user, $amount);
+                $credit = $this->walletCharger->creditWalletBalance($user, $amount);
                 $this->recordAdminChargeTransaction($credit, $user, $amount, $request);
 
                 // ── Decision un3 (owner choice (a)): external flow ──────────────────────
                 // An admin charge is money arriving from OUTSIDE the platform. Recorded against the
                 // External Capital account so the ledger closes - without it this was a balance
                 // change no ledger entry could explain.
-                $this->injectExternalCapital($credit['wallet'], $user, $amount);
+                $this->walletCharger->injectExternalCapital($credit['wallet'], $user, $amount);
 
                 Log::info('Admin charged passenger wallet', [
                     'passenger_id' => $user->id,
@@ -325,14 +325,14 @@ final class PassengerProfileController extends Controller
             });
 
             // Bust caches — wallet balance and transaction list are now stale
-            $this->bustWalletChargeCaches($userId);
+            $this->walletCharger->bustWalletChargeCaches($userId);
 
             // Notify the user
             $this->notifyWalletCharged($user, $amount, $request);
 
             $user->wallet->refresh();
 
-            return $this->chargeSuccessResponse($user->wallet);
+            return $this->walletCharger->chargeSuccessResponse($user->wallet);
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
@@ -372,7 +372,7 @@ final class PassengerProfileController extends Controller
             'reference' => 'admin_charge:'.$user->id,
         ]);
 
-        $this->injectExternalCapital($credit['wallet'], $user, $amount);
+        $this->walletCharger->injectExternalCapital($credit['wallet'], $user, $amount);
     }
 
     /** Tell the passenger the administration topped up their wallet (non-fatal on failure). */

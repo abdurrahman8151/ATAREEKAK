@@ -54,7 +54,7 @@ final class Noshowservice
         private readonly NotificationService $notificationService,
     ) {
         $this->conflicts = new NoShowConflictService($notificationService);
-        $this->reports = new NoShowReportService($notificationService, $this->conflicts);
+        $this->reports = new NoShowReportService($notificationService, $this->conflicts, new NoShowReportGuard);
         $this->penalties = new NoShowPenaltyService($scoreService, $noShowSettlement, $notificationService);
     }
 

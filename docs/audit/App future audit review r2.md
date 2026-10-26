@@ -13086,3 +13086,56 @@ Three of the four remaining rules are now empty; the fourth is parked with the r
   3. `tests/Feature/Review` (the pinned ratchet floor) -> 651 tests, 2 failures, the identical
      pre-existing pair (`BacklogTableShapeTest` on the owner's BACKLOG.md and
      `NoDuplicatedFixtureHelpersTest::test_no_test_file_logs_in_to_a_staff_or_admin_door_with_an_email`).
+### 227 continued — slice 5: two of the five behaviour traits are now injected collaborators
+
+The batch's last item is the five behaviour traits. Two are done (both verified), three remain; the
+`app()` locator count in `app/` went 29 -> 28 on the way.
+
+- Trait 1 of 5: `Services/Ride/NoShowReportGuards.php` (146 lines) became
+  `Services/Ride/NoShowReportGuard.php`, a `final class` with no constructor. The body moved
+  byte-for-byte - only the declaration and the three methods the host calls changed visibility
+  (`assertDriverMayReportPassengerNoShow`, `assertPassengerMayReportDriverNoShow`, `disputeHours` are
+  public now; `gateHours` and the other guards stay private). `NoShowReportService` stopped
+  `use`-ing the trait and takes `NoShowReportGuard $guard` in its constructor; its three call sites
+  read `$this->guard->...`. The old trait file is deleted and nothing named the trait outside that one
+  host.
+
+- Trait 2 of 5: `Services/Profile/ChargesPassengerWallet.php` (113 lines) became
+  `Services/Profile/PassengerWalletCharger.php`, a `final class` whose constructor injects
+  `LedgerService`. That is the batch's cleanest `app()` win: the `app(LedgerService::class)` call inside
+  `injectExternalCapital()` is now a constructor dependency, which is why `app_locator_calls` is 28
+  rather than 29. `PassengerProfileController` dropped `use ChargesPassengerWallet;`, injects the class
+  and routes its five call sites (`noWalletResponse`, `creditWalletBalance`, `injectExternalCapital`
+  x2, `bustWalletChargeCaches`, `chargeSuccessResponse`) through `$this->walletCharger`. Every wallet
+  write, the External Capital lookup, the `EXT-ADM-` transaction id, the cache keys and the response
+  envelopes are byte-identical to the trait's.
+
+- Regression this slice introduced, caught by the `tests/Feature/AppFuture` floor and fixed before the
+  commit: `Noshowservice` builds its collaborators by hand (`new NoShowReportService($notificationService,
+  $this->conflicts)`), so the new third constructor argument made
+  `UntangleBatchTest::test_reporting_a_no_show_before_the_hour_gate_is_refused` fail with an
+  `ArgumentCountError` instead of the expected `InvalidArgumentException`. The construction site now
+  passes `new NoShowReportGuard` - no `app()` call was introduced - and the test passes unchanged.
+
+- Verification, serialized on the scratch DB, `php -l` and `pint --test` clean on every touched file:
+  1. `tests/Feature/Rides tests/Feature/Bookings tests/Feature/Wallet tests/Feature/Payment
+     tests/Unit/Domain` -> **OK (302 tests, 512 assertions, 2 skipped)** after trait 1.
+  2. `tests/Feature/Profile tests/Feature/Admin tests/Feature/Wallet tests/Feature/Payment
+     tests/Feature/AppFuture tests/Feature/Rides tests/Feature/Bookings` after trait 2, before the
+     Noshowservice fix: 334 tests, 4 failures - the three known pre-existing `ProfileTest` ones plus the
+     Noshowservice one above.
+  3. `tests/Feature/AppFuture tests/Feature/Rides tests/Feature/Bookings tests/Feature/Profile` after
+     the fix: 139 tests, 3 failures, exactly the pre-existing `ProfileTest` trio. That run is what
+     clears `UntangleBatchTest` and `BoundaryDependencyTest`.
+
+- Metric after slice 5 (app/ only): php_files 327, methods_total 1660, files_over_500 0,
+  methods_85_plus 0, app_locator_calls 28.
+
+- Still to do in this batch: `BuildsPassengerProfilePanels` (273 lines, host `PassengerProfileController`),
+  `AdminDriverPresenting` (247 lines, THREE hosts: `AdminDashboardActivityService`,
+  `AdminDriverDashboardService`, `AdminDriverQueryService`), and `FullRideFlowScenarios` (269 lines,
+  host `Console/Testing/Testfullrideflow`; its scenario methods print through the Command's
+  `$this->info()/error()`, so the class needs a reporting strategy rather than a plain move). The three
+  other traits in `app/` are out of scope: `GuardsAgainstProductionExecution` and
+  `RideGatedInteractionScenarios` are console-only concerns, and `Models/Concerns/GuardsLazyLoading`
+  is a model concern.

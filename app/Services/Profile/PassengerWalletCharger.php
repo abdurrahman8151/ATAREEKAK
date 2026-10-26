@@ -18,11 +18,19 @@ use Illuminate\Support\Str;
  * Split out of PassengerProfileController (behaviour unchanged). The two helpers that read the
  * authenticated admin from the request (recordAdminChargeTransaction, notifyWalletCharged) stay
  * in the controller, which is the HTTP boundary. Bodies moved verbatim.
+ *
+ * Batch 227: the controller no longer mixes these mechanics in through a trait. It injects this
+ * class instead, which is also where the LedgerService is now constructor-injected, replacing the
+ * one app(LedgerService::class) call that used to sit inside injectExternalCapital().
  */
-trait ChargesPassengerWallet
+final class PassengerWalletCharger
 {
+    public function __construct(
+        private readonly LedgerService $ledgerService,
+    ) {}
+
     /** The 422 for a passenger who has no wallet row yet. */
-    private function noWalletResponse(): JsonResponse
+    public function noWalletResponse(): JsonResponse
     {
         return response()->json([
             'status' => 'error',
@@ -35,7 +43,7 @@ trait ChargesPassengerWallet
      *
      * @return array{wallet: Wallet, previous: float, current: float}
      */
-    private function creditWalletBalance(User $user, float $amount): array
+    public function creditWalletBalance(User $user, float $amount): array
     {
         $wallet = Wallet::lockForUpdate()->findOrFail($user->wallet->id);
 
@@ -51,7 +59,7 @@ trait ChargesPassengerWallet
      * Record the inbound leg against the External Capital system wallet and post the
      * matching ledger transfer.
      */
-    private function injectExternalCapital($wallet, User $user, float $amount): void
+    public function injectExternalCapital($wallet, User $user, float $amount): void
     {
         $external = Wallet::where('phone_number', config('admin.external.phone'))
             ->where('kind', 'system')
@@ -83,7 +91,7 @@ trait ChargesPassengerWallet
             'reference' => 'admin_charge:'.$user->id,
         ]);
 
-        app(LedgerService::class)->postExternalTransfer(
+        $this->ledgerService->postExternalTransfer(
             $external,
             $wallet,
             (float) $amount,
@@ -93,7 +101,7 @@ trait ChargesPassengerWallet
     }
 
     /** Bust every cached admin view that embeds the wallet balance or its charges. */
-    private function bustWalletChargeCaches(int $userId): void
+    public function bustWalletChargeCaches(int $userId): void
     {
         Cache::forget("admin.passenger.full-profile.{$userId}");
         Cache::forget("admin.passenger.stats.{$userId}");
@@ -102,7 +110,7 @@ trait ChargesPassengerWallet
     }
 
     /** The POST charge-wallet success envelope, read from the refreshed wallet row. */
-    private function chargeSuccessResponse($wallet): JsonResponse
+    public function chargeSuccessResponse($wallet): JsonResponse
     {
         return response()->json([
             'status' => 'success',

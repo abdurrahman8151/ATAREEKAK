@@ -21,11 +21,10 @@ use Illuminate\Support\Facades\Log;
  */
 final class NoShowReportService
 {
-    use NoShowReportGuards;
-
     public function __construct(
         private readonly NotificationService $notificationService,
         private readonly NoShowConflictService $conflicts,
+        private readonly NoShowReportGuard $guard,
     ) {}
 
     public function reportPassengerNoShow(int $bookingId, User $driver): array
@@ -36,7 +35,7 @@ final class NoShowReportService
             $ride = $booking->ride;
             $passenger = $booking->user;
 
-            $this->assertDriverMayReportPassengerNoShow($booking, $ride, $driver, $bookingId);
+            $this->guard->assertDriverMayReportPassengerNoShow($booking, $ride, $driver, $bookingId);
 
             // CONFLICT CHECK: has this passenger already reported the driver?
             $counterReport = $this->findCounterReport(
@@ -73,7 +72,7 @@ final class NoShowReportService
 
             $booking = $this->findPassengerConfirmedBooking($ride, $passenger);
 
-            $this->assertPassengerMayReportDriverNoShow($ride, $passenger);
+            $this->guard->assertPassengerMayReportDriverNoShow($ride, $passenger);
 
             // CONFLICT CHECK: has the driver already reported this passenger?
             $counterReport = $this->findCounterReport(
@@ -219,7 +218,7 @@ final class NoShowReportService
             'target_role' => $targetRole,
             'payment_method' => $ride->payment_method,
             'status' => 'pending',
-            'expires_at' => now()->addHours($this->disputeHours()),
+            'expires_at' => now()->addHours($this->guard->disputeHours()),
         ]);
     }
 
