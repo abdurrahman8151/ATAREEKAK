@@ -13884,3 +13884,68 @@ wrote docs\audit\.tmp-backlog-231.png  (150 rows)
 150 rows, 139 verified fix, 4 parked. Owner action: add `"PARKED"` to `COLORS` (and to `ORDER`) in
 `render-backlog-status.py`, or tell me to, and the 4 parked rows become visible in the chart instead of
 aborting it.
+
+### 231.4 Item 4 - migration 2026_10_13_000001 against a real, production-shaped schema: PARKED as written, and what was proved instead
+
+**Parked first, because it is the honest headline: `C:\temp\prod-schema.sql` does not exist on this machine.**
+A search of `C:\`, `C:\temp`, `C:\Users\ALZOUBI`, its `Downloads`, `Documents` and `Desktop`, and the
+repository found exactly two SQL files - `C:\Users\ALZOUBI\Downloads\4th_year_project_db.sql` (34 KB, a
+phpMyAdmin dump from June 2025) and the gitignored `dump.sql` in the repository root (3.9 MB, `mysqldump` of
+`4th_year_project_db`, Linux MySQL 8.0.45). Neither is the named file, so the requested procedure - load
+**that** file into a throwaway database and run the migration against it - could not be performed as written.
+Nothing was substituted silently: what follows says exactly which schema each run used.
+
+Both runs stayed on the scratch server (127.0.0.1:3399, throwaway databases created for the purpose, dropped
+afterwards). Aiven was never contacted, and no production credential was used or printed. `php artisan
+migrate --path=<this one file> --force` ran for real (never `--pretend`), with `APP_ENV=local` - outside
+local/testing the app's own `BootGuards` refuses to boot with `OTP_BYPASS_ENABLED=true`, which is a second
+reason the command must never be pointed at production by accident.
+
+**Run A - a database built from production's own `SHOW CREATE TABLE` for the two tables.** `user_ratings` and
+`profile_comments` were created from the owner's pasted production definition (columns, nullability, the
+three-column unique `user_ratings_rater_id_rated_user_id_ride_id_unique`, the `_ride_id_foreign` indexes and
+the `ON DELETE SET NULL` foreign keys), with `users`, `profiles` and `rides` created as bare `id` tables so
+those keys can exist. A canonical `information_schema` snapshot (columns with type/nullability/default/
+position, indexes with uniqueness and column order, foreign keys with their delete rule) was taken before and
+after:
+
+```
+diff: BEFORE vs AFTER run 1
+  => tables_in_db=6          (Laravel's own bookkeeping table, created by the migrator)
+  => migrations_table=present
+  => migrations_rows=1
+  => migration_2026_10_13_000001_recorded=yes
+  <= tables_in_db=5
+  <= migrations_table=absent
+diff: AFTER run 1 vs AFTER run 2 (its migrations row deleted first, so the file executed again)
+  (identical)
+```
+
+**Not one line of the two tables' shape changed** - no column, index or foreign key appeared, disappeared or
+moved. The only difference in the whole snapshot is the migrator's own `migrations` table and its row. The
+second run proves the file itself is re-runnable, not merely recorded once.
+
+**Run B - the real 3.9 MB `dump.sql`.** That schema already carries `ride_id` on both tables, and its unique
+keys are named differently from production's: `user_ratings.uq_rating_rater_rated_ride (rater_id,
+rated_user_id, ride_id)` and `profile_comments.uq_comment_user_profile_ride (user_id, profile_id, ride_id)`.
+Its `migrations` table has 59 rows and does **not** contain the two `2026_08_21_*` names, so this dump is a
+different environment from the production the owner described - worth saying plainly. Running this batch's
+migration against it:
+
+```
+diff: BEFORE vs AFTER
+  => migrations_rows=60
+  => migration_2026_10_13_000001_recorded=yes
+  <= migrations_rows=59
+  <= migration_2026_10_13_000001_recorded=no
+```
+
+Again **only the migrator's bookkeeping changed**. That run is the strongest available evidence for the
+guard that mattered: the existing three-column unique has a *different name* from production's, and because
+the migration matches the key by **column set** rather than by name, it recognised it and added nothing -
+where a name-based `hasIndex` guard would have tried to create a second, duplicate unique key.
+
+**What is therefore proved, and what is not.** Proved: on two independently built production-shaped schemas -
+one from the owner's verbatim DDL, one a real mysqldump - the migration changes no column, index or foreign
+key, and re-running it changes nothing at all. Not proved: that the same holds for the Aiven schema itself,
+because the named dump was missing and the migration was never run there. That remains an owner action.
