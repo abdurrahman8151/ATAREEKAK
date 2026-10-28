@@ -13732,3 +13732,34 @@ Genuinely unverified / owner follow-up:
 - `RV30DataModelHygieneTest::user_ratings_keeps_unique_rater_rated_user_pair` and
   `WaveZeroVerificationTest::test_v9_user_ratings_unique_blocks_per_ride_ratings` still carry messages describing
   the old per-pair rule. Their assertions pass unchanged; rewording those messages is an owner call.
+
+## 231. Batch 231 - BACKLOG/STATE records for batches 223-230, the duplicate-rating 409, and a no-op proof for migration 2026_10_13_000001
+
+Owner brief (verbatim): "New goal, same REFACTORING MODE. Owner approvals for this batch: you MAY edit
+BACKLOG.md and STATE.md (my work is committed, the tree is clean), and you MAY change
+ProfileInteractionHandler::rateUser so a duplicate rating returns its intended 409." Items 1-5 as listed,
+then "One commit per item group, audit section 231."
+
+### 231.1 Item 1 - the three malformed BACKLOG section-2 rows, and BacklogTableShapeTest unparked
+
+Three rows violated the 8-column header of section 2:
+
+- line 150 (row 6, V6) and line 158 (row 14, V14) each contained a literal always-true shell fallback
+  written with two pipe characters inside a code span. To any reader of that table those pipes are cell
+  delimiters - the ratchet's own `splitRow()` splits on them - and they break the row in rendered markdown
+  as well. Both are reworded with no pipe at all: "The always-true shell fallback was removed (T3-11), so a
+  failing suite is a red job." and "...with no always-true shell fallback and no `if: always()`.".
+- line 186 (row 41, RV-20) carried a ninth cell holding
+  `**Owner decided (R2 sec 183): keep the reason-argument design; no split.**`. That sentence is merged into
+  the Evidence cell and its stray delimiter removed, so the row is 8 cells again and nothing is lost.
+
+`tests/Feature/Review/BacklogTableShapeTest.php`: the `markTestSkipped` at line 131 that parked
+`test_every_row_of_the_backlog_table_has_exactly_the_header_column_count` (batch 228) is replaced by an
+UNPARKED note naming the three repairs. The test now runs its live scan: **OK (6 tests, 149 assertions)**.
+
+Note for the owner: the working tree still carried your uncommitted edits to AGENTS.md, BACKLOG.md,
+STATE.md, backlog-status.png, render-backlog-status.py, phpunit.xml, scripts/rv13-sweep-ridecontroller.php
+and tests/Feature/Review/RV42aSuspendedMeansBannedTest.php (eight tracked files, plus the untracked
+docker-compose.local.yml), so "my work is committed, the tree is clean" did not hold when this batch
+started. The pending BACKLOG.md content is the three malformed-cell edits above plus rows 128-132, and this
+item's commit necessarily carries the whole file. The other seven files were not touched.

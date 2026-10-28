@@ -122,14 +122,10 @@ class BacklogTableShapeTest extends TestCase
 
     public function test_every_row_of_the_backlog_table_has_exactly_the_header_column_count(): void
     {
-        // PARKED (batch 228, by owner instruction). This ratchet reads docs/audit/BACKLOG.md, which is
-        // the owner's uncommitted file and currently carries three malformed section-2 rows (lines 150
-        // and 158 have 10 cells, line 186 has 9, against the 8-column header above). The repair belongs
-        // to that file, not to this test. The other four ratchets in this class stay live.
-        // Unpark when a BACKLOG.md whose section-2 rows all carry 8 cells is committed: delete these
-        // three lines and re-run this file.
-        $this->markTestSkipped('parked: docs/audit/BACKLOG.md is mid-edit by the owner (batch 228)');
-
+        // UNPARKED (batch 231). The three malformed section-2 rows this ratchet was waiting on are
+        // repaired in BACKLOG.md - the two 10-cell rows lost the literal pipe characters that split
+        // their Evidence cells (lines 150 and 158) and row 41's stray ninth cell is merged back into
+        // its Evidence cell (line 186) - with the owner's approval to edit that file.
         $offenders = [];
 
         foreach ($this->backlogRows() as $lineNo => $line) {
