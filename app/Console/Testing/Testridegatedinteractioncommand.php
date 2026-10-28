@@ -4,6 +4,7 @@ namespace App\Console\Testing;
 
 use App\Console\Commands\GuardsAgainstProductionExecution;
 use App\Console\Testing\Support\RideGatedInteractionScenarios;
+use App\Exceptions\Domain\DomainException;
 use App\Models\Booking;
 use App\Models\Profile;
 use App\Models\Ride;
@@ -133,7 +134,10 @@ class Testridegatedinteractioncommand extends Command
             $action();
         } catch (\Exception $e) {
             $blocked = true;
-            $code = $e->getCode();
+            // Batch 231: a typed domain refusal carries its status in httpStatus (ConflictViolation =
+            // 409); the older sites below still carry it in the exception's code. Prefer the typed one
+            // when it is there, so this report keeps naming the status the client would receive.
+            $code = $e instanceof DomainException ? $e->httpStatus : $e->getCode();
         }
 
         return [$blocked, $code];

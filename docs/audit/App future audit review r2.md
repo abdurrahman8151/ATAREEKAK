@@ -13773,11 +13773,17 @@ purpose: `ProfileInteractionService::rateUser` throws `'You have already rated t
 The fixed 500 therefore hid a deliberate client error behind "Failed to load rating statistics. Please try
 again.", which is what batch 230 recorded as the app's real behaviour.
 
-Fix, owner-approved and kept to the handler: the caught exception is now matched by EXACT code -
-`$e->getCode() === 409` - and only then answered as 409 with the service's own message. Nothing is passed
-through generally: every other exception keeps the fixed 500 and its log line, so RV-13's requirement stands
-and `RV13DomainExceptionMaskingTest` stays green. `comment()` is deliberately untouched, because the owner
-approved `rateUser` only.
+Fix, owner-approved: the duplicate rating is now a TYPED refusal, not a code the handler interprets.
+`ProfileInteractionService::rateUser` throws `App\Exceptions\Domain\ConflictViolation` (httpStatus 409 - the
+class RV-13's own ratchet docblock names for "the request collided with the current state of the world"), and
+`ProfileInteractionHandler::rateUser` catches `DomainException` BEFORE the generic `catch (\Exception)` and
+answers `$e->httpStatus` with the exception's own message. That is the exact idiom
+`WalletRequestController::requestCharge` already uses. Nothing derives a status from `$e->getCode()`: every
+other exception keeps the fixed 500 and its log line, so RV-13's requirement stands. `comment()` is
+deliberately untouched, because the owner approved `rateUser` only.
+`Testridegatedinteractioncommand::attemptBlocked()` - the manual scenario harness whose "HTTP code is 409"
+check read `$e->getCode()` - now prefers `$e->httpStatus` for a typed domain refusal, so that report still
+names the status a client would receive.
 
 The assertion this batch flipped in 230 is flipped back: `ProfileTest`'s
 `test_a_second_rating_for_the_same_ride_is_refused_and_keeps_one_row` asserts 409 again, and still asserts
@@ -13799,6 +13805,20 @@ Verification: `tests/Feature/Profile`, `RV30DataModelHygieneTest`, `WaveZeroVeri
 `RV13DomainExceptionMaskingTest` and every test file `git grep` finds for the changed symbols -
 **OK (46 tests, 80 assertions)**. The duplicate path still logs `Profile: rating stats failed`, and the
 response is `{"success":false,"message":"You have already rated this ride."}` with HTTP 409.
+
+**Correction, recorded because the first attempt shipped red.** The first version of this change did it inside
+the handler: `if ($e->getCode() === 409)` plus `'message' => $e->getMessage()`, under the generic
+`catch (\Exception)`. A scoped run - ProfileTest, RV30, WaveZero, RV13DomainExceptionMaskingTest - was green,
+so it was committed (`85cc9c6`), and the **full suite then failed 3**:
+`ExceptionMessageLeakRatchetTest::no_controller_may_add_a_new_raw_exception_message_leak` and
+`::no_controller_returns_a_raw_exception_message_to_a_client`, because a `getMessage()` inside a BROAD catch is
+a leak by that ratchet's own docblock, and
+`RV13ExceptionCodeAsStatusTest::no_controller_uses_an_exception_code_as_an_http_status`, because a `getCode()`
+in a controller is the very defect that ratchet exists for. The lesson is about test SELECTION, not about the
+goal: `git grep` on the changed symbols found only ProfileTest, and the two ratchets that scan controller
+SOURCE never came up until the full run. The typed exception above satisfies both ratchets by construction, and
+the final full suite is green (`Tests: 2578, Assertions: 6790, Skipped: 2`, 0 failures, exit 0). The red state
+is recorded here rather than rewritten away.
 
 ### 231.3 Item 2 - batches 223-230 are recorded in BACKLOG.md and STATE.md, and both censuses are reported
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\Profile;
 
+use App\Exceptions\Domain\ConflictViolation;
 use App\Models\Booking;
 use App\Models\Profile;
 use App\Models\ProfileComment;
@@ -109,7 +110,9 @@ class ProfileInteractionService
             ->exists();
 
         if ($alreadyRated) {
-            throw new \Exception('You have already rated this ride.', 409);
+            // Batch 231: a typed refusal, not a bare \Exception carrying 409 in its code. The status
+            // belongs to the exception TYPE (RV-13), and the handler answers $e->httpStatus.
+            throw new ConflictViolation('You have already rated this ride.');
         }
 
         UserRating::create([

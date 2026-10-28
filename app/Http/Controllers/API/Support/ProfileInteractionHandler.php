@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API\Support;
 
+use App\Exceptions\Domain\DomainException;
 use App\Services\Profile\ProfileInteractionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
@@ -112,6 +113,16 @@ final class ProfileInteractionHandler
                 'data' => $ratingStats,
             ]);
 
+        } catch (DomainException $e) {
+            // Batch 231: the duplicate rating is a CURATED refusal and now arrives as a typed domain
+            // exception (ConflictViolation, httpStatus 409) instead of a bare \Exception carrying 409
+            // in its code. A specific catch is exactly the shape RV-13 wants, and the status comes
+            // from the exception's own declared httpStatus - never from getCode(). Same idiom as
+            // WalletRequestController::requestCharge.
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e->httpStatus);
         } catch (\Exception $e) {
             // RV-13: message to the log, not the client. Fixed 500, not $e->getCode() - an
             // exception code is not an HTTP status (a PDOException carries 23000, and
@@ -121,17 +132,9 @@ final class ProfileInteractionHandler
                 'error' => $e->getMessage(),
             ]);
 
-            // Batch 231: the one DELIBERATE refusal this service raises - a second rating for the same
-            // ride - carries 409 on purpose, so it is answered as 409 with its own message. It is
-            // matched by exact code, never by passing $e->getCode() through: every other exception
-            // keeps the fixed 500 below, which is what RV-13 requires.
-            if ($e->getCode() === 409) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage(),
-                ], 409);
-            }
-
+            // Batch 231: the deliberate duplicate-rating refusal no longer reaches here - it is a typed
+            // ConflictViolation and is answered by the specific catch above. Everything else keeps the
+            // fixed 500 that RV-13 requires.
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load rating statistics. Please try again.',
