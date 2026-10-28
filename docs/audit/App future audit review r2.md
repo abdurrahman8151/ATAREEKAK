@@ -13763,3 +13763,39 @@ and tests/Feature/Review/RV42aSuspendedMeansBannedTest.php (eight tracked files,
 docker-compose.local.yml), so "my work is committed, the tree is clean" did not hold when this batch
 started. The pending BACKLOG.md content is the three malformed-cell edits above plus rows 128-132, and this
 item's commit necessarily carries the whole file. The other seven files were not touched.
+
+### 231.2 Item 3 - the duplicate rating answers its intended 409, and two ratchet messages stop describing a rule that no longer ships
+
+`app/Http/Controllers/API/Support/ProfileInteractionHandler.php::rateUser` answered a fixed 500 for every
+exception - the RV-13 rule that an exception code is not an HTTP status, written when the catch-all mapped
+raw codes (a PDOException carries 23000). But the service has ONE deliberate refusal, and it carries 409 on
+purpose: `ProfileInteractionService::rateUser` throws `'You have already rated this ride.'` with code 409.
+The fixed 500 therefore hid a deliberate client error behind "Failed to load rating statistics. Please try
+again.", which is what batch 230 recorded as the app's real behaviour.
+
+Fix, owner-approved and kept to the handler: the caught exception is now matched by EXACT code -
+`$e->getCode() === 409` - and only then answered as 409 with the service's own message. Nothing is passed
+through generally: every other exception keeps the fixed 500 and its log line, so RV-13's requirement stands
+and `RV13DomainExceptionMaskingTest` stays green. `comment()` is deliberately untouched, because the owner
+approved `rateUser` only.
+
+The assertion this batch flipped in 230 is flipped back: `ProfileTest`'s
+`test_a_second_rating_for_the_same_ride_is_refused_and_keeps_one_row` asserts 409 again, and still asserts
+that only one `user_ratings` row survives.
+
+Two pinned ratchets carried messages describing the superseded per-PAIR rule. The owner approved changing
+ONLY their message text, and that is all that changed:
+
+- `RV30DataModelHygieneTest::user_ratings_keeps_unique_rater_rated_user_pair` now says the unique must span
+  the rater/rated pair, which since batch 230 is the shipped three-column unique
+  `(rater_id, rated_user_id, ride_id)`.
+- `WaveZeroVerificationTest::test_v9_user_ratings_unique_blocks_per_ride_ratings` now says the same: a
+  unique over the pair is still present, it is the three-column key, and it means one rating per ride.
+
+Neither predicate nor assertion was touched; each message replacement was one `preg_replace` whose match
+count was asserted to be exactly 1 before the file was written, followed by `php -l` and `pint`.
+
+Verification: `tests/Feature/Profile`, `RV30DataModelHygieneTest`, `WaveZeroVerificationTest`,
+`RV13DomainExceptionMaskingTest` and every test file `git grep` finds for the changed symbols -
+**OK (46 tests, 80 assertions)**. The duplicate path still logs `Profile: rating stats failed`, and the
+response is `{"success":false,"message":"You have already rated this ride."}` with HTTP 409.

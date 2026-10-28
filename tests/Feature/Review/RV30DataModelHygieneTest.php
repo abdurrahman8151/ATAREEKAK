@@ -122,8 +122,7 @@ class RV30DataModelHygieneTest extends TestCase
 
         $this->assertTrue(
             $hasPair,
-            'RV-30/V9: user_ratings must keep unique(rater_id, rated_user_id). Changing this to '
-            .'"one per ride" is a product decision — do not alter it implicitly.'
+            'RV-30/V9: user_ratings must keep a unique key over (rater_id, rated_user_id) - since batch 230 (migration 2026_10_13_000001) that key is the shipped three-column unique (rater_id, rated_user_id, ride_id), which is the shape production has. Do not drop the rater/rated pair out of it.'
         );
     }
 }

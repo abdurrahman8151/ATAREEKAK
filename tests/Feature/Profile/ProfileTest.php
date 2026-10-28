@@ -154,12 +154,12 @@ class ProfileTest extends TestCase
             ->postJson("/api/profile/{$this->otherUser->id}/rate", ['rating' => 3, 'ride_id' => $ride->id])
             ->assertStatus(200);
 
-        // The service refuses the duplicate with a 409-coded exception, but
-        // ProfileInteractionHandler catches \Exception and answers a fixed 500 (RV-13: an exception
-        // code is not an HTTP status). 500 is therefore the app's real answer for a repeat rating.
+        // Batch 231: ProfileInteractionHandler now passes the service's deliberate 409 refusal
+        // through (the duplicate rating is matched by exact code, not by the exception's code in
+        // general), so a repeat rating answers 409 while the one-row invariant below still holds.
         $this->withToken($this->token)
             ->postJson("/api/profile/{$this->otherUser->id}/rate", ['rating' => 5, 'ride_id' => $ride->id])
-            ->assertStatus(500);
+            ->assertStatus(409);
 
         $this->assertEquals(1, UserRating::where('rater_id', $this->user->id)
             ->where('rated_user_id', $this->otherUser->id)->count());

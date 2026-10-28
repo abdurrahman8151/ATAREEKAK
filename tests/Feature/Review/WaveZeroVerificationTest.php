@@ -321,8 +321,7 @@ class WaveZeroVerificationTest extends TestCase
         $hasPair = collect($unique)->contains(fn ($i) => str_contains($i->cols ?? '', 'rater_id') && str_contains($i->cols ?? '', 'rated_user_id'));
         $this->assertTrue(
             $hasPair,
-            'V9: unique(rater_id, rated_user_id) still present — one rating per PAIR, '
-            .'so "one rating per ride" (RV-30) requires the ride_id column to enter that index.'
+            'V9: a unique key over (rater_id, rated_user_id) is still present - since batch 230 it is the shipped three-column unique (rater_id, rated_user_id, ride_id), i.e. one rating per ride for the same rater and the same rated user. '
         );
     }
 

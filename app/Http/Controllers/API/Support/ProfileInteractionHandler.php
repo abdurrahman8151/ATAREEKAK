@@ -121,6 +121,17 @@ final class ProfileInteractionHandler
                 'error' => $e->getMessage(),
             ]);
 
+            // Batch 231: the one DELIBERATE refusal this service raises - a second rating for the same
+            // ride - carries 409 on purpose, so it is answered as 409 with its own message. It is
+            // matched by exact code, never by passing $e->getCode() through: every other exception
+            // keeps the fixed 500 below, which is what RV-13 requires.
+            if ($e->getCode() === 409) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 409);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load rating statistics. Please try again.',
