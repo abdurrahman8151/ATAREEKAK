@@ -5,6 +5,8 @@ namespace Tests\Feature\Review;
 use App\Enums\StaffRole;
 use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
+use Tests\Support\Concerns\ActsAsStaff;
 use Tests\TestCase;
 
 /**
@@ -16,29 +18,25 @@ use Tests\TestCase;
  * the current behaviour on the UNCHANGED code: the login response shape, the bad-credential and
  * validation paths, and the refresh success, token rotation, and invalid-token refusal.
  * It changes no application code and must pass before any step 2 change is considered.
+ *
+ * Batch 228: the Employee fixture and the admin-door login now come from the shared
+ * Tests\Support\Concerns\ActsAsStaff trait (the RV-34 single source for staff/admin/user tokens).
+ * This file used to create its own Employee and post its own credentials, which the
+ * NoDuplicatedFixtureHelpers ratchet reads as a per-file copy of the door call. Every assertion
+ * below is unchanged.
  */
 class L11AdminAuthCharacterizationTest extends TestCase
 {
+    use ActsAsStaff;
     use RefreshDatabase;
 
-    private const PASSWORD = 'Password123!';
-
-    private Employee $employee;
+    private Employee $admin;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->employee = Employee::create([
-            'username' => 'l11_admin',
-            'email' => 'l11_admin@test.com',
-            'password' => self::PASSWORD,
-            'first_name' => 'Layla',
-            'last_name' => 'Probe',
-            'role' => StaffRole::SYSTEM_ADMIN->value,
-            'is_active' => true,
-            'token_version' => 0,
-        ]);
+        $this->admin = $this->employee(StaffRole::SYSTEM_ADMIN);
     }
 
     public function test_login_returns_the_admin_and_a_token_pair(): void
@@ -54,16 +52,15 @@ class L11AdminAuthCharacterizationTest extends TestCase
 
     public function test_login_by_email_is_accepted_as_well_as_username(): void
     {
-        $this->postJson('/api/admin/login', [
-            'email' => 'l11_admin@test.com',
-            'password' => self::PASSWORD,
-        ])->assertOk();
+        // The supported email-identifier form (AdminAuthService matches username OR email) is now
+        // asked of the shared helper instead of hand-rolling the /api/admin/login post here.
+        $this->adminLogin($this->admin, true)->assertOk();
     }
 
     public function test_wrong_password_is_refused_with_invalid_credentials(): void
     {
         $this->postJson('/api/admin/login', [
-            'username' => 'l11_admin',
+            'username' => $this->admin->username,
             'password' => 'wrong-password',
         ])
             ->assertStatus(401)
@@ -75,7 +72,7 @@ class L11AdminAuthCharacterizationTest extends TestCase
     {
         $this->postJson('/api/admin/login', [
             'username' => 'no_such_admin',
-            'password' => self::PASSWORD,
+            'password' => $this->rv34Password,
         ])
             ->assertStatus(401)
             ->assertJsonPath('code', 'INVALID_CREDENTIALS');
@@ -83,7 +80,7 @@ class L11AdminAuthCharacterizationTest extends TestCase
 
     public function test_login_without_an_identifier_fails_validation(): void
     {
-        $this->postJson('/api/admin/login', ['password' => self::PASSWORD])
+        $this->postJson('/api/admin/login', ['password' => $this->rv34Password])
             ->assertStatus(422)
             ->assertJsonPath('code', 'VALIDATION_FAILED');
     }
@@ -124,11 +121,12 @@ class L11AdminAuthCharacterizationTest extends TestCase
             ->assertJsonPath('status', 'error');
     }
 
-    private function login()
+    /**
+     * The shared admin door, with this file's Employee. The former local credentials
+     * (self::PASSWORD / a hardcoded username) are now the trait's own.
+     */
+    private function login(): TestResponse
     {
-        return $this->postJson('/api/admin/login', [
-            'username' => 'l11_admin',
-            'password' => self::PASSWORD,
-        ]);
+        return $this->adminLogin($this->admin);
     }
 }

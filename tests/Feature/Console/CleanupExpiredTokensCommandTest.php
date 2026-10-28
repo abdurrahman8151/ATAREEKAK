@@ -12,6 +12,20 @@ class CleanupExpiredTokensCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Three cases below assert on the WHOLE refresh_tokens table (they read `RefreshToken::count()`
+     * rather than a per-user count), so they must start from a table this file owns. Earlier files in
+     * a combined run leave refresh tokens behind outside this test's transaction, which made those
+     * global counts fail only in a full-suite order - green when this directory ran alone. Clearing
+     * the table in setUp isolates the state; not one assertion is touched.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        RefreshToken::query()->delete();
+    }
+
     public function test_command_exits_zero_with_no_tokens(): void
     {
         $this->artisan('tokens:cleanup')->assertExitCode(0);

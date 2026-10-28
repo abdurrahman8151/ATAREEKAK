@@ -6,6 +6,7 @@ use App\Enums\StaffRole;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\JwtService;
+use Illuminate\Testing\TestResponse;
 
 /**
  * RV-34 — shared staff/admin/user token helpers.
@@ -60,16 +61,29 @@ trait ActsAsStaff
     }
 
     /**
+     * Admin login through the real door, returning the full response.
+     *
+     * Batch 228: the door call lives here so a test that must assert the response body, or the
+     * supported email-identifier form, does not hand-roll its own /api/admin/login post - which is
+     * exactly the per-file copy the RV-34 no-duplicated-helpers ratchet bans.
+     */
+    protected function adminLogin(?Employee $employee = null, bool $byEmail = false): TestResponse
+    {
+        $employee ??= $this->employee();
+
+        $identifier = $byEmail ? ['email' => $employee->email] : ['username' => $employee->username];
+
+        return $this->postJson('/api/admin/login', $identifier + ['password' => $this->rv34Password]);
+    }
+
+    /**
      * Admin access token via the admin door (username, NOT email).
      */
     protected function adminToken(?Employee $employee = null, StaffRole|string $role = StaffRole::SYSTEM_ADMIN): string
     {
         $employee ??= $this->employee($role);
 
-        return (string) $this->postJson('/api/admin/login', [
-            'username' => $employee->username,
-            'password' => $this->rv34Password,
-        ])->json('tokens.access_token');
+        return (string) $this->adminLogin($employee)->json('tokens.access_token');
     }
 
     /**

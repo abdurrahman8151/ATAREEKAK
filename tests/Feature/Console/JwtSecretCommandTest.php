@@ -28,11 +28,17 @@ class JwtSecretCommandTest extends TestCase
 
     public function test_show_flag_outputs_base64_encoded_key(): void
     {
+        // Capture the key from a real Artisan::call() BEFORE $this->artisan() runs below: that helper
+        // binds a mock OutputStyle into the container (PendingCommand::mockConsoleOutput), and from
+        // then on the command's writes go to that mock rather than to Artisan's own buffer, so
+        // Artisan::output() returns an empty string. That is why this assertion failed in isolation -
+        // not an env var, and not the command, which wrote its key every time.
+        \Artisan::call('jwt:secret', ['--show' => true]);
+        $output = \Artisan::output();
+
         $this->artisan('jwt:secret', ['--show' => true])
             ->assertExitCode(0);
 
-        // Run again to capture output
-        $output = \Artisan::output();
         // The key should not be empty after the command runs
         $this->assertNotEmpty(trim($output));
     }

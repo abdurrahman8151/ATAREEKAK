@@ -13463,3 +13463,89 @@ file rounds no money, so this is a trait -> class conversion in place.
   (`NoShowReportGuard`, `PassengerWalletCharger`, `PassengerProfilePanelBuilder`, `AdminDriverPresenter`,
   `FullRideFlowScenarios`); every real container lookup of a collaborator in `app/` is gone (0 left, one
   docblock mention); and every `BoundaryDependencyTest` baseline sits at its measured number.
+## Section 228 - the four red tests (batch 228)
+
+Owner instruction: fix the red tests without editing an assertion. Four items, all in `tests/`; no
+application code changed. REFACTORING MODE.
+
+### 228.1 `CleanupExpiredTokensCommandTest` - three cases depended on run order
+
+- Problem: `test_command_deletes_revoked_tokens` (expected 0), `test_command_preserves_active_valid_tokens`
+  (expected 1) and `test_command_deletes_expired_and_revoked_keeps_active` (expected 1) assert on the WHOLE
+  `refresh_tokens` table via `RefreshToken::count()`. Run alone the directory was green (42 tests, 1 failure);
+  run after other suites they failed with "2 matches expected 0" / "3 matches expected 1".
+- Root cause: earlier files in a combined run leave refresh-token rows behind that this test's
+  `RefreshDatabase` transaction does not cover, so the global counts start from a dirty table. Which upstream
+  file writes outside the transaction was NOT investigated - it is not needed to make these cases sound, and it
+  is recorded below as genuinely unverified.
+- Fix: `setUp()` calls `RefreshToken::query()->delete()` (plain DML inside the test transaction, so no implicit
+  commit and no effect on other tests). Every assertion in the file is byte-identical.
+- Evidence: in the polluting order `tests/Feature/Admin tests/Feature/Staff tests/Feature/AppFuture
+  tests/Feature/Review tests/Feature/Console` the three cases pass at the end of a 1068-test run, and the
+  Console floor alone is `OK (42 tests, 73 assertions)`, exit 0.
+
+### 228.2 `JwtSecretCommandTest::test_show_flag_outputs_base64_encoded_key` - not an env problem
+
+- Symptom: failed in isolation ("Failed asserting that a string is not empty") while every other test in the
+  file passed. The command itself was fine - its `--show` branch prints the key (`JwtSecretCommand.php:33-37`)
+  and the first assertion (`assertExitCode(0)`) passed.
+- Root cause (proved from the framework source, then by experiment): `$this->artisan()` calls
+  `PendingCommand::mockConsoleOutput()`, which binds a Mockery `OutputStyle` into the container
+  (`Illuminate/Testing/PendingCommand.php:371-395`). `Command::run()` resolves its output style from the
+  container whenever it is not handed one (`Illuminate/Console/Command.php:169-172`), so every later command run
+  in that test writes to the mock; `Artisan::output()` reads the console application's own buffer
+  (`Illuminate/Console/Application.php:198-201`) and returns an empty string. The contrast that pinned it: the
+  sibling `test_show_flag_generates_unique_keys_on_each_run` reads `Artisan::output()` after a real
+  `Artisan::call()` and passes, because it never arms the mock first.
+- Fix: read the output from a real `\Artisan::call('jwt:secret', ['--show' => true])` BEFORE the
+  `$this->artisan(...)` line arms the mock. Both existing assertions stay exactly as they were; only the
+  arrangement order and a comment changed. There is no environment variable in this failure.
+- Evidence: `--filter test_show_flag_outputs_base64_encoded_key` -> `OK (1 test, 2 assertions)`; Console floor ->
+  `OK (42 tests, 73 assertions)`, exit 0.
+
+### 228.3 `L11AdminAuthCharacterizationTest` now uses the shared login helper
+
+- The file hand-rolled its Employee fixture and its own `/api/admin/login` post. It now uses
+  `Tests\Support\Concerns\ActsAsStaff`: `setUp()` mints the admin with the trait's `employee(StaffRole::SYSTEM_ADMIN)`,
+  and the local `login()` delegates to a new shared `ActsAsStaff::adminLogin(?Employee $employee = null,
+  bool $byEmail = false)` which owns the door call and returns the full response. `ActsAsStaff::adminToken()`
+  now delegates to that same helper (same request, same `tokens.access_token` path), so the 100+ existing call
+  sites are unaffected. The hardcoded `self::PASSWORD`, `'l11_admin'` and `'l11_admin@test.com'` fixtures are gone.
+- Side effect that is itself the point: `NoDuplicatedFixtureHelpersTest::test_no_test_file_logs_in_to_a_staff_or_admin_door_with_an_email`
+  was failing because L11's inline `postJson('/api/admin/login', ['email' => ...])` was the last match of that
+  ratchet's pattern. The door call now lives in the shared trait, so the ratchet is green and NO entry was added
+  to its exemption list. The email-identifier capability L11 pins is still asserted (through the shared helper's
+  `$byEmail` form), which is the same capability the ratchet's existing RV-43 exemption documents.
+- Every assertion in L11 is unchanged. Payload fixtures that named the old hardcoded credentials were updated to
+  the shared employee's own username/email.
+
+### 228.4 `BacklogTableShapeTest` parked
+
+- `test_every_row_of_the_backlog_table_has_exactly_the_header_column_count` fails on the owner's uncommitted
+  `docs/audit/BACKLOG.md`: section-2 lines 150 and 158 carry 10 cells and line 186 carries 9, against the
+  8-column header. The repair belongs to that file, so the test is parked with `markTestSkipped` and a written
+  reason, per owner instruction.
+- Parked, not weakened: the method's assertions are untouched and sit directly below the skip; the other four
+  ratchets in the class stay live. Unpark instruction is written at the skip: delete those lines once a
+  BACKLOG.md whose section-2 rows all carry 8 cells is committed.
+
+### 228.5 Counts and environment
+
+- Console floor: `tests/Feature/Console` -> **OK (42 tests, 73 assertions)**, 0 failures, exit 0 (was: 4 failures).
+- Review floor: `tests/Feature/Review` -> **OK (651 tests, 2211 assertions, 3 skipped)**, 0 failures, exit 0
+  (was: 5 failures/2 errors across the money-rounding ratchet and the duplicated-helper ratchet). The 3 skips are
+  2 pre-existing and the parked backlog-shape method.
+- Wider check: `tests/Feature/Admin tests/Feature/Staff tests/Feature/AppFuture tests/Feature/Review
+  tests/Feature/Console` -> 1068 tests, 3360 assertions; the only failure in that run was 228.2, which was fixed
+  and re-verified afterwards (Console floor and the filtered test above). This covers every consumer of the
+  changed shared trait.
+- Infrastructure note: the first Review attempt after the fix failed with 477 errors, all
+  `SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it` - the
+  scratch MySQL on 127.0.0.1:3399 was down. Per AGENTS.local.md the scratch server was restarted once with the
+  documented command and the run repeated; the counts above come from the healthy run. No application or test
+  code was changed in reaction to that failure.
+- Not edited, as instructed: no assertion was changed anywhere in this batch. Nothing was raised, no baseline or
+  exemption list was touched, and the BoundaryDependencyTest baselines are unaffected because no file under
+  `app/` changed.
+- Genuinely unverified: which upstream test file leaks refresh-token rows outside its transaction (228.1). The
+  three cases are now isolated regardless, so this is a note rather than a blocker.
