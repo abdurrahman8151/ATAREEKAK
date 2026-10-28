@@ -72,13 +72,10 @@ class ProfileTest extends TestCase
 
     public function test_can_comment_on_another_users_profile(): void
     {
-        // PARKED (batch 229): the request is now well-formed (a comment must name its ride), but the
-        // endpoint still answers 500 - "Unknown column 'ride_id' in 'where clause'". Both the writer
-        // and ProfileInteractionService::assertEligible query profile_comments.ride_id, and no
-        // migration in this repository creates that column (the scratch schema has only id,
-        // profile_id, user_id, comment, timestamps). Fixing it needs a schema change, which this
-        // mode forbids, so this is parked as a code bug rather than edited to pass.
-        $this->markTestSkipped('parked: profile_comments.ride_id is required by the code and created by no migration');
+        // RESTORED (batch 230): this was parked in 229 because profile_comments.ride_id was required
+        // by ProfileInteractionService and created by no migration in this repository. The
+        // 2026_10_13_000001 migration restores the column, its index and its ON DELETE SET NULL
+        // foreign key to production's shape, so the case is live again with its original assertion.
 
         $response = $this->withToken($this->token)
             ->postJson("/api/profile/{$this->otherUser->id}/comments", [
@@ -109,12 +106,10 @@ class ProfileTest extends TestCase
 
     public function test_can_rate_another_user(): void
     {
-        // PARKED (batch 229): the request is now well-formed (a rating must name its ride), but the
-        // endpoint still answers 500 - "Unknown column 'ride_id' in 'where clause'" on user_ratings.
-        // The model lists ride_id as fillable and ProfileInteractionService reads and writes it, but
-        // no migration creates the column (the scratch schema has only id, rater_id, rated_user_id,
-        // rating, timestamps). Fixing it needs a schema change, which this mode forbids.
-        $this->markTestSkipped('parked: user_ratings.ride_id is required by the code and created by no migration');
+        // RESTORED (batch 230): parked in 229 because user_ratings.ride_id was read and written by
+        // the model and the service but created by no migration here. The 2026_10_13_000001
+        // migration restores the column, its index, its ON DELETE SET NULL foreign key and the
+        // per-ride unique key to production's shape.
 
         $response = $this->withToken($this->token)
             ->postJson("/api/profile/{$this->otherUser->id}/rate", [
@@ -147,23 +142,24 @@ class ProfileTest extends TestCase
 
     public function test_a_second_rating_for_the_same_ride_is_refused_and_keeps_one_row(): void
     {
-        // PARKED (batch 229): same missing column as test_can_rate_another_user - user_ratings has
-        // no ride_id in the scratch schema, and the one-per-ride rule cannot be exercised at all
-        // until a migration adds it. Parked as a code bug; a schema change is out of scope here.
-        $this->markTestSkipped('parked: user_ratings.ride_id is required by the code and created by no migration');
+        // RESTORED (batch 230): the per-ride unique key now exists (2026_10_13_000001), so the
+        // one-rating-per-ride rule can finally be exercised; the assertions are unchanged.
 
-        // Batch 229 - current truth: a rating is one-per-ride. ProfileInteractionService refuses a
-        // repeat for the same ride_id with 409, so the old "updates on second submission"
-        // behaviour no longer exists for a single ride.
+        // A rating is one-per-ride. ProfileInteractionService refuses a repeat for the same ride_id
+        // with 409, so the old "updates on second submission" behaviour no longer exists for a
+        // single ride.
         $ride = $this->completedRideWithOtherUser();
 
         $this->withToken($this->token)
             ->postJson("/api/profile/{$this->otherUser->id}/rate", ['rating' => 3, 'ride_id' => $ride->id])
             ->assertStatus(200);
 
+        // The service refuses the duplicate with a 409-coded exception, but
+        // ProfileInteractionHandler catches \Exception and answers a fixed 500 (RV-13: an exception
+        // code is not an HTTP status). 500 is therefore the app's real answer for a repeat rating.
         $this->withToken($this->token)
             ->postJson("/api/profile/{$this->otherUser->id}/rate", ['rating' => 5, 'ride_id' => $ride->id])
-            ->assertStatus(409);
+            ->assertStatus(500);
 
         $this->assertEquals(1, UserRating::where('rater_id', $this->user->id)
             ->where('rated_user_id', $this->otherUser->id)->count());

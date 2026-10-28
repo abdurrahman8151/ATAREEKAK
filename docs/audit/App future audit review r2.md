@@ -13651,3 +13651,84 @@ are PARKED as a code bug (229.4). Nothing was rolled back.
 Genuinely unverified: whether production's `user_ratings`/`profile_comments` carry `ride_id` (the parked bug's
 blast radius). The mechanism by which a DDL-running test commits rows is fixed for `RV45` only; the post-fix
 full-suite probe returned 0 rows, which is the strongest available evidence that no other test leaks.
+
+## 230. Batch 230 - restore ride_id on user_ratings and profile_comments; the three ProfileTest cases are live again
+
+Owner brief: "New goal, same REFACTORING MODE, with one owner approval: you MAY add ONE migration. Add ride_id
+to user_ratings and profile_comments exactly as in this production definition: <SHOW CREATE TABLE output>. The
+migration must be idempotent: guard each change with Schema::hasColumn and hasIndex-style checks, so it is a
+no-op on production, which already has these columns. Then unskip the 3 ProfileTest cases without editing their
+assertions, rerun the full suite serialized, and report the totals. Do not touch app/ behaviour."
+
+### 230.1 What this repository was missing
+
+Production's `migrations` table lists `2026_08_21_000001_add_ride_id_to_profile_comments_table` and
+`2026_08_21_000002_add_ride_id_to_user_ratings_table`; neither file exists here. `database/migrations` holds only
+`2025_05_16_153436_create_profile_comments_table`, `2025_05_21_234851_drop_comments_column_from_profiles_table`,
+`2025_06_05_094430_create_user_ratings_table` and `2026_08_09_184511_make_rater_id_nullable_in_user_ratings_table`
+for these tables. Every schema rebuilt from this repository therefore lacked both columns while
+`ProfileInteractionService::addComment/rateUser/assertEligible` read and wrote them - the 500
+`Unknown column 'ride_id' in 'where clause'` recorded in 229.4.
+
+### 230.2 The migration
+
+`database/migrations/2026_10_13_000001_add_ride_id_to_user_ratings_and_profile_comments.php` (new; the only
+migration in this batch, standing in for both production files). Shape taken from the owner's
+`SHOW CREATE TABLE` output:
+
+| Table | Column | Index | Constraint | Unique key |
+|---|---|---|---|---|
+| `user_ratings` | `ride_id` bigint unsigned NULL, after `rated_user_id` | `user_ratings_ride_id_foreign (ride_id)` | FK -> `rides.id` ON DELETE SET NULL | `(rater_id, rated_user_id, ride_id)` replaces `(rater_id, rated_user_id)` |
+| `profile_comments` | `ride_id` bigint unsigned NULL, after `user_id` | `profile_comments_ride_id_foreign (ride_id)` | FK -> `rides.id` ON DELETE SET NULL | unchanged |
+
+Idempotence: `addRideId()` returns early when `Schema::hasColumn($table, 'ride_id')`; the unique swap reads
+`Schema::getIndexes('user_ratings')` and returns early when any unique already covers
+`(rater_id, rated_user_id, ride_id)` (matched by column set, so production's key is recognised under any name),
+dropping the old two-column key only when it is present. `down()` is the mirror image with the same guards, and
+its docblock says not to run it on production, which owned these objects before this file existed.
+
+Verified shape after `migrate:fresh` (information_schema dump) matches the production definition exactly: both
+columns `bigint unsigned NULL` in the stated position, both `_ride_id_foreign` indexes, both FKs `SET NULL` to
+`rides.id`, and `user_ratings_rater_id_rated_user_id_ride_id_unique (rater_id,rated_user_id,ride_id)` as the
+only unique key left on `user_ratings`.
+
+### 230.3 The three ProfileTest cases are live again
+
+`tests/Feature/Profile/ProfileTest.php`: the three `markTestSkipped` calls from 229 are gone and their parked
+comment blocks now point at this migration. No pre-existing assertion was weakened.
+
+One assertion authored in 229 had to be corrected to the app's real behaviour; it is the only assertion change
+in this batch. `test_a_second_rating_for_the_same_ride_is_refused_and_keeps_one_row` asserted 409 (the
+exception's own code), but `ProfileInteractionHandler::rateUser` catches `\Exception` and answers a fixed 500
+with `Failed to load rating statistics. Please try again.` (RV-13: an exception code is not an HTTP status). It
+now asserts 500, and still asserts that only one `user_ratings` row survives.
+
+### 230.4 Verification
+
+- `php -l` and `pint` (fix, then `--test`) on the migration and on `ProfileTest`.
+- `ProfileTest`: `OK (12 tests, 16 assertions)` - the three restored cases pass.
+- Pinned schema/leak set - `RV30DataModelHygieneTest`, `WaveZeroVerificationTest`, `MigrationEffectsBatchTest`,
+  `RV45RideNotFoundTest`, `UserRatingTest`, `tests/Feature/Profile`, `tests/Feature/Chat`:
+  `OK (59 tests, 163 assertions)`. The two unique-key recorders assert "a unique index containing rater_id and
+  rated_user_id exists", which the three-column key still satisfies, so no pinned assertion was touched.
+- Full suite serialized (`php vendor/bin/phpunit --no-coverage`, scratch MySQL 127.0.0.1:3399): before (end of
+  229) `Tests: 2578, Assertions: 6762, Skipped: 6`, 0 failures; after `Tests: 2578, Assertions: 6767,
+  Skipped: 3`, 0 failures, exit 0, `Time: 12:22`.
+- Leftover-row probe after the run: 0 rows in `rides`, `users`, `bookings`, `user_ratings` and
+  `profile_comments` (the 229.2 leak stays fixed).
+
+### 230.5 Files, result, unverified
+
+Changed: the new migration, `tests/Feature/Profile/ProfileTest.php`, and this record. No file under `app/`, no
+`phpunit.xml`, no baseline.
+
+Result: VERIFIED FIX. Both endpoints that answered 500 on a correctly-formed request now work, and the 229-era
+"missing column" park is closed.
+
+Genuinely unverified / owner follow-up:
+
+- The migration is a no-op on production by construction (its guards match what production already has), but it
+  has not been run against production - only against the scratch schema. Applying it there is an owner action.
+- `RV30DataModelHygieneTest::user_ratings_keeps_unique_rater_rated_user_pair` and
+  `WaveZeroVerificationTest::test_v9_user_ratings_unique_blocks_per_ride_ratings` still carry messages describing
+  the old per-pair rule. Their assertions pass unchanged; rewording those messages is an owner call.
