@@ -13949,3 +13949,42 @@ where a name-based `hasIndex` guard would have tried to create a second, duplica
 one from the owner's verbatim DDL, one a real mysqldump - the migration changes no column, index or foreign
 key, and re-running it changes nothing at all. Not proved: that the same holds for the Aiven schema itself,
 because the named dump was missing and the migration was never run there. That remains an owner action.
+
+### 231.5 Item 5 - the full suite, serialized, and the leftover probe
+
+`php vendor/bin/phpunit --no-coverage`, scratch MySQL 127.0.0.1:3399, database `t3_batch`, serialized (one
+phpunit process at a time), nothing else touching that database:
+
+| run | Tests | Assertions | Skipped | Failures | Time |
+|---|---|---|---|---|---|
+| before (end of batch 230) | 2578 | 6767 | 3 | 0 | 12:22 |
+| after this batch | 2578 | 6790 | 2 | 0 | 09:58 |
+
+Exit code 0. **The first run of this batch's suite was NOT green** - `ExceptionMessageLeakRatchetTest` (both
+methods) and `RV13ExceptionCodeAsStatusTest` failed on the intermediate implementation of item 3; that red
+state, its cause and the correction are recorded in 231.2 and fixed in `f29a021`. The table above is the
+re-run after that correction.
+
+The two remaining skips are the two environment skips batch 229 left. The batch-228 backlog park is gone:
+`BacklogTableShapeTest` runs its live scan, and the three ProfileTest cases have been live since batch 230.
+
+Leftover-row probe after the suite: `rides` 0, `users` 0, `bookings` 0, `user_ratings` 0, `profile_comments`
+0, `profiles` 0, `refresh_tokens` 0 (the 229.2 leak stays fixed). The 3 `wallets` rows with `user_id = NULL`
+are the system-wallet rows batch 230 already reported: not test leakage, and no test asserts on them.
+
+### 231.6 Batch result
+
+Items 1, 2, 3 and 5 are VERIFIED FIX. Item 4 is PARKED - the named dump `C:\temp\prod-schema.sql` is not on
+this machine - with a substitute no-op proof recorded in 231.4, run against two independently built
+production-shaped schemas on throwaway databases.
+
+Commits: `3f07e29` (item 1), `85cc9c6` (item 3, first attempt), `422ee99` (item 2), `f29a021` (item 3,
+corrected), plus this batch's item-4 and item-5 records.
+
+Owner actions outstanding: place `C:\temp\prod-schema.sql` (or name which dump to use) so item 4's procedure
+can be repeated exactly as written; add `"PARKED"` to `render-backlog-status.py` so the chart renders instead
+of refusing; apply `2026_10_13_000001` on production; regenerate `backlog-status.png` after these BACKLOG
+rows.
+
+Genuinely unverified: the migration against the real Aiven schema, and whether row 50 (RV-23) meant
+`bfc6fd1` when its Evidence wrote `bfc6fd6`.
