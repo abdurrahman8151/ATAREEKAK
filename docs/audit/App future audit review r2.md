@@ -13549,3 +13549,105 @@ application code changed. REFACTORING MODE.
   `app/` changed.
 - Genuinely unverified: which upstream test file leaks refresh-token rows outside its transaction (228.1). The
   three cases are now isolated regardless, so this is a note rather than a blocker.
+## 229. Batch 229 - stale-test truth (five files), the 2-ride committed leak, and the ProfileTest 500s
+
+Owner brief: "New goal, same REFACTORING MODE, with one owner approval: you MAY edit assertions in these stale
+tests to match current code (R2 RV-35 'update to enum truth'). Do not change app/ behaviour. 1. Update
+ComplaintTypeTest, StaffRoleTest, WalletRequestTest, UserRatingTest and SendPushNotificationTest to current
+truth. 2. Find which test leaves 2 rides rows committed in a full-suite run and isolate it. Diagnose the
+scratch-schema mismatch behind MigrationEffectsBatchTest; park it if it needs a forbidden action. 3. Diagnose
+ProfileTest (3) and the ContactControllerTest 503. If the test is stale, update it; if it exposes a code bug,
+park it with the reason. 4. Re-run the full suite serialized and report the totals."
+
+### 229.1 Five stale tests updated to current truth (assertion edits, owner-approved)
+
+| File | Old (stale) truth | Current truth (asserted now) |
+|---|---|---|
+| `tests/Unit/Enums/ComplaintTypeTest.php` | `test_eight_complaint_types_exist`, `assertCount(8)` | 9 cases - `NO_SHOW = 'no_show'` exists (the auto-generated conflict type); method renamed `test_nine_complaint_types_exist` |
+| `tests/Unit/Enums/StaffRoleTest.php` | `test_system_admin_has_level_three`, admin level 3 | `SYSTEM_ADMIN` = 4 and `SYCASH` = 3; method renamed, plus a new `test_sycash_has_level_three` |
+| `tests/Unit/Models/WalletRequestTest.php` | `notes` fillable; `status`/`type` cast to `WalletRequestStatus`/`WalletRequestType` | fillable holds `user_notes` + `admin_notes`; `status`/`type` are NOT cast - the raw stored strings are read back (`WalletRequestStatus::PENDING->value`, `WalletRequestType::WITHDRAWAL->value`) |
+| `tests/Unit/Models/UserRatingTest.php` | `getCasts()['rating'] === 'float'` | the model declares no casts at all (`assertArrayNotHasKey('rating', ...)`) |
+| `tests/Unit/Jobs/SendPushNotificationTest.php` | the Log mock was armed before the service was resolved | the service is resolved BEFORE the Log mock: building it writes `FcmSenderService`'s own `Log::info('FCM V1 service initialized successfully')`, which was (a) counted as a job log line for a non-existent user in the "does nothing" case and (b) consumed the injected `andThrow` before `handle()` ran in the "logs and rethrows" case |
+
+### 229.2 The 2-ride committed leak: `RV45RideNotFoundTest::faultOnRideRead()`
+
+Isolation evidence (each item is a real run; the probe is a row count against the scratch schema):
+
+- full suite before any fix: `Tests: 2578, Assertions: 6760, Failures: 9, Skipped: 6`; leftovers `rides=2, users=2, user_ratings=2`.
+- `WaveZeroVerificationTest` alone: 0 leftovers. `ProfileTest` + `RideSearchServiceTest` + `AdminDriverServiceTest`: 0 leftovers. `V2SridAlterSafetyTest` + `RV24RideCoordinateReadTest`: 0 leftovers.
+- `RV45RideNotFoundTest` alone: **rides=2, users=2, user_ratings=2** - the exact fingerprint, so the writer is this one file.
+
+Root cause: `faultOnRideRead()` drops `rides.available_seats` to force a real `QueryException`. That is DDL, and
+MySQL **implicitly commits** an open transaction when DDL runs, so everything the test wrote before the drop (the
+driver with its wallet/profile/photos/refresh tokens, the ride, and the 3.0 signup rating `UserObserver` writes)
+was committed for real and survived `RefreshDatabase`'s rollback. Those rows then leaked into the later tests
+that assert a ride-free world.
+
+Fix (test-side only, no app or schema change): `faultOnRideRead(Ride $ride, callable $request)` now calls
+`deleteCommittedFixtures($ride)` in its `finally`, deleting exactly the rows that test created (ratings for the
+driver, the ride, photos, profile, refresh tokens, wallet, then the driver row).
+
+### 229.3 `MigrationEffectsBatchTest::test_no_index_column_set_is_duplicated` - the same DDL, not an independent mismatch
+
+- Alone: OK. `V2SridAlterSafetyTest` + `MigrationEffectsBatchTest`: OK (10 tests). `RV45RideNotFoundTest` + `MigrationEffectsBatchTest`: **fails**.
+- Root cause: when MySQL drops a column that is part of an index, it rewrites that index without the column.
+  Dropping `available_seats` therefore left `rides_departure_time_available_seats_index` as `(departure_time)` and
+  `rides_status_departure_seats_index` as `(status, departure_time)` - duplicate column sets of
+  `rides_departure_time` and `rides_status_departure`, which is exactly what the T3-5 fingerprint test reports.
+  The test's own contract already said "the schema is restored before the test ends"; only the column was
+  restored, not the index membership.
+- Fix: `restoreIndexMembership()` rebuilds both indexes with the columns the migrations define
+  (`['departure_time','available_seats']`, `['status','departure_time','available_seats']`). Verified:
+  `RV45 + MigrationEffectsBatchTest` = `OK (12 tests, 78 assertions)`, and `SHOW INDEX` on `rides` matches the
+  fresh migration state exactly. No parking was needed - no forbidden action is involved.
+
+### 229.4 ProfileTest (3 x 500) and the ContactControllerTest 503
+
+- `ContactControllerTest::test_returns_503_when_agent_employee_exists_but_has_no_user_account` was **stale**:
+  `ContactController` resolves the agent through `EmployeeManagementService::ensureShadowUser()` (T3-4), so an
+  `Employee` with no `users` row gets one and the contact returns 201. Renamed to
+  `test_creates_the_shadow_account_when_an_agent_employee_has_no_user_row`, asserts 201 and that the shadow
+  `users` row exists.
+- The three `ProfileTest` comment/rating tests exposed a **code bug, and are parked**: the endpoints validate
+  `ride_id` (`required|integer|exists:rides,id`) and `ProfileInteractionService` reads/writes
+  `profile_comments.ride_id` and `user_ratings.ride_id`, but **no migration in this repository creates either
+  column**. The scratch schema holds `user_ratings(id, rater_id, rated_user_id, rating, created_at, updated_at)`
+  and `profile_comments(id, profile_id, user_id, comment, created_at, updated_at)`, so a correctly-formed request
+  answers 500 `Unknown column 'ride_id' in 'where clause'` (captured from `storage/logs/laravel.log`). Fixing it
+  needs a schema change, which this mode forbids, so those tests carry `markTestSkipped` with that reason and the
+  corrected payloads sit under the skip as the intended truth.
+- Owner action: decide whether `ride_id` exists in the production schema (then a migration is missing here) or
+  whether the two writers must drop it (then the endpoints are broken in production).
+
+### 229.5 Full suite serialized, after the fixes
+
+`php vendor/bin/phpunit --no-coverage` (scratch MySQL 127.0.0.1:3399, `LOG_CHANNEL=single`):
+
+- before: exit 2, `Tests: 2578, Assertions: 6760, Failures: 9, Skipped: 6`, `Time: 11:59`; leftovers `rides=2, users=2, user_ratings=2`.
+- after: **exit 0**, `OK, but some tests were skipped! Tests: 2578, Assertions: 6762, Skipped: 6`, `Time: 11:39`; leftovers **0 rows in every probed table**.
+- The nine failures removed, by name: `RideSearchServiceTest::test_get_nearby_rides_excludes_cancelled_rides`,
+  `StaffOperationsControllerTest::{test_trips_returns_empty_list_when_no_rides_exist,
+  test_trips_returns_inserted_ride_in_list, test_trips_filter_all_returns_every_ride,
+  test_trips_filter_active_excludes_scheduled_and_finished, test_trips_respects_per_page_parameter}`,
+  `MigrationEffectsBatchTest::test_no_index_column_set_is_duplicated`,
+  `T4Batch\MoneyAndAuthPathBatchTest::{test_near_location_returns_rides_inside_the_radius,
+  test_near_location_widens_with_the_radius}`.
+- Skips (6): the three parked ProfileTest cases, the batch-228 `BacklogTableShapeTest` park, and the two
+  environment skips that were already there.
+
+### 229.6 Files changed, checks, result, unverified
+
+Changed: the five stale test files, `tests/Feature/Profile/ProfileTest.php`,
+`tests/Feature/Chat/ContactControllerTest.php`, `tests/Feature/Review/RV45RideNotFoundTest.php`, and this record.
+No file under `app/`, no migration, no `phpunit.xml` and no baseline was touched.
+
+Checks: `php -l` and `php vendor/bin/pint` (fix, then `--test`) on every changed file; the 8-file scoped run;
+`RV45` alone with a row probe; `RV45 + MigrationEffectsBatchTest`; `V2Srid + MigrationEffectsBatchTest`; and the
+full serialized suite twice.
+
+Result: VERIFIED FIX for 229.1-229.3 and for the ContactControllerTest half of 229.4; the three ProfileTest cases
+are PARKED as a code bug (229.4). Nothing was rolled back.
+
+Genuinely unverified: whether production's `user_ratings`/`profile_comments` carry `ride_id` (the parked bug's
+blast radius). The mechanism by which a DDL-running test commits rows is fixed for `RV45` only; the post-fix
+full-suite probe returned 0 rows, which is the strongest available evidence that no other test leaks.

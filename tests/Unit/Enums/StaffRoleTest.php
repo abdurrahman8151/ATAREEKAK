@@ -26,9 +26,16 @@ class StaffRoleTest extends TestCase
 
     // ─── level() ──────────────────────────────────────────────────────────────────
 
-    public function test_system_admin_has_level_three(): void
+    public function test_system_admin_has_level_four(): void
     {
-        $this->assertEquals(3, StaffRole::SYSTEM_ADMIN->level());
+        // Batch 229 - current truth: SYCASH was inserted between system_admin and admin, so
+        // system_admin is now 4 and sycash holds the level 3 this test used to pin.
+        $this->assertEquals(4, StaffRole::SYSTEM_ADMIN->level());
+    }
+
+    public function test_sycash_has_level_three(): void
+    {
+        $this->assertEquals(3, StaffRole::SYCASH->level());
     }
 
     public function test_admin_has_level_two(): void

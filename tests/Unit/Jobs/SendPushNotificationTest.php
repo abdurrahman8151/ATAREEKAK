@@ -49,13 +49,18 @@ class SendPushNotificationTest extends TestCase
     {
         $nonExistentUserId = 999999;
 
+        // Resolve the service BEFORE arming the Log mock: building it writes its own info line
+        // (the FCM sender degrades safely when it is not configured), and that line must not be
+        // counted as something the job logged. Batch 229.
+        $service = app(PushNotificationService::class);
+
         Log::shouldReceive('warning')->zeroOrMoreTimes();
         Log::shouldReceive('info')->never();
         Log::shouldReceive('error')->never();
 
         $job = new SendPushNotification($nonExistentUserId, ['title' => 'Hello']);
 
-        $job->handle(app(PushNotificationService::class));
+        $job->handle($service);
 
         $this->assertTrue(true);
     }
@@ -63,6 +68,11 @@ class SendPushNotificationTest extends TestCase
     public function test_handle_logs_and_rethrows_when_service_fails(): void
     {
         $user = User::factory()->create();
+
+        // Same ordering rule as above: build the service first. Its own info line for a user with
+        // no push tokens ("No active tokens found for user: N") is the first info call inside the
+        // job's try block, so that is where the injected failure has to land. Batch 229.
+        $service = app(PushNotificationService::class);
 
         Log::shouldReceive('warning')->zeroOrMoreTimes();
 
@@ -80,7 +90,7 @@ class SendPushNotificationTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('FCM endpoint unreachable');
 
-        $job->handle(app(PushNotificationService::class));
+        $job->handle($service);
     }
 
     public function test_constructor_stores_user_id_and_notification_data(): void

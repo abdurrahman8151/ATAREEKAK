@@ -20,9 +20,11 @@ class UserRatingTest extends TestCase
         $this->assertContains('rating', $model->getFillable());
     }
 
-    public function test_rating_is_cast_to_float(): void
+    public function test_rating_is_not_cast_so_the_column_value_is_kept(): void
     {
-        $this->assertEquals('float', (new UserRating)->getCasts()['rating']);
+        // Batch 229 - current truth: UserRating declares no $casts at all, so `rating` is read
+        // back as the decimal column value instead of being cast to float.
+        $this->assertArrayNotHasKey('rating', (new UserRating)->getCasts());
     }
 
     public function test_rater_relationship_returns_correct_user(): void

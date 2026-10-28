@@ -39,9 +39,11 @@ class ContactControllerTest extends TestCase
             ->assertStatus(503);
     }
 
-    public function test_returns_503_when_agent_employee_exists_but_has_no_user_account(): void
+    public function test_creates_the_shadow_account_when_an_agent_employee_has_no_user_row(): void
     {
-        // Employee row exists but no matching User row — controller returns 503
+        // Batch 229 - current truth: ContactController resolves the agent through
+        // EmployeeManagementService::ensureShadowUser(), so an Employee with no matching `users`
+        // row now gets one created (T3-4) and the contact succeeds instead of returning 503.
         Employee::create([
             'username' => 'orphaned_agent',
             'email' => 'orphan@support.test',
@@ -56,7 +58,9 @@ class ContactControllerTest extends TestCase
 
         $this->withToken($this->token)
             ->postJson('/api/contact')
-            ->assertStatus(503);
+            ->assertStatus(201);
+
+        $this->assertDatabaseHas('users', ['email' => 'orphan@support.test']);
     }
 
     public function test_returns_503_when_all_agents_are_inactive(): void

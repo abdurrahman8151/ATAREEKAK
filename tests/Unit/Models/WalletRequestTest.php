@@ -37,9 +37,14 @@ class WalletRequestTest extends TestCase
         $this->assertContains('status', (new WalletRequest)->getFillable());
     }
 
-    public function test_fillable_contains_notes(): void
+    public function test_fillable_contains_the_notes_columns(): void
     {
-        $this->assertContains('notes', (new WalletRequest)->getFillable());
+        // Batch 229 - current truth: the notes columns are user_notes and admin_notes; there is
+        // no plain `notes` column on wallet_requests.
+        $fillable = (new WalletRequest)->getFillable();
+
+        $this->assertContains('user_notes', $fillable);
+        $this->assertContains('admin_notes', $fillable);
     }
 
     public function test_fillable_contains_processed_by(): void
@@ -54,18 +59,17 @@ class WalletRequestTest extends TestCase
 
     // ─── Casts ────────────────────────────────────────────────────────────────
 
-    public function test_status_is_cast_to_wallet_request_status_enum(): void
+    public function test_status_is_not_cast_so_the_raw_string_is_kept(): void
     {
-        $casts = (new WalletRequest)->getCasts();
-        $this->assertArrayHasKey('status', $casts);
-        $this->assertEquals(WalletRequestStatus::class, $casts['status']);
+        // Batch 229 - current truth: status and type are stored and read as their string values;
+        // the model keeps amount/processed_at as its only casts and WalletRequestStatus /
+        // WalletRequestType are used for their values, not as casts.
+        $this->assertArrayNotHasKey('status', (new WalletRequest)->getCasts());
     }
 
-    public function test_type_is_cast_to_wallet_request_type_enum(): void
+    public function test_type_is_not_cast_so_the_raw_string_is_kept(): void
     {
-        $casts = (new WalletRequest)->getCasts();
-        $this->assertArrayHasKey('type', $casts);
-        $this->assertEquals(WalletRequestType::class, $casts['type']);
+        $this->assertArrayNotHasKey('type', (new WalletRequest)->getCasts());
     }
 
     public function test_amount_is_cast_to_decimal(): void
@@ -138,26 +142,24 @@ class WalletRequestTest extends TestCase
         ]);
     }
 
-    public function test_status_is_cast_to_enum_on_retrieval(): void
+    public function test_status_is_read_back_as_the_stored_string(): void
     {
         $user = User::factory()->create();
         $request = $this->makeRequest($user, WalletRequestType::TOP_UP->value, 25.00);
 
         $fresh = WalletRequest::find($request->id);
 
-        $this->assertInstanceOf(WalletRequestStatus::class, $fresh->status);
-        $this->assertEquals(WalletRequestStatus::PENDING, $fresh->status);
+        $this->assertSame(WalletRequestStatus::PENDING->value, $fresh->status);
     }
 
-    public function test_type_is_cast_to_enum_on_retrieval(): void
+    public function test_type_is_read_back_as_the_stored_string(): void
     {
         $user = User::factory()->create();
         $request = $this->makeRequest($user, WalletRequestType::WITHDRAWAL->value, 30.00);
 
         $fresh = WalletRequest::find($request->id);
 
-        $this->assertInstanceOf(WalletRequestType::class, $fresh->type);
-        $this->assertEquals(WalletRequestType::WITHDRAWAL, $fresh->type);
+        $this->assertSame(WalletRequestType::WITHDRAWAL->value, $fresh->type);
     }
 
     public function test_user_relationship_returns_correct_user(): void

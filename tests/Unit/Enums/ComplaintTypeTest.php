@@ -85,8 +85,10 @@ class ComplaintTypeTest extends TestCase
         }
     }
 
-    public function test_eight_complaint_types_exist(): void
+    public function test_nine_complaint_types_exist(): void
     {
-        $this->assertCount(8, ComplaintType::cases());
+        // Batch 229 - current truth: NO_SHOW = 'no_show' was added for the auto-generated
+        // conflict complaint, so the enum carries nine cases.
+        $this->assertCount(9, ComplaintType::cases());
     }
 }
