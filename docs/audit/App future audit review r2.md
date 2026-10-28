@@ -13799,3 +13799,68 @@ Verification: `tests/Feature/Profile`, `RV30DataModelHygieneTest`, `WaveZeroVeri
 `RV13DomainExceptionMaskingTest` and every test file `git grep` finds for the changed symbols -
 **OK (46 tests, 80 assertions)**. The duplicate path still logs `Profile: rating stats failed`, and the
 response is `{"success":false,"message":"You have already rated this ride."}` with HTTP 409.
+
+### 231.3 Item 2 - batches 223-230 are recorded in BACKLOG.md and STATE.md, and both censuses are reported
+
+**BACKLOG.md section 2 gains 17 rows, Orders 150-166, one per verified item** (the numbering starts above the
+file's global maximum of 149 so no Order repeats anywhere in the document):
+
+| Order | ID | Item | Status |
+|---|---|---|---|
+| 150 | B223 | RFB close-out: section K re-measured, ride floor green, parked list filed | VERIFIED FIX |
+| 151 | B223-P | the four extraction blockers (model-importing handler, RideController booking actions, ProfileController::update, the app/ test-harness commands) | PARKED, reason in the row |
+| 152 | B223-F | the `lockPrimaryWallet` duplication left for its own batch | PARKED, reason in the row |
+| 153 | B224 | the 85+/60+ long-method backlog emptied | VERIFIED FIX |
+| 154 | B225 | `files_over_500` 14 -> 9 | VERIFIED FIX |
+| 155 | B226 | `files_over_500` 9 -> 0 | VERIFIED FIX |
+| 156-158 | B227-1/2/3 | `controllers_to_models` 18 -> 0, `domain_to_models` 10 -> 0, `domain_to_services` / `repos_to_services` / `request_in_services` -> 0 | VERIFIED FIX |
+| 159 | B227-4 | **`models_to_enums` stays at 3** | PARKED, reason in the row |
+| 160-161 | B227-5/6 | `app()` -> 0 with collaborators by constructor, and slices 13-14 | VERIFIED FIX |
+| 162 | B228 | the four red tests | VERIFIED FIX |
+| 163-165 | B229-1/2/3 | the five stale tests, the committed 2-ride leak, and the ProfileTest park | VERIFIED FIX, VERIFIED FIX, PARKED |
+| 166 | B230 | `ride_id` restored by one idempotent migration and the three ProfileTest cases unskipped | VERIFIED FIX |
+
+`models_to_enums` is deliberately **not** raised: row 159 repeats the value row 106 recorded (3) and names
+its reason - breaking the edge in `Models/Complaint.php`, `Models/Employee.php` and `Models/Wallet.php` is an
+owner design call. Every other item above is `VERIFIED FIX` with its audit section and commit in the Evidence
+cell; the three `PARKED` rows carry their reason in the `Blocked by` cell.
+
+Section 3's own census was recomputed with the command it documents, because the Evidence column is what it
+reads: `evidence tokens=106 commits=104 missing=2`. The two non-commit tokens are `20260929` (a date, already
+documented below) and **`bfc6fd6`, which sits in row 50's (RV-23) Evidence and is not a commit** - that row is
+`VERIFIED FIX` and the nearest real hash, `bfc6fd1`, is a different commit. It is a pre-existing record
+defect, not one this batch introduced, and it is reported rather than guessed at: changing the hash would
+mean deciding which commit the row meant. Section 3 now says plainly which counts were computed for the
+pre-231 row set.
+
+**STATE.md**: a "Done recently" block for batches 223-231 (newest first), a new
+`## Owner decisions 2026-10-29` section recording the three approvals of this batch plus the `models_to_enums`
+ruling, and three `## Owner actions outstanding` items - place `C:\temp\prod-schema.sql` (item 4),
+apply `2026_10_13_000001` on production, and regenerate `backlog-status.png` after these rows.
+
+**STATE.md encoding, disclosed:** the working copy of STATE.md was UTF-16LE with a BOM (189648 bytes) while
+the committed blob is UTF-8 (94347 bytes), so `git diff` saw it as binary and the file could not be read as
+text. It is written back as **UTF-8 with CRLF, matching the committed blob**, with every original line kept,
+which turns it into a reviewable text diff again.
+
+**The renderer census.** `python docs/audit/render-backlog-status.py` **refuses to run**: it exits with
+`unmapped status(es), refusing to guess a colour: ['PARKED']`, because the owner's file has no colour for the
+status this brief asked for. That file is an owner file and was not edited. The census was obtained by
+importing the script in a scratch wrapper, adding only that one mapping, and writing the PNG to a scratch path
+that was deleted in the same step - so the numbers below come from the owner's own parser and no owner file
+changed:
+
+```
+wrote docs\audit\.tmp-backlog-231.png  (150 rows)
+  VERIFIED FIX   139
+  ROLLED BACK      1
+  PARTIAL          1
+  OPEN             1
+  BLOCKED          2
+  DEFERRED         2
+  PARKED           4
+```
+
+150 rows, 139 verified fix, 4 parked. Owner action: add `"PARKED"` to `COLORS` (and to `ORDER`) in
+`render-backlog-status.py`, or tell me to, and the 4 parked rows become visible in the chart instead of
+aborting it.
