@@ -33,8 +33,9 @@ COLORS = {
     "SUPERSEDED":   (176, 182, 192),
     "GATED":        (52, 120, 176),
     "ROLLED BACK":  (120, 132, 148),
+    "PARKED":       (196, 120, 84),
 }
-ORDER = ["VERIFIED FIX", "ROLLED BACK", "RECORDED", "PARTIAL", "OPEN", "BLOCKED", "DEFERRED", "SUPERSEDED", "GATED"]
+ORDER = ["VERIFIED FIX", "ROLLED BACK", "RECORDED", "PARTIAL", "OPEN", "BLOCKED", "DEFERRED", "SUPERSEDED", "GATED", "PARKED"]
 
 
 def parse_backlog(text: str):
@@ -78,7 +79,7 @@ def main():
     # The list has 2 columns; each row is 30 px; the list starts at OY and needs a 46 px header.
     outstanding_count = sum(1 for _o, _i, _raw, s in rows if s != "VERIFIED FIX")
     list_rows = (outstanding_count + 1) // 2
-    OY = 560
+    OY = 672  # below the third card row (cards end at y=632), so the heading never overlaps them
     canvas_h = max(H_MIN, OY + 46 + list_rows * 30 + 60)
 
     img = Image.new("RGB", (W, canvas_h), BG)

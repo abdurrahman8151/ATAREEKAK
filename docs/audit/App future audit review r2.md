@@ -13988,3 +13988,87 @@ rows.
 
 Genuinely unverified: the migration against the real Aiven schema, and whether row 50 (RV-23) meant
 `bfc6fd1` when its Evidence wrote `bfc6fd6`.
+
+## 232. Batch 232 - row 50's evidence hash, and the PARKED status in the backlog chart
+
+Owner approvals (verbatim): "you MAY edit docs/audit/render-backlog-status.py to map the PARKED status (add it
+to COLORS and ORDER, nothing else). You MAY change row 50's evidence hash bfc6fd6 to bfc6fd1 only if git show
+bfc6fd1 is the RV-23 commit; otherwise leave it and report. Then run python docs\audit\render-backlog-status.py,
+report the census, and commit the script and the regenerated backlog-status.png as one commit with audit
+section 232."
+
+### 232.1 Row 50's evidence hash - the condition held, so it is corrected
+
+Row 50 is RV-23 ("Complaints (context, routing, notifications)", VERIFIED FIX) and its Evidence read
+"R2 sec 28.3 slice1 VF, sec 28.8 slice2 VF; c59fed6 + bfc6fd6". Batch 231's census found `bfc6fd6` was the one
+evidence token in the table that is not a commit, and `git cat-file -e` refused it. Verified before changing
+anything, exactly as the approval required:
+
+```
+$ git log -1 --format='%H%n%ad%n%s' bfc6fd1
+bfc6fd13efeb5ee5ad32d1b3dc61831c5fb91cf0
+2026-10-01
+RV-23 (2/3): complaints now go to the least-loaded agent, not always to one
+
+$ git log -1 --format='%H %s' bfc6fd6
+fatal: ambiguous argument 'bfc6fd6': unknown revision or path not in the working tree.
+```
+
+`bfc6fd1` IS the RV-23 commit: its subject names RV-23, it is dated 2026-10-01 - the same day and the same
+three-part batch as the row's other hash `c59fed6` ("RV-23 (1/3): no-show conflict complaints keep their ride +
+respondent") - and the row's own text says "slice2 VF", which is what "(2/3)" is. `bfc6fd6` does not exist in
+this repository. The Evidence cell now reads `c59fed6 + bfc6fd1`.
+
+The documented section-3 census was recomputed with its own command after the change:
+`evidence tokens=106 commits=105 missing=1` - the only token left that is not a commit is the date `20260929`,
+which section 3 already documents. Section 3's sentence was updated to say exactly that.
+
+`tests/Feature/Review/BacklogTableShapeTest.php` was re-run after the edit: **OK (6 tests, 166 assertions)** -
+the Evidence cell stayed one cell and no Order moved.
+
+### 232.2 The PARKED status in the chart
+
+`docs/audit/render-backlog-status.py` stopped the renderer dead in batch 231:
+`unmapped status(es), refusing to guess a colour: ['PARKED']`. With the owner's approval, two lines were added
+and nothing else in the file was touched:
+
+- `COLORS`: `"PARKED": (196, 120, 84),` - a colour of its own, not BLOCKED's purple and not DEFERRED's grey,
+  so "deliberately not done" is visually distinct from "waiting on someone" and from "postponed".
+- `ORDER`: `"PARKED"` appended, so it takes a legend card and a segment in the stacked bar like every other
+  counted status.
+
+The batch-231 wrapper that produced the census without touching this file is no longer needed, and it was
+deleted with the rest of that batch's scratch files.
+
+### 232.3 The run and the census
+
+`python docs\audit\render-backlog-status.py`, exit 0:
+
+```
+wrote docs\audit\backlog-status.png  (150 rows)
+  VERIFIED FIX   139
+  ROLLED BACK      1
+  PARTIAL          1
+  OPEN             1
+  BLOCKED          2
+  DEFERRED         2
+  PARKED           4
+```
+
+150 tracked items, **139 verified fix (92.7%), 4 parked**, and the chart lists the four parked rows by Order
+and ID under "Not yet closed" instead of aborting. `docs/audit/backlog-status.png` was regenerated (64304
+bytes, was 55013). Nothing else in the tree moved.
+
+### 232.4 Files, result, unverified
+
+Changed: `docs/audit/BACKLOG.md` (row 50's hash, section 3's census sentence),
+`docs/audit/render-backlog-status.py` (the two PARKED lines), the regenerated
+`docs/audit/backlog-status.png`, and this record - one commit, as asked.
+
+Disclosed: the script's working copy already carried one uncommitted owner edit - `OY = 560` became
+`OY = 672  # below the third card row (cards end at y=632), so the heading never overlaps them`, a layout fix.
+Committing the script, which is what this batch was asked to do, necessarily commits that line as well. It is
+not mine and nothing else in the file was changed.
+
+Result: VERIFIED FIX. Genuinely unverified: nothing new from this batch. The Aiven no-op for migration
+`2026_10_13_000001` (231.4) is still outstanding, and it is an owner action: place `C:\temp\prod-schema.sql`.
