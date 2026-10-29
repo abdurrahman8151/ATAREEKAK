@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API\Support;
 
 use App\Http\Resources\BookingResource;
-use App\Services\NotificationService;
+use App\Interfaces\NotificationPort;
 use App\Services\Ride\BookingService;
 use App\Services\Ride\RideService;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +22,7 @@ class RideCancellationHandler
     public function __construct(
         private readonly RideService $rideService,
         private readonly BookingService $bookingService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     public function cancelRide(Request $request, int $rideId): JsonResponse

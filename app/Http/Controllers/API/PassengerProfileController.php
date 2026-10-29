@@ -4,8 +4,8 @@ namespace App\Http\Controllers\API;
 
 use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
+use App\Interfaces\NotificationPort;
 use App\Services\JwtService;
-use App\Services\NotificationService;
 use App\Services\Profile\PassengerProfilePanelBuilder;
 use App\Services\Profile\PassengerProfileQueryService;
 use App\Services\Profile\PassengerWalletCharger;
@@ -54,7 +54,7 @@ final class PassengerProfileController extends Controller
 {
     public function __construct(
         private readonly JwtService $jwtService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
         private readonly PassengerProfileQueryService $profileQueries,
         private readonly PassengerWalletCharger $walletCharger,
         private readonly PassengerProfilePanelBuilder $panels,

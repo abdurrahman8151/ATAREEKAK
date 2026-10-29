@@ -2,12 +2,12 @@
 
 namespace App\Services\Ride;
 
+use App\Interfaces\NotificationPort;
 use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\NotificationService;
 use App\Services\Payment\NoShowSettlement;
 use App\Services\Score\ScoreService;
 
@@ -51,7 +51,7 @@ final class Noshowservice
     public function __construct(
         private readonly ScoreService $scoreService,
         private readonly NoShowSettlement $noShowSettlement,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {
         $this->conflicts = new NoShowConflictService($notificationService);
         $this->reports = new NoShowReportService($notificationService, $this->conflicts, new NoShowReportGuard);

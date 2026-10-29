@@ -3,10 +3,10 @@
 namespace App\Services\Staff;
 
 use App\Enums\ComplaintStatus;
+use App\Interfaces\NotificationPort;
 use App\Models\Complaint;
 use App\Models\Employee;
 use App\Models\User;
-use App\Services\NotificationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 final class StaffComplaintService
 {
     public function __construct(
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     // ── eager-load for every query ──────────────────────────────────────────

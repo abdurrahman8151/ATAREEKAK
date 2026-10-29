@@ -2,9 +2,9 @@
 
 namespace App\Services\Ride;
 
+use App\Interfaces\NotificationPort;
 use App\Models\Booking;
 use App\Models\User;
-use App\Services\NotificationService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -20,7 +20,7 @@ final class BookingActionService
 {
     public function __construct(
         private readonly BookingService $bookingService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     /**

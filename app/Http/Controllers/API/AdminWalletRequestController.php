@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Interfaces\NotificationPort;
 use App\Services\Admin\AdminWalletRequestService;
-use App\Services\NotificationService;
 use App\Services\Payment\CashRideFeeService;
 use App\Services\Payment\LedgerService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -38,7 +38,7 @@ final class AdminWalletRequestController extends Controller
         private readonly CashRideFeeService $cashRideFeeService,
         private readonly AdminWalletRequestService $walletRequests,
         private readonly LedgerService $ledgerService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     // ── GET /api/admin/wallet/requests ──────────────────────────────────────

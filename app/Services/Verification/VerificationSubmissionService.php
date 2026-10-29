@@ -2,11 +2,11 @@
 
 namespace App\Services\Verification;
 
+use App\Interfaces\NotificationPort;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
 use App\Models\Photo;
 use App\Models\User;
-use App\Services\NotificationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -69,7 +69,7 @@ final class VerificationSubmissionService
     public function __construct(
         private readonly PhotoRepositoryInterface $photoRepo,
         private readonly ProfileRepositoryInterface $profileRepo,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     /**

@@ -5,11 +5,11 @@ namespace App\Services\Ride;
 use App\DTOs\Ride\CreateRideDTO;
 use App\Enums\RideStatus;
 use App\Events\RideCreated;
+use App\Interfaces\NotificationPort;
 use App\Interfaces\RideRepositoryInterface;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\Geocoding\RouteCalculationService;
-use App\Services\NotificationService;
 use App\Services\Payment\CancellationRefund;
 use App\Services\Payment\CashRideFeeService;
 use App\Services\Payment\RidePayout;
@@ -29,7 +29,7 @@ final class RideService
         private readonly RideSearchService $searchService,
         private readonly CancellationRefund $cancellationRefund,
         private readonly RidePayout $ridePayout,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
         private readonly ScoreService $scoreService,
         private readonly Noshowservice $noshowService,
         private readonly CashRideFeeService $cashRideFeeService,

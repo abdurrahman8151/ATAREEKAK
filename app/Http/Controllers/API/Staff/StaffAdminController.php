@@ -4,8 +4,8 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Enums\ComplaintStatus;
 use App\Http\Controllers\Controller;
+use App\Interfaces\NotificationPort;
 use App\Interfaces\VerificationRepositoryInterface;
-use App\Services\NotificationService;
 use App\Services\Staff\StaffComplaintService;
 use App\Services\Staff\StaffVerificationQueueService;
 use App\Services\Verification\DuplicateNationalIdException;
@@ -40,7 +40,7 @@ final class StaffAdminController extends Controller
         private readonly StaffComplaintService $complaintService,
         private readonly StaffVerificationQueueService $verificationQueue,
         private readonly VerificationApprovalService $approvalService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
         private readonly VerificationRepositoryInterface $verificationRepo,
     ) {}
 

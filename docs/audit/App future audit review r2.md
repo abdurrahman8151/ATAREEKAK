@@ -14181,3 +14181,81 @@ Checks run: `php -l` and `pint --test` on the new file (Pint ran once to fix sty
 
 Result: VERIFIED FIX for step 0. Genuinely unverified: nothing - the baselines are the measured numbers and
 both ratchet directions were needled. The reduction itself is not started here; steps (a)-(c) are 234-236.
+
+---
+
+## 234. Batch 233 step (a) - NotificationService behind a NotificationPort (22 edges -> 0)
+
+### 234.1 What the ratchet said, and what was done
+
+The owner's step (a): "NotificationService behind a NotificationPort in app/Interfaces (22 sites)". The
+ratchet's own output confirms both halves of that sentence independently - the failure message listed the
+22 `file :: App\Services\NotificationService` pairs and nothing else, and
+`IDENTITY_to_COMM` / `CONSOLE_to_COMM` each retained exactly one non-NotificationService edge.
+
+New file `app/Interfaces/NotificationPort.php`: the service's whole public surface, unchanged -
+`getUserNotifications`, `createNotification`, `markAsRead`, `markAllAsRead`, `deleteNotification`,
+`findForUser`, `findManyForUser`, `markAsUnread`. `App\Services\NotificationService` now
+`implements NotificationPort`; **not one line of its body changed**. The port is bound in
+`ContainerBindings::registerBoundaryPorts()` as `bind(NotificationPort::class, NotificationService::class)`,
+i.e. to the singleton registered earlier in `registerSupportServices()`. Lifetimes are therefore IDENTICAL:
+`NotificationService` is still one singleton per process and the port resolves *that* instance, so a test
+that binds or mocks `NotificationService` still hands the mock to every port-typed constructor.
+
+The 22 sites switched type-hint and import only (`use App\Services\NotificationService;` ->
+`use App\Interfaces\NotificationPort;`, and the promoted parameter's type). Property/variable names, method
+calls and constructor argument order are untouched, so no call site changed behaviour:
+
+- RIDE (12): BookingActionService, BookingCancellationService, BookingService, NoShowConflictService,
+  NoShowPenaltyService, NoShowReportService, Noshowservice, RideCancellationService, RideCompletionService,
+  RideService, API/Support/RideBookingResponseHandler, API/Support/RideCancellationHandler.
+- MONEY (1): WalletRequestService.
+- IDENTITY (2): PassengerProfileController, VerificationSubmissionService.
+- CONSOLE (7): AdminBanController, AdminWalletRequestController, ComplaintController, StaffAdminController,
+  StaffComplaintController, StaffCancellationService, StaffComplaintService.
+
+Deliberately NOT switched, because they are inside COMM and carry no edge (switching them would enlarge the
+diff for no boundary gain): `NotificationController`, `PushNotificationController`,
+`Listeners/SendUserVerifiedNotification`. The two console commands that take `NotificationService`
+(`ExpireStaleBookingsCommand`, `TestNotificationCommand`) are composition-root / UNASSIGNED sources and are
+likewise out of scope.
+
+### 234.2 Baseline movement (each number measured, never assumed)
+
+| pair | before | after | why |
+|---|---|---|---|
+| `RIDE_to_COMM` | 12 | **0** | all twelve sites now name the port |
+| `MONEY_to_COMM` | 1 | **0** | WalletRequestService now names the port |
+| `IDENTITY_to_COMM` | 3 | **1** | `EmailOtpService -> App\Mail\OtpVerificationMail` remains (step c) |
+| `CONSOLE_to_COMM` | 8 | **1** | `StaffChatController -> ChatMessageHandler` remains (step c) |
+| **total** | **56** | **34** | 22 edges removed |
+
+The four baselines were lowered only AFTER the ratchet printed the new counts and named the surviving edges
+("baseline is 12 but only 0 edges remain ... Found: ", and for the two survivors the exact `file :: class`
+pairs above). No baseline was guessed and none was raised.
+
+### 234.3 Verification
+
+- `php -l` clean on all 25 changed files; `pint --test` PASS on the same 25 (Pint's write run was needed
+  once, and it only reordered the new `App\Interfaces\...` import ahead of `App\Models\...` in the 22 files -
+  the per-file diff stayed at four changed lines, two of them the import pair).
+- `CrossContextBoundaryTest` + `BoundaryDependencyTest`: OK, 29 tests / 116 assertions.
+- Wide gate, same selection as the pre-change baseline (`tests/Feature tests/Unit`, scratch MySQL): before
+  **2598 tests, 6830 assertions, 24 errors, 2 skipped**; after **2598 tests, 6831 assertions, 24 errors,
+  2 skipped**. Compared **by test name** from the JUnit logs: 0 new, 0 removed. The 24 are the pre-existing
+  `tests/Unit/Services/Payment` cash-fee errors (the RV-46 refund-tier family, `CashRideFeeServiceTest` 20 +
+  `L18CashRideFeeOutcomeLedgerTest` 4) that are red on HEAD and were recorded BEFORE this change was made.
+- Targeted smoke first: `SilentCatchBatchTest` (it mocks `NotificationService`), `tests/Unit/Providers`
+  (singleton identity) and `tests/Feature/Notifications` - 56 tests green.
+
+### 234.4 Files, result, unverified
+
+Changed: `app/Interfaces/NotificationPort.php` (new), `app/Services/NotificationService.php`,
+`app/Support/ContainerBindings.php`, the 22 sites above, `tests/Feature/AppFuture/CrossContextBoundaryTest.php`
+(four baselines lowered), `docs/audit/STATE.md`, this record - one commit, as asked.
+
+Result: VERIFIED FIX for step (a). Behaviour identical: no method body, amount, status, route or response
+shape was touched, and the failure set is identical by name. Genuinely unverified: nothing new. The port's
+method surface is exercised indirectly (the whole wide gate), not by a test that names `NotificationPort` -
+the interface is a type-only indirection over the same singleton, and the pre/post assertion delta (+1) is
+the ratchet's own improvement-claim assertion firing at the new baselines.

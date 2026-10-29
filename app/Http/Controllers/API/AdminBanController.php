@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Interfaces\NotificationPort;
 use App\Services\Admin\BanService;
-use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;      // ← added
 use Illuminate\Http\Request;
@@ -38,7 +38,7 @@ final class AdminBanController extends Controller
 {
     public function __construct(
         private readonly BanService $banService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     // ── POST /api/admin/users/{userId}/ban ────────────────────────────────────

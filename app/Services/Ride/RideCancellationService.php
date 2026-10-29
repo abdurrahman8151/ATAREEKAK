@@ -6,10 +6,10 @@ use App\Enums\BookingStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Events\RideCancelled;
+use App\Interfaces\NotificationPort;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\NotificationService;
 use App\Services\Payment\CancellationRefund;
 use App\Services\Payment\CashRideFeeService;
 use App\Services\Score\ScoreService;
@@ -32,7 +32,7 @@ final class RideCancellationService
         private readonly ScoreService $scoreService,
         private readonly CancellationRefund $cancellationRefund,
         private readonly CashRideFeeService $cashRideFeeService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     /**

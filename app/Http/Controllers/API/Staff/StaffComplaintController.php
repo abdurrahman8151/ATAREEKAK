@@ -4,7 +4,7 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Enums\ComplaintStatus;
 use App\Http\Controllers\Controller;
-use App\Services\NotificationService;
+use App\Interfaces\NotificationPort;
 use App\Services\Staff\StaffComplaintService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -26,7 +26,7 @@ final class StaffComplaintController extends Controller
 {
     public function __construct(
         private readonly StaffComplaintService $complaintService,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     // ── GET /api/staff/complaints ─────────────────────────────────────────────

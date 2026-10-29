@@ -5,10 +5,10 @@ namespace App\Services\Ride;
 use App\Enums\BookingStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
+use App\Interfaces\NotificationPort;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\NotificationService;
 use App\Services\Payment\CashRideFeeService;
 use App\Services\Payment\RidePayout;
 use App\Services\Score\ScoreService;
@@ -29,7 +29,7 @@ final class RideCompletionService
 {
     public function __construct(
         private readonly RidePayout $ridePayout,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
         private readonly ScoreService $scoreService,
         private readonly CashRideFeeService $cashRideFeeService,
     ) {}

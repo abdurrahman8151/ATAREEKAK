@@ -12,6 +12,7 @@ use App\Interfaces\EmailOtpServiceInterface;
 use App\Interfaces\EmployeeRepositoryInterface;
 use App\Interfaces\Geocoding\GeocodingServiceInterface;
 use App\Interfaces\Geocoding\RouteCalculationServiceInterface;
+use App\Interfaces\NotificationPort;
 use App\Interfaces\OtpRepositoryInterface;
 use App\Interfaces\PasswordResetRepositoryInterface;
 use App\Interfaces\Payment\BookingChargeInterface;
@@ -332,6 +333,9 @@ class ContainerBindings
         $this->app->bind(BookingChargeInterface::class, BookingCharge::class);
         $this->app->bind(RidePayoutInterface::class, RidePayout::class);
         $this->app->bind(CancellationRefundInterface::class, CancellationRefund::class);
+        // Batch 233 port: the four other contexts notify through the interface; the singleton
+        // above is still the implementation, so instance identity and construction are unchanged.
+        $this->app->bind(NotificationPort::class, NotificationService::class);
     }
 
     private function registerOtpServices(): void

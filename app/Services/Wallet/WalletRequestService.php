@@ -4,10 +4,10 @@ namespace App\Services\Wallet;
 
 use App\Exceptions\Domain\BusinessRuleViolation;
 use App\Exceptions\Domain\ConflictViolation;
+use App\Interfaces\NotificationPort;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
-use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +28,7 @@ class WalletRequestService
     // state conflict, and a client can act on that by waiting.
 
     public function __construct(
-        private readonly NotificationService $notifications,
+        private readonly NotificationPort $notifications,
     ) {}
 
     public function requestCharge(User $user, float $amount, ?string $notes = null): WalletRequest

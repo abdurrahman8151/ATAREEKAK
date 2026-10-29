@@ -60,17 +60,21 @@ class CrossContextBoundaryTest extends TestCase
     private const BASELINES = [
         'RIDE_to_MONEY' => 13,
         'RIDE_to_IDENTITY' => 1,
-        'RIDE_to_COMM' => 12,
+        // Batch 233 step (a): all twelve RIDE notification sites now take the NotificationPort.
+        'RIDE_to_COMM' => 0,
         'RIDE_to_CONSOLE' => 0,
 
         'MONEY_to_RIDE' => 0,
         'MONEY_to_IDENTITY' => 0,
-        'MONEY_to_COMM' => 1,
+        // Batch 233 step (a): WalletRequestService notifies through the NotificationPort.
+        'MONEY_to_COMM' => 0,
         'MONEY_to_CONSOLE' => 0,
 
         'IDENTITY_to_RIDE' => 3,
         'IDENTITY_to_MONEY' => 1,
-        'IDENTITY_to_COMM' => 3,
+        // Batch 233 step (a): the two notification sites are ported; one COMM edge remains
+        // (EmailOtpService -> App\Mail\OtpVerificationMail), which step (c) removes.
+        'IDENTITY_to_COMM' => 1,
         'IDENTITY_to_CONSOLE' => 0,
 
         'COMM_to_RIDE' => 0,
@@ -81,7 +85,9 @@ class CrossContextBoundaryTest extends TestCase
         'CONSOLE_to_RIDE' => 2,
         'CONSOLE_to_MONEY' => 3,
         'CONSOLE_to_IDENTITY' => 7,
-        'CONSOLE_to_COMM' => 8,
+        // Batch 233 step (a): seven CONSOLE notification sites are ported; one COMM edge
+        // remains (StaffChatController -> ChatMessageHandler), which step (c) removes.
+        'CONSOLE_to_COMM' => 1,
     ];
 
     private const CONTEXTS = ['RIDE', 'MONEY', 'IDENTITY', 'COMM', 'CONSOLE'];

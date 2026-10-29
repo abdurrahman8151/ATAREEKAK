@@ -2,11 +2,11 @@
 
 namespace App\Services\Staff;
 
+use App\Interfaces\NotificationPort;
 use App\Interfaces\Payment\CancellationRefundInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +27,7 @@ final class StaffCancellationService
 {
     public function __construct(
         private readonly CancellationRefundInterface $cancellationRefund,
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
     ) {}
 
     private function serverError(): JsonResponse

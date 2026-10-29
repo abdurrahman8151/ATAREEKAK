@@ -3,11 +3,11 @@
 namespace App\Services\Ride;
 
 use App\Enums\BookingStatus;
+use App\Interfaces\NotificationPort;
 use App\Models\Booking;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
 final class NoShowReportService
 {
     public function __construct(
-        private readonly NotificationService $notificationService,
+        private readonly NotificationPort $notificationService,
         private readonly NoShowConflictService $conflicts,
         private readonly NoShowReportGuard $guard,
     ) {}
