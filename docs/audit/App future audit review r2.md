@@ -14072,3 +14072,112 @@ not mine and nothing else in the file was changed.
 
 Result: VERIFIED FIX. Genuinely unverified: nothing new from this batch. The Aiven no-op for migration
 `2026_10_13_000001` (231.4) is still outstanding, and it is an owner action: place `C:\temp\prod-schema.sql`.
+
+---
+
+## 233. Batch 233 - the cross-context boundary ratchet (owner goal, step 0 of 4)
+
+Owner goal (2026-10-29, REFACTORING MODE): make the five bounded contexts machine-enforced while keeping
+behaviour identical. Contexts and their file lists are the owner's, taken verbatim:
+
+- **RIDE** - `Services/Ride`, `Services/Score`, `Services/Geocoding`, `Domain/Score`,
+  `Repositories/RideRepository`, `RideController`, `ScoreController`, `API/Support/Ride*Handler`.
+- **MONEY** - `Services/Payment`, `Services/Wallet`, `Domain/Payment`, `Support/FeeSplit`,
+  `Support/PostingKey`, `WalletController`, `WalletRequestController`.
+- **IDENTITY** - `Services/Auth`, `Services/Verification`, `Services/Profile`, `JwtService`, the three OTP
+  services, `EmployeeAuthService`, `StaffJwtService`, the auth/profile controllers and handlers, and the
+  User/Otp/PasswordReset/Verification/Photo/Profile repositories.
+- **COMM** - `NotificationService`, `Services/PushNotification`, `Services/Chat`, `Services/MessageTypes`,
+  `Listeners`, `Jobs`, `Notifications`, `Mail`, `Broadcasting`, the Chat/Notification/PushNotification/Contact
+  controllers, `ChatRepository`.
+- **CONSOLE** - `Services/Admin`, `Services/Staff` minus `EmployeeAuthService`/`StaffJwtService`,
+  `Services/Complaint`, the `Admin*`/`Staff*` controllers, `ComplaintController`, the Complaint/Employee
+  repositories.
+- **Shared kernel, importable by all** - `Models`, `Enums`, `DTOs`, `Interfaces`, `Events`,
+  `Domain/ValueObjects` (incl. `Money`), `Exceptions`, `GeoPoint`, `Services/File`.
+
+This section is **step 0 only**: the rule and its measured baselines. The three reduction steps the owner
+ordered follow in sections 234 (a), 235 (b) and 236 (c); one commit per step, as asked.
+
+### 233.1 The metric, defined before the numbers
+
+An **edge** is one `(source file, target class)` pair where:
+
+1. the source file is under `app/` and belongs to one of the five contexts (composition-root files -
+   `Providers`, `Support/ContainerBindings`, `Http/Middleware`, `Http/Requests`, `Console/Commands` - and the
+   shared kernel are never sources), and
+2. the target class is *declared* in a **different** context (shared-kernel classes and `App\Interfaces`
+   ports are never targets, because importing them is the whole point of the kernel), and
+3. the source file actually *references* that class, resolved from its own `use` table, its namespace, and a
+   unique-short-name fallback. References are read from name tokens only, so no comment or string literal can
+   produce - or hide - an edge.
+
+A bare `use` line with no reference does not count, and neither does a second reference to a class the file
+already names: one file can contribute at most one edge to a given target class. That is what makes the unit
+"an import", and it is why the totals are file-shaped rather than occurrence-shaped.
+
+The scan is a standalone tokenizer pass, no Laravel boot. An external scratch measurement
+(`%TEMP%\ctx_measure.php`) produced the numbers first; the test's own scanner reproduced them exactly. The
+external figure and the in-test figure agreeing is the cross-check for this section.
+
+### 233.2 Measured matrix - the baselines, before any reduction
+
+Rows are the source context, columns the target; `-` is the same-context diagonal (not a ratchet), `0` is a
+pair that is already clean and now hard-zero.
+
+| from \ to | RIDE | MONEY | IDENTITY | COMM | CONSOLE |
+|---|---|---|---|---|---|
+| **RIDE** | - | 13 | 1 | 12 | 0 |
+| **MONEY** | 0 | - | 0 | 1 | 0 |
+| **IDENTITY** | 3 | 1 | - | 3 | 0 |
+| **COMM** | 0 | 0 | 0 | - | 2 |
+| **CONSOLE** | 2 | 3 | 7 | 8 | - |
+
+**Total: 56 edges across 13 non-zero ordered pairs** - the "about 56" the owner predicted, measured, not
+assumed. The per-class breakdown confirms the two named step sizes independently: `NotificationService` is
+referenced by **22** distinct files outside COMM, and exactly **13** edges sit on RIDE -> MONEY (the four
+payment ports plus the already-ported `CancellationRefund`).
+
+### 233.3 The rule
+
+`tests/Feature/AppFuture/CrossContextBoundaryTest.php` holds one `BASELINES` entry per ordered pair
+(20 pairs, the 7 clean ones at 0) and one data-provider case per entry. Each case makes **both** assertions
+the existing ratchet makes, so the number cannot drift in either direction:
+
+- `count >= baseline`, else *"only N edges remain - lower the number in BASELINES to claim the improvement"*;
+- `count <= baseline`, else *"new cross-context import - ... do not raise the baseline"*.
+
+The failure message names every offending `file :: class` pair, so the next step's worklist comes from the
+test's own output rather than from a document. The scan is memoised per process (20 cases, ~1.2 s total).
+
+Classification choices that the owner's lists left open are resolved in the stricter direction and documented
+in the file: `StaffAuthController` counts as IDENTITY (it is an auth controller, so a later Staff->services
+edge from it is policed as IDENTITY->CONSOLE, whose baseline is 0, rather than hidden inside CONSOLE);
+`StaffDocumentController` stays CONSOLE as a `Staff*` controller. Neither choice changes the measured
+numbers - neither file carries an edge today.
+
+### 233.4 Two needles (both reverted, tree verified clean)
+
+1. **A new edge fails.** A temporary `app/Services/Ride/CrossContextNeedleProbe.php` referencing
+   `App\Services\Payment\CashRideFeeService` was added: `RIDE_to_MONEY` failed `14 vs 13` and listed the
+   probe by name; the other 19 cases stayed green. The probe file was then deleted (`Test-Path` false,
+   `git status app/` clean).
+2. **An unclaimed improvement fails.** Raising `RIDE_to_CONSOLE` from its measured 0 to 1 failed with
+   *"baseline is 1 but only 0 edges remain - lower the number in BASELINES to claim the improvement"*. The
+   baseline was restored to 0 and the file re-run green.
+
+Needle 2 is also the reason the committed baselines are *proved* equal to the measured numbers rather than
+merely assumed: the same run at the committed values passes both bounds for all 20 pairs, which is equality
+by construction.
+
+### 233.5 Files, result, unverified
+
+Changed: `tests/Feature/AppFuture/CrossContextBoundaryTest.php` (new, 20 tests / 80 assertions, green),
+`docs/audit/STATE.md` (write-ahead block), this record. No application file was touched in this step.
+
+Checks run: `php -l` and `pint --test` on the new file (Pint ran once to fix style, clean afterwards);
+`php vendor/bin/phpunit tests/Feature/AppFuture/CrossContextBoundaryTest.php --no-coverage` -> OK
+(20 tests, 80 assertions, 1.193 s) against the scratch MySQL at `127.0.0.1:3399`.
+
+Result: VERIFIED FIX for step 0. Genuinely unverified: nothing - the baselines are the measured numbers and
+both ratchet directions were needled. The reduction itself is not started here; steps (a)-(c) are 234-236.
