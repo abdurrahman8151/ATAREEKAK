@@ -14259,3 +14259,82 @@ shape was touched, and the failure set is identical by name. Genuinely unverifie
 method surface is exercised indirectly (the whole wide gate), not by a test that names `NotificationPort` -
 the interface is a type-only indirection over the same singleton, and the pre/post assertion delta (+1) is
 the ratchet's own improvement-claim assertion firing at the new baselines.
+
+---
+
+## 235. Batch 233 step (b) - the four money ports (13 edges -> 0)
+
+### 235.1 What the ratchet said, and what was done
+
+The owner's step (b): "ports for RidePayout, NoShowSettlement, CashRideFeeService and
+PaymentStrategyFactory (13 sites; CancellationRefundInterface already exists)". The ratchet's message named
+all 13 `file :: class` pairs and they were exactly the RIDE -> MONEY pair - no other pair moved in this step.
+
+Two of the four were already behind an interface; the interfaces were simply not used by RIDE, and the
+surfaces RIDE needs were missing. So two existing ports were EXTENDED and three new ones written:
+
+| port | status | surface RIDE actually calls |
+|---|---|---|
+| `App\Interfaces\Payment\RidePayoutInterface` | existed, extended | `releaseEscrowToDriver` (already there) + `releaseEarningsToDriver(Ride, Collection)` |
+| `App\Interfaces\Payment\CancellationRefundInterface` | existed, extended | the two refunds (already there) + `calculateRefundPolicy(Carbon, Carbon)` + `processTimeBasedCancellation(Booking, Ride, int, array)` |
+| `App\Interfaces\Payment\NoShowSettlementInterface` | new | `processPassengerNoShow`, `processDriverNoShowRefund` |
+| `App\Interfaces\Payment\CashRideFeeServiceInterface` | new | `refundCashRideCreationFee`, `canCreateCashRide`, `chargeCashRideCreationFee` |
+| `App\Interfaces\Payment\PaymentStrategyFactoryInterface` | new | `make(string\|PaymentMethod)` |
+
+`NoShowSettlement`, `CashRideFeeService` and `PaymentStrategyFactory` now `implement` those interfaces; no
+method body changed. The three new ports are bound in `registerBoundaryPorts()` to the same singletons
+registered earlier, so instance identity and construction order are unchanged.
+
+One deliberate signature decision: `PaymentStrategyFactoryInterface::make()` declares **no return type**.
+The concrete return is `App\Domain\Payment\Strategies\PaymentStrategy`, and naming that in the shared kernel
+would make the kernel depend on MONEY. PHP permits an interface method with no return type to be implemented
+by one that narrows it, so the dependency stays one-way (RIDE -> `App\Interfaces` -> MONEY) and callers
+receive the identical strategy object. The concrete type is documented in the interface's `@return`.
+
+The eight RIDE files switched type-hint and import only: `BookingCancellationService` (CancellationRefund),
+`BookingService` (CancellationRefund, PaymentStrategyFactory), `BookingCompletionService`
+(PaymentStrategyFactory), `NoShowPenaltyService` (NoShowSettlement), `Noshowservice` (NoShowSettlement),
+`RideCancellationService` (CancellationRefund, CashRideFeeService), `RideCompletionService` (RidePayout,
+CashRideFeeService), `RideService` (CancellationRefund, RidePayout, CashRideFeeService). The inner
+`new BookingCancellationService(...)` / `new BookingCompletionService(...)` / `new NoShowPenaltyService(...)`
+constructions keep their argument order and now simply pass port-typed objects to port-typed parameters.
+
+### 235.2 Baseline movement
+
+| pair | before | after | why |
+|---|---|---|---|
+| `RIDE_to_MONEY` | 13 | **0** | all thirteen sites now name an `App\Interfaces\Payment` port |
+| **total** | **34** | **21** | 13 edges removed |
+
+Lowered only after the ratchet printed `RIDE_to_MONEY: baseline is 13 but only 0 edges remain ... Found: `
+(empty list). No baseline was raised and no other pair moved.
+
+### 235.3 Verification
+
+- `php -l` clean on all changed files; `pint --test` PASS on the 17 files of this step (Pint reordered the
+  new `App\Interfaces\...` imports ahead of `App\Services\...` - one import line per file moved, nothing
+  else).
+- `CrossContextBoundaryTest` + `BoundaryDependencyTest`: OK, 29 tests / 116 assertions.
+- Wide gate (`tests/Feature tests/Unit`): **2598 tests, 6834 assertions, 24 errors, 2 skipped** - the same
+  24 `tests/Unit/Services/Payment` cash-fee errors as the pre-change baseline, compared **by test name**:
+  0 new, 0 removed.
+- Infrastructure note, disclosed: the scratch MySQL went down during the first smoke attempt of this step.
+  It was restarted once with the runbook command and re-pinged `DB_OK 8.2.0`; the killed run was discarded
+  rather than interpreted, and the wide gate above is the re-run on the healthy DB.
+
+### 235.4 Files, result, unverified
+
+Changed: `app/Interfaces/Payment/NoShowSettlementInterface.php`,
+`app/Interfaces/Payment/CashRideFeeServiceInterface.php`,
+`app/Interfaces/Payment/PaymentStrategyFactoryInterface.php` (all new);
+`app/Interfaces/Payment/RidePayoutInterface.php`, `app/Interfaces/Payment/CancellationRefundInterface.php`
+(surfaces extended); `app/Services/Payment/NoShowSettlement.php`,
+`app/Services/Payment/CashRideFeeService.php`, `app/Domain/Payment/Strategies/PaymentStrategyFactory.php`
+(`implements`); `app/Support/ContainerBindings.php` (three bindings); the eight RIDE services;
+`tests/Feature/AppFuture/CrossContextBoundaryTest.php` (one baseline); `docs/audit/STATE.md`; this record -
+one commit, as asked.
+
+Result: VERIFIED FIX for step (b). No amount, refund tier, 95/5 split, `posting_key` or escrow semantic was
+touched - the ports only carry the same calls to the same singletons. Genuinely unverified: nothing new;
+no test names the new interfaces, and the money behaviour is covered by the pre-existing money suites, whose
+failure set is identical by name.

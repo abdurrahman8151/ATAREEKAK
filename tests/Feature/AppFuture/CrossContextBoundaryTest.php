@@ -58,7 +58,8 @@ class CrossContextBoundaryTest extends TestCase
      * Lowering these numbers is the whole point of the batch; raising one is forbidden.
      */
     private const BASELINES = [
-        'RIDE_to_MONEY' => 13,
+        // Batch 233 step (b): all thirteen RIDE money sites now take an App\Interfaces\Payment port.
+        'RIDE_to_MONEY' => 0,
         'RIDE_to_IDENTITY' => 1,
         // Batch 233 step (a): all twelve RIDE notification sites now take the NotificationPort.
         'RIDE_to_COMM' => 0,

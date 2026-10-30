@@ -3,6 +3,7 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
+use App\Interfaces\Payment\CashRideFeeServiceInterface;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
@@ -53,7 +54,7 @@ use App\Models\Wallet;
  *
  * ═══════════════════════════════════════════════════════════════════
  */
-final class CashRideFeeService
+final class CashRideFeeService implements CashRideFeeServiceInterface
 {
     private readonly CashRideFeeRefundService $refunds;
 

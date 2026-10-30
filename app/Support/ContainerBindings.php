@@ -17,6 +17,9 @@ use App\Interfaces\OtpRepositoryInterface;
 use App\Interfaces\PasswordResetRepositoryInterface;
 use App\Interfaces\Payment\BookingChargeInterface;
 use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\CashRideFeeServiceInterface;
+use App\Interfaces\Payment\NoShowSettlementInterface;
+use App\Interfaces\Payment\PaymentStrategyFactoryInterface;
 use App\Interfaces\Payment\RidePayoutInterface;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
@@ -336,6 +339,10 @@ class ContainerBindings
         // Batch 233 port: the four other contexts notify through the interface; the singleton
         // above is still the implementation, so instance identity and construction are unchanged.
         $this->app->bind(NotificationPort::class, NotificationService::class);
+        // Batch 233 step (b): the ride services reach the money context only through these.
+        $this->app->bind(NoShowSettlementInterface::class, NoShowSettlement::class);
+        $this->app->bind(CashRideFeeServiceInterface::class, CashRideFeeService::class);
+        $this->app->bind(PaymentStrategyFactoryInterface::class, PaymentStrategyFactory::class);
     }
 
     private function registerOtpServices(): void

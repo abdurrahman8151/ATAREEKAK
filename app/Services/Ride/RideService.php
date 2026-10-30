@@ -6,13 +6,13 @@ use App\DTOs\Ride\CreateRideDTO;
 use App\Enums\RideStatus;
 use App\Events\RideCreated;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\CashRideFeeServiceInterface;
+use App\Interfaces\Payment\RidePayoutInterface;
 use App\Interfaces\RideRepositoryInterface;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\Geocoding\RouteCalculationService;
-use App\Services\Payment\CancellationRefund;
-use App\Services\Payment\CashRideFeeService;
-use App\Services\Payment\RidePayout;
 use App\Services\Score\ScoreService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,12 +27,12 @@ final class RideService
         private readonly RideRepositoryInterface $rideRepository,
         private readonly RideValidationService $validationService,
         private readonly RideSearchService $searchService,
-        private readonly CancellationRefund $cancellationRefund,
-        private readonly RidePayout $ridePayout,
+        private readonly CancellationRefundInterface $cancellationRefund,
+        private readonly RidePayoutInterface $ridePayout,
         private readonly NotificationPort $notificationService,
         private readonly ScoreService $scoreService,
         private readonly Noshowservice $noshowService,
-        private readonly CashRideFeeService $cashRideFeeService,
+        private readonly CashRideFeeServiceInterface $cashRideFeeService,
         private readonly RouteCalculationService $routeService,
     ) {
         $this->cancellations = new RideCancellationService(

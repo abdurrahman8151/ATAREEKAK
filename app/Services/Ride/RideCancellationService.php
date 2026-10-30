@@ -7,11 +7,11 @@ use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Events\RideCancelled;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\CashRideFeeServiceInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Payment\CancellationRefund;
-use App\Services\Payment\CashRideFeeService;
 use App\Services\Score\ScoreService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,8 +30,8 @@ final class RideCancellationService
     public function __construct(
         private readonly RideValidationService $validationService,
         private readonly ScoreService $scoreService,
-        private readonly CancellationRefund $cancellationRefund,
-        private readonly CashRideFeeService $cashRideFeeService,
+        private readonly CancellationRefundInterface $cancellationRefund,
+        private readonly CashRideFeeServiceInterface $cashRideFeeService,
         private readonly NotificationPort $notificationService,
     ) {}
 

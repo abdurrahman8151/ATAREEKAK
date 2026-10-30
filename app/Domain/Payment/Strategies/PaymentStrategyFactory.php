@@ -5,6 +5,7 @@ namespace App\Domain\Payment\Strategies;
 use App\Enums\PaymentMethod;
 use App\Interfaces\Payment\BookingChargeInterface;
 use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\PaymentStrategyFactoryInterface;
 use App\Interfaces\Payment\RidePayoutInterface;
 use InvalidArgumentException;
 
@@ -16,7 +17,7 @@ use InvalidArgumentException;
  *        instead of being constructed with zero arguments
  *        (which threw ArgumentCountError → silent 500).
  */
-final class PaymentStrategyFactory
+final class PaymentStrategyFactory implements PaymentStrategyFactoryInterface
 {
     private array $strategies = [];
 

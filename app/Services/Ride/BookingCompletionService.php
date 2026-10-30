@@ -2,10 +2,10 @@
 
 namespace App\Services\Ride;
 
-use App\Domain\Payment\Strategies\PaymentStrategyFactory;
 use App\Enums\BookingStatus;
 use App\Enums\RideStatus;
 use App\Enums\ScoreAction;
+use App\Interfaces\Payment\PaymentStrategyFactoryInterface;
 use App\Models\Booking;
 use App\Models\NoshowReport;
 use App\Models\Ride;
@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\DB;
 final class BookingCompletionService
 {
     public function __construct(
-        private readonly PaymentStrategyFactory $paymentFactory,
+        private readonly PaymentStrategyFactoryInterface $paymentFactory,
         private readonly ScoreService $scoreService,
         private readonly Noshowservice $noshowService,
     ) {}

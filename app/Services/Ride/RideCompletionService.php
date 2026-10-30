@@ -6,11 +6,11 @@ use App\Enums\BookingStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\Payment\CashRideFeeServiceInterface;
+use App\Interfaces\Payment\RidePayoutInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Payment\CashRideFeeService;
-use App\Services\Payment\RidePayout;
 use App\Services\Score\ScoreService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -28,10 +28,10 @@ use Illuminate\Support\Facades\Log;
 final class RideCompletionService
 {
     public function __construct(
-        private readonly RidePayout $ridePayout,
+        private readonly RidePayoutInterface $ridePayout,
         private readonly NotificationPort $notificationService,
         private readonly ScoreService $scoreService,
-        private readonly CashRideFeeService $cashRideFeeService,
+        private readonly CashRideFeeServiceInterface $cashRideFeeService,
     ) {}
 
     /**

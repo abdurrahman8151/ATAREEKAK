@@ -3,6 +3,7 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
+use App\Interfaces\Payment\NoShowSettlementInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /** Money path split out of WalletTransactionService (behaviour unchanged). */
-class NoShowSettlement
+class NoShowSettlement implements NoShowSettlementInterface
 {
     public function __construct(
         private readonly WalletAccess $access,

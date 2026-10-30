@@ -6,10 +6,10 @@ use App\Enums\BookingStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\Payment\CancellationRefundInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Payment\CancellationRefund;
 use App\Services\Score\ScoreService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Log;
 final class BookingCancellationService
 {
     public function __construct(
-        private readonly CancellationRefund $cancellationRefund,
+        private readonly CancellationRefundInterface $cancellationRefund,
         private readonly NotificationPort $notificationService,
         private readonly ScoreService $scoreService,
     ) {}

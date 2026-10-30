@@ -2,7 +2,6 @@
 
 namespace App\Services\Ride;
 
-use App\Domain\Payment\Strategies\PaymentStrategyFactory;
 use App\DTOs\Ride\BookRideDTO;
 use App\Enums\BookingStatus;
 use App\Enums\BookingType;
@@ -10,11 +9,12 @@ use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
 use App\Events\RideBooked;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\Payment\CancellationRefundInterface;
+use App\Interfaces\Payment\PaymentStrategyFactoryInterface;
 use App\Interfaces\RideRepositoryInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Payment\CancellationRefund;
 use App\Services\Score\ScoreService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,12 +30,12 @@ final class BookingService
 
     public function __construct(
         private readonly RideRepositoryInterface $rideRepository,
-        private readonly CancellationRefund $cancellationRefund,
+        private readonly CancellationRefundInterface $cancellationRefund,
         private readonly NotificationPort $notificationService,
         private readonly RideValidationService $validationService,
         private readonly ScoreService $scoreService,
         private readonly Noshowservice $noshowService,
-        private readonly PaymentStrategyFactory $paymentFactory,   // ← NEW
+        private readonly PaymentStrategyFactoryInterface $paymentFactory,   // ← NEW
     ) {
         $this->cancellations = new BookingCancellationService($cancellationRefund, $notificationService, $scoreService);
         $this->completions = new BookingCompletionService($paymentFactory, $scoreService, $noshowService);
