@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\API\Staff;
 
 use App\Enums\ComplaintStatus;
+use App\Exceptions\Domain\DuplicateNationalIdException;
 use App\Http\Controllers\Controller;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\VerificationApprovalInterface;
 use App\Interfaces\VerificationRepositoryInterface;
 use App\Services\Staff\StaffComplaintService;
 use App\Services\Staff\StaffVerificationQueueService;
-use App\Services\Verification\DuplicateNationalIdException;
-use App\Services\Verification\VerificationApprovalService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,7 +39,7 @@ final class StaffAdminController extends Controller
     public function __construct(
         private readonly StaffComplaintService $complaintService,
         private readonly StaffVerificationQueueService $verificationQueue,
-        private readonly VerificationApprovalService $approvalService,
+        private readonly VerificationApprovalInterface $approvalService,
         private readonly NotificationPort $notificationService,
         private readonly VerificationRepositoryInterface $verificationRepo,
     ) {}

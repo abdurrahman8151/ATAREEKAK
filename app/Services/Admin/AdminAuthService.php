@@ -2,8 +2,8 @@
 
 namespace App\Services\Admin;
 
+use App\Interfaces\StaffJwtInterface;
 use App\Models\Employee;
-use App\Services\Staff\StaffJwtService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
@@ -32,7 +32,7 @@ final class AdminAuthService
     private const DUMMY_HASH = '$2y$12$KdyEj/F8DFgVEmYFFnVsQemtKoKwSbpX1z/gWy061r3yCUjoemuo6';
 
     public function __construct(
-        private readonly StaffJwtService $jwtService,
+        private readonly StaffJwtInterface $jwtService,
     ) {}
 
     // =========================================================================

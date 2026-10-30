@@ -14338,3 +14338,169 @@ Result: VERIFIED FIX for step (b). No amount, refund tier, 95/5 split, `posting_
 touched - the ports only carry the same calls to the same singletons. Genuinely unverified: nothing new;
 no test names the new interfaces, and the money behaviour is covered by the pre-existing money suites, whose
 failure set is identical by name.
+
+---
+
+## 236. Batch 233 step (c) - the remaining ports and the moves, 21 edges -> 0
+
+### 236.1 The twenty-one edges and what closed each
+
+No pair moved in this step except the nine below; every one was named by the ratchet's own message before
+its baseline was lowered.
+
+| pair | before | after | what closed it |
+|---|---|---|---|
+| `RIDE_to_IDENTITY` | 1 | 0 | `RideValidationService` -> `DocumentVerificationInterface` |
+| `IDENTITY_to_RIDE` | 3 | 0 | `ProfileController` -> `ScoreServiceInterface`, `UserRideStatsInterface`, and `ScoreFormatter` instead of `ScoreController::formatScore` |
+| `IDENTITY_to_MONEY` | 1 | 0 | `PassengerWalletCharger` moved to `App\Services\Payment` (its `LedgerService` reference became context-internal) |
+| `IDENTITY_to_COMM` | 1 | 0 | `EmailOtpService` -> `OtpMailInterface` (implemented by `App\Mail\OtpMailer`) |
+| `COMM_to_CONSOLE` | 2 | 0 | `ContactController` -> `EmployeeManagementInterface`, `SupportAgentRoutingInterface` |
+| `CONSOLE_to_RIDE` | 2 | 0 | `StaffUserProfileService` -> `ScoreServiceInterface`, `UserRideStatsInterface` |
+| `CONSOLE_to_MONEY` | 3 | 0 | `AdminWalletRequestController` -> `CashRideFeeServiceInterface`, `LedgerServiceInterface`; `AdminWalletCharger` -> `LedgerServiceInterface` |
+| `CONSOLE_to_IDENTITY` | 7 | 0 | `AdminDashboardController` and `StaffAdminController` -> `VerificationApprovalInterface` + the moved `DuplicateNationalIdException`; `AdminAuthService` and `EmployeeManagementService` -> `StaffJwtInterface`; `BanService` -> the existing `TokenRevokerInterface` |
+| `CONSOLE_to_COMM` | 1 | 0 | `StaffChatController` -> `ChatMessageHandlerInterface` |
+| **total** | **21** | **0** | |
+
+### 236.2 The ports
+
+Eleven new interfaces and one implementation, each mirroring only the methods its cross-context callers
+actually use (the minimal-surface pattern of `RidePayoutInterface`), all bound in
+`ContainerBindings::registerBoundaryPorts()` to the same classes and singletons that were resolved before:
+
+| port | implementation | surface |
+|---|---|---|
+| `App\Interfaces\DocumentVerificationInterface` | `Services\Verification\DocumentVerificationService` | `validateDriverDocuments` |
+| `App\Interfaces\ScoreServiceInterface` | `Services\Score\ScoreService` | `getScore` (reads only - the write paths stay RIDE-internal) |
+| `App\Interfaces\UserRideStatsInterface` | `Services\Ride\UserRideStatsService` | `ridesAsDriver`, `bookingsAsPassenger` |
+| `App\Interfaces\Payment\LedgerServiceInterface` | `Services\Payment\LedgerService` | `postExternalTransfer` |
+| `App\Interfaces\OtpMailInterface` | `App\Mail\OtpMailer` (new, COMM) | `send` |
+| `App\Interfaces\EmployeeManagementInterface` | `Services\Staff\EmployeeManagementService` | `ensureShadowUser` |
+| `App\Interfaces\SupportAgentRoutingInterface` | `Services\Staff\SupportAgentRoutingService` | `leastLoadedSupportAgent` |
+| `App\Interfaces\VerificationApprovalInterface` | `Services\Verification\VerificationApprovalService` | `approve` |
+| `App\Interfaces\StaffJwtInterface` | `Services\Staff\StaffJwtService` | `generateTokenPair`, `refreshAccessToken`, `revokeAllTokens` |
+| `App\Interfaces\ChatMessageHandlerInterface` | `Services\Chat\ChatMessageHandler` | `sendMessage`, `getFormattedMessages`, `formatMessage` |
+| `App\Interfaces\Payment\PassengerWalletChargerInterface` | `Services\Payment\PassengerWalletCharger` | the five methods the profile controller calls |
+
+Two deliberate signature decisions, both recorded in the interfaces themselves:
+
+- `BanService` needed no new port at all - it calls exactly `revokeAllTokens(int)`, which the batch-227
+  `TokenRevokerInterface` already declares and `JwtService` already implements. It now takes that.
+- `OtpMailer::send()` makes the *same* `Mail::to($to)->send(new OtpVerificationMail($code, $name, $expiry))`
+  call the service made inline, synchronously, with the same argument order. `EmailOtpService` gained one
+  constructor parameter (`OtpMailInterface $mailer`) and lost its `Mail` facade import; the container
+  auto-resolves it, and no test constructs `EmailOtpService` by hand.
+- `CashRideFeeServiceInterface` gained `autoClearDebt` in this step: the CONSOLE top-up path calls it, so
+  the port would have been incomplete without it.
+
+### 236.3 The moves, and why each was needed
+
+1. **`DuplicateNationalIdException` -> `App\Exceptions\Domain`** (kernel), as instructed. Import updated in
+   `VerificationApprovalService` and in both CONSOLE controllers. No test referenced the old FQCN.
+2. **`ApprovedVerification` -> `App\DTOs\Verification`** (kernel). This one is a consequence of the port:
+   `VerificationApprovalInterface::approve()` returns that object, and leaving it in
+   `App\Services\Verification` would have made the shared kernel import a context class. The class body is
+   unchanged (two readonly props).
+3. **`PassengerWalletCharger` -> `App\Services\Payment`**, as instructed, **plus a port**. The move alone
+   would not have reached 0: the class is injected into `PassengerProfileController` (IDENTITY), so moving
+   it to MONEY would have replaced one `IDENTITY_to_MONEY` edge with another. `PassengerWalletChargerInterface`
+   is that missing half; it also reaches the ledger through `LedgerServiceInterface` now.
+4. **`ProfileController` no longer calls `ScoreController::formatScore`.** The body moved verbatim into
+   `App\DTOs\Score\ScoreFormatter` (kernel). `ScoreController::formatScore` is **kept as a one-line
+   delegate** - `RideLifecycleHandler` still calls it and `RoutesIntegrityTest` pins it in
+   `UNROUTED_BY_DESIGN` - so the method survives with identical output and the IDENTITY -> RIDE edge is gone.
+5. **`ScoreBounds` -> `App\Domain\Score`** holds `START_SCORE = 70`, `MIN_SCORE = 0`, `MAX_SCORE = 100`.
+   The instruction named `MIN_SCORE`, but `ScoreLedger` also read `MAX_SCORE` (both ends of its one clamp)
+   and `START_SCORE` (the initialization row), so moving only `MIN_SCORE` would have left the class cycle
+   intact - which was the stated purpose of the move. All three moved, and `ScoreService` keeps its three
+   public constants as **aliases** (`= ScoreBounds::X`), so every existing reference and test still works
+   and nothing about the numbers changed.
+
+### 236.4 Baselines
+
+`CrossContextBoundaryTest`: nine pairs lowered, each only after the ratchet printed the empty violation
+list; **all twenty rows are now 0** (total 21 -> 0, and 56 -> 0 across the batch). No row was raised.
+`BoundaryDependencyTest` (the older namespace-level ratchet, R1-R9) needed no baseline change and passes:
+its edges are namespace-level (`Domain -> Services`, `async -> Http`, ...) and none of this step crosses one.
+
+### 236.5 Verification
+
+- `php -l` clean on all 44 changed/added files; `pint --test` PASS on the same 44. Whole-tree
+  `pint --test` reports 10 offenders and **none of them is a file this batch touched** (`WalletAccess.php`
+  and 9 test files, all pre-existing and byte-identical to HEAD).
+- `tests/Feature/AppFuture`: **40 tests, 336 assertions, OK** (both boundary ratchets plus the
+  container-boot and route tests).
+- Wide gate (`tests/Feature tests/Unit`): **2598 tests, 6848 assertions, 24 errors, 2 skipped** - the same
+  24 `tests/Unit/Services/Payment` cash-fee errors as the pre-change baseline, compared **by test name**:
+  **0 new, 0 removed**.
+- Three real breakages were caught and fixed during the step, all by existing tests rather than by
+  inspection: `LedgerService::class` resolved as `App\Support\LedgerService` (missing import in
+  `ContainerBindings`), `ChatMessageHandlerInterface` likewise unimported, and
+  `PassengerProfileController` still naming the old `App\Services\Profile\PassengerWalletCharger`. Each
+  surfaced as a container `BindingResolutionException` from `UntangleBatchTest`.
+- **Scanner limitation, disclosed:** the ratchet resolves a reference only if the target class exists, so a
+  file still importing a class that has been *deleted* counts as 0 edges. That is exactly how the stale
+  `PassengerProfileController` import slipped past the ratchet while the app was broken. The mitigation is
+  the wide gate (the container is built for 2598 tests), not the ratchet - do not read "0 edges" as
+  "nothing stale remains" without it.
+- Infrastructure note: the repo uses an optimized Composer classmap, so the three moved classes required
+  `composer dump-autoload` (with the scratch DB variables set in the same shell; its `package:discover`
+  post-script still exits 1 on the test-only OTP guard, before any DB access - no DB was touched).
+
+### 236.6 Files
+
+New: the eleven interfaces (`app/Interfaces/*`, `app/Interfaces/Payment/*`), `app/Mail/OtpMailer.php`,
+`app/DTOs/Score/ScoreFormatter.php`, `app/DTOs/Verification/ApprovedVerification.php`,
+`app/Domain/Score/ScoreBounds.php`, `app/Exceptions/Domain/DuplicateNationalIdException.php`,
+`app/Services/Payment/PassengerWalletCharger.php`.
+Deleted: `app/Services/Verification/ApprovedVerification.php`,
+`app/Services/Verification/DuplicateNationalIdException.php`,
+`app/Services/Profile/PassengerWalletCharger.php`.
+Changed (type-hint and import only, plus the `implements` clause): `DocumentVerificationService`,
+`ScoreService`, `ScoreLedger`, `UserRideStatsService`, `LedgerService`, `ChatMessageHandler`,
+`StaffJwtService`, `EmployeeManagementService`, `SupportAgentRoutingService`,
+`VerificationApprovalService`, `EmailOtpService`, `ScoreController`, `RideValidationService`,
+`ProfileController`, `StaffUserProfileService`, `PassengerProfileController`,
+`AdminWalletRequestController`, `AdminWalletCharger`, `AdminDashboardController`, `StaffAdminController`,
+`AdminAuthService`, `BanService`, `StaffChatController`, `ContactController`,
+`app/Support/ContainerBindings.php`, `tests/Feature/AppFuture/CrossContextBoundaryTest.php`,
+`tests/Feature/Review/MoneyRoundingIsDecidedInOnePlaceTest.php` (the moved file's path),
+`docs/audit/STATE.md`, this record.
+
+Result: VERIFIED FIX for step (c). **Parked: nothing** - every item the owner listed was completed, and no
+change was needed that would alter an amount, tier, split, posting key, escrow semantic, HTTP status,
+response shape, auth rule, schema or assertion; no existing assertion was edited and no baseline raised.
+
+Genuinely unverified: nothing new. The ports are type-only indirections over the same classes and the same
+container bindings, so their behaviour is covered by the pre-existing suites (whose failure set is
+identical by name); no test names a port directly.
+
+### 236.7 Batch 233 - final before/after matrix (all twenty ordered pairs)
+
+| pair | 2026-10-29 (measured) | after (a) | after (b) | after (c) |
+|---|---|---|---|---|
+| `RIDE_to_MONEY` | 13 | 13 | **0** | 0 |
+| `RIDE_to_IDENTITY` | 1 | 1 | 1 | **0** |
+| `RIDE_to_COMM` | 12 | **0** | 0 | 0 |
+| `RIDE_to_CONSOLE` | 0 | 0 | 0 | 0 |
+| `MONEY_to_RIDE` | 0 | 0 | 0 | 0 |
+| `MONEY_to_IDENTITY` | 0 | 0 | 0 | 0 |
+| `MONEY_to_COMM` | 1 | **0** | 0 | 0 |
+| `MONEY_to_CONSOLE` | 0 | 0 | 0 | 0 |
+| `IDENTITY_to_RIDE` | 3 | 3 | 3 | **0** |
+| `IDENTITY_to_MONEY` | 1 | 1 | 1 | **0** |
+| `IDENTITY_to_COMM` | 3 | **1** | 1 | **0** |
+| `IDENTITY_to_CONSOLE` | 0 | 0 | 0 | 0 |
+| `COMM_to_RIDE` | 0 | 0 | 0 | 0 |
+| `COMM_to_MONEY` | 0 | 0 | 0 | 0 |
+| `COMM_to_IDENTITY` | 0 | 0 | 0 | 0 |
+| `COMM_to_CONSOLE` | 2 | 2 | 2 | **0** |
+| `CONSOLE_to_RIDE` | 2 | 2 | 2 | **0** |
+| `CONSOLE_to_MONEY` | 3 | 3 | 3 | **0** |
+| `CONSOLE_to_IDENTITY` | 7 | 7 | 7 | **0** |
+| `CONSOLE_to_COMM` | 8 | **1** | 1 | **0** |
+| **total** | **56** | **34** | **21** | **0** |
+
+Step (a) closed `RIDE_to_COMM` (12 sites), `MONEY_to_COMM` (1), `IDENTITY_to_COMM` (2 of its 3) and
+`CONSOLE_to_COMM` (7 of its 8) - 22 ported sites in all; step (b) closed `RIDE_to_MONEY` (13);
+step (c) closed the remaining 21. Every figure is the ratchet's own output at the moment the baseline was
+lowered, never a hand count.

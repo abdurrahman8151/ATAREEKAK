@@ -3,6 +3,7 @@
 namespace App\Services\Verification;
 
 use App\Exceptions\Domain\BusinessRuleViolation;
+use App\Interfaces\DocumentVerificationInterface;
 use App\Models\Photo;
 use App\Models\User;
 
@@ -18,7 +19,7 @@ use App\Models\User;
  *
  * Single Responsibility: Document verification only
  */
-final class DocumentVerificationService
+final class DocumentVerificationService implements DocumentVerificationInterface
 {
     private const REQUIRED_DRIVER_DOCUMENTS = [
         'face_id',

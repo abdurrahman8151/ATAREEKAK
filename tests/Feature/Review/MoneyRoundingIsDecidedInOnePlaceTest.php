@@ -69,7 +69,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     private const CONVERTED_HOMES = [
         'app/Services/Admin/AdminDashboardActivityService.php',
         'app/Services/Admin/AdminDriverDashboardService.php',
-        'app/Services/Profile/PassengerWalletCharger.php',
+        'app/Services/Payment/PassengerWalletCharger.php',
         'app/Services/Payment/CashRideFeeService.php',
         'app/Services/Payment/CashRideDebtClearanceService.php',
         'app/Console/Testing/Testfullrideflow.php',

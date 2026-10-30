@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Services\Profile;
+namespace App\Services\Payment;
 
+use App\Interfaces\Payment\LedgerServiceInterface;
+use App\Interfaces\Payment\PassengerWalletChargerInterface;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\LedgerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -22,11 +23,17 @@ use Illuminate\Support\Str;
  * Batch 227: the controller no longer mixes these mechanics in through a trait. It injects this
  * class instead, which is also where the LedgerService is now constructor-injected, replacing the
  * one app(LedgerService::class) call that used to sit inside injectExternalCapital().
+ *
+ * Batch 233 step (c): moved from `App\Services\Profile` (IDENTITY) to `App\Services\Payment`
+ * (MONEY), because the whole class is a money operation. It now implements
+ * `PassengerWalletChargerInterface` for its IDENTITY caller and reaches the ledger through
+ * `LedgerServiceInterface`. Both bindings resolve to the same singletons as before, and no body
+ * changed.
  */
-final class PassengerWalletCharger
+final class PassengerWalletCharger implements PassengerWalletChargerInterface
 {
     public function __construct(
-        private readonly LedgerService $ledgerService,
+        private readonly LedgerServiceInterface $ledgerService,
     ) {}
 
     /** The 422 for a passenger who has no wallet row yet. */

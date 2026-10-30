@@ -58,37 +58,34 @@ class CrossContextBoundaryTest extends TestCase
      * Lowering these numbers is the whole point of the batch; raising one is forbidden.
      */
     private const BASELINES = [
-        // Batch 233 step (b): all thirteen RIDE money sites now take an App\Interfaces\Payment port.
+        // Measured 2026-10-29 at 56 edges across 20 ordered pairs (audit 233). Steps (a), (b) and
+        // (c) of batch 233 drove every pair to 0; each number below was lowered only after the
+        // ratchet printed the empty violation list for that pair. Every row is now a no-growth
+        // floor: a single new concrete cross-context import fails the run by name.
         'RIDE_to_MONEY' => 0,
-        'RIDE_to_IDENTITY' => 1,
-        // Batch 233 step (a): all twelve RIDE notification sites now take the NotificationPort.
+        'RIDE_to_IDENTITY' => 0,
         'RIDE_to_COMM' => 0,
         'RIDE_to_CONSOLE' => 0,
 
         'MONEY_to_RIDE' => 0,
         'MONEY_to_IDENTITY' => 0,
-        // Batch 233 step (a): WalletRequestService notifies through the NotificationPort.
         'MONEY_to_COMM' => 0,
         'MONEY_to_CONSOLE' => 0,
 
-        'IDENTITY_to_RIDE' => 3,
-        'IDENTITY_to_MONEY' => 1,
-        // Batch 233 step (a): the two notification sites are ported; one COMM edge remains
-        // (EmailOtpService -> App\Mail\OtpVerificationMail), which step (c) removes.
-        'IDENTITY_to_COMM' => 1,
+        'IDENTITY_to_RIDE' => 0,
+        'IDENTITY_to_MONEY' => 0,
+        'IDENTITY_to_COMM' => 0,
         'IDENTITY_to_CONSOLE' => 0,
 
         'COMM_to_RIDE' => 0,
         'COMM_to_MONEY' => 0,
         'COMM_to_IDENTITY' => 0,
-        'COMM_to_CONSOLE' => 2,
+        'COMM_to_CONSOLE' => 0,
 
-        'CONSOLE_to_RIDE' => 2,
-        'CONSOLE_to_MONEY' => 3,
-        'CONSOLE_to_IDENTITY' => 7,
-        // Batch 233 step (a): seven CONSOLE notification sites are ported; one COMM edge
-        // remains (StaffChatController -> ChatMessageHandler), which step (c) removes.
-        'CONSOLE_to_COMM' => 1,
+        'CONSOLE_to_RIDE' => 0,
+        'CONSOLE_to_MONEY' => 0,
+        'CONSOLE_to_IDENTITY' => 0,
+        'CONSOLE_to_COMM' => 0,
     ];
 
     private const CONTEXTS = ['RIDE', 'MONEY', 'IDENTITY', 'COMM', 'CONSOLE'];

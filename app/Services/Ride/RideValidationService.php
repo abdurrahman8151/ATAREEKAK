@@ -2,9 +2,9 @@
 
 namespace App\Services\Ride;
 
+use App\Interfaces\DocumentVerificationInterface;
 use App\Models\User;
 use App\Models\UserScore;
-use App\Services\Verification\DocumentVerificationService;
 use Carbon\Carbon;
 
 final class RideValidationService
@@ -15,7 +15,7 @@ final class RideValidationService
     private const MIN_SCORE_BOOK_RIDE = 40;
 
     public function __construct(
-        private readonly DocumentVerificationService $documentService
+        private readonly DocumentVerificationInterface $documentService
     ) {}
 
     public function validateDriverCanCreateRide(User $driver): void

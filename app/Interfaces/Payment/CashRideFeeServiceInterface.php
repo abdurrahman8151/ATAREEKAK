@@ -4,6 +4,7 @@ namespace App\Interfaces\Payment;
 
 use App\Models\Ride;
 use App\Models\User;
+use App\Models\Wallet;
 
 /**
  * Port over the 5% cash-ride creation fee (batch 233).
@@ -11,8 +12,9 @@ use App\Models\User;
  * RIDE decides WHEN the fee is charged, refused or refunded; MONEY owns the wallets, the debt
  * and the ledger rows. Before this port `RideService`, `RideCancellationService` and
  * `RideCompletionService` name-hinted `App\Services\Payment\CashRideFeeService` directly. The
- * surface below is exactly the three methods RIDE calls; implemented by that same service and
- * bound to its singleton, so no amount, tier or posting key can change.
+ * surface below is exactly the four methods its callers use - step (c) added `autoClearDebt` for
+ * the CONSOLE top-up path; implemented by that same service and bound to its singleton, so no
+ * amount, tier or posting key can change.
  */
 interface CashRideFeeServiceInterface
 {
@@ -32,4 +34,7 @@ interface CashRideFeeServiceInterface
 
     /** Charge the 5% creation fee for a newly created cash ride (immediate or deferred). */
     public function chargeCashRideCreationFee(Ride $ride, User $driver): void;
+
+    /** After an approved top-up: clear any outstanding cash-ride debt on this wallet. */
+    public function autoClearDebt(Wallet $wallet, User $driver): void;
 }

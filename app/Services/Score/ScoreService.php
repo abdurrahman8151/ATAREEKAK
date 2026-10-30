@@ -2,9 +2,11 @@
 
 namespace App\Services\Score;
 
+use App\Domain\Score\ScoreBounds;
 use App\Domain\Score\ScorePolicyFactory;
 use App\Enums\PaymentMethod;
 use App\Enums\ScoreAction;
+use App\Interfaces\ScoreServiceInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\ScoreTransaction;
@@ -14,7 +16,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
-final class ScoreService
+final class ScoreService implements ScoreServiceInterface
 {
     /**
      * The owner's score policy (un2, 2026-10-02, R2 sec 40.1) as ONE source of truth.
@@ -25,11 +27,11 @@ final class ScoreService
      * themselves live in `UserScore::getTierAttribute` and are pinned by `RV37ScorePolicyTest`;
      * `R2 sec 26.14` notes there is still no `config/score.php`, which remains open.
      */
-    public const START_SCORE = 70;
+    public const START_SCORE = ScoreBounds::START_SCORE;
 
-    public const MIN_SCORE = 0;
+    public const MIN_SCORE = ScoreBounds::MIN_SCORE;
 
-    public const MAX_SCORE = 100;
+    public const MAX_SCORE = ScoreBounds::MAX_SCORE;
 
     // RV-11 (`R2 sec 73`): `ScorePolicyFactory` is no longer injected here. Every policy lookup moved
     // into `ScoreLedger::apply()`, so this service does not need the factory at all - and leaving a

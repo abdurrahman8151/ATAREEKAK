@@ -5,10 +5,10 @@ namespace App\Http\Controllers\API;
 use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\Payment\PassengerWalletChargerInterface;
 use App\Services\JwtService;
 use App\Services\Profile\PassengerProfilePanelBuilder;
 use App\Services\Profile\PassengerProfileQueryService;
-use App\Services\Profile\PassengerWalletCharger;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,7 +56,7 @@ final class PassengerProfileController extends Controller
         private readonly JwtService $jwtService,
         private readonly NotificationPort $notificationService,
         private readonly PassengerProfileQueryService $profileQueries,
-        private readonly PassengerWalletCharger $walletCharger,
+        private readonly PassengerWalletChargerInterface $walletCharger,
         private readonly PassengerProfilePanelBuilder $panels,
     ) {}
 

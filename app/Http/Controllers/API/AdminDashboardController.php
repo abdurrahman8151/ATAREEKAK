@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\API;
 
 use App\Domain\ValueObjects\Money;
+use App\Exceptions\Domain\DuplicateNationalIdException;
 use App\Http\Controllers\Controller;
+use App\Interfaces\VerificationApprovalInterface;
 use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminDashboardReadService;
 use App\Services\Admin\AdminExportService;
-use App\Services\Admin\AdminReportService;
+use App\Services\Admin\AdminReportService;      // ← added
 use App\Services\Admin\AdminVerificationQueueService;
-use App\Services\Admin\AdminWalletService;      // ← added
-use App\Services\Verification\DuplicateNationalIdException;
-use App\Services\Verification\VerificationApprovalService;
+use App\Services\Admin\AdminWalletService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +31,7 @@ final class AdminDashboardController extends Controller
         private readonly AdminWalletService $walletService,
         private readonly AdminReportService $reportService,
         private readonly AdminExportService $exportService,
-        private readonly VerificationApprovalService $verificationApprovalService,
+        private readonly VerificationApprovalInterface $verificationApprovalService,
     ) {
         $this->reads = new AdminDashboardReadService($reportService);
         $this->verificationQueue = new AdminVerificationQueueService;

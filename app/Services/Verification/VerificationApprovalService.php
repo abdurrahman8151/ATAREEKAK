@@ -2,7 +2,10 @@
 
 namespace App\Services\Verification;
 
+use App\DTOs\Verification\ApprovedVerification;
 use App\Events\UserVerified;
+use App\Exceptions\Domain\DuplicateNationalIdException;
+use App\Interfaces\VerificationApprovalInterface;
 use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\User;
 
@@ -18,7 +21,7 @@ use App\Models\User;
  * driver-or-passenger decision comes from the submitted documents, the national ID is saved, and
  * the event is fired. Controllers keep their own validation, response shape and cache busting.
  */
-final class VerificationApprovalService
+final class VerificationApprovalService implements VerificationApprovalInterface
 {
     public function __construct(
         private readonly VerificationRepositoryInterface $verificationRepo,

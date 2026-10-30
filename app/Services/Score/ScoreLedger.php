@@ -2,6 +2,7 @@
 
 namespace App\Services\Score;
 
+use App\Domain\Score\ScoreBounds;
 use App\Domain\Score\ScorePolicyFactory;
 use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
@@ -152,8 +153,8 @@ final class ScoreLedger
     private function clampScore(int $previousScore, int $points): int
     {
         return max(
-            ScoreService::MIN_SCORE,
-            min(ScoreService::MAX_SCORE, $previousScore + $points)
+            ScoreBounds::MIN_SCORE,
+            min(ScoreBounds::MAX_SCORE, $previousScore + $points)
         );
     }
 
@@ -251,7 +252,7 @@ irstOrCreate calls with three different attribute lists - one starting at 100, o
         return UserScore::firstOrCreate(
             ['user_id' => $user->id],
             [
-                'score' => ScoreService::START_SCORE,
+                'score' => ScoreBounds::START_SCORE,
                 'total_rides' => 0,
                 'total_cancellations' => 0,
                 'total_no_shows' => 0,

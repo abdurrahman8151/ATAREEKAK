@@ -4,9 +4,9 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Interfaces\NotificationPort;
+use App\Interfaces\Payment\CashRideFeeServiceInterface;
+use App\Interfaces\Payment\LedgerServiceInterface;
 use App\Services\Admin\AdminWalletRequestService;
-use App\Services\Payment\CashRideFeeService;
-use App\Services\Payment\LedgerService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,9 +35,9 @@ use Illuminate\Support\Str;
 final class AdminWalletRequestController extends Controller
 {
     public function __construct(
-        private readonly CashRideFeeService $cashRideFeeService,
+        private readonly CashRideFeeServiceInterface $cashRideFeeService,
         private readonly AdminWalletRequestService $walletRequests,
-        private readonly LedgerService $ledgerService,
+        private readonly LedgerServiceInterface $ledgerService,
         private readonly NotificationPort $notificationService,
     ) {}
 

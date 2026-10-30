@@ -2,6 +2,7 @@
 
 namespace App\Services\Staff;
 
+use App\Interfaces\SupportAgentRoutingInterface;
 use App\Models\Employee;
 
 /**
@@ -12,7 +13,7 @@ use App\Models\Employee;
  * previous batch brought to zero; keeping this single query in its own class keeps both rules true.
  * The SQL is unchanged, character for character.
  */
-final class SupportAgentRoutingService
+final class SupportAgentRoutingService implements SupportAgentRoutingInterface
 {
     /**
      * Pick the least-loaded active support agent.

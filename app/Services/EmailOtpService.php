@@ -5,13 +5,12 @@ namespace App\Services;
 use App\DTOs\Auth\SendEmailOtpDTO;
 use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Interfaces\EmailOtpServiceInterface;
+use App\Interfaces\OtpMailInterface;
 use App\Interfaces\OtpRepositoryInterface;
-use App\Mail\OtpVerificationMail;
 use App\Models\Otp;
 use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 final class EmailOtpService implements EmailOtpServiceInterface
 {
@@ -23,6 +22,7 @@ final class EmailOtpService implements EmailOtpServiceInterface
 
     public function __construct(
         private readonly OtpRepositoryInterface $otpRepository,
+        private readonly OtpMailInterface $mailer,
     ) {}
 
     public function sendOtp(SendEmailOtpDTO $dto): array
@@ -69,9 +69,7 @@ final class EmailOtpService implements EmailOtpServiceInterface
                 ];
             }
 
-            Mail::to($identifier)->send(
-                new OtpVerificationMail($otpCode, $dto->userName, self::EXPIRY_MINUTES)
-            );
+            $this->mailer->send($identifier, $otpCode, $dto->userName, self::EXPIRY_MINUTES);
 
             Log::info("Email OTP sent to {$identifier}");
 

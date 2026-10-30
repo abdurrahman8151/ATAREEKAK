@@ -216,24 +216,10 @@ with each status taken from the newest section that mentions it. The per-task lo
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- **Batch 233 - CROSS-CONTEXT BOUNDARY BATCH (owner goal, REFACTORING MODE).** Make the five
-  bounded contexts (RIDE, MONEY, IDENTITY, COMM, CONSOLE) machine-enforced by a new
-  `tests/Feature/AppFuture/CrossContextBoundaryTest.php` beside `BoundaryDependencyTest` - one
-  ratchet per ordered pair counting concrete cross-context imports, baselines equal to the
-  measured numbers (56 edges measured 2026-10-29), shrink-only. Then drive the edges to 0 in the
-  three ordered steps the owner listed (a NotificationPort, b money ports, c the remaining ports
-  and moves). ONE COMMIT PER STEP, one audit section per step (sections 233+).
-  Files expected to change: the new test; `app/Interfaces/*` (new ports);
-  `app/Support/ContainerBindings.php` (port bindings only); the ~44 source files the ratchet
-  names; `docs/audit/App future audit review r2.md`; this file.
-  Measurement scratch file: `%TEMP%\ctx_measure.php` (outside the repo, deleted at the end).
-  Owner-owned uncommitted work NOT to be touched or staged: `AGENTS.md`, `phpunit.xml`,
-  `scripts/rv13-sweep-ridecontroller.php`, `tests/Feature/Review/RV42aSuspendedMeansBannedTest.php`,
-  `docker-compose.local.yml`, `RideController.php`.
-  Parked-if-behaviour-changing: any site whose port would alter money semantics, response shape,
-  auth rule, schema or an assertion.
+- (empty - Batch 233 reached its terminal state; no task is mid-flight.)
 
 ## Done recently
+- **Batch 233 - the five bounded contexts (RIDE, MONEY, IDENTITY, COMM, CONSOLE) are now machine-enforced at ZERO cross-context edges (`R2 sec 233`-`236`, commits `0962b31`, `9626c19`, `07a6d8f` + the step-(c) commit).** `tests/Feature/AppFuture/CrossContextBoundaryTest.php` holds one shrink-only ratchet per ordered pair (20 pairs, 56 concrete cross-context imports measured 2026-10-29) and now measures **0**: step 0 shipped the ratchet at the measured numbers, step (a) put `NotificationService` behind a new `NotificationPort` (22 sites, total 34), step (b) put the four money services behind `app/Interfaces/Payment` ports (13 sites, total 21), step (c) ported the remaining nine services and moved `DuplicateNationalIdException` and `ApprovedVerification` to the kernel, `PassengerWalletCharger` to `Services/Payment` (with a port, or the move would have re-created an IDENTITY -> MONEY edge) and the score bounds to `Domain/Score/ScoreBounds` (all three, because the ledger's clamp reads MIN and MAX and its init row reads START). Behaviour identical: no baseline raised, no assertion edited, DI lifetimes unchanged, and the wide gate is 2598 tests with the same 24 pre-existing cash-fee errors compared by name. **Scanner limitation recorded in `sec 236.5`: a reference to a DELETED class counts as 0 edges, so "0 edges" is only meaningful together with the wide gate that builds the container.**
 - **Batch 231 - BACKLOG/STATE records for 223-230, the duplicate rating's 409, and a no-op proof for migration 2026_10_13_000001 (`R2 sec 231`).** Items 1, 3 and 5 are VERIFIED FIX (commits `3f07e29`, `85cc9c6`); item 4 is PARKED - `C:\temp\prod-schema.sql` does not exist on this machine, so the requested dump-loaded proof could not be run (a substitute proof, and its limits, are recorded in 231.4). The three malformed section-2 BACKLOG rows are repaired, `BacklogTableShapeTest` is live again (6 tests, 149 assertions), and `ProfileInteractionHandler::rateUser` answers the service's deliberate duplicate-rating 409 instead of a fixed 500 (only a 409 is passed through; every other exception keeps the RV-13 500).
 - **Batch 230 - `ride_id` restored on `user_ratings` and `profile_comments` by one idempotent migration, and the three ProfileTest cases are live again (`R2 sec 230`, commit `220573f`).** The migration stands in for the two production files that do not exist in this repository (`2026_08_21_000001`, `2026_08_21_000002`) and is guarded so it is a no-op where the columns already exist.
 - **Batch 229 - five stale tests brought to current truth, the 2-ride committed leak from the RV45 DDL probe isolated and fixed, ProfileTest parked on the missing `ride_id` column (`R2 sec 229`, commit `7213657`).**

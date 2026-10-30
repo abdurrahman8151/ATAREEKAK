@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\DTOs\Score\ScoreFormatter;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ScoreTransactionResource;
 use App\Services\Score\ScoreHistoryService;
@@ -149,14 +150,6 @@ class ScoreController extends Controller
     /** Reusable score formatter used by other controllers. */
     public static function formatScore($userScore): array
     {
-        return [
-            'score' => $userScore->score,
-            'tier' => $userScore->tier,
-            'cancel_rate' => round($userScore->cancel_rate, 2),
-            'total_rides' => $userScore->total_rides,
-            'total_cancellations' => $userScore->total_cancellations,
-            'can_create_rides' => $userScore->score >= 50,
-            'can_book_rides' => $userScore->score >= 40,
-        ];
+        return ScoreFormatter::format($userScore);
     }
 }

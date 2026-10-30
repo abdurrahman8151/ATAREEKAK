@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Verification;
+namespace App\DTOs\Verification;
 
 use App\Models\User;
 

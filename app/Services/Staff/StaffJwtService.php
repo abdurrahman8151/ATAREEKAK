@@ -2,6 +2,7 @@
 
 namespace App\Services\Staff;
 
+use App\Interfaces\StaffJwtInterface;
 use App\Models\Employee;
 use App\Models\StaffRefreshToken;
 use Carbon\Carbon;
@@ -12,7 +13,7 @@ use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-final class StaffJwtService
+final class StaffJwtService implements StaffJwtInterface
 {
     private const ALGORITHM = 'HS256';
 

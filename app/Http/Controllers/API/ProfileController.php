@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers\API;
 
+use App\DTOs\Score\ScoreFormatter;
 use App\Http\Controllers\API\Support\ProfileInteractionHandler;
 use App\Http\Controllers\Controller;
 use App\Interfaces\PhotoRepositoryInterface;
 use App\Interfaces\ProfileRepositoryInterface;
+use App\Interfaces\ScoreServiceInterface;
+use App\Interfaces\UserRideStatsInterface;
 use App\Services\Profile\ProfileInteractionService;
 use App\Services\Profile\ProfileUpdateService;
-use App\Services\Ride\UserRideStatsService;
-use App\Services\Score\ScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -55,8 +56,8 @@ class ProfileController extends Controller
         private readonly ProfileUpdateService $updateService,
         private readonly ProfileInteractionService $interactionService,
         private readonly PhotoRepositoryInterface $photoRepo,
-        private readonly ScoreService $scoreService,
-        private readonly UserRideStatsService $rideStats,
+        private readonly ScoreServiceInterface $scoreService,
+        private readonly UserRideStatsInterface $rideStats,
         private readonly ProfileInteractionHandler $interactionHandler,
     ) {}
 
@@ -444,7 +445,7 @@ class ProfileController extends Controller
             'smoking' => $profile->smoking,
             'number_of_rides' => $profile->number_of_rides,
             'documents' => $docs,
-            'score' => ScoreController::formatScore($userScore),
+            'score' => ScoreFormatter::format($userScore),
             'ride_history' => [
                 'as_driver' => $asDriver,
                 'as_passenger' => $asPassenger,

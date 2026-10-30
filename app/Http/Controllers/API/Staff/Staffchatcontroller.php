@@ -4,8 +4,8 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
+use App\Interfaces\ChatMessageHandlerInterface;
 use App\Interfaces\ChatRepositoryInterface;
-use App\Services\Chat\ChatMessageHandler;
 use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,7 +36,7 @@ final class StaffChatController extends Controller
 {
     public function __construct(
         private readonly ChatRepositoryInterface $chatRepo,
-        private readonly ChatMessageHandler $messageHandler,
+        private readonly ChatMessageHandlerInterface $messageHandler,
         private readonly EmployeeManagementService $managementService,
     ) {}
 

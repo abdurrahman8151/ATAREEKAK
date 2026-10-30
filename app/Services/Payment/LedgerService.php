@@ -3,6 +3,7 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
+use App\Interfaces\Payment\LedgerServiceInterface;
 use App\Models\LedgerEntry;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -26,7 +27,7 @@ use RuntimeException;
  * single-sided row), then call `postTransfer()` to record the legs. If the two disagree, the test
  * fails. The ledger is a witness, not a new mover of money.
  */
-class LedgerService
+class LedgerService implements LedgerServiceInterface
 {
     /**
      * Record a transfer as balanced ledger legs.

@@ -3,9 +3,9 @@
 namespace App\Services\Admin;
 
 use App\Domain\ValueObjects\Money;
+use App\Interfaces\Payment\LedgerServiceInterface;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\LedgerService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,7 +23,7 @@ use RuntimeException;
 class AdminWalletCharger
 {
     public function __construct(
-        private readonly LedgerService $ledgerService,
+        private readonly LedgerServiceInterface $ledgerService,
     ) {}
 
     public function chargeWallet(string $phoneNumber, Money $amount, array $adminConfig): array

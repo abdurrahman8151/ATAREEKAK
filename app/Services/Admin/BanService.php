@@ -3,8 +3,8 @@
 namespace App\Services\Admin;
 
 use App\Enums\AccountStatus;
+use App\Interfaces\TokenRevokerInterface;
 use App\Models\User;
-use App\Services\JwtService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\Log;
  */
 class BanService
 {
-    public function __construct(private readonly JwtService $jwt) {}
+    public function __construct(private readonly TokenRevokerInterface $jwt) {}
 
     /**
      * Ban an account.

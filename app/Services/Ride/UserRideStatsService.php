@@ -2,6 +2,7 @@
 
 namespace App\Services\Ride;
 
+use App\Interfaces\UserRideStatsInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use Illuminate\Support\Collection;
@@ -29,7 +30,7 @@ use Illuminate\Support\Collection;
  * Returns a Collection keyed by status string, so callers keep using `->get('finished', 0)` and an
  * absent status reads 0 exactly as it did before.
  */
-class UserRideStatsService
+class UserRideStatsService implements UserRideStatsInterface
 {
     /**
      * Rides this user created, counted by ride status.

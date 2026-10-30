@@ -2,6 +2,7 @@
 
 namespace App\Services\Chat;
 
+use App\Interfaces\ChatMessageHandlerInterface;
 use App\Interfaces\ChatRepositoryInterface;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -30,7 +31,7 @@ use Illuminate\Support\Facades\Cache;
  * - sender.profile eager loaded in one query (eliminates 2 lazy N+1 queries)
  * - getUserProfilePhoto uses already-loaded relationship (zero extra DB query)
  */
-final class ChatMessageHandler
+final class ChatMessageHandler implements ChatMessageHandlerInterface
 {
     public function __construct(
         private readonly ChatRepositoryInterface $chatRepository,

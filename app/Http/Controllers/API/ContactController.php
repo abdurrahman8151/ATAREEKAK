@@ -4,8 +4,8 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Interfaces\ChatRepositoryInterface;
-use App\Services\Staff\EmployeeManagementService;
-use App\Services\Staff\SupportAgentRoutingService;
+use App\Interfaces\EmployeeManagementInterface;
+use App\Interfaces\SupportAgentRoutingInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,8 +13,8 @@ final class ContactController extends Controller
 {
     public function __construct(
         private readonly ChatRepositoryInterface $chatRepository,
-        private readonly EmployeeManagementService $managementService,
-        private readonly SupportAgentRoutingService $agentRouting,
+        private readonly EmployeeManagementInterface $managementService,
+        private readonly SupportAgentRoutingInterface $agentRouting,
     ) {}
 
     // POST /api/contact

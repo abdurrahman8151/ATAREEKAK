@@ -2,10 +2,10 @@
 
 namespace App\Services\Staff;
 
+use App\Interfaces\ScoreServiceInterface;
+use App\Interfaces\UserRideStatsInterface;
 use App\Models\Profile;
 use App\Models\UserRating;
-use App\Services\Ride\UserRideStatsService;
-use App\Services\Score\ScoreService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -21,8 +21,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 final class StaffUserProfileService
 {
     public function __construct(
-        private readonly ScoreService $scoreService,
-        private readonly UserRideStatsService $rideStats,
+        private readonly ScoreServiceInterface $scoreService,
+        private readonly UserRideStatsInterface $rideStats,
     ) {}
 
     /**

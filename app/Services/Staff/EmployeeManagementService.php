@@ -3,6 +3,8 @@
 namespace App\Services\Staff;
 
 use App\Enums\StaffRole;
+use App\Interfaces\EmployeeManagementInterface;
+use App\Interfaces\StaffJwtInterface;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -43,10 +45,10 @@ use Illuminate\Support\Str;
  *   toggleActive()   — flip is_active + revoke tokens on deactivation
  *   delete()         — permanently delete + revoke tokens
  */
-class EmployeeManagementService
+class EmployeeManagementService implements EmployeeManagementInterface
 {
     public function __construct(
-        private readonly StaffJwtService $staffJwtService,
+        private readonly StaffJwtInterface $staffJwtService,
     ) {}
 
     // =========================================================================
