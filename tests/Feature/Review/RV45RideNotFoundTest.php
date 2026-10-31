@@ -193,5 +193,19 @@ class RV45RideNotFoundTest extends TestCase
         DB::table('refresh_tokens')->where('user_id', $driverId)->delete();
         DB::table('wallets')->where('user_id', $driverId)->delete();
         DB::table('users')->where('id', $driverId)->delete();
+
+        // The three system wallets seedSystemWallets() created in setUp() were inside the same
+        // implicitly committed transaction, so they survive the rollback too and keep the reserved
+        // phones occupied for the rest of the run. Any later test that INSERTs a wallet on one of
+        // those phones then dies on wallets_phone_number_unique - tests/Unit/Services/Payment's
+        // fixtures do exactly that - so they are part of "what this test created" as well.
+        DB::table('wallets')
+            ->whereNull('user_id')
+            ->whereIn('phone_number', array_filter([
+                config('admin.system_admin.phone'),
+                config('admin.sycash.phone'),
+                config('admin.external.phone'),
+            ]))
+            ->delete();
     }
 }
