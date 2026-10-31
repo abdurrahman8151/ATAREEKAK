@@ -1,0 +1,20 @@
+{
+    "json": {
+        "data": {
+            "content": "A support reply from the snapshot batch.",
+            "created_at": "<timestamp>",
+            "id": "<id>",
+            "is_edited": null,
+            "metadata": [],
+            "sender": {
+                "id": "<id>",
+                "name": "Snapshot Staff",
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+            },
+            "type": "text"
+        },
+        "message": "Message sent.",
+        "status": "success"
+    },
+    "status": 201
+}

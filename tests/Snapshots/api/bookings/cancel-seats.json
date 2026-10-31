@@ -1,0 +1,20 @@
+{
+    "json": {
+        "data": {
+            "booking_id": "<id>",
+            "booking_status": "confirmed",
+            "refund_policy": {
+                "non_refundable_amount": 0,
+                "policy_tier": "Full refund (0–30% elapsed)",
+                "refund_amount": 50000,
+                "refund_percentage": 100,
+                "time_elapsed_percentage": 0
+            },
+            "remaining_seats": 1,
+            "seats_cancelled": 1
+        },
+        "message": "Cancelled 1 seat(s). You still have 1 seat(s) booked.",
+        "status": "success"
+    },
+    "status": 200
+}

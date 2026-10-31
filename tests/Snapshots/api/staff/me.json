@@ -1,0 +1,17 @@
+{
+    "json": {
+        "employee": {
+            "created_at": "<timestamp>",
+            "email": "<email>",
+            "full_name": "Snapshot Staff",
+            "id": "<id>",
+            "is_active": true,
+            "last_login_at": "<timestamp>",
+            "role": "support_agent",
+            "role_label": "Support Agent",
+            "username": "snapshot_staff"
+        },
+        "status": "success"
+    },
+    "status": 200
+}

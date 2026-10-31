@@ -1,0 +1,60 @@
+{
+    "json": {
+        "data": {
+            "current_page": 1,
+            "data": [
+                {
+                    "created_at": "<timestamp>",
+                    "id": "<id>",
+                    "notification": {
+                        "created_at": "<timestamp>",
+                        "data": {
+                            "ride_id": "<id>"
+                        },
+                        "id": "<id>",
+                        "message": "A deterministic notification for the snapshot batch.",
+                        "sent_at": "<timestamp>",
+                        "title": "Snapshot notification",
+                        "type": "general",
+                        "updated_at": "<timestamp>",
+                        "user_id": "<id>"
+                    },
+                    "notification_id": "<id>",
+                    "read_at": "<timestamp>",
+                    "updated_at": "<timestamp>",
+                    "user_id": "<id>"
+                }
+            ],
+            "first_page_url": "https://replace_with_your.onrender.com/api/notifications?page=1",
+            "from": 1,
+            "last_page": 1,
+            "last_page_url": "https://replace_with_your.onrender.com/api/notifications?page=1",
+            "links": [
+                {
+                    "active": false,
+                    "label": "&laquo; Previous",
+                    "url": null
+                },
+                {
+                    "active": true,
+                    "label": "1",
+                    "url": "https://replace_with_your.onrender.com/api/notifications?page=1"
+                },
+                {
+                    "active": false,
+                    "label": "Next &raquo;",
+                    "url": null
+                }
+            ],
+            "next_page_url": null,
+            "path": "https://replace_with_your.onrender.com/api/notifications",
+            "per_page": 15,
+            "prev_page_url": null,
+            "to": 1,
+            "total": 1
+        },
+        "success": true,
+        "unread_count": 1
+    },
+    "status": 200
+}

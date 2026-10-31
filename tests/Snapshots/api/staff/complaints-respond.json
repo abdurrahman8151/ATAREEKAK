@@ -1,0 +1,33 @@
+{
+    "json": {
+        "data": {
+            "assigned_to": {
+                "id": "<id>",
+                "name": "Snapshot Staff",
+                "role": "support_agent"
+            },
+            "attachments": [],
+            "created_at": "<timestamp>",
+            "description": "A deterministic complaint created by the snapshot batch.",
+            "id": "<id>",
+            "is_escalated": false,
+            "resolution_notes": "The snapshot batch resolved this complaint.",
+            "resolved_at": "<timestamp>",
+            "status": "resolved",
+            "status_color": "green",
+            "status_label": "Resolved",
+            "title": "Snapshot complaint",
+            "type": "technical_issue",
+            "type_label": "عطل تقني",
+            "updated_at": "<timestamp>",
+            "user": {
+                "email": "<email>",
+                "id": "<id>",
+                "name": "Snapshot Passenger"
+            }
+        },
+        "message": "Complaint marked as Resolved and user has been notified.",
+        "status": "success"
+    },
+    "status": 200
+}

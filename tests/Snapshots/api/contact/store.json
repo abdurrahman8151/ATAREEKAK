@@ -1,0 +1,11 @@
+{
+    "json": {
+        "agent": {
+            "name": "Snapshot Staff"
+        },
+        "conversation_id": "<id>",
+        "message": "Support chat started.",
+        "status": "success"
+    },
+    "status": 201
+}

@@ -1,0 +1,11 @@
+{
+    "json": {
+        "data": {
+            "average": 4,
+            "total_ratings": 2
+        },
+        "message": "Rating submitted successfully",
+        "success": true
+    },
+    "status": 200
+}

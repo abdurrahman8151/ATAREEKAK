@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "TextMeBot service is currently disabled",
+        "success": false
+    },
+    "status": 400
+}

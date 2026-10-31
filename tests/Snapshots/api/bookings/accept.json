@@ -1,0 +1,40 @@
+{
+    "json": {
+        "data": {
+            "communication_number": "+963900000003",
+            "completed_at": "<timestamp>",
+            "created_at": "<timestamp>",
+            "id": "<id>",
+            "passenger": {
+                "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "id": "<id>",
+                "name": "Snapshot Other",
+                "rating": 3
+            },
+            "passenger_confirmed_at": "<timestamp>",
+            "ride": {
+                "departure_time": "<timestamp>",
+                "destination_address": "Homs",
+                "driver": {
+                    "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                    "communication_number": null,
+                    "id": "<id>",
+                    "name": "Snapshot Driver"
+                },
+                "id": "<id>",
+                "payment_method": "e-pay",
+                "pickup_address": "Damascus",
+                "price_per_seat": "40000.00",
+                "vehicle_type": "car"
+            },
+            "ride_id": "<id>",
+            "seats": 1,
+            "status": "confirmed",
+            "total_price": 40000,
+            "updated_at": "<timestamp>"
+        },
+        "message": "Booking accepted successfully",
+        "success": true
+    },
+    "status": 200
+}

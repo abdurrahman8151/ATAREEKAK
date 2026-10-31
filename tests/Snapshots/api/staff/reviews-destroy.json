@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Comment deleted successfully.",
+        "status": "success"
+    },
+    "status": 200
+}

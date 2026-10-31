@@ -1,0 +1,19 @@
+{
+    "json": {
+        "data": {
+            "content": "Hello from the snapshot batch.",
+            "created_at": "<timestamp>",
+            "id": "<id>",
+            "is_edited": null,
+            "metadata": [],
+            "sender": {
+                "id": "<id>",
+                "name": "Snapshot Passenger",
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+            },
+            "type": "text"
+        },
+        "success": true
+    },
+    "status": 201
+}

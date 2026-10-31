@@ -8,6 +8,7 @@ use App\Providers\AppServiceProvider;
 use App\Services\EmailOtpService;
 use App\Services\TextMeBotOtpService;
 use App\Support\OtpDisclosure;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
@@ -32,6 +33,19 @@ use Tests\TestCase;
  */
 class OtpDisclosureTest extends TestCase
 {
+    /**
+     * The services under test WRITE an `otps` row (EmailOtpService::sendOtp persists the code
+     * before deciding whether to disclose it). Without a rollback trait those rows were COMMITTED
+     * and survived the class, so the next class that verified an OTP for the same identity found
+     * a stale row and issued a different number of queries. That is the RV45 pollution pattern in
+     * a second table: the query-budget snapshots in tests/Feature/Snapshots caught it as a
+     * budget break for `auth/otp-verify-invalid` only when the whole suite ran in one process.
+     *
+     * RefreshDatabase is not needed for any assertion in this class - it exists to make the writes
+     * this class already performs roll back.
+     */
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();

@@ -1,0 +1,45 @@
+{
+    "json": {
+        "message": "Ride cancelled successfully.",
+        "ride": {
+            "available_seats": 3,
+            "booking_type": "direct",
+            "cash_creation_fee": null,
+            "cash_fee_deferred": false,
+            "chosen_route_index": 0,
+            "communication_number": "0911000000",
+            "created_at": "<timestamp>",
+            "departure_time": "<timestamp>",
+            "destination_address": "Aleppo",
+            "destination_lat": null,
+            "destination_lng": null,
+            "destination_location": {
+                "lat": 36.2021,
+                "lng": 37.1343
+            },
+            "distance": 321,
+            "driver_confirmed_at": "<timestamp>",
+            "driver_id": "<id>",
+            "duration": 240,
+            "finished_at": "<timestamp>",
+            "id": "<id>",
+            "notes": null,
+            "passengers_confirmed": 0,
+            "payment_method": "e-pay",
+            "pickup_address": "Damascus",
+            "pickup_lat": null,
+            "pickup_lng": null,
+            "pickup_location": {
+                "lat": 33.5138,
+                "lng": 36.2765
+            },
+            "price_per_seat": "50000.00",
+            "route_geometry": null,
+            "status": "cancelled",
+            "updated_at": "<timestamp>",
+            "vehicle_type": "car"
+        },
+        "status": "success"
+    },
+    "status": 200
+}

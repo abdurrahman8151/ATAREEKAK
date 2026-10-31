@@ -1,0 +1,16 @@
+{
+    "json": {
+        "data": {
+            "created_at": "<timestamp>",
+            "device_type": "android",
+            "id": "<id>",
+            "is_active": true,
+            "token": "<token>",
+            "updated_at": "<timestamp>",
+            "user_id": "<id>"
+        },
+        "message": "Push notification token registered successfully",
+        "success": true
+    },
+    "status": 200
+}

@@ -5,10 +5,12 @@ namespace Tests;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\Concerns\GuardsAgainstCommittedLeaks;
 
 abstract class TestCase extends BaseTestCase
 {
     use CreatesApplication;
+    use GuardsAgainstCommittedLeaks;
 
     /**
      * T4-1: this class used to call withoutMiddleware(ThrottleRequests::class)
@@ -40,6 +42,11 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         Http::preventStrayRequests();
+
+        // Must come AFTER parent::setUp(): RefreshDatabase registers its rollback in
+        // beforeApplicationDestroyed during that call, and callbacks run in registration order,
+        // so this callback is the first one that sees the database AFTER the rollback.
+        $this->registerCommittedRowLeakGuard();
     }
 
     /** Opt out of throttling for this test only, with a stated reason. */

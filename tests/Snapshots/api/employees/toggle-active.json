@@ -1,0 +1,20 @@
+{
+    "json": {
+        "employee": {
+            "created_at": "<timestamp>",
+            "created_by": "<id>",
+            "email": "<email>",
+            "first_name": "Snapshot",
+            "full_name": "Snapshot Staff",
+            "id": "<id>",
+            "is_active": false,
+            "last_name": "Staff",
+            "role": "support_agent",
+            "role_label": "Support Agent",
+            "username": "snapshot_staff"
+        },
+        "message": "Employee deactivated successfully.",
+        "status": "success"
+    },
+    "status": 200
+}

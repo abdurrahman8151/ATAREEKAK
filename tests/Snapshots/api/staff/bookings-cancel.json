@@ -1,0 +1,15 @@
+{
+    "json": {
+        "data": {
+            "booking_id": "<id>",
+            "needs_manual_review": 0,
+            "new_status": "cancelled",
+            "refund_amount_source": "amount_paid",
+            "refund_total": 50000,
+            "seats_restored_to_ride": 1
+        },
+        "message": "Booking cancelled successfully. The passenger has been notified.",
+        "status": "success"
+    },
+    "status": 200
+}

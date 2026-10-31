@@ -1,0 +1,11 @@
+{
+    "json": {
+        "data": {
+            "id": "<id>",
+            "type": "face_id",
+            "url": "<file>"
+        },
+        "success": true
+    },
+    "status": 200
+}

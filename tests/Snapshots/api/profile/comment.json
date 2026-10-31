@@ -1,0 +1,17 @@
+{
+    "json": {
+        "data": {
+            "comment": "A calm and punctual driver.",
+            "commenter": {
+                "id": "<id>",
+                "name": "Snapshot Passenger"
+            },
+            "created_at": "<timestamp>",
+            "id": "<id>",
+            "ride_id": "<id>"
+        },
+        "message": "Comment added",
+        "success": true
+    },
+    "status": 201
+}

@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Session expired. Please start the wallet creation process again.",
+        "success": false
+    },
+    "status": 400
+}

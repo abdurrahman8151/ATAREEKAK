@@ -1,0 +1,23 @@
+{
+    "json": {
+        "data": [
+            {
+                "assigned_to": null,
+                "attachments": [],
+                "description": "A deterministic complaint created by the snapshot batch.",
+                "id": "<id>",
+                "resolution_notes": null,
+                "resolved_at": "<timestamp>",
+                "status": "pending",
+                "status_color": "yellow",
+                "status_label": "Pending",
+                "submitted_at": "<timestamp>",
+                "title": "Snapshot complaint",
+                "type": "technical_issue",
+                "type_label": "عطل تقني"
+            }
+        ],
+        "status": "success"
+    },
+    "status": 200
+}

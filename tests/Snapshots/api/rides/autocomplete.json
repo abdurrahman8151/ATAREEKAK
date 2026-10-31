@@ -1,0 +1,13 @@
+{
+    "json": {
+        "data": [
+            {
+                "label": "Damascus, Syria",
+                "lat": "33.5138",
+                "lng": "36.2765"
+            }
+        ],
+        "success": true
+    },
+    "status": 200
+}

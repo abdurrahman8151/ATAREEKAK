@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Logged out successfully.",
+        "status": "success"
+    },
+    "status": 200
+}

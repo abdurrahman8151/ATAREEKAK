@@ -1,0 +1,18 @@
+{
+    "json": {
+        "data": {
+            "admin_notes": null,
+            "amount": 1000,
+            "created_at": "<timestamp>",
+            "id": "<id>",
+            "processed_at": "<timestamp>",
+            "status": "pending",
+            "type": "withdraw",
+            "user_notes": "Snapshot withdrawal"
+        },
+        "message": "Withdraw request submitted. The admin will process it shortly.",
+        "status": "success",
+        "success": true
+    },
+    "status": 201
+}

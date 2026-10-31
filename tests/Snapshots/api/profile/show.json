@@ -1,0 +1,51 @@
+{
+    "json": {
+        "data": {
+            "address": "دمشق",
+            "car_pic": null,
+            "color_of_car": null,
+            "comments": [],
+            "description": null,
+            "documents": [],
+            "full_name": "Snapshot Other",
+            "gender": "M",
+            "number_of_rides": 0,
+            "number_of_seats": null,
+            "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+            "radio": 0,
+            "rating": {
+                "average": 3,
+                "total_ratings": 1
+            },
+            "ride_history": {
+                "as_driver": {
+                    "cancelled": 0,
+                    "completed": 0,
+                    "no_show": 0,
+                    "total_created": 0
+                },
+                "as_passenger": {
+                    "cancelled": 0,
+                    "completed": 0,
+                    "no_show": 0,
+                    "total_booked": 0
+                }
+            },
+            "score": {
+                "can_book_rides": true,
+                "can_create_rides": true,
+                "cancel_rate": 0,
+                "score": 70,
+                "tier": "Silver",
+                "total_cancellations": 0,
+                "total_rides": 0
+            },
+            "smoking": 0,
+            "type_of_car": null,
+            "user_id": "<id>",
+            "verification_status": "approved"
+        },
+        "success": true
+    },
+    "status": 200
+}

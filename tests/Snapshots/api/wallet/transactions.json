@@ -1,0 +1,50 @@
+{
+    "json": {
+        "data": [
+            {
+                "amount": "-50000.00",
+                "balance_after": "950000.00",
+                "created_at": "<timestamp>",
+                "description": "Payment for 1 seat(s): Damascus → Aleppo",
+                "id": "<id>",
+                "reference": "<id>",
+                "type": "ride_booking_payment"
+            }
+        ],
+        "links": {
+            "first": "https://replace_with_your.onrender.com/api/wallet/transactions?page=1",
+            "last": "https://replace_with_your.onrender.com/api/wallet/transactions?page=1",
+            "next": null,
+            "prev": null
+        },
+        "meta": {
+            "balance": "950000.00",
+            "cash_ride_debt": "0.00",
+            "current_page": 1,
+            "from": 1,
+            "last_page": 1,
+            "links": [
+                {
+                    "active": false,
+                    "label": "&laquo; Previous",
+                    "url": null
+                },
+                {
+                    "active": true,
+                    "label": "1",
+                    "url": "https://replace_with_your.onrender.com/api/wallet/transactions?page=1"
+                },
+                {
+                    "active": false,
+                    "label": "Next &raquo;",
+                    "url": null
+                }
+            ],
+            "path": "https://replace_with_your.onrender.com/api/wallet/transactions",
+            "per_page": 15,
+            "to": 1,
+            "total": 1
+        }
+    },
+    "status": 200
+}

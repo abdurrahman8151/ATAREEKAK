@@ -1,0 +1,8 @@
+{
+    "json": {
+        "code": "INVALID_CREDENTIALS",
+        "message": "Invalid credentials or account is inactive.",
+        "status": "error"
+    },
+    "status": 401
+}

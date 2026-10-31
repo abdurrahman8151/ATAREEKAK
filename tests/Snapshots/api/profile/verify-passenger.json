@@ -1,0 +1,8 @@
+{
+    "json": {
+        "message": "Verification request submitted",
+        "status": "pending",
+        "success": true
+    },
+    "status": 201
+}

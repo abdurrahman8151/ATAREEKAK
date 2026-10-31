@@ -1,0 +1,64 @@
+{
+    "json": {
+        "data": {
+            "booking_type": "direct",
+            "communication_number": null,
+            "created_at": "<timestamp>",
+            "departure_time": "<timestamp>",
+            "departure_time_human": "<timestamp>",
+            "destination": {
+                "address": "Aleppo",
+                "coordinates": {
+                    "lat": 36.2021,
+                    "lng": 37.1343
+                }
+            },
+            "distance": {
+                "kilometers": 0.3,
+                "meters": 321
+            },
+            "driver": {
+                "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "id": "<id>",
+                "name": "Snapshot Driver",
+                "rating": 3
+            },
+            "duration": {
+                "human": "4m",
+                "minutes": 4,
+                "seconds": 240
+            },
+            "id": "<id>",
+            "notes": null,
+            "payment_method": "e-pay",
+            "pickup": {
+                "address": "Damascus",
+                "coordinates": {
+                    "lat": 33.5138,
+                    "lng": 36.2765
+                }
+            },
+            "price_per_seat": "50000.00",
+            "route": {
+                "geometry": null,
+                "index": 0
+            },
+            "seats": {
+                "available": 3,
+                "booked": 0,
+                "total": 3
+            },
+            "status": "active",
+            "updated_at": "<timestamp>",
+            "vehicle_type": "car"
+        },
+        "seat_summary": {
+            "available": 3,
+            "confirmed": 1,
+            "pending": 0,
+            "total_capacity": 4
+        },
+        "success": true
+    },
+    "status": 200
+}

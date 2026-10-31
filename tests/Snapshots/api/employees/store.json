@@ -1,0 +1,20 @@
+{
+    "json": {
+        "employee": {
+            "created_at": "<timestamp>",
+            "created_by": "<id>",
+            "email": "<email>",
+            "first_name": "Snapshot",
+            "full_name": "Snapshot Created",
+            "id": "<id>",
+            "is_active": true,
+            "last_name": "Created",
+            "role": "support_agent",
+            "role_label": "Support Agent",
+            "username": "snapshot_created_agent"
+        },
+        "message": "Employee created successfully.",
+        "status": "success"
+    },
+    "status": 201
+}

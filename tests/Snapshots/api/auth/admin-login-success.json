@@ -1,0 +1,22 @@
+{
+    "json": {
+        "admin": {
+            "email": "<email>",
+            "first_name": "Snapshot",
+            "id": "<id>",
+            "last_name": "Admin",
+            "role": "system_admin",
+            "role_label": "System Administrator",
+            "username": "snapshot_admin"
+        },
+        "message": "Login successful",
+        "status": "success",
+        "tokens": {
+            "access_token": "<token>",
+            "expires_in": 3600,
+            "refresh_token": "<token>",
+            "token_type": "Bearer"
+        }
+    },
+    "status": 200
+}

@@ -1,0 +1,8 @@
+{
+    "json": {
+        "message": "Notifications marked as read",
+        "success": true,
+        "unread_count": 0
+    },
+    "status": 200
+}

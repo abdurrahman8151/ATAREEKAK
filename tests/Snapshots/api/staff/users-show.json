@@ -1,0 +1,44 @@
+{
+    "json": {
+        "data": {
+            "account_status": "active",
+            "address": "دمشق",
+            "comments_received": [],
+            "description": null,
+            "email": "<email>",
+            "full_name": "Snapshot Passenger",
+            "gender": "M",
+            "id": "<id>",
+            "is_verified_driver": false,
+            "is_verified_passenger": true,
+            "joined_at": "<timestamp>",
+            "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+            "rating": {
+                "average": "3.00",
+                "total_ratings": 1
+            },
+            "ride_history": {
+                "as_driver": {
+                    "cancelled": 0,
+                    "completed": 0,
+                    "total": 0
+                },
+                "as_passenger": {
+                    "cancelled": 0,
+                    "completed": 0,
+                    "total": 0
+                }
+            },
+            "score": {
+                "cancel_rate": 0,
+                "score": 70,
+                "tier": "Silver",
+                "total_cancellations": 0,
+                "total_rides": 0
+            },
+            "verification_status": "approved"
+        },
+        "status": "success"
+    },
+    "status": 200
+}

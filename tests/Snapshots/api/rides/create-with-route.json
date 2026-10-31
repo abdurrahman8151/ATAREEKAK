@@ -1,0 +1,103 @@
+{
+    "json": {
+        "message": "Ride created successfully",
+        "ride": {
+            "available_seats": 3,
+            "booking_type": "direct",
+            "cash_creation_fee": null,
+            "cash_fee_deferred": false,
+            "chosen_route_index": 0,
+            "communication_number": "+963911000000",
+            "created_at": "<timestamp>",
+            "departure_time": "<timestamp>",
+            "destination_address": "Aleppo",
+            "destination_lat": "36.20210000",
+            "destination_lng": "37.13430000",
+            "destination_location": {
+                "lat": 36.2021,
+                "lng": 37.1343
+            },
+            "distance": 320500,
+            "driver": {
+                "address": "دمشق",
+                "avatar": null,
+                "ban_expires_at": "<timestamp>",
+                "ban_reason": null,
+                "ban_type": null,
+                "banned_at": "<timestamp>",
+                "banned_by": null,
+                "created_at": "<timestamp>",
+                "email": "<email>",
+                "email_verified_at": "<timestamp>",
+                "first_name": "Snapshot",
+                "gender": "M",
+                "id": "<id>",
+                "is_verified_driver": 1,
+                "is_verified_passenger": 1,
+                "last_name": "Driver",
+                "national_id": "<id>",
+                "profile": {
+                    "address": "دمشق",
+                    "back_id_pic": null,
+                    "car_pic": null,
+                    "color_of_car": null,
+                    "created_at": "<timestamp>",
+                    "description": null,
+                    "driving_license_pic": null,
+                    "face_id_pic": null,
+                    "full_name": "Snapshot Driver",
+                    "gender": "M",
+                    "id": "<id>",
+                    "mechanic_card_pic": null,
+                    "number_of_rides": 0,
+                    "number_of_seats": null,
+                    "profile_photo": "profiles/profile_photo/default-profile-photo.jpg",
+                    "radio": 0,
+                    "smoking": 0,
+                    "type_of_car": null,
+                    "updated_at": "<timestamp>",
+                    "user_id": "<id>"
+                },
+                "status": 1,
+                "token_version": 1,
+                "updated_at": "<timestamp>",
+                "verification_status": "approved",
+                "wallet_id": "<id>"
+            },
+            "driver_confirmed_at": "<timestamp>",
+            "driver_id": "<id>",
+            "duration": 14400,
+            "finished_at": "<timestamp>",
+            "id": "<id>",
+            "notes": null,
+            "passengers_confirmed": 0,
+            "payment_method": "e-pay",
+            "pickup_address": "Damascus",
+            "pickup_lat": "33.51380000",
+            "pickup_lng": "36.27650000",
+            "pickup_location": {
+                "lat": 33.5138,
+                "lng": 36.2765
+            },
+            "price_per_seat": "25000.00",
+            "route_geometry": {
+                "coordinates": [
+                    [
+                        "36.2765",
+                        "33.5138"
+                    ],
+                    [
+                        "37.1343",
+                        "36.2021"
+                    ]
+                ],
+                "type": "LineString"
+            },
+            "status": "active",
+            "updated_at": "<timestamp>",
+            "vehicle_type": "car"
+        },
+        "status": "success"
+    },
+    "status": 201
+}

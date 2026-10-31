@@ -1,0 +1,14 @@
+{
+    "json": {
+        "message": "Token refreshed successfully",
+        "status": "success",
+        "tokens": {
+            "access_token": "<token>",
+            "access_token_expires_at": "<timestamp>",
+            "refresh_token": "<token>",
+            "refresh_token_expires_at": "<timestamp>",
+            "token_type": "Bearer"
+        }
+    },
+    "status": 200
+}

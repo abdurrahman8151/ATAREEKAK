@@ -1,0 +1,41 @@
+{
+    "json": {
+        "data": [
+            {
+                "booked_at": "<timestamp>",
+                "communication_number": "+963900000002",
+                "completed_at": "<timestamp>",
+                "id": "<id>",
+                "passenger": {
+                    "email": "<email>",
+                    "id": "<id>",
+                    "name": "Snapshot Passenger"
+                },
+                "ride": {
+                    "departure_time": "<timestamp>",
+                    "destination_address": "Aleppo",
+                    "driver": {
+                        "id": "<id>",
+                        "name": "Snapshot Driver"
+                    },
+                    "id": "<id>",
+                    "pickup_address": "Damascus",
+                    "price_per_seat": "50000.00",
+                    "ride_status": "active"
+                },
+                "seats": 1,
+                "status": "confirmed",
+                "total_price": 50000
+            }
+        ],
+        "meta": {
+            "current_page": 1,
+            "filter": "all",
+            "last_page": 1,
+            "per_page": 15,
+            "total": 1
+        },
+        "status": "success"
+    },
+    "status": 200
+}

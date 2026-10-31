@@ -1,0 +1,27 @@
+{
+    "json": {
+        "message": "Login successful",
+        "status": "success",
+        "tokens": {
+            "access_token": "<token>",
+            "access_token_expires_at": "<timestamp>",
+            "refresh_token": "<token>",
+            "refresh_token_expires_at": "<timestamp>",
+            "token_type": "Bearer"
+        },
+        "user": {
+            "address": "دمشق",
+            "created_at": "<timestamp>",
+            "email": "<email>",
+            "first_name": "Snapshot",
+            "gender": "M",
+            "id": "<id>",
+            "is_verified_driver": 0,
+            "is_verified_passenger": 1,
+            "last_name": "Passenger",
+            "status": 1,
+            "verification_status": "approved"
+        }
+    },
+    "status": 200
+}

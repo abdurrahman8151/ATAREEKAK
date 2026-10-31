@@ -1,0 +1,83 @@
+{
+    "json": {
+        "bookings": {
+            "list": [
+                {
+                    "booked_at": "<timestamp>",
+                    "communication_number": "+963900000002",
+                    "id": "<id>",
+                    "passenger": {
+                        "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                        "id": "<id>",
+                        "name": "Snapshot Passenger"
+                    },
+                    "seats": 1,
+                    "status": "confirmed"
+                }
+            ],
+            "seat_summary": {
+                "available": 3,
+                "cancelled": 0,
+                "completed": 0,
+                "confirmed": 1,
+                "pending": 0,
+                "total_capacity": 4
+            },
+            "total_bookings": 1
+        },
+        "data": {
+            "booking_type": "direct",
+            "communication_number": "0911000000",
+            "created_at": "<timestamp>",
+            "departure_time": "<timestamp>",
+            "departure_time_human": "<timestamp>",
+            "destination": {
+                "address": "Aleppo",
+                "coordinates": {
+                    "lat": 36.2021,
+                    "lng": 37.1343
+                }
+            },
+            "distance": {
+                "kilometers": 0.3,
+                "meters": 321
+            },
+            "driver": {
+                "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "id": "<id>",
+                "name": "Snapshot Driver",
+                "rating": 3
+            },
+            "duration": {
+                "human": "4m",
+                "minutes": 4,
+                "seconds": 240
+            },
+            "id": "<id>",
+            "notes": null,
+            "payment_method": "e-pay",
+            "pickup": {
+                "address": "Damascus",
+                "coordinates": {
+                    "lat": 33.5138,
+                    "lng": 36.2765
+                }
+            },
+            "price_per_seat": "50000.00",
+            "route": {
+                "geometry": null,
+                "index": 0
+            },
+            "seats": {
+                "available": 3,
+                "booked": 1,
+                "total": 4
+            },
+            "status": "active",
+            "updated_at": "<timestamp>",
+            "vehicle_type": "car"
+        },
+        "success": true
+    },
+    "status": 200
+}

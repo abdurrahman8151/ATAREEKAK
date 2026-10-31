@@ -1,0 +1,22 @@
+{
+    "json": {
+        "data": [
+            {
+                "id": "<id>",
+                "last_message": null,
+                "type": "support",
+                "updated_at": "<timestamp>",
+                "user": {
+                    "account_status": "active",
+                    "email": "<email>",
+                    "id": "<id>",
+                    "name": "Snapshot Passenger",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                }
+            }
+        ],
+        "status": "success",
+        "total": 1
+    },
+    "status": 200
+}

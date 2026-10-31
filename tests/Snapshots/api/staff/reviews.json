@@ -1,0 +1,27 @@
+{
+    "json": {
+        "data": [
+            {
+                "comment": "A calm and punctual driver.",
+                "commenter": {
+                    "id": "<id>",
+                    "name": "Snapshot Passenger"
+                },
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "recipient": {
+                    "id": "<id>",
+                    "name": "Snapshot Driver"
+                }
+            }
+        ],
+        "meta": {
+            "current_page": 1,
+            "last_page": 1,
+            "per_page": 15,
+            "total": 1
+        },
+        "status": "success"
+    },
+    "status": 200
+}

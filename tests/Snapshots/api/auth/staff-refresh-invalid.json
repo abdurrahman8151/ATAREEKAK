@@ -1,0 +1,8 @@
+{
+    "json": {
+        "code": "REFRESH_TOKEN_INVALID",
+        "message": "Invalid or expired refresh token.",
+        "status": "error"
+    },
+    "status": 401
+}

@@ -1,0 +1,20 @@
+{
+    "json": {
+        "data": [
+            {
+                "id": "<id>",
+                "last_message": null,
+                "other_participant": {
+                    "id": "<id>",
+                    "name": "Snapshot Other",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "title": null,
+                "type": "private",
+                "updated_at": "<timestamp>"
+            }
+        ],
+        "success": true
+    },
+    "status": 200
+}

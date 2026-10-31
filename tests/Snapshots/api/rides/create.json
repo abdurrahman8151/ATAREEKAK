@@ -1,0 +1,68 @@
+{
+    "json": {
+        "data": {
+            "booking_type": "direct",
+            "communication_number": "+963911000000",
+            "created_at": "<timestamp>",
+            "departure_time": "<timestamp>",
+            "departure_time_human": "<timestamp>",
+            "destination": {
+                "address": "Aleppo",
+                "coordinates": {
+                    "lat": 36.2021,
+                    "lng": 37.1343
+                }
+            },
+            "distance": {
+                "kilometers": 320.5,
+                "meters": 320500
+            },
+            "driver": {
+                "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "id": "<id>",
+                "name": "Snapshot Driver",
+                "rating": 3
+            },
+            "duration": {
+                "human": "4h 0m",
+                "minutes": 240,
+                "seconds": 14400
+            },
+            "id": "<id>",
+            "notes": "Snapshot ride",
+            "payment_method": "e-pay",
+            "pickup": {
+                "address": "Damascus",
+                "coordinates": {
+                    "lat": 33.5138,
+                    "lng": 36.2765
+                }
+            },
+            "price_per_seat": "25000.00",
+            "route": {
+                "geometry": null,
+                "index": 0
+            },
+            "seats": {
+                "available": 3,
+                "booked": 0,
+                "total": 3
+            },
+            "status": "active",
+            "updated_at": "<timestamp>",
+            "vehicle_type": "car"
+        },
+        "driver_score": {
+            "can_book_rides": true,
+            "can_create_rides": true,
+            "cancel_rate": 0,
+            "score": 70,
+            "tier": "Silver",
+            "total_cancellations": 0,
+            "total_rides": 0
+        },
+        "message": "Ride created successfully",
+        "success": true
+    },
+    "status": 201
+}

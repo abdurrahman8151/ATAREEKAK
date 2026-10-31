@@ -1,0 +1,12 @@
+{
+    "json": {
+        "message": "Registration successful. Check your email for a verification code.",
+        "status": "success",
+        "user": {
+            "email": "<email>",
+            "first_name": "Snapshot",
+            "id": "<id>"
+        }
+    },
+    "status": 201
+}

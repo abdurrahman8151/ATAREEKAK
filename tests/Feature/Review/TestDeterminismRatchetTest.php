@@ -314,6 +314,17 @@ class TestDeterminismRatchetTest extends TestCase
      * @var array<string,string>
      */
     private const FS_WRITE_ALLOWLIST = [
+        // The snapshot corpus. This is a DELIBERATE, generation-only exception to the
+        // "untracked path" bar: the files under tests/Snapshots ARE tracked, because a
+        // snapshot that is not committed cannot pin anything. The risk this ratchet
+        // exists to stop - a normal test run leaving the tree dirty - cannot happen:
+        // SnapshotRepository::save() and QueryBudgetStore::record() are reached only
+        // when SNAPSHOT_UPDATE=1 is set, which is the one-off generation run, and every
+        // other code path only reads. They also refuse to write outside tests/Snapshots
+        // (the path is derived from base tests/ plus the case key).
+        'tests/Support/Snapshots/SnapshotRepository.php' => 'Writes the committed snapshot corpus under tests/Snapshots, only when SNAPSHOT_UPDATE=1; a normal run is read-only.',
+        'tests/Support/Snapshots/QueryBudgetStore.php' => 'Writes tests/Snapshots/query-budgets.json, only when SNAPSHOT_UPDATE=1; a normal run only reads the committed baseline.',
+        'tests/Support/Concerns/AssertsApiSnapshot.php' => 'fwrite(STDERR, ...) only - prints the shrink hint for a query budget that can be lowered; it does not touch the filesystem.',
         'tests/Feature/Review/RV22OauthCredentialRedactionTest.php' => 'The subject of the test is a log file, so it must create one: the path is '
             .'storage_path(\'logs/rv22-*.log\') — under storage/, which .gitignore excludes — '
             .'and the test unlinks it in a finally.',

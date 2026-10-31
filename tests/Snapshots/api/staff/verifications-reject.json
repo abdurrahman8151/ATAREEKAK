@@ -1,0 +1,11 @@
+{
+    "json": {
+        "data": {
+            "user_id": "<id>",
+            "verification_status": "rejected"
+        },
+        "message": "Verification rejected. User has been notified.",
+        "status": "success"
+    },
+    "status": 200
+}

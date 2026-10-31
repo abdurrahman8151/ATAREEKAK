@@ -1,0 +1,20 @@
+{
+    "json": {
+        "data": [
+            {
+                "address": "دمشق",
+                "documents": [],
+                "email": "<email>",
+                "gender": "M",
+                "name": "Snapshot Other",
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "submitted_at": "<timestamp>",
+                "type": "passenger",
+                "user_id": "<id>"
+            }
+        ],
+        "status": "success",
+        "total": 1
+    },
+    "status": 200
+}

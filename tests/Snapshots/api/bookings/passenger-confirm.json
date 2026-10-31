@@ -1,0 +1,8 @@
+{
+    "json": {
+        "message": "Confirmed. All passengers done — ride is now finished.",
+        "ride_finished": true,
+        "status": "success"
+    },
+    "status": 200
+}

@@ -1,0 +1,18 @@
+{
+    "json": {
+        "documents": [],
+        "status": "approved",
+        "success": true,
+        "vehicle": {
+            "color": null,
+            "photo": null,
+            "seats": null,
+            "type": null
+        },
+        "verified": {
+            "driver": false,
+            "passenger": true
+        }
+    },
+    "status": 200
+}

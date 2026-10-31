@@ -1,0 +1,10 @@
+{
+    "json": {
+        "data": {
+            "conversation_id": "<id>",
+            "message": "Conversation created successfully"
+        },
+        "success": true
+    },
+    "status": 201
+}

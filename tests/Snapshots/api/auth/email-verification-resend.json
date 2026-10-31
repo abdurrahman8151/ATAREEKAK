@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "If the address needs verification, a code has been sent. It expires in 10 minutes.",
+        "success": true
+    },
+    "status": 200
+}

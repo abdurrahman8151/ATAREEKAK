@@ -1,0 +1,29 @@
+{
+    "json": {
+        "data": {
+            "assigned_to": null,
+            "attachments": [],
+            "created_at": "<timestamp>",
+            "description": "A deterministic complaint created by the snapshot batch.",
+            "id": "<id>",
+            "is_escalated": true,
+            "resolution_notes": "[ESCALATED by Snapshot Staff at <timestamp>]\nThe snapshot batch escalates this complaint for the queue test.",
+            "resolved_at": "<timestamp>",
+            "status": "escalated",
+            "status_color": "orange",
+            "status_label": "Escalated",
+            "title": "Snapshot complaint",
+            "type": "technical_issue",
+            "type_label": "عطل تقني",
+            "updated_at": "<timestamp>",
+            "user": {
+                "email": "<email>",
+                "id": "<id>",
+                "name": "Snapshot Passenger"
+            }
+        },
+        "message": "Complaint escalated to admin successfully.",
+        "status": "success"
+    },
+    "status": 200
+}

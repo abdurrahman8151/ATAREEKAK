@@ -1,0 +1,9 @@
+{
+    "json": {
+        "expires_at": "<timestamp>",
+        "message": "OTP generated (testing mode — use the code below)",
+        "otp_code": "<token>",
+        "success": true
+    },
+    "status": 200
+}

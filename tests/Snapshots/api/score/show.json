@@ -1,0 +1,15 @@
+{
+    "json": {
+        "data": {
+            "can_book_rides": true,
+            "can_create_rides": true,
+            "cancel_rate": 0,
+            "score": 70,
+            "tier": "Silver",
+            "total_cancellations": 0,
+            "total_rides": 0
+        },
+        "success": true
+    },
+    "status": 200
+}

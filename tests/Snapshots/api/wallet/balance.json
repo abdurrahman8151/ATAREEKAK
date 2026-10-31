@@ -1,0 +1,8 @@
+{
+    "json": {
+        "balance": "1000000.00",
+        "success": true,
+        "wallet_number": "<id>"
+    },
+    "status": 200
+}

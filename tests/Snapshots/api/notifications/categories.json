@@ -1,0 +1,13 @@
+{
+    "json": {
+        "data": {
+            "chat": "Messages",
+            "general": "General",
+            "profile": "Profile",
+            "ride": "Rides",
+            "system": "System"
+        },
+        "success": true
+    },
+    "status": 200
+}

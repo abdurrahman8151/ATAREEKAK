@@ -1,0 +1,24 @@
+{
+    "json": {
+        "data": {
+            "destination": {
+                "lat": 36.2021,
+                "lng": 37.1343
+            },
+            "pickup": {
+                "lat": 33.5138,
+                "lng": 36.2765
+            },
+            "routes": [
+                {
+                    "distance": 320500,
+                    "duration": 14400,
+                    "geometry": [],
+                    "route_index": 0
+                }
+            ]
+        },
+        "success": true
+    },
+    "status": 200
+}
