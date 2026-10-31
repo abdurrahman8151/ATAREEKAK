@@ -1,0 +1,1242 @@
+{
+    "source": "php artisan route:list --json (api/* only, HEAD excluded)",
+    "totals": {
+        "api_routes": 154,
+        "snapshot": 148,
+        "parked": 6
+    },
+    "routes": [
+        {
+            "method": "DELETE",
+            "uri": "api/chat/messages/{messageId}",
+            "status": "snapshot",
+            "case": "chat/messages-destroy",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "DELETE",
+            "uri": "api/notifications/{id}",
+            "status": "snapshot",
+            "case": "notifications/destroy",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "DELETE",
+            "uri": "api/push-tokens",
+            "status": "snapshot",
+            "case": "push-tokens/destroy",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "DELETE",
+            "uri": "api/staff/reviews/{commentId}",
+            "status": "snapshot",
+            "case": "staff/reviews-destroy",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "DELETE",
+            "uri": "api/wallet/requests/{id}",
+            "status": "snapshot",
+            "case": "wallet/requests-destroy",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/dashboard",
+            "status": "snapshot",
+            "case": "admin/dashboard",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/dashboard/cities",
+            "status": "snapshot",
+            "case": "admin/dashboard-cities",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/dashboard/growth",
+            "status": "snapshot",
+            "case": "admin/dashboard-growth",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/dashboard/recent",
+            "status": "snapshot",
+            "case": "admin/dashboard-recent",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/dashboard/stats",
+            "status": "snapshot",
+            "case": "admin/dashboard-stats",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers",
+            "status": "snapshot",
+            "case": "admin/drivers",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers/activity",
+            "status": "snapshot",
+            "case": "admin/drivers-activity",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers/dashboard",
+            "status": "snapshot",
+            "case": "admin/drivers-dashboard",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers/stats",
+            "status": "snapshot",
+            "case": "admin/drivers-stats",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers/top",
+            "status": "snapshot",
+            "case": "admin/drivers-top",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers/verification-efficiency",
+            "status": "snapshot",
+            "case": "admin/drivers-verification-efficiency",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers/{driverId}/dashboard",
+            "status": "snapshot",
+            "case": "admin/driver-dashboard",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/drivers/{driverId}/profile",
+            "status": "snapshot",
+            "case": "admin/driver-profile",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/export/pdf",
+            "status": "parked",
+            "case": null,
+            "test": null,
+            "reason": "Streams a generated PDF (a binary Response, not JSON), so there is no JSON body a snapshot could compare. Its inputs are covered by the report reads."
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/passengers/{userId}/complaints",
+            "status": "snapshot",
+            "case": "admin/passenger-complaints",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/passengers/{userId}/full-profile",
+            "status": "snapshot",
+            "case": "admin/passenger-full-profile",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/passengers/{userId}/monthly-trips",
+            "status": "snapshot",
+            "case": "admin/passenger-monthly-trips",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/passengers/{userId}/recent-trips",
+            "status": "snapshot",
+            "case": "admin/passenger-recent-trips",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/passengers/{userId}/stats",
+            "status": "snapshot",
+            "case": "admin/passenger-stats",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/passengers/{userId}/wallet-charges",
+            "status": "snapshot",
+            "case": "admin/passenger-wallet-charges",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/reports",
+            "status": "snapshot",
+            "case": "admin/reports",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/routes/popular",
+            "status": "snapshot",
+            "case": "admin/routes-popular",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/trips",
+            "status": "snapshot",
+            "case": "admin/trips",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/trips/live",
+            "status": "snapshot",
+            "case": "admin/trips-live",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/users",
+            "status": "snapshot",
+            "case": "admin/users",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/users/{userId}/status",
+            "status": "snapshot",
+            "case": "admin/users-status",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/verifications",
+            "status": "snapshot",
+            "case": "admin/verifications",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/wallet",
+            "status": "snapshot",
+            "case": "admin/wallet",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/wallet/requests",
+            "status": "snapshot",
+            "case": "admin/wallet-requests",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/wallet/{walletId}/transactions",
+            "status": "snapshot",
+            "case": "admin/wallet-transactions",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/admin/wallets",
+            "status": "snapshot",
+            "case": "admin/wallets",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/autocomplete",
+            "status": "snapshot",
+            "case": "rides/autocomplete",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/bookings",
+            "status": "snapshot",
+            "case": "bookings/index",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/chat/conversations",
+            "status": "snapshot",
+            "case": "chat/conversations-index",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/chat/conversations/{conversationId}/messages",
+            "status": "snapshot",
+            "case": "chat/messages-index",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/complaints",
+            "status": "snapshot",
+            "case": "complaints/index",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/complaints/{id}",
+            "status": "snapshot",
+            "case": "complaints/show",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/documentation",
+            "status": "parked",
+            "case": null,
+            "test": null,
+            "reason": "Serves the Swagger UI (an HTML page from l5-swagger), not a JSON API response."
+        },
+        {
+            "method": "GET",
+            "uri": "api/employees",
+            "status": "snapshot",
+            "case": "employees/index",
+            "test": "EmployeesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/employees/{id}",
+            "status": "snapshot",
+            "case": "employees/show",
+            "test": "EmployeesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/notifications",
+            "status": "snapshot",
+            "case": "notifications/index",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/notifications/categories",
+            "status": "snapshot",
+            "case": "notifications/categories",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/notifications/unread-count",
+            "status": "snapshot",
+            "case": "notifications/unread-count",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/oauth2-callback",
+            "status": "parked",
+            "case": null,
+            "test": null,
+            "reason": "Serves the Swagger UI OAuth2 callback (an HTML page from l5-swagger), not a JSON API response."
+        },
+        {
+            "method": "GET",
+            "uri": "api/ping",
+            "status": "snapshot",
+            "case": "misc/ping",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/profile/verify/status/{userId}",
+            "status": "snapshot",
+            "case": "profile/verify-status",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/profile/{userId}",
+            "status": "snapshot",
+            "case": "profile/show",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/push-tokens",
+            "status": "snapshot",
+            "case": "push-tokens/index",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/rides",
+            "status": "snapshot",
+            "case": "rides/index",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/rides/search",
+            "status": "snapshot",
+            "case": "rides/search-get",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/rides/{rideId}",
+            "status": "snapshot",
+            "case": "rides/show",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/rides/{rideId}/passengers",
+            "status": "snapshot",
+            "case": "rides/passengers",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/score",
+            "status": "snapshot",
+            "case": "score/show",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/score/history",
+            "status": "snapshot",
+            "case": "score/history",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/score/transactions",
+            "status": "snapshot",
+            "case": "score/transactions",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/bookings",
+            "status": "snapshot",
+            "case": "staff/bookings",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/chat/conversations",
+            "status": "snapshot",
+            "case": "staff/chat-conversations",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/chat/conversations/{id}/messages",
+            "status": "parked",
+            "case": null,
+            "test": null,
+            "reason": "Answers 500 on every conversation: StaffChatController::messages() formats it through formatConversation(), which reads $conversation->latestMessage, and ChatRepository::findConversation() does not eager-load that relation - the lazy-loading guard then throws. App-side N+1, not fixable from a test; pinned here instead of pinning a 500 that would hide it."
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/complaints",
+            "status": "snapshot",
+            "case": "staff/complaints",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/complaints/{id}",
+            "status": "snapshot",
+            "case": "staff/complaints-show",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/documents/{photoId}",
+            "status": "parked",
+            "case": null,
+            "test": null,
+            "reason": "Serves the raw KYC file bytes to an authenticated staff member (a Response, not JSON), so there is no JSON body to snapshot."
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/documents/{photoId}/identity",
+            "status": "parked",
+            "case": null,
+            "test": null,
+            "reason": "Serves the raw identity-document bytes (a Response, not JSON), so there is no JSON body to snapshot."
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/escalated-complaints",
+            "status": "snapshot",
+            "case": "staff/escalated-complaints",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/me",
+            "status": "snapshot",
+            "case": "staff/me",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/reviews",
+            "status": "snapshot",
+            "case": "staff/reviews",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/trips",
+            "status": "snapshot",
+            "case": "staff/trips",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/users",
+            "status": "snapshot",
+            "case": "staff/users",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/users/{userId}",
+            "status": "snapshot",
+            "case": "staff/users-show",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/staff/verifications/pending",
+            "status": "snapshot",
+            "case": "staff/verifications-pending",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/test",
+            "status": "snapshot",
+            "case": "misc/test",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/user",
+            "status": "snapshot",
+            "case": "session/user",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/wallet/balance",
+            "status": "snapshot",
+            "case": "wallet/balance",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/wallet/requests",
+            "status": "snapshot",
+            "case": "wallet/requests-index",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/wallet/requests/{id}",
+            "status": "snapshot",
+            "case": "wallet/requests-show",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "GET",
+            "uri": "api/wallet/transactions",
+            "status": "snapshot",
+            "case": "wallet/transactions",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "PATCH",
+            "uri": "api/employees/{id}/reset-password",
+            "status": "snapshot",
+            "case": "employees/reset-password",
+            "test": "EmployeesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "PATCH",
+            "uri": "api/employees/{id}/toggle-active",
+            "status": "snapshot",
+            "case": "employees/toggle-active",
+            "test": "EmployeesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "PATCH",
+            "uri": "api/rides/{rideId}/cancel",
+            "status": "snapshot",
+            "case": "rides/cancel",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "PATCH",
+            "uri": "api/staff/complaints/{id}/escalate",
+            "status": "snapshot",
+            "case": "staff/complaints-escalate",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "PATCH",
+            "uri": "api/staff/complaints/{id}/respond",
+            "status": "snapshot",
+            "case": "staff/complaints-respond",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "PATCH",
+            "uri": "api/staff/escalated-complaints/{id}/resolve",
+            "status": "snapshot",
+            "case": "staff/escalated-resolve",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/login",
+            "status": "snapshot",
+            "case": "auth/admin-login-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/logout",
+            "status": "snapshot",
+            "case": "admin/logout",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/passengers/{userId}/charge-wallet",
+            "status": "snapshot",
+            "case": "admin/passenger-charge-wallet",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/refresh",
+            "status": "snapshot",
+            "case": "auth/admin-refresh-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/users/{userId}/ban",
+            "status": "snapshot",
+            "case": "admin/users-ban",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/users/{userId}/unban",
+            "status": "snapshot",
+            "case": "admin/users-unban",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/verifications/{userId}/approve",
+            "status": "snapshot",
+            "case": "admin/verifications-approve",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/verifications/{userId}/reject",
+            "status": "snapshot",
+            "case": "admin/verifications-reject",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/wallet/charge",
+            "status": "snapshot",
+            "case": "admin/wallet-charge",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/wallet/requests/{id}/approve",
+            "status": "snapshot",
+            "case": "admin/wallet-requests-approve",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/admin/wallet/requests/{id}/reject",
+            "status": "snapshot",
+            "case": "admin/wallet-requests-reject",
+            "test": "AdminSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/auth/login",
+            "status": "snapshot",
+            "case": "auth/login-invalid-credentials",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/auth/password/forgot",
+            "status": "snapshot",
+            "case": "auth/password-forgot",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/auth/password/reset",
+            "status": "snapshot",
+            "case": "auth/password-reset-expired-token",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/auth/password/verify-otp",
+            "status": "snapshot",
+            "case": "auth/password-verify-otp-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/auth/refresh",
+            "status": "snapshot",
+            "case": "auth/refresh-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/auth/signup",
+            "status": "snapshot",
+            "case": "auth/signup-success",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/bookings/{bookingId}/accept",
+            "status": "snapshot",
+            "case": "bookings/accept",
+            "test": "BookingsSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/bookings/{bookingId}/cancel",
+            "status": "snapshot",
+            "case": "bookings/cancel",
+            "test": "BookingsSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/bookings/{bookingId}/cancel-seats",
+            "status": "snapshot",
+            "case": "bookings/cancel-seats",
+            "test": "BookingsSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/bookings/{bookingId}/passenger-confirm",
+            "status": "snapshot",
+            "case": "bookings/passenger-confirm",
+            "test": "BookingsSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/bookings/{bookingId}/passenger-no-show",
+            "status": "snapshot",
+            "case": "bookings/passenger-no-show",
+            "test": "BookingsSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/bookings/{bookingId}/reject",
+            "status": "snapshot",
+            "case": "bookings/reject",
+            "test": "BookingsSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/chat/conversations",
+            "status": "snapshot",
+            "case": "chat/conversations-store",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/chat/conversations/{conversationId}/messages",
+            "status": "snapshot",
+            "case": "chat/messages-store",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/complaints",
+            "status": "snapshot",
+            "case": "complaints/store",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/contact",
+            "status": "snapshot",
+            "case": "contact/store",
+            "test": "MiscSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/email-verification/resend",
+            "status": "snapshot",
+            "case": "auth/email-verification-resend",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/email-verification/send",
+            "status": "snapshot",
+            "case": "auth/email-verification-send",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/email-verification/verify",
+            "status": "snapshot",
+            "case": "auth/email-verification-verify-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/employees",
+            "status": "snapshot",
+            "case": "employees/store",
+            "test": "EmployeesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/logout",
+            "status": "snapshot",
+            "case": "session/logout",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/notifications/bulk-action",
+            "status": "snapshot",
+            "case": "notifications/bulk-action",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/notifications/read-all",
+            "status": "snapshot",
+            "case": "notifications/read-all",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/notifications/{id}/read",
+            "status": "snapshot",
+            "case": "notifications/read",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/notifications/{id}/unread",
+            "status": "snapshot",
+            "case": "notifications/unread",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/otp/send",
+            "status": "snapshot",
+            "case": "auth/otp-send",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/otp/verify",
+            "status": "snapshot",
+            "case": "auth/otp-verify-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/profile",
+            "status": "snapshot",
+            "case": "profile/update",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/profile/documents",
+            "status": "snapshot",
+            "case": "profile/documents-upload",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/profile/verify/driver",
+            "status": "snapshot",
+            "case": "profile/verify-driver",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/profile/verify/passenger",
+            "status": "snapshot",
+            "case": "profile/verify-passenger",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/profile/{userId}/comments",
+            "status": "snapshot",
+            "case": "profile/comment",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/profile/{userId}/rate",
+            "status": "snapshot",
+            "case": "profile/rate",
+            "test": "ProfileSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/push-tokens",
+            "status": "snapshot",
+            "case": "push-tokens/register",
+            "test": "EngagementSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/rides",
+            "status": "snapshot",
+            "case": "rides/create",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/rides/create-with-route",
+            "status": "snapshot",
+            "case": "rides/create-with-route",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/rides/route-options",
+            "status": "snapshot",
+            "case": "rides/route-options",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/rides/search",
+            "status": "snapshot",
+            "case": "rides/search-post",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/rides/{rideId}/book",
+            "status": "snapshot",
+            "case": "rides/book",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/rides/{rideId}/driver-no-show",
+            "status": "snapshot",
+            "case": "rides/driver-no-show",
+            "test": "RidesSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/bookings/{bookingId}/cancel",
+            "status": "snapshot",
+            "case": "staff/bookings-cancel",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/chat/conversations/{id}/messages",
+            "status": "snapshot",
+            "case": "staff/chat-send",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/login",
+            "status": "snapshot",
+            "case": "auth/staff-login-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/logout",
+            "status": "snapshot",
+            "case": "staff/logout",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/refresh",
+            "status": "snapshot",
+            "case": "auth/staff-refresh-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/trips/{rideId}/cancel",
+            "status": "snapshot",
+            "case": "staff/trips-cancel",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/verifications/{userId}/approve",
+            "status": "snapshot",
+            "case": "staff/verifications-approve",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/staff/verifications/{userId}/reject",
+            "status": "snapshot",
+            "case": "staff/verifications-reject",
+            "test": "StaffSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/textme-otp/send",
+            "status": "snapshot",
+            "case": "auth/textme-otp-send-disabled",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/textme-otp/verify",
+            "status": "snapshot",
+            "case": "auth/textme-otp-verify-invalid",
+            "test": "AuthSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/wallet/create-direct",
+            "status": "snapshot",
+            "case": "wallet/create-direct",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/wallet/initiate",
+            "status": "snapshot",
+            "case": "wallet/initiate",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/wallet/request-charge",
+            "status": "snapshot",
+            "case": "wallet/request-charge",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/wallet/request-withdraw",
+            "status": "snapshot",
+            "case": "wallet/request-withdraw",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/wallet/requests",
+            "status": "snapshot",
+            "case": "wallet/requests-store",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "POST",
+            "uri": "api/wallet/verify-and-create",
+            "status": "snapshot",
+            "case": "wallet/verify-and-create-missing-session",
+            "test": "WalletSnapshotTest",
+            "reason": null
+        },
+        {
+            "method": "PUT",
+            "uri": "api/employees/{id}",
+            "status": "snapshot",
+            "case": "employees/update",
+            "test": "EmployeesSnapshotTest",
+            "reason": null
+        }
+    ]
+}
