@@ -26,7 +26,6 @@ final class RouteInventoryTest extends TestCase
         'GET api/admin/export/pdf',
         'GET api/documentation',
         'GET api/oauth2-callback',
-        'GET api/staff/chat/conversations/{id}/messages',
         'GET api/staff/documents/{photoId}',
         'GET api/staff/documents/{photoId}/identity',
     ];

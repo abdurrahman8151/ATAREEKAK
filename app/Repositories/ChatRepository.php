@@ -54,7 +54,7 @@ class ChatRepository implements ChatRepositoryInterface
      */
     public function findConversation(int $conversationId): ?Conversation
     {
-        return Conversation::with('participants')->find($conversationId);
+        return Conversation::with('participants.profile', 'latestMessage.sender')->find($conversationId);
     }
 
     public function findPrivateConversation(User $user1, User $user2): ?Conversation

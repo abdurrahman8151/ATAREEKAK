@@ -13,14 +13,11 @@ namespace Tests\Feature\Snapshots;
  * `.../identity` return raw file bytes rather than JSON, so there is no body to snapshot - see
  * RouteInventoryTest for the parked list.
  *
- * One route is PARKED because the safety net found a real defect in it:
- * `GET /api/staff/chat/conversations/{id}/messages` answers 500 as soon as the conversation
- * exists. `StaffChatController::messages()` formats the conversation through
- * `formatConversation()`, which reads `$conversation->latestMessage`, and the repository's
- * `findConversation()` does not eager-load that relation - so the lazy-loading guard fires:
- * "Attempted to lazy load [latestMessage] on model [App\Models\Conversation] but lazy loading is
- * disabled." That is an app-side N+1, not a test artefact, and it cannot be fixed from a test, so
- * the route is listed as parked with that reason rather than pinned to a 500 that would hide it.
+ * `GET /api/staff/chat/conversations/{id}/messages` was PARKED in stage 0 because it answered 500:
+ * `StaffChatController::messages()` formats the conversation through `formatConversation()`, which
+ * reads `$conversation->latestMessage`, and `ChatRepository::findConversation()` did not eager-load
+ * that relation, so the lazy-loading guard threw. Stage 0.5 step 2 applied the one-line eager-load
+ * (the only app change in this goal), and the route is snapshotted here.
  */
 final class StaffSnapshotTest extends ApiSnapshotTestCase
 {
@@ -50,6 +47,17 @@ final class StaffSnapshotTest extends ApiSnapshotTestCase
                 'uri' => '/api/staff/chat/conversations',
                 'actor' => 'staff',
                 'prepare' => static fn (ApiSnapshotTestCase $test) => $test->openSupportChat(),
+                'expect' => 200,
+            ],
+            'staff/chat-messages' => [
+                'route' => 'GET /api/staff/chat/conversations/{id}/messages',
+                'method' => 'GET',
+                'uri' => '/api/staff/chat/conversations/{conversation}/messages',
+                'actor' => 'staff',
+                'prepare' => static function (ApiSnapshotTestCase $test): void {
+                    $test->openSupportChat();
+                    $test->sendSupportMessage();
+                },
                 'expect' => 200,
             ],
             'staff/chat-send' => [

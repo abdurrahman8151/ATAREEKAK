@@ -14826,3 +14826,46 @@ ratchet), `docs/audit/STATE.md`, this record.
 
 No `app/`, `config/`, `routes/`, migration or `phpunit.xml` change. No existing assertion edited; no
 baseline raised. **Parked: nothing** except the six routes in 238.1, each with its reason.
+---
+
+### 239. Stage 0.5 - hardening the stage-0 safety net (owner goal; tests only, except ONE app line)
+
+Stage 0 built the net; this stage makes it hard to fool. Steps 1-8, one commit each, `SNAPSHOT_UPDATE=1`
+allowed for exactly one regeneration run (step 3) plus the single new case in step 2.
+
+#### 239.1 Step 1 - every snapshot call asserts the route it actually matched
+
+`snapshotCall()` now takes the route the case DECLARES and, after the call, compares it with
+`app('router')->current()` as `METHOD uri-pattern`. A case whose placeholder resolved to nothing
+(an empty complaint id collapsed `/api/complaints//show` onto the index route) or whose URI was
+subtly wrong used to pin the WRONG route body under the RIGHT route name and stay green. A request
+that matched no route at all now fails too, with the declared route named.
+
+Non-vacuity: flipping `misc/ping`'s declared route to `POST api/ping` produced
+"declares POST api/ping but the request matched GET api/ping"; the probe file was reverted in the
+same step (`git status` clean for it).
+
+#### 239.2 Step 2 - the parked staff chat route: ONE app line, and the route is live
+
+The defect stage 0 parked: `GET /api/staff/chat/conversations/{id}/messages` answered 500 on every
+conversation. Root cause was a chain of missing eager loads, all reached from
+`ChatRepository::findConversation()`, which loaded only `participants`:
+
+1. `formatConversation()` reads `$conversation->latestMessage` (first 500),
+2. then `$otherUser?->profile?->profile_photo` on a participant (second 500),
+3. then `$lastMessage->sender?->first_name` (third 500).
+
+The fix is ONE line in that method:
+
+```php
+return Conversation::with('participants.profile', 'latestMessage.sender')->find($conversationId);
+```
+
+The route is out of the parked list (5 parked, 149 snapshotted, totals `api_routes: 154`), has a case
+(`staff/chat-messages`, budget 13 queries) and answers 200.
+
+**One deliberate query-budget rise, disclosed:** `staff/chat-send` went 15 -> 19 because it shares
+`findConversation()` and now pays for the eager loads the read path needs (participants.profile,
+latestMessage + its sender - constant per request, not an N+1; the count does not grow with the
+number of participants). Shrink-only stays the rule for every other case; this single entry was
+raised by hand with this reason, and it is the only rise in stage 0.5.

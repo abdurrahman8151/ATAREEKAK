@@ -2,8 +2,8 @@
     "source": "php artisan route:list --json (api/* only, HEAD excluded)",
     "totals": {
         "api_routes": 154,
-        "snapshot": 148,
-        "parked": 6
+        "snapshot": 149,
+        "parked": 5
     },
     "routes": [
         {
@@ -505,10 +505,10 @@
         {
             "method": "GET",
             "uri": "api/staff/chat/conversations/{id}/messages",
-            "status": "parked",
-            "case": null,
-            "test": null,
-            "reason": "Answers 500 on every conversation: StaffChatController::messages() formats it through formatConversation(), which reads $conversation->latestMessage, and ChatRepository::findConversation() does not eager-load that relation - the lazy-loading guard then throws. App-side N+1, not fixable from a test; pinned here instead of pinning a 500 that would hide it."
+            "status": "snapshot",
+            "case": "staff/chat-messages",
+            "test": "StaffSnapshotTest",
+            "reason": null
         },
         {
             "method": "GET",

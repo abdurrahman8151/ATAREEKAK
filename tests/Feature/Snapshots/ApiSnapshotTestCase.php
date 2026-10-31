@@ -425,6 +425,26 @@ abstract class ApiSnapshotTestCase extends TestCase
         return $this->caseVars['{conversation}'];
     }
 
+    /** Put a passenger message in the support conversation, remembered as {message}. */
+    protected function sendSupportMessage(): string
+    {
+        $response = $this->withToken($this->passengerToken)->postJson(
+            '/api/chat/conversations/'.$this->caseVars['{conversation}'].'/messages',
+            ['content' => 'The passenger needs help with a booking.']
+        );
+
+        if ($response->getStatusCode() !== 201) {
+            $this->fail(
+                'Snapshot world could not send a support message (HTTP '.$response->getStatusCode().'): '
+                .substr((string) $response->getContent(), 0, 400)
+            );
+        }
+
+        $this->caseVars['{message}'] = (string) $response->json('data.id');
+
+        return $this->caseVars['{message}'];
+    }
+
     /**
      * A rating/comment pair left by the standard passenger on the standard driver after a completed
      * ride, remembered as {comment}. The staff review queue is empty otherwise.
