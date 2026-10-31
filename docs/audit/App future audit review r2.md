@@ -14640,3 +14640,189 @@ process against it while a suite is in flight - scoped runs included.**
 `tests/Feature/Review/RV45RideNotFoundTest.php` (the fix, commit `fd1dac1`), the ten Pint-formatted files
 listed in 237.3 (this commit), `docs/audit/STATE.md` and this record. Nothing parked; no baseline
 raised; no assertion edited; no app, config, route, schema or migration file touched.
+
+---
+
+### 238. The API safety net (owner goal; tests only, no app/ change)
+
+2026-10-31, branch `Agentic`, on top of section 237 (`e206dff`). The owner's standing
+refactoring-mode authorisation: **build the safety net before any structural move - tests only, no
+`app/` change.** Five deliverables, all met. Nothing parked except six routes that cannot be
+expressed as a JSON snapshot, each with its reason committed in the inventory.
+
+### 238.1 Deliverable 1 - the inventory, and the six routes it had to park
+
+`php artisan route:list --json` filtered to `api/*` (HEAD excluded) lists **154 routes**. The
+committed `tests/Snapshots/route-inventory.json` names every one of them, with a status and (for a
+parked route) a reason; `tests/Feature/Snapshots/RouteInventoryTest.php` re-derives the live list
+from the router and fails if a route exists that the inventory does not name, or if the inventory
+names a route that no longer exists.
+
+| status | count | what it means |
+|---|---|---|
+| `snapshot` | 148 | exercised by a named case in one of the ten `*SnapshotTest` files |
+| `parked` | 6 | cannot be expressed as JSON, or cannot answer at all - reason in the inventory |
+| **total** | **154** | every `api/*` route accounted for |
+
+152 cases cover those 148 routes: four routes carry a second case for their refusal path (user and
+staff `login`, user and staff `refresh`). Cases per file: `AuthSnapshotTest` 21,
+`AdminSnapshotTest` 39, `StaffSnapshotTest` 21, `EngagementSnapshotTest` 16, `RidesSnapshotTest` 13,
+`WalletSnapshotTest` 11, `ProfileSnapshotTest` 10, `MiscSnapshotTest` 9, `BookingsSnapshotTest` 6,
+`EmployeesSnapshotTest` 6.
+
+The six parked routes, and why - each one is a route that a JSON snapshot would either fake or hide:
+
+| route | reason |
+|---|---|
+| `GET /api/admin/export/pdf` | streams a generated PDF (binary `Response`), so there is no JSON body |
+| `GET /api/documentation` | the Swagger UI HTML page, not an API response |
+| `GET /api/oauth2-callback` | the Swagger UI OAuth2 callback page, not an API response |
+| `GET /api/staff/documents/{photoId}` | raw KYC file bytes, not JSON |
+| `GET /api/staff/documents/{photoId}/identity` | raw identity-document bytes, not JSON |
+| `GET /api/staff/chat/conversations/{id}/messages` | **answers 500 - a real defect, see 238.5** |
+
+### 238.2 The harness - four rules that make a snapshot mean something
+
+`tests/Feature/Snapshots/ApiSnapshotTestCase.php` builds the same world for every case: the three
+system wallets (1,000,000 each), a driver / passenger / other / wallet-less user, their three
+wallets and tokens, one active e-pay ride, and the six actors (`driver`, `passenger`, `other`,
+`walletless`, `admin` = SYSTEM_ADMIN, `staff` = SUPPORT_AGENT, `staff_admin` = ADMIN). External
+services are faked per case (openrouteservice, mapbox, nominatim, FCM, `*`), so no test can reach
+the network.
+
+`SnapshotNormaliser` replaces everything that is not a fact of the response: ids, timestamps,
+tokens, e-mails, UUIDs, redacted values, uploaded file URLs, and any timestamp EMBEDDED in a longer
+string (the escalation note carries `[ESCALATED by X at 2026-10-31 16:08:47]`, which drifted between
+runs until the rule existed). `time_only`, `date_only` and `*_human` / `*_formatted` are timestamps
+too.
+
+Two rules were added after the net caught itself:
+
+1. **Update mode refuses to write when the status is not the documented one.** A red generation run
+   had recorded a 3-query budget for `rides/create-with-route` from a 422 short-circuit, poisoning
+   the baseline downward for the real path. `SNAPSHOT_UPDATE=1` now fails without writing unless
+   `status === expect`, so a red run cannot write anything at all.
+2. **An unresolved placeholder is a failure, not an empty id.** `/api/complaints//show` and
+   `/api/staff/complaints//escalate` silently matched a DIFFERENT route (the index) and pinned that
+   body under the misleading name. `resolvePlaceholders()` now fails when a `{name}` has no
+   non-empty value, naming the placeholder and the case.
+
+### 238.3 Deliverable 2 - the query budgets, shrink-only
+
+`tests/Snapshots/query-budgets.json` records, per case, the `DB::getQueryLog()` count of the
+generating (green) run. `AssertsApiSnapshot` fails when a run exceeds it, and prints a `STDERR`
+hint when a run comes in UNDER it. `QueryBudgetStore::record()` can only lower a number (`min()`),
+so a normal run cannot raise a baseline even in update mode. 152 cases, 152 budgets. One budget
+failure was real and is recorded as a finding (238.5, item 2).
+
+### 238.4 Deliverable 4 - the leak guard, at its source
+
+`tests/Support/CommittedRowLeakDetector.php` counts seven tables (`wallets`, `users`, `rides`,
+`bookings`, `user_ratings`, `profile_comments`, `refresh_tokens`) after each test class and throws
+`RuntimeException: COMMITTED-ROW LEAK after Class::test: ...` naming the table and row count.
+`GuardsAgainstCommittedLeaks` registers the check AFTER `parent::setUp()`, which is what makes it
+work: `RefreshDatabase` registers its rollback in `beforeApplicationDestroyed`, and Laravel runs
+those callbacks in registration order, so a callback registered later observes the database AFTER
+the rollback. A class that should have rolled back and did not is therefore caught at that class,
+not in whichever later test trips over the leftovers - the RV45 pollution pattern cannot recur
+silently.
+
+### 238.5 The net's findings - five defects it caught, four fixed inside the tests
+
+The point of a safety net is that it finds things. It did:
+
+1. **`GET /api/staff/chat/conversations/{id}/messages` answers 500 for every conversation.**
+   `StaffChatController::messages()` formats through `formatConversation()`, which reads
+   `$conversation->latestMessage`, and `ChatRepository::findConversation()` does not eager-load that
+   relation. The lazy-loading guard turns the N+1 into a hard failure. This is an app defect, not a
+   test artefact, and it cannot be fixed from a test, so the route is **parked** with that reason
+   instead of being pinned to a 500 that would hide it. **Owner action offered, not taken (no
+   `app/` changes in this batch): eager-load `latestMessage` in `findConversation()`.**
+2. **`Tests\Feature\Review\OtpDisclosureTest` committed `otps` rows.** It extended
+   `Tests\TestCase` without any rollback trait, so the OTPs its cases send stayed in the shared
+   scratch database; the next snapshot run's `auth/otp-verify-invalid` case then read 2 queries
+   where its budget said 1. Root cause fixed by giving the class `RefreshDatabase`, and the two
+   snapshot cases that depend on an empty `otps` table now clear it explicitly (`clearOtpRows()`).
+3. **`/api/complaints/{id}` and `/api/staff/complaints/{id}` were snapshotting the INDEX route.**
+   The complaint id was read from `data.id`; the store envelope puts it at `complaint.id`, so the
+   substitution was empty and the URI collapsed to `.../complaints//`. Fixed at the source (correct
+   envelope path) and guarded for the future (238.2, rule 2).
+4. **Three list routes returned rows in a different ORDER between the generating run and the
+   verifying run** (`/api/admin/users`, `/api/admin/wallets`, `/api/admin/trips`). The whole world is
+   created inside one second, so `ORDER BY created_at` had ties and MySQL was free to answer
+   either way. Fixed in the fixture, not the app: `staggerWorldTimestamps()` gives every world row a
+   distinct, well-separated `created_at`.
+5. **A red update run poisoned a budget** (238.2, rule 1) - the guard, not the app.
+
+### 238.6 Deliverable 3 - the ledger property tests
+
+`tests/Feature/Payment/LedgerInvariantsPropertyTest.php` checks four movements - booking charge,
+payout, driver-cancellation refund, passenger no-show - against three amounts (`50,000.00`,
+`1,000.50` the RV-19 odd tenth, `33.33`), 12 tests, and asserts four PROPERTIES rather than one row
+list:
+
+| property | assertion |
+|---|---|
+| debits equal credits | `SUM(ledger_entries.amount) = 0` after every movement |
+| money is conserved | `SUM(wallets.balance)` is unchanged by the movement |
+| escrow is never negative | no `bookings.escrow_held < 0`, and it returns to exactly `0.00` after release |
+| posting key is idempotent | replaying the movement raises `/already posted/` and moves NOTHING: same ledger rows, same transaction rows, same balances, same escrow |
+
+The replay assertions run AFTER the exception inside a `try/catch` (not `expectException`), so
+"nothing moved" is actually executed rather than being unreachable dead code.
+
+### 238.7 Deliverable 5 - the order matrix (serialized)
+
+Six serialized full-suite runs, no `--parallel`, no process isolation. The two skips are the
+pre-existing `CiMySqlDriverTest` pair in every run (compared by name).
+
+| run | command | result |
+|---|---|---|
+| 1 default | `php vendor/bin/phpunit --no-coverage` | `Tests: 2765, Assertions: 8263, Skipped: 2`, exit 0 |
+| 2 Feature first | `php vendor/bin/phpunit tests/Feature tests/Unit --no-coverage` | `Tests: 2767, Assertions: 8269, Skipped: 2`, exit 0 |
+| 3 random, seed 20261031 | `php vendor/bin/phpunit --order-by=random --random-order-seed=20261031 --no-coverage` | `Tests: 2767, Assertions: 8269, Skipped: 2`, exit 0 |
+| 4 random, seed 7 | as run 3 with seed 7 | `Tests: 2767, Assertions: 8269, Skipped: 2`, exit 0 |
+| 5 random, seed 12345 | as run 3 with seed 12345 | `Tests: 2767, Assertions: 8269, Skipped: 2`, exit 0 |
+| 6 default, final tree | `php vendor/bin/phpunit --no-coverage` | `Tests: 2767, Assertions: 8269, Skipped: 2`, exit 0 |
+
+Runs 2-6 are IDENTICAL in all three totals. Run 1 is two tests smaller for a measured reason, not a
+silent one: the two `CommittedRowLeakGuardTest` cases were added while run 1 was in flight (PHPUnit
+collects the file list at start-up), so the matrix ends with run 6 - the same default command on
+the final tree - which reports the same 2767 / 8269 / 2. No run was red.
+
+After run 6 the shared scratch schema held **0** rows in `wallets`, `users`, `rides`, `bookings`,
+`user_ratings`, `profile_comments`, `refresh_tokens`, `ledger_entries`, `wallet_transactions` and
+`otps` - the leak guard's own subject tables plus the two ledger tables and the `otps` table that
+used to keep rows (238.5 item 2).
+
+### 238.7.1 What the FIRST full pass found, and why it was a fixture fix, not an app fix
+
+The snapshot corpus was green in isolation and 9 of its cases were red in the first full-suite run.
+All nine were order- or clock-dependent VALUES, not behaviour, and every fix was in the fixture or
+the normaliser:
+
+| symptom | cause | fix |
+|---|---|---|
+| `driver_ref` / `trip_ref` differed between runs (`#DR-21` vs `#DR-1698`) | the human reference embeds the row id | `*_ref` keys normalise to `<id>` |
+| `available_seats` appeared in a different POSITION in the object (`rides/index`, `rides/create-with-route`, `rides/cancel`) | a `create()`d model keeps its insert order, a re-read one keeps the table column order | object keys are SORTED for comparison; array order is still pinned |
+| a paginator URL carried the wallet id (`.../wallet/227/transactions`) | the id is in the PATH, not a field | numeric path segments of a URL become `/<id>`; the query string is untouched |
+| `time_only` drifted a minute | derived from `now()` | `time_only` / `date_only` normalise as timestamps |
+
+### 238.8 Files changed
+
+New: `tests/Feature/Snapshots/{Admin,Auth,Bookings,Employees,Engagement,Misc,Profile,Rides,Staff,Wallet}SnapshotTest.php`
+(nine existed from the earlier batches of this goal; `AdminSnapshotTest` is new here),
+`tests/Feature/Snapshots/ApiSnapshotTestCase.php`, `tests/Feature/Snapshots/RouteInventoryTest.php`,
+`tests/Feature/Payment/LedgerInvariantsPropertyTest.php`,
+`tests/Feature/Review/CommittedRowLeakGuardTest.php`,
+`tests/Support/Snapshots/{SnapshotNormaliser,SnapshotRepository,QueryBudgetStore}.php`,
+`tests/Support/Concerns/{AssertsApiSnapshot,GuardsAgainstCommittedLeaks}.php`,
+`tests/Support/CommittedRowLeakDetector.php`, `tests/Snapshots/api/**` (152 files),
+`tests/Snapshots/query-budgets.json`, `tests/Snapshots/route-inventory.json`.
+Changed: `tests/TestCase.php` (registers the leak guard), `tests/Feature/Review/OtpDisclosureTest.php`
+(the committed-`otps` root cause), `tests/Feature/Review/TestDeterminismRatchetTest.php` (the
+snapshot corpus is a deliberate, generation-only `SNAPSHOT_UPDATE=1` exception to the fs-write
+ratchet), `docs/audit/STATE.md`, this record.
+
+No `app/`, `config/`, `routes/`, migration or `phpunit.xml` change. No existing assertion edited; no
+baseline raised. **Parked: nothing** except the six routes in 238.1, each with its reason.
