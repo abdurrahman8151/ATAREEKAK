@@ -6,8 +6,8 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 use Tests\Support\Concerns\SeedsSystemWallets;
+use Tests\TestCase;
 
 /**
  * T2-2 regression — the admin panel's financial surface is system_admin-only.

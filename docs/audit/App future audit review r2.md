@@ -14504,3 +14504,139 @@ Step (a) closed `RIDE_to_COMM` (12 sites), `MONEY_to_COMM` (1), `IDENTITY_to_COM
 `CONSOLE_to_COMM` (7 of its 8) - 22 ported sites in all; step (b) closed `RIDE_to_MONEY` (13);
 step (c) closed the remaining 21. Every figure is the ratchet's own output at the moment the baseline was
 lowered, never a hand count.
+
+---
+
+### 237. Triage: the 24 red cash-fee unit tests, the whole-tree Pint gate, both serialized full-suite orderings
+
+2026-10-31, branch `Agentic`, on top of batch 233 (`1267df9`). Three tasks, all terminal. Nothing parked.
+
+**Environment first.** The scratch MySQL (127.0.0.1:3399) was DOWN when this task started: no `mysqld`
+process, `SQLSTATE[HY000] [2002] ... actively refused`. It was restarted once with the documented
+command and re-pinged `DB_OK 8.2.0`, 31 tables, 85 `migrations` rows. The first full run attempted after
+that restart was a wall of `E` from test 1 (`61 / 2598`) - the signature of a dead server, not of a code
+defect - and it was discarded as infrastructure failure. Every number below comes from a healthy server.
+
+### 237.1 Task 1 - one distinct error kind, and it is not RV-46
+
+Baseline run: `php vendor/bin/phpunit tests/Feature tests/Unit --no-coverage` ->
+`Tests: 2598, Assertions: 6848, Errors: 24, Skipped: 2`.
+
+The 24 are 20 x `Tests\Unit\Services\Payment\CashRideFeeServiceTest` + 4 x
+`Tests\Unit\Services\Payment\L18CashRideFeeOutcomeLedgerTest`, and they are **one** distinct kind:
+
+```
+Illuminate\Database\UniqueConstraintViolationException: SQLSTATE[23000]: Integrity constraint
+violation: 1062 Duplicate entry '0912345678' for key 'wallets.wallets_phone_number_unique'
+(SQL: insert into `wallets` (`name`, `phone_number`, `balance`, ...) values (Primary Escrow, 0912345678, 100, ...))
+```
+
+Thrown from each victim's `setUp()`, which does an unconditional
+`Wallet::create(['name' => 'Primary Escrow', 'phone_number' => config('admin.system_admin.phone'), ...])`.
+No second kind, no tier assertion, no stale constructor: the app is correct, the fixture collides.
+**Not RV-46** - RV-46 is the refund-tier divergence, and after this fix all 20 tests in
+`CashRideFeeServiceTest` pass, so no tier test is red either. In isolation both files are green
+(`tests/Unit/Services/Payment` -> `OK (24 tests, 52 assertions)`; `tests/Unit` -> `OK (977 tests, 1528
+assertions)`), so the colliding row has to be committed by an earlier Feature test in the same process.
+
+### 237.2 Root cause - `RV45RideNotFoundTest` commits the three system wallets it seeds
+
+`tests/Feature/Review/RV45RideNotFoundTest::faultOnRideRead()` drops `rides.available_seats` to force a
+real `QueryException`. That is DDL, and MySQL implicitly COMMITS the open `RefreshDatabase` transaction
+when DDL runs - the class's own batch-229 docblock says exactly that, and `deleteCommittedFixtures()`
+exists to delete what the commit leaked. It deleted the driver, wallet, profile, photos, refresh tokens,
+ride and signup rating - and missed the three system wallets `seedSystemWallets(10_000_000)` creates in
+`setUp()`.
+
+Two independent pieces of evidence, neither a guess:
+
+1. **After** the baseline run the shared schema held exactly three `wallets` rows, all `user_id NULL`,
+   `name NULL`, balances `10,000,000` / `10,000,000` / `0` on phones `0912345678` (`system_admin`),
+   `0987654321` (`sycash`) and `0900000042` (`external`) - the exact shape of
+   `SeedsSystemWallets::seedSystemWallets()` (`firstOrCreate` without a `name`). JUnit per-test timings
+   plus the XML's own mtime place a class boundary at `+278s` into the run, and the three rows are
+   stamped `02:09:26`; the class starting at `+278s` is `Tests\Feature\Review\RV45RideNotFoundTest`.
+2. **Causal, same command before and after the change:**
+   `php vendor/bin/phpunit tests/Feature/Review/RV45RideNotFoundTest.php tests/Unit/Services/Payment`
+   -> before `Tests: 28, Assertions: 14, Errors: 24`; after `OK (28 tests, 66 assertions)`; and the
+   schema after the run holds **0** `wallets` rows where it held 3 before.
+
+Fix, commit `fd1dac1` (test construction only, root cause - no assertion edited, no app code touched):
+one block added to `deleteCommittedFixtures()` deleting `wallets` where `user_id IS NULL` and
+`phone_number IN (...)` for the three reserved phones, built through `array_filter` so an unset config
+phone cannot widen the delete.
+
+**Residual recorded, not changed:** the two victims still do a blind `Wallet::create()`; any future test
+that commits a wallet on a reserved phone will red them again. Making them `firstOrCreate`-based is a
+separate, optional hardening and was not done here.
+
+### 237.3 Task 2 - the whole-tree Pint gate
+
+Before: `php vendor/bin/pint --test` -> `FAIL ... 737 files, 10 style issues` (exit 1). After:
+`PASS ... 737 files` (exit 0). All ten were byte-identical to HEAD - committed Pint-red, pre-existing,
+none of them touched by batch 233:
+
+| file | rules reported |
+|---|---|
+| `app/Services/Payment/WalletAccess.php` | class_attributes_separation, phpdoc_indent, unary_operator_spaces, braces_position |
+| `tests/Feature/Admin/AdminFinancialReportEscrowTest.php` | ordered_imports |
+| `tests/Feature/Admin/AdminFinancialSurfaceAuthorizationTest.php` | ordered_imports |
+| `tests/Feature/Payment/L21RideCompletionPayoutLedgerTest.php` | class_attributes_separation, statement_indentation |
+| `tests/Feature/Payment/WalletTransactionServiceTest.php` | class_attributes_separation, statement_indentation, ordered_imports |
+| `tests/Feature/Review/DoubleEntryLedgerTest.php` | class_attributes_separation, statement_indentation, ordered_imports |
+| `tests/Feature/Review/RV02EscrowDerivationTest.php` | class_attributes_separation, statement_indentation, ordered_imports |
+| `tests/Feature/Review/RV09StrategyGuardPropagationTest.php` | class_attributes_separation, statement_indentation, ordered_imports |
+| `tests/Feature/Review/RV19FeeSplitTest.php` | array_indentation |
+| `tests/Feature/Review/RV20SetLevelRefundSemanticsTest.php` | class_attributes_separation, statement_indentation |
+
+Fixed with Pint on those ten explicit paths only - never a whole-tree fix, so no owner file could be
+touched. Diff inspection: whitespace, import order, and five genuinely unused imports removed from
+`WalletAccess.php` (`WalletTransaction`, `FeeSplit`, `Carbon`, `Log`, `Str`); no amount, tier, split,
+posting key, assertion or statement changed. Formatting-only is proven by tests, not by eye: the money
+floor plus every affected file -
+`tests/Feature/Wallet tests/Feature/Payment tests/Unit/Domain tests/Unit/Services/Payment
+tests/Unit/Services/WalletTransactionServiceRefundPolicyTest.php`, the six changed Admin/Review test
+files, `RV45RideNotFoundTest`, `NoDuplicatedFixtureHelpersTest`, `TestDeterminismRatchetTest` and
+`MoneyRoundingIsDecidedInOnePlaceTest` -> `OK (318 tests, 602 assertions)`.
+
+### 237.4 Task 3 - the serialized full suite, both orderings
+
+| run | command | result |
+|---|---|---|
+| default suite (Unit then Feature), what CI runs | `php vendor/bin/phpunit --no-coverage` | `OK ... Tests: 2598, Assertions: 6888, Skipped: 2` (exit 0) |
+| Feature first, the order that carried the 24 | `php vendor/bin/phpunit tests/Feature tests/Unit --no-coverage` | `OK ... Tests: 2598, Assertions: 6888, Skipped: 2` (exit 0) |
+| same Feature-first run BEFORE the fix | as above | `Tests: 2598, Assertions: 6848, Errors: 24, Skipped: 2` |
+
+Serial: no `--parallel`, no process isolation. The two skips are the pre-existing `CiMySqlDriverTest`
+pair in all three logs, compared by name. **0 errors and 0 failures in both orderings.** After the last
+run the schema held 0 rows in `wallets`, `users`, `rides`, `ledger_entries` and `wallet_transactions` -
+no committed fixture survives any more.
+
+### 237.5 The 19 schema-level errors in the first post-fix Feature-first run: a measuring artifact
+
+That first post-fix Feature-first run reported `Errors: 19` - 9 x
+`Tests\Feature\Payment\WalletTransactionServiceTest` and 10 x `Tests\Feature\Profile\ProfileTest`, all
+`Illuminate\Database\QueryException`, with **zero** name overlap with the 24. Two messages:
+
+```
+Base table or view not found: 1146 Table 't3_batch.wallets' doesn't exist
+Column not found: 1054 Unknown column 'token_version' in 'field list'   (insert into `users` ...)
+```
+
+Cause: a second phpunit process was started against the same shared scratch database while the full
+suite was mid-run. That scoped run was `php vendor/bin/phpunit tests/Feature/AppFuture` (10 s), and
+`tests/Feature/AppFuture/UntangleBatchTest` uses `RefreshDatabase`, so it ran `migrate:fresh` - dropping
+and re-creating every table under the running suite. The window explains both messages exactly: `wallets`
+is absent between the drop and its re-creation, and `users` is re-created by an early migration and only
+receives `token_version` from a later one. The errors cluster at `02:29:20`, exactly when that scoped run
+executed; the JUnit shows no slow or hung test (slowest class 111 s, slowest single test 9.7 s); and the
+clean re-run with nothing else touching the database is green in both orderings.
+
+**Lesson recorded: the scratch database is ONE shared resource. Never start a second phpunit or artisan
+process against it while a suite is in flight - scoped runs included.**
+
+### 237.6 Files changed
+
+`tests/Feature/Review/RV45RideNotFoundTest.php` (the fix, commit `fd1dac1`), the ten Pint-formatted files
+listed in 237.3 (this commit), `docs/audit/STATE.md` and this record. Nothing parked; no baseline
+raised; no assertion edited; no app, config, route, schema or migration file touched.

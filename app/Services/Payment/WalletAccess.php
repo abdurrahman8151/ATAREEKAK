@@ -8,20 +8,14 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
-use App\Support\FeeSplit;
 use App\Support\PostingKey;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 /** Wallet lookup, row locking and the balance guard shared by the money paths. */
 class WalletAccess
 {
-
-/**
+    /**
      * Format an amount for safe interpolation into raw SQL.
      *
      * Two decimals, no thousands separator, no locale, no exponent: `escrow_held` is
@@ -33,7 +27,7 @@ class WalletAccess
         return number_format($amount, 2, '.', '');
     }
 
-/**
+    /**
      * Build the deterministic posting key for one movement.
      *
      * A thin delegate to {@see PostingKey} rather than a second implementation: a guard that
@@ -45,7 +39,7 @@ class WalletAccess
         return PostingKey::build(...$segments);
     }
 
-/**
+    /**
      * Guard 1 — refuse a movement whose posting key is already recorded.
      *
      * Runs before any balance is written, so a replay aborts having moved nothing.
@@ -55,7 +49,7 @@ class WalletAccess
         PostingKey::assertUnused($postingKey);
     }
 
-/**
+    /**
      * Guard 2 — take `amount` out of a booking's escrow, conditionally.
      *
      * The guard is in the WHERE clause, not a read-then-write: `escrow_held >= :amount` is
@@ -89,7 +83,7 @@ class WalletAccess
         }
     }
 
-/**
+    /**
      * Guard 2 over a set of bookings, for a ride-level settlement.
      *
      * Each booking is decremented on its OWN row: one ride-level wallet movement can still cover
@@ -103,7 +97,7 @@ class WalletAccess
         }
     }
 
-public function lockWalletByUserId(int $userId): Wallet
+    public function lockWalletByUserId(int $userId): Wallet
     {
         $wallet = Wallet::where('user_id', $userId)->lockForUpdate()->first();
 
@@ -114,7 +108,7 @@ public function lockWalletByUserId(int $userId): Wallet
         return $wallet;
     }
 
-public function lockWalletByPhone(string $phone): Wallet
+    public function lockWalletByPhone(string $phone): Wallet
     {
         // RV-21: resolve the SYSTEM wallet by phone, and refuse any non-system row.
         // This lookup takes the "escrow sink" role in every money path, so it MUST
@@ -151,7 +145,7 @@ public function lockWalletByPhone(string $phone): Wallet
         return $wallet;
     }
 
-public function assertSufficientBalance(Wallet $wallet, float $required, string $message): void
+    public function assertSufficientBalance(Wallet $wallet, float $required, string $message): void
     {
         if ($wallet->balance < $required) {
             throw new \RuntimeException($message);

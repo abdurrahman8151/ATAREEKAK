@@ -9,8 +9,8 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\Admin\AdminWalletService;
-use App\Services\Payment\LedgerService;
 use App\Services\Payment\BookingCharge;
+use App\Services\Payment\LedgerService;
 use App\Services\Payment\RidePayout;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
@@ -42,13 +42,14 @@ class DoubleEntryLedgerTest extends TestCase
     private Wallet $passengerWallet;
 
     private BookingCharge $bookingCharge;
+
     private RidePayout $ridePayout;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-                $this->bookingCharge = app(BookingCharge::class);
+        $this->bookingCharge = app(BookingCharge::class);
         $this->ridePayout = app(RidePayout::class);
 
         $this->driver = User::factory()->create([

@@ -8,8 +8,8 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\Payment\BookingCharge;
-use App\Services\Payment\RidePayout;
 use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\RidePayout;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,7 +24,9 @@ class WalletTransactionServiceTest extends TestCase
     use SeedsSystemWallets;
 
     private BookingCharge $bookingCharge;
+
     private RidePayout $ridePayout;
+
     private CancellationRefund $cancellationRefund;
 
     private User $driver;
@@ -50,7 +52,7 @@ class WalletTransactionServiceTest extends TestCase
     {
         parent::setUp();
 
-                $this->bookingCharge = app(BookingCharge::class);
+        $this->bookingCharge = app(BookingCharge::class);
         $this->ridePayout = app(RidePayout::class);
         $this->cancellationRefund = app(CancellationRefund::class);
 

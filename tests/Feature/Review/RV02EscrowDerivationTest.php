@@ -7,8 +7,8 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\Payment\BookingCharge;
-use App\Services\Payment\RidePayout;
 use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\RidePayout;
 use App\Support\PostingKey;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -66,7 +66,9 @@ class RV02EscrowDerivationTest extends TestCase
     private Wallet $driverWallet;
 
     private BookingCharge $bookingCharge;
+
     private RidePayout $ridePayout;
+
     private CancellationRefund $cancellationRefund;
 
     protected function setUp(): void
@@ -77,7 +79,7 @@ class RV02EscrowDerivationTest extends TestCase
 
         parent::setUp();
 
-                $this->bookingCharge = app(BookingCharge::class);
+        $this->bookingCharge = app(BookingCharge::class);
         $this->ridePayout = app(RidePayout::class);
         $this->cancellationRefund = app(CancellationRefund::class);
 

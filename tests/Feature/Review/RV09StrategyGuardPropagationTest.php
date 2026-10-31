@@ -10,9 +10,9 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\LedgerService;
 use App\Services\Payment\BookingCharge;
 use App\Services\Payment\CancellationRefund;
+use App\Services\Payment\LedgerService;
 use App\Services\Payment\RidePayout;
 use App\Support\PostingKey;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -54,6 +54,7 @@ class RV09StrategyGuardPropagationTest extends TestCase
     private EPayPaymentStrategy $strategy;
 
     private BookingCharge $bookingCharge;
+
     private RidePayout $ridePayout;
 
     private User $passenger;
@@ -73,7 +74,7 @@ class RV09StrategyGuardPropagationTest extends TestCase
         $wallets = $this->seedSystemWallets(1_000_000);
         $this->syCash = $wallets['sycash'];
 
-                $this->bookingCharge = app(BookingCharge::class);
+        $this->bookingCharge = app(BookingCharge::class);
         $this->ridePayout = app(RidePayout::class);
         $this->strategy = new EPayPaymentStrategy($this->bookingCharge, $this->ridePayout, app(CancellationRefund::class));
 

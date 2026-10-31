@@ -51,6 +51,7 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
     use SeedsSystemWallets;
 
     private BookingCharge $bookingCharge;
+
     private CancellationRefund $cancellationRefund;
 
     private Wallet $syCash;
@@ -71,7 +72,7 @@ class RV20SetLevelRefundSemanticsTest extends TestCase
 
         $wallets = $this->seedSystemWallets(1_000_000);
         $this->syCash = $wallets['sycash'];
-                $this->bookingCharge = app(BookingCharge::class);
+        $this->bookingCharge = app(BookingCharge::class);
         $this->cancellationRefund = app(CancellationRefund::class);
 
         $this->driver = User::factory()->create();

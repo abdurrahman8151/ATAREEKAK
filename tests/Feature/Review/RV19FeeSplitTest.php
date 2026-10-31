@@ -179,10 +179,10 @@ class RV19FeeSplitTest extends TestCase
 
         foreach ([
             app_path('Services/Payment/BookingCharge.php'),
-app_path('Services/Payment/RidePayout.php'),
-app_path('Services/Payment/CancellationRefund.php'),
-app_path('Services/Payment/NoShowSettlement.php'),
-app_path('Services/Payment/WalletAccess.php'),
+            app_path('Services/Payment/RidePayout.php'),
+            app_path('Services/Payment/CancellationRefund.php'),
+            app_path('Services/Payment/NoShowSettlement.php'),
+            app_path('Services/Payment/WalletAccess.php'),
             app_path('Services/Admin/AdminDriverService.php'),
         ] as $file) {
             $src = (string) file_get_contents($file);

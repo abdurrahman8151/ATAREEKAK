@@ -34,6 +34,7 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
     use SeedsSystemWallets;
 
     private BookingCharge $bookingCharge;
+
     private RidePayout $ridePayout;
 
     private User $driver;
@@ -46,7 +47,7 @@ class L21RideCompletionPayoutLedgerTest extends TestCase
     {
         parent::setUp();
 
-                $this->bookingCharge = app(BookingCharge::class);
+        $this->bookingCharge = app(BookingCharge::class);
         $this->ridePayout = app(RidePayout::class);
 
         $this->seedSystemWallets(10_000_000.0);

@@ -12,9 +12,9 @@ use App\Services\Payment\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
-use Tests\Support\Concerns\SeedsSystemWallets;
 
 /**
  * Admin financial report — escrow-out accounting (T1-2 regression coverage).
