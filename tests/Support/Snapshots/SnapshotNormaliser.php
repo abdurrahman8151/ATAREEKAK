@@ -212,7 +212,6 @@ final class SnapshotNormaliser
             return '<email>';
         }
 
-
         // JWTs and opaque 64-character refresh tokens.
         if (preg_match('/^[A-Za-z0-9\-_]{32,}$/', $value) === 1 && preg_match('/\d/', $value) === 1) {
             return '<token>';
