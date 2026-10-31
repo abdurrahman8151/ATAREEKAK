@@ -40,7 +40,7 @@ trait AssertsApiSnapshot
      *                                    shrink-only the poisoned value could not be corrected by a
      *                                    later green run.
      */
-    protected function snapshotCall(string $case, callable $call, ?int $expectedStatus = null): TestResponse
+    protected function snapshotCall(string $case, callable $call, ?int $expectedStatus = null, ?string $expectedRoute = null): TestResponse
     {
         DB::flushQueryLog();
         DB::enableQueryLog();
@@ -52,9 +52,47 @@ trait AssertsApiSnapshot
             DB::disableQueryLog();
         }
 
+        if ($expectedRoute !== null) {
+            $this->assertMatchedTheDeclaredRoute($case, $expectedRoute);
+        }
+
         $this->recordSnapshotCase($case, $response, $queries, $expectedStatus);
 
         return $response;
+    }
+
+    /**
+     * The route the request ACTUALLY reached, as "METHOD uri-pattern", or null when nothing matched.
+     *
+     * A snapshot pins a response body; this pins WHICH route produced it. Without it a case whose
+     * placeholder resolved to nothing (an empty complaint id collapsed `/api/complaints//show` to
+     * the index route) or whose URI was subtly wrong pinned the wrong route's body under the right
+     * route's name - the case stayed green while covering something else entirely.
+     */
+    private function assertMatchedTheDeclaredRoute(string $case, string $declaredRoute): void
+    {
+        $route = app('router')->current();
+
+        $expected = (string) preg_replace('#^([A-Z]+)\s*/?#', '$1 ', trim($declaredRoute));
+
+        if ($route === null) {
+            $this->fail(
+                "Snapshot case '{$case}' declares {$expected} but NO route matched: the request was "
+                .'not routed at all (an unresolved placeholder can collapse the URI to another route '
+                .'or to a 404). Nothing was snapshotted for this case.'
+            );
+        }
+
+        $methods = array_values(array_diff($route->methods(), ['HEAD']));
+        $method = $methods[0] ?? 'GET';
+        $matched = $method.' '.$route->uri();
+
+        $this->assertSame(
+            $expected,
+            $matched,
+            "Snapshot case '{$case}' declares {$expected} but the request matched {$matched}. The "
+            .'body would have been pinned under the wrong route name.'
+        );
     }
 
     /**

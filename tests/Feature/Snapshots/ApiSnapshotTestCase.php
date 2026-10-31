@@ -506,7 +506,8 @@ abstract class ApiSnapshotTestCase extends TestCase
         $response = $this->snapshotCall(
             $case,
             fn (): TestResponse => $this->sendSnapshotRequest($definition),
-            $definition['expect'] ?? null
+            $definition['expect'] ?? null,
+            $definition['route']
         );
 
         if (isset($definition['expect'])) {
