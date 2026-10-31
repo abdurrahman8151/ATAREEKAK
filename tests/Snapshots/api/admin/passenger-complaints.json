@@ -1,0 +1,30 @@
+{
+    "json": {
+        "counts": {
+            "all": 1,
+            "closed": 0,
+            "escalated": 0,
+            "in_review": 0,
+            "pending": 1,
+            "resolved": 0
+        },
+        "data": [
+            {
+                "assigned_to": null,
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "status": "pending",
+                "type": "technical_issue",
+                "type_label": "عطل تقني"
+            }
+        ],
+        "meta": {
+            "current_page": 1,
+            "last_page": 1,
+            "per_page": 15,
+            "total": 1
+        },
+        "status": "success"
+    },
+    "status": 200
+}

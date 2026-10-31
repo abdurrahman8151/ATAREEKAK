@@ -1,0 +1,14 @@
+{
+    "json": {
+        "data": {
+            "account_status": "active",
+            "ban": null,
+            "email": "<email>",
+            "name": "Snapshot Other",
+            "status_code": 1,
+            "user_id": "<id>"
+        },
+        "status": "success"
+    },
+    "status": 200
+}

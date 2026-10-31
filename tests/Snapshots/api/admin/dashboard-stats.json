@@ -1,0 +1,17 @@
+{
+    "json": {
+        "data": {
+            "active_trips": 1,
+            "completed_trips": 0,
+            "pending_complaints": 0,
+            "total_revenue": {
+                "formatted": "1,000,000.00 SYP",
+                "raw": 1000000
+            },
+            "total_users": 4,
+            "verification_requests": 0
+        },
+        "status": "success"
+    },
+    "status": 200
+}

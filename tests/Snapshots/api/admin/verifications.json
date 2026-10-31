@@ -1,0 +1,16 @@
+{
+    "json": {
+        "data": [
+            {
+                "documents": [],
+                "email": "<email>",
+                "name": "Snapshot Other",
+                "submitted_at": "<timestamp>",
+                "type": "passenger",
+                "user_id": "<id>"
+            }
+        ],
+        "status": "success"
+    },
+    "status": 200
+}

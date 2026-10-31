@@ -1,0 +1,16 @@
+{
+    "json": {
+        "data": [
+            {
+                "demand_level": "Very High",
+                "demand_percentage": 100,
+                "from": "Damascus",
+                "to": "Aleppo",
+                "total_passengers": 0,
+                "trip_count": 1
+            }
+        ],
+        "status": "success"
+    },
+    "status": 200
+}

@@ -1,0 +1,15 @@
+{
+    "json": {
+        "data": {
+            "account_status": "logged_out",
+            "ban": null,
+            "email": "<email>",
+            "name": "Snapshot Other",
+            "status_code": 0,
+            "user_id": "<id>"
+        },
+        "message": "User has been unbanned. They can now log in again.",
+        "status": "success"
+    },
+    "status": 200
+}

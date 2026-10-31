@@ -1,0 +1,8 @@
+{
+    "json": {
+        "message": "Wallet charged successfully. New balance: 1005000.00 SYP.",
+        "new_balance": 1005000,
+        "status": "success"
+    },
+    "status": 200
+}

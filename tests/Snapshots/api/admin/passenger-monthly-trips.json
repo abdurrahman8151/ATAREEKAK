@@ -1,0 +1,44 @@
+{
+    "json": {
+        "data": [
+            {
+                "month": "مايو",
+                "month_key": "2026-05",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "يوليو",
+                "month_key": "2026-07",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "يوليو",
+                "month_key": "2026-07",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "أغسطس",
+                "month_key": "2026-08",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "أكتوبر",
+                "month_key": "2026-10",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "أكتوبر",
+                "month_key": "2026-10",
+                "total_cost": 0,
+                "trips": 0
+            }
+        ],
+        "status": "success"
+    },
+    "status": 200
+}

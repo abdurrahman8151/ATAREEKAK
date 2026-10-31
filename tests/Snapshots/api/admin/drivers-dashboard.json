@@ -1,0 +1,43 @@
+{
+    "json": {
+        "data": {
+            "admin_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+            "recent_activity": [],
+            "stats": {
+                "active_drivers": 1,
+                "average_rating": 3,
+                "pending_verifications": 0,
+                "suspended_drivers": 0,
+                "total_drivers": 1
+            },
+            "verification_efficiency": {
+                "comparison": {
+                    "delta": 0,
+                    "delta_display": "+0%",
+                    "text": "Same as last week",
+                    "trend": "flat"
+                },
+                "current": {
+                    "efficiency_pct": 100,
+                    "end": "<timestamp>",
+                    "pending": 0,
+                    "processed": 0,
+                    "start": "<timestamp>",
+                    "total_incoming": 0
+                },
+                "period": "week",
+                "period_label": "Week",
+                "previous": {
+                    "efficiency_pct": 100,
+                    "end": "<timestamp>",
+                    "label": "Last week",
+                    "processed": 0,
+                    "start": "<timestamp>",
+                    "total_incoming": 0
+                }
+            }
+        },
+        "status": "success"
+    },
+    "status": 200
+}

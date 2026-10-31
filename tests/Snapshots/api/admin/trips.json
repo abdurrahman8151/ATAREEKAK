@@ -1,0 +1,50 @@
+{
+    "json": {
+        "counts": {
+            "active": 0,
+            "all": 1,
+            "awaiting": 0,
+            "cancelled": 0,
+            "completed": 0,
+            "scheduled": 1
+        },
+        "data": [
+            {
+                "driver": {
+                    "id": "<id>",
+                    "name": "Snapshot Driver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id>",
+                "passengers": {
+                    "booked": 0,
+                    "label": "0/4",
+                    "total": 4
+                },
+                "payment_method": "e-pay",
+                "price_per_seat": "50000.00",
+                "route": {
+                    "from": "Damascus",
+                    "to": "Aleppo"
+                },
+                "status": "scheduled",
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "label": "Today",
+                    "time_only": "<timestamp>"
+                },
+                "trip_ref": "<id>",
+                "vehicle_type": "car"
+            }
+        ],
+        "meta": {
+            "current_page": 1,
+            "filter": "all",
+            "last_page": 1,
+            "per_page": 15,
+            "total": 1
+        },
+        "status": "success"
+    },
+    "status": 200
+}

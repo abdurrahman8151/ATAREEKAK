@@ -1,0 +1,32 @@
+{
+    "json": {
+        "data": {
+            "comparison": {
+                "delta": 0,
+                "delta_display": "+0%",
+                "text": "Same as last week",
+                "trend": "flat"
+            },
+            "current": {
+                "efficiency_pct": 100,
+                "end": "<timestamp>",
+                "pending": 0,
+                "processed": 0,
+                "start": "<timestamp>",
+                "total_incoming": 0
+            },
+            "period": "week",
+            "period_label": "Week",
+            "previous": {
+                "efficiency_pct": 100,
+                "end": "<timestamp>",
+                "label": "Last week",
+                "processed": 0,
+                "start": "<timestamp>",
+                "total_incoming": 0
+            }
+        },
+        "status": "success"
+    },
+    "status": 200
+}

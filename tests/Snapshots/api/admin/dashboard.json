@@ -1,0 +1,83 @@
+{
+    "json": {
+        "data": {
+            "admin_photo": null,
+            "city_distribution": [
+                {
+                    "city": "دمشق",
+                    "city_en": "Damascus",
+                    "count": 4,
+                    "percentage": 100
+                }
+            ],
+            "growth_chart": {
+                "data": [
+                    {
+                        "completed_trips": 0,
+                        "label": "May 2026",
+                        "month": "May",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Jun 2026",
+                        "month": "Jun",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Jul 2026",
+                        "month": "Jul",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Aug 2026",
+                        "month": "Aug",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Sep 2026",
+                        "month": "Sep",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Oct 2026",
+                        "month": "Oct",
+                        "new_users": 4
+                    }
+                ],
+                "period": "last_6_months"
+            },
+            "recent_activities": [
+                {
+                    "booking_id": "<id>",
+                    "date": "<timestamp>",
+                    "driver": "Snapshot Driver",
+                    "route": "Damascus ← Aleppo",
+                    "status": "confirmed",
+                    "user": {
+                        "name": "Snapshot Passenger",
+                        "number": "XXX-XXX-0002"
+                    },
+                    "value": "50,000.00 SYP"
+                }
+            ],
+            "stats": {
+                "active_trips": 1,
+                "completed_trips": 0,
+                "pending_complaints": 0,
+                "total_revenue": {
+                    "formatted": "1,000,000.00 SYP",
+                    "raw": 1000000
+                },
+                "total_users": 4,
+                "verification_requests": 0
+            }
+        },
+        "status": "success"
+    },
+    "status": 200
+}

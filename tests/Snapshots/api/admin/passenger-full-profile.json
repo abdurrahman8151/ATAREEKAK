@@ -1,0 +1,69 @@
+{
+    "json": {
+        "data": {
+            "complaints": [],
+            "monthly_trips": [
+                {
+                    "month": "مايو",
+                    "month_key": "2026-05",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "يوليو",
+                    "month_key": "2026-07",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "يوليو",
+                    "month_key": "2026-07",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "أغسطس",
+                    "month_key": "2026-08",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "أكتوبر",
+                    "month_key": "2026-10",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "أكتوبر",
+                    "month_key": "2026-10",
+                    "total_cost": 0,
+                    "trips": 0
+                }
+            ],
+            "recent_trips": [],
+            "stats": {
+                "avg_rating": 3,
+                "total_rides": 0,
+                "total_spending": 0,
+                "wallet_balance": 1000000
+            },
+            "user": {
+                "account_status": "active",
+                "address": "دمشق",
+                "ban": null,
+                "email": "<email>",
+                "full_name": "Snapshot Passenger",
+                "gender": "M",
+                "id": "<id>",
+                "is_verified_passenger": true,
+                "joined_at": "<timestamp>",
+                "phone": null,
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "verification_status": "approved"
+            },
+            "wallet_charges": []
+        },
+        "status": "success"
+    },
+    "status": 200
+}

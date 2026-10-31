@@ -1,0 +1,96 @@
+{
+    "json": {
+        "admin_wallets": [
+            {
+                "admin_type": "system_admin",
+                "balance": "1,000,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "name": null,
+                "phone_number": "0912345678",
+                "updated_at": "<timestamp>",
+                "wallet_number": "<id>"
+            },
+            {
+                "admin_type": "sycash",
+                "balance": "1,000,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "name": null,
+                "phone_number": "0987654321",
+                "updated_at": "<timestamp>",
+                "wallet_number": "<id>"
+            }
+        ],
+        "all_wallets": [
+            {
+                "balance": "1,000,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "is_system": false,
+                "name": null,
+                "owner": "Snapshot Other",
+                "owner_email": "<email>",
+                "phone_number": "0900000003",
+                "wallet_number": "<id>"
+            },
+            {
+                "balance": "1,000,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "is_system": false,
+                "name": null,
+                "owner": "Snapshot Passenger",
+                "owner_email": "<email>",
+                "phone_number": "0900000002",
+                "wallet_number": "<id>"
+            },
+            {
+                "balance": "1,000,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "is_system": false,
+                "name": null,
+                "owner": "Snapshot Driver",
+                "owner_email": "<email>",
+                "phone_number": "0900000001",
+                "wallet_number": "<id>"
+            },
+            {
+                "balance": "0.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "is_system": true,
+                "name": null,
+                "owner": "System",
+                "owner_email": null,
+                "phone_number": "0900000042",
+                "wallet_number": "<id>"
+            },
+            {
+                "balance": "1,000,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "is_system": true,
+                "name": null,
+                "owner": "System",
+                "owner_email": null,
+                "phone_number": "0987654321",
+                "wallet_number": "<id>"
+            },
+            {
+                "balance": "1,000,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id>",
+                "is_system": true,
+                "name": null,
+                "owner": "System",
+                "owner_email": null,
+                "phone_number": "0912345678",
+                "wallet_number": "<id>"
+            }
+        ],
+        "status": "success"
+    },
+    "status": 200
+}

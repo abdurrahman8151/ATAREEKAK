@@ -1,0 +1,14 @@
+{
+    "json": {
+        "data": [
+            {
+                "city": "دمشق",
+                "city_en": "Damascus",
+                "count": 4,
+                "percentage": 100
+            }
+        ],
+        "status": "success"
+    },
+    "status": 200
+}

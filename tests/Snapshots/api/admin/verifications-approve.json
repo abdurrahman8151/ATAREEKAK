@@ -1,0 +1,12 @@
+{
+    "json": {
+        "message": "Passenger verification approved",
+        "status": "success",
+        "user": {
+            "id": "<id>",
+            "national_id": "<id>",
+            "verification_status": "approved"
+        }
+    },
+    "status": 200
+}

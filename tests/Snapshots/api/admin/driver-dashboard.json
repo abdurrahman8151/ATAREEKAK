@@ -1,0 +1,51 @@
+{
+    "json": {
+        "data": {
+            "address": "دمشق",
+            "documents": [],
+            "driver_ref": "<id>",
+            "email": "<email>",
+            "favorite_destination": null,
+            "full_name": "Snapshot Driver",
+            "gender": "M",
+            "id": "<id>",
+            "is_verified": true,
+            "joined_at": "<timestamp>",
+            "phone": "0911000000",
+            "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+            "rating": {
+                "average": "3.00",
+                "total_ratings": 1
+            },
+            "recent_rides": [
+                {
+                    "date": "<timestamp>",
+                    "destination": "Aleppo",
+                    "id": "<id>",
+                    "price_per_seat": 50000,
+                    "source": "Damascus",
+                    "status": "active"
+                }
+            ],
+            "stats": {
+                "cancel_rate": 0,
+                "cancelled_rides": 0,
+                "completed_rides": 0,
+                "estimated_gross": 0,
+                "ledger_earnings": 0,
+                "total_earnings": 0,
+                "total_rides": 1
+            },
+            "status": "verified",
+            "vehicle": {
+                "color": null,
+                "photo_url": null,
+                "seats": null,
+                "type": null
+            },
+            "verification_status": "approved"
+        },
+        "status": "success"
+    },
+    "status": 200
+}

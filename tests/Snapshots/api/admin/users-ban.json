@@ -1,0 +1,25 @@
+{
+    "json": {
+        "data": {
+            "account_status": "banned",
+            "ban": {
+                "banned_at": "<timestamp>",
+                "banned_by": {
+                    "id": "<id>",
+                    "name": "Snapshot Admin"
+                },
+                "expires_at": "<timestamp>",
+                "is_expired": false,
+                "reason": "The snapshot batch bans this account.",
+                "type": "permanent"
+            },
+            "email": "<email>",
+            "name": "Snapshot Other",
+            "status_code": -1,
+            "user_id": "<id>"
+        },
+        "message": "User has been banned successfully.",
+        "status": "success"
+    },
+    "status": 200
+}

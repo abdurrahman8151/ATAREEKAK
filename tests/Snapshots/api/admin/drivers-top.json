@@ -1,0 +1,17 @@
+{
+    "json": {
+        "data": [
+            {
+                "avg_rating": 3,
+                "id": "<id>",
+                "name": "Snapshot Driver",
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "rank": 1,
+                "rating_count": 1,
+                "total_rides": 0
+            }
+        ],
+        "status": "success"
+    },
+    "status": 200
+}
