@@ -27,7 +27,7 @@
                 "is_edited": false,
                 "metadata": [],
                 "sender": {
-                    "id": "<id:2>",
+                    "id": "<id:4>",
                     "name": "Snapshot Passenger",
                     "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
                 },
@@ -36,7 +36,7 @@
             {
                 "content": "https://replace_with_your.onrender.com/storage/chat-images/snapshot-map.png",
                 "created_at": "<timestamp>",
-                "id": "<id:4>",
+                "id": "<id:5>",
                 "is_edited": false,
                 "metadata": {
                     "caption": "The pickup point",
@@ -45,7 +45,7 @@
                     "size": 2048
                 },
                 "sender": {
-                    "id": "<id:2>",
+                    "id": "<id:4>",
                     "name": "Snapshot Passenger",
                     "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
                 },

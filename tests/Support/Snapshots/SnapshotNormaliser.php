@@ -33,13 +33,30 @@ use stdClass;
  *     order). Two fields that carry the SAME id get the SAME alias, so their equality is pinned;
  *     two fields that carry different ids get different aliases, so a response that starts mixing
  *     two users up is caught. Before this, every id was the bare string `"<id>"` and the snapshot
- *     could not tell "the same user" from "two different users". Numeric ids inside a URL path are
- *     aliased the same way, which pins "the wallet id in the paginator URL is the wallet_id field".
+ *     could not tell "the same user" from "two different users".
  *
- * Known limit, stated plainly: the alias namespace is per DOCUMENT, not per table, so a user id and
- * a wallet id that happen to be the same NUMBER look equal inside one response. That is the same
- * class of approximation as the masking above, and the property tests in
- * `tests/Feature/Payment/LedgerInvariantsPropertyTest.php` compare real ids where it matters.
+ * AN ALIAS IS SCOPED BY THE ENTITY IT IS AN ID OF, NOT BY ITS NUMBER ALONE (stage 0.5, step 4).
+ *
+ * The first version keyed the alias map by the raw NUMBER across the whole document, and that made
+ * the committed corpus depend on the auto-increment COUNTERS: `rides.id` and `user_ratings.id` are
+ * independent sequences, so in a young database they collide (`2` and `2`) and in a mature one they
+ * do not. The suite's own history decides how far each counter has drifted, which means a partial
+ * run - five modules instead of nine - rewrote thirteen snapshots that had been green for days, and
+ * the step-8 order matrix could never pass. The map is now keyed by (entity, number):
+ *
+ *   - `ride_id` -> entity `ride`, `rated_user_id` -> `rated_user`, `booking_ids` -> `booking`;
+ *   - a bare `id` -> the entity named by its ENCLOSING object or list (`data[].id` -> `data`,
+ *     `data.wallet.id` -> `wallet`), so two entity kinds in one response cannot merge;
+ *   - an id inside a URL path -> the segment before it (`/api/admin/wallet/45/transactions` ->
+ *     `wallet`), which is what keeps "the wallet in the paginator URL is the wallet_id field" pinned.
+ *
+ * E-mails stay in one global namespace: an address identifies one account everywhere, so there is
+ * nothing to collide.
+ *
+ * Known limit, stated plainly: a relation recorded under a different NAME than its owner
+ * (`data[].id` for a ride, `ride_id` on its bookings) is now pinned separately, so a snapshot claims
+ * "the same ride" only when both sides use the same entity name. The property tests in
+ * `tests/Feature/Payment/LedgerInvariantsPropertyTest.php` compare real ids where that matters.
  *
  * Deliberately NOT normalised: money amounts, counts, statuses, messages, enum values, Arabic text.
  */
@@ -132,14 +149,17 @@ final class SnapshotNormaliser
 
     public static function normalise(mixed $value): mixed
     {
-        return (new self)->walk($value, null, null);
+        return (new self)->walk($value, null, null, '');
     }
 
     /**
      * @param  string|null  $family  'id' or 'email' when the parent key forces the family onto a
      *                               bare list element (`"booking_ids": [4, 7]`)
+     * @param  string  $container  the key of the object or list this value sits in; it is what
+     *                             a bare `id` is an id OF (`data[].id` -> `data`,
+     *                             `data.wallet.id` -> `wallet`)
      */
-    private function walk(mixed $value, ?string $key, ?string $family): mixed
+    private function walk(mixed $value, ?string $key, ?string $family, string $container): mixed
     {
         $rule = $key === null ? null : self::ruleFor($key);
 
@@ -149,7 +169,7 @@ final class SnapshotNormaliser
 
         // ONLY a non-null scalar is masked. null, booleans, arrays and objects keep their shape.
         if ($rule !== null && self::isMaskableScalar($value)) {
-            return $this->mask($rule, $value);
+            return $this->mask($rule, $value, self::subjectFor($key, $container));
         }
 
         if ($value instanceof stdClass) {
@@ -157,9 +177,11 @@ final class SnapshotNormaliser
             ksort($vars); // canonical order: alias numbering must not depend on hydration order
 
             $out = new stdClass;
+            // A child's bare `id` belongs to THIS object: the object's own key is its entity name.
+            $childContainer = $key ?? $container;
 
             foreach ($vars as $childKey => $childValue) {
-                $out->{$childKey} = $this->walk($childValue, (string) $childKey, self::childFamily($rule));
+                $out->{$childKey} = $this->walk($childValue, (string) $childKey, self::childFamily($rule), $childContainer);
             }
 
             return $out;
@@ -167,13 +189,16 @@ final class SnapshotNormaliser
 
         if (is_array($value)) {
             $out = [];
+            // Elements of a list inherit the list's key as their container, so every row of a
+            // `data` array carries the same entity name.
+            $elementContainer = $key ?? $container;
 
             foreach ($value as $childKey => $childValue) {
                 // Lists carry no key of their own; their elements are judged on their own keys (or
                 // on the family the parent key forced onto them).
                 $out[$childKey] = is_int($childKey)
-                    ? $this->walk($childValue, null, self::childFamily($rule))
-                    : $this->walk($childValue, (string) $childKey, self::childFamily($rule));
+                    ? $this->walk($childValue, null, self::childFamily($rule), $elementContainer)
+                    : $this->walk($childValue, (string) $childKey, self::childFamily($rule), $elementContainer);
             }
 
             return $out;
@@ -183,7 +208,7 @@ final class SnapshotNormaliser
             $valueRule = self::classifyScalar($value);
 
             if ($valueRule !== null) {
-                return $this->mask($valueRule, $value);
+                return $this->mask($valueRule, $value, self::subjectFor($key, $container));
             }
 
             // A URL carries row ids in its path; they must become the SAME aliases the body uses.
@@ -197,6 +222,75 @@ final class SnapshotNormaliser
         }
 
         return $value;
+    }
+
+    /**
+     * The entity NAME an alias belongs to. Two ids share an alias only when they mean the same kind
+     * of thing, so independent auto-increment sequences (a user id and a rating id that are both 2
+     * in a young database) can never merge into one token.
+     *
+     * `ride_id` -> `ride`, `rated_user_id` -> `rated_user`, `booking_ids` -> `booking`; a bare `id`
+     * -> the enclosing container (`data[].id` -> `data`, `data.wallet.id` -> `wallet`).
+     */
+    private static function subjectFor(?string $key, string $container): string
+    {
+        $name = strtolower($key ?? $container);
+
+        if ($name === '') {
+            return 'root';
+        }
+
+        if (str_ends_with($name, '_ids')) {
+            return substr($name, 0, -4);
+        }
+
+        if (str_ends_with($name, '_id')) {
+            return substr($name, 0, -3);
+        }
+
+        if ($name === 'id' || $name === 'ids') {
+            $base = strtolower($container);
+
+            if ($base === '') {
+                return 'root';
+            }
+
+            // `{"booking_ids": [{"id": 9}]}`: the element's own key is the entity name.
+            if (str_ends_with($base, '_ids')) {
+                return substr($base, 0, -4);
+            }
+
+            if (str_ends_with($base, '_id')) {
+                return substr($base, 0, -3);
+            }
+
+            // A collection is named in the plural ("wallet_transactions"), the reference that points
+            // into it in the singular ("wallet_transaction_id"). Without this they would be two
+            // namespaces and a ledger leg could not be tied to the transaction it belongs to.
+            return self::singular($base);
+        }
+
+        return $name;
+    }
+
+    /**
+     * The singular of a collection name, by the two rules that cover this API's naming: a trailing
+     * `s` is dropped unless the word ends in `ss`, `us`, `is` or `ys` (address, status, analysis,
+     * category-style plurals stay put).
+     */
+    private static function singular(string $name): string
+    {
+        if (strlen($name) < 3 || ! str_ends_with($name, 's')) {
+            return $name;
+        }
+
+        foreach (['ss', 'us', 'is', 'ys'] as $keep) {
+            if (str_ends_with($name, $keep)) {
+                return $name;
+            }
+        }
+
+        return substr($name, 0, -1);
     }
 
     /**
@@ -214,13 +308,15 @@ final class SnapshotNormaliser
         return is_scalar($value) && ! is_bool($value) && $value !== null;
     }
 
-    private function mask(string $rule, mixed $scalar): mixed
+    private function mask(string $rule, mixed $scalar, string $subject): mixed
     {
         if ($rule === '<id>') {
-            return '<id:'.$this->aliasFor($this->idAliases, $this->idCount, (string) $scalar).'>';
+            return '<id:'.$this->aliasFor($this->idAliases, $this->idCount, $subject.'|'.(string) $scalar).'>';
         }
 
         if ($rule === '<email>') {
+            // E-mails keep one global namespace: an address is one account everywhere, and two
+            // accounts cannot share one, so there is nothing to collide.
             return '<email:'.$this->aliasFor($this->emailAliases, $this->emailCount, (string) $scalar).'>';
         }
 
@@ -228,7 +324,9 @@ final class SnapshotNormaliser
     }
 
     /**
-     * The alias for a value, assigned by first appearance in the canonical traversal.
+     * The alias for a (subject, value) pair, assigned by first appearance in the canonical
+     * traversal. The caller passes the composite key; see `subjectFor()` for why the number alone
+     * is not enough.
      *
      * @param  array<string, string>  $aliases
      */
@@ -339,9 +437,12 @@ final class SnapshotNormaliser
     }
 
     /**
-     * A URL whose PATH carries row ids (".../api/admin/wallet/2011/transactions?page=1"). The same
-     * id that becomes `<id:n>` in the body must become the same alias here, or the snapshot cannot
-     * pin that the paginator points at the SAME wallet it is listing.
+     * A URL whose PATH carries row ids (".../api/admin/wallet/2011/transactions?page=1").
+     *
+     * The id's alias is scoped by the URL SEGMENT before it (`wallet`), which is exactly the entity
+     * name a body field gets (`data.wallet.id` -> `wallet`). So "the wallet in the paginator URL is
+     * the wallet_id field" stays pinned, while an unrelated table's id with the same number cannot
+     * borrow the alias.
      */
     private function normaliseUrl(string $value): string
     {
@@ -354,8 +455,12 @@ final class SnapshotNormaliser
         }
 
         return (string) preg_replace_callback(
-            '#/\d+#',
-            fn (array $m): string => '/<id:'.$this->aliasFor($this->idAliases, $this->idCount, substr($m[0], 1)).'>',
+            '#/([a-z0-9_\-]+)/(\d+)#i',
+            fn (array $m): string => '/'.$m[1].'/<id:'.$this->aliasFor(
+                $this->idAliases,
+                $this->idCount,
+                self::singular(strtolower($m[1])).'|'.$m[2]
+            ).'>',
             $withoutQuery
         ).$query;
     }

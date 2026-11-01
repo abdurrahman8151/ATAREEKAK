@@ -7,6 +7,7 @@ use Illuminate\Testing\TestResponse;
 use Tests\Support\Snapshots\QueryBudgetStore;
 use Tests\Support\Snapshots\SnapshotNormaliser;
 use Tests\Support\Snapshots\SnapshotRepository;
+use Tests\Support\Snapshots\StateSnapshotRepository;
 
 /**
  * The snapshot assertion every module batch uses.
@@ -186,6 +187,48 @@ trait AssertsApiSnapshot
         $body = substr((string) $response->getContent(), 0, 400);
 
         return 'Body starts: '.$body;
+    }
+
+    /**
+     * Pin the ROWS a mutation route wrote, not just the body it returned.
+     *
+     * `$capture` returns the state document (see `ApiSnapshotTestCase::captureMoneyAndRideState()`).
+     * The captured state is normalised with the same normaliser the response snapshots use, so ids
+     * become `<id:N>` aliases by first appearance and timestamps are masked; the rest - balances,
+     * ledger legs, statuses, seat counts, escrow - is compared byte-for-byte.
+     *
+     * Written only under SNAPSHOT_UPDATE=1, and it writes only the CASES it is called for, so one
+     * module can regenerate without deleting another module's state snapshots.
+     */
+    protected function assertStateSnapshot(string $case, callable $capture): void
+    {
+        $state = SnapshotNormaliser::normalise($capture());
+
+        if (StateSnapshotRepository::isUpdating()) {
+            StateSnapshotRepository::save($case, $state);
+
+            return;
+        }
+
+        $stored = StateSnapshotRepository::load($case);
+
+        if ($stored === null) {
+            $this->fail(
+                "No committed state snapshot for '{$case}'. "
+                .'Generate it with SNAPSHOT_UPDATE=1 and commit the file under tests/Snapshots/state.'
+            );
+        }
+
+        $expected = StateSnapshotRepository::encode($stored);
+        $actual = StateSnapshotRepository::encode($state);
+
+        $this->assertSame(
+            $expected,
+            $actual,
+            "State snapshot '{$case}' no longer matches the committed rows: the write behind this "
+            .'route changed even though the response may not have. If the change is intended, review '
+            .'the diff and regenerate with SNAPSHOT_UPDATE=1; never hand-edit the state file.'
+        );
     }
 
     /**

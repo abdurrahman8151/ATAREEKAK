@@ -14994,3 +14994,108 @@ regeneration, and shrink-only remains the rule from here on.
 Verification: `pint --test` clean on the changed test files, `php -l` clean, the emptiness gate green
 on the settled corpus, and the whole snapshot directory green twice (above). No app file was touched
 in this step.
+
+#### 239.4 Step 4 - the ROWS behind every money and ride mutation, and the three determinism defects that uncovered
+
+**Why a second kind of snapshot.** A response snapshot pins what a route RETURNED. It cannot see the
+write: a route that reports `"status": "confirmed"` and forgets the escrow leg, or charges the wallet
+but never writes the ledger, returns a byte-identical body. Step 4 pins the rows instead.
+
+**What was built.** `tests/Support/Snapshots/StateSnapshotRepository.php` reads and writes
+`tests/Snapshots/state/<case>.json` with the SAME canonical encoder the response corpus uses, and the
+same asymmetry: written only under `SNAPSHOT_UPDATE=1`, compared byte-for-byte otherwise.
+`AssertsApiSnapshot::assertStateSnapshot()` normalises the capture through the same normaliser, so ids
+become aliases and timestamps are masked. `ApiSnapshotTestCase::captureMoneyAndRideState()` dumps six
+tables for every case in `MONEY_AND_RIDE_MUTATION_CASES` (24 cases), after the request and outside the
+measured query window:
+
+| Table | Columns pinned |
+|---|---|
+| `wallets` | id, user_id, phone_number, kind, balance, cash_ride_debt |
+| `wallet_transactions` | id, wallet_id, user_id, type, amount, previous_balance, new_balance, status, reference, posting_key |
+| `ledger_entries` | id, wallet_id, wallet_transaction_id, amount |
+| `wallet_requests` | id, user_id, wallet_id, type, amount, status |
+| `bookings` | id, user_id, ride_id, seats, status, unit_price, amount_paid, escrow_held |
+| `rides` | id, driver_id, status, available_seats, price_per_seat |
+
+Deliberately excluded, with reasons: `wallet_transactions.transaction_id` (the fixture writes
+`ADM-<user id>-<n>-snapshot`, and the raw id inside a string is not aliased, so it would leak the
+counter - nothing serialises it anyway), `ledger_entries.description`, and every timestamp.
+
+**The coverage is derived, not remembered.** `StateSnapshotCoverageTest` (3 tests, DB-free) collects
+the case definitions from every module and requires that every non-GET case on a wallet, admin-wallet,
+passenger-charge, ride, booking or staff-cancel route is listed AND has a committed state file. It
+found four cases step 4 had not listed - `bookings/passenger-confirm`, `bookings/passenger-no-show`,
+`rides/driver-no-show`, `wallet/verify-and-create-missing-session` - all of which do write money or a
+ride. Two non-GET routes write nothing and are exempted WITH their reason in `READ_ONLY_POST_CASES`
+(`rides/route-options` and `rides/search-post`: POST because the body carries a whole payload, not
+because they mutate), and a third test proves every exemption names a real non-GET case, so the map
+cannot silently swallow a route that starts writing later.
+
+**Non-vacuity, proven in both directions.** Editing one `escrow_held` in
+`tests/Snapshots/state/rides/book.json` turns the case red with the message that names the state file
+(restored by regenerating that single case); deleting `tests/Snapshots/state/wallet/initiate.json`
+turns the coverage test red by name (restored). A gate that cannot fail is not a gate.
+
+**DEFECT 1 (the reason this step took three regenerations): the alias namespace depended on the
+auto-increment counters.** The step-3 normaliser keyed the alias map by the raw NUMBER across the
+whole document, and its own docblock admitted the consequence: "a user id and a wallet id that happen
+to be the same number look equal inside one response". Independent sequences collide in a YOUNG
+database and diverge in a mature one, and the suite's own history decides how far each counter has
+drifted - so a run of five snapshot modules (rather than nine) rewrote THIRTEEN snapshots that the
+full run had just verified green. `rides/index.json` showed the mechanism exactly: a rating id pinned
+`<id:4>` and the ride id `<id:2>` in one run, and the two SWAPPED in the next, because in the shorter
+process `user_ratings.id` and `users.id` were both small enough to be the same number. This is fatal
+for step 8's order matrix (three random orders, Feature-first), which is nothing but different test
+histories.
+
+The fix is entity scoping: an alias is now keyed by (entity, number). The entity comes from
+`ride_id` -> `ride`, `rated_user_id` -> `rated_user`, `booking_ids` -> `booking`; from the ENCLOSING
+container for a bare `id`, singularised, so `wallet_transactions[].id` and
+`wallet_transaction_id` agree; and from the URL segment for an id inside a path, so
+`/api/admin/wallet/45/transactions` and `wallet.id` still agree. E-mails keep one global namespace,
+because an address identifies one account everywhere. The trade-off is stated in the class docblock
+and is real: a relation recorded under a DIFFERENT name than its owner (`data[].id` for a ride,
+`ride_id` on its bookings) is now pinned separately, so the corpus claims "same ride" only when both
+sides use the same entity name. `tests/Unit/Support/SnapshotNormaliserTest.php` grew to 10 tests /
+41 assertions, including one that reproduces the exact collision above.
+
+**DEFECT 2: the fixture's filenames carried the raw row id.** `seedDocumentsFor()` and
+`seedProfileFor()` named stored files `documents/snapshot-license-{$user->id}.jpg`, and the committed
+corpus had already leaked three different counters into three files - `snapshot-license-733.jpg`,
+`snapshot-license-206.jpg` and `snapshot-license-78.jpg` for the same account. The files are now named
+after the fixture account's e-mail local part (`snapshot-license-driver.jpg`), which is a fixture
+constant.
+
+**DEFECT 3: the ledger leg could not be tied to its transaction.** `ledger_entries.wallet_transaction_id`
+was resolved under the entity `wallet_transaction` while the transaction's own `id` resolved under
+`wallet_transactions`, so the two never shared a token and the state file's most valuable relation was
+invisible. The singularisation rule above fixes it: `wallets[].id` shares a namespace with every
+`wallet_id`, and a transaction's `id` with every `wallet_transaction_id`.
+
+**The category report** (`C:\temp\snapshot-diff.php` against a byte copy of the corpus committed in
+`cb7e8d7`; 153 cases compared, 124 byte-identical):
+
+| Category | Count | What it is |
+|---|---|---|
+| STATUS | 0 | no case changed its HTTP status |
+| NEW-ITEMS | 0 | no list gained a row; the fixtures are untouched by this step |
+| ALIAS | 131 | ids renumbered by the entity-scoping rule (`<id:4>` -> `<id:2>` and back) |
+| NULL | 0 | no field changed to or from null |
+| NUMBER | 0 | no count, seat or amount changed |
+| ANYTHING ELSE | 22 | 14 document/profile filenames de-id-ed (defect 2) + 8 complaint-attachment URLs whose embedded `<id:N>` renumbered (defect 1, inside a URL string) |
+
+No unexplained row: every one of the 22 is the mechanical consequence of a defect fix listed above.
+
+**Verification.** One `SNAPSHOT_UPDATE=1` full regeneration of the snapshot directory:
+`OK (163 tests, 864 assertions)`. Then read-only: the whole directory `OK (163 tests, 1500
+assertions)`, and - the proof that defect 1 is really fixed - a PARTIAL run of two modules plus the
+coverage and emptiness gates `OK (26 tests, 183 assertions)`, which is exactly the composition that
+used to rewrite thirteen snapshots. After Pint: a scoped re-run `OK (28 tests, 172 assertions)`.
+`pint --test` clean on all six changed/added files, `php -l` clean. No `app/` file was touched.
+
+**Parked for the owner (no app change in this step).** `ledger_entries.wallet_transaction_id` is
+never written by any money service: the string appears twice in `app/`, both inside `LedgerEntry`
+(the `$fillable` entry and a `belongsTo` that nothing populates), so a ledger leg cannot be traced to
+the transaction that produced it. The state snapshots pin it as `null` for every leg and will flag the
+day it is populated. Step 4 adds no N+1 of its own; the nine parked from step 3 are untouched.

@@ -587,7 +587,11 @@ abstract class ApiSnapshotTestCase extends TestCase
         return Profile::firstOrCreate(
             ['user_id' => $user->id],
             [
-                'profile_photo' => 'profiles/snapshot-'.$user->id.'.jpg',
+                // Named after the fixture's E-MAIL LOCAL PART, never the row id: an id is
+                // auto-increment and moves with the suite's own history, so a filename carrying it
+                // rewrote the snapshot whenever the counters drifted (it had already leaked 733, 206
+                // and 78 into three different files).
+                'profile_photo' => 'profiles/snapshot-'.$this->fileSuffixFor($user).'.jpg',
                 'full_name' => trim("{$user->first_name} {$user->last_name}"),
                 'address' => $user->address,
                 'gender' => $user->gender,
@@ -597,15 +601,29 @@ abstract class ApiSnapshotTestCase extends TestCase
     }
 
     /**
+     * A stable, human-readable suffix for a fixture account: `snapshot.driver@example.test` ->
+     * `driver`. The e-mail is a fixture constant, so the stored filename is the same in every run.
+     */
+    private function fileSuffixFor(User $user): string
+    {
+        $local = (string) strstr((string) $user->email, '@', true);
+
+        return $local === '' ? 'anonymous' : (string) preg_replace('#[^a-z0-9]+#i', '-', substr($local, strlen('snapshot.')));
+    }
+
+    /**
      * The four identity photos the verification screens show. `type` is an enum column, so the
      * list is closed: face_id, back_id, license, mechanic_card.
+     *
+     * The stored name is stable for the same reason as the profile photo: the account's fixture
+     * name, not the row id.
      */
     private function seedDocumentsFor(User $user): void
     {
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $type) {
             Photo::firstOrCreate(
                 ['user_id' => $user->id, 'type' => $type],
-                ['path' => "documents/snapshot-{$type}-{$user->id}.jpg"],
+                ['path' => "documents/snapshot-{$type}-{$this->fileSuffixFor($user)}.jpg"],
             );
         }
     }
@@ -1094,6 +1112,104 @@ abstract class ApiSnapshotTestCase extends TestCase
                 "Snapshot case '{$case}' returned the wrong status. Body: ".substr((string) $response->getContent(), 0, 600)
             );
         }
+
+        // Money and ride mutations additionally pin the ROWS they wrote: a body that says
+        // "confirmed" over a write that only half happened is exactly the class of bug a response
+        // snapshot cannot see.
+        if ($definition['state'] ?? in_array($case, self::MONEY_AND_RIDE_MUTATION_CASES, true)) {
+            $this->assertStateSnapshot($case, fn (): array => $this->captureMoneyAndRideState());
+        }
+    }
+
+    /**
+     * The cases that must ALSO pin the rows they wrote, because the thing they mutate is money or a
+     * ride. A response body that reports success over a half-finished write is invisible to a body
+     * snapshot; the state files under tests/Snapshots/state make it visible.
+     *
+     * `StateSnapshotCoverageTest` proves this list is complete: every non-GET case whose route is a
+     * wallet, ledger, booking or ride route must appear here (and have a committed state file).
+     *
+     * @var array<int, string>
+     */
+    public const MONEY_AND_RIDE_MUTATION_CASES = [
+        'admin/passenger-charge-wallet',
+        'admin/wallet-charge',
+        'admin/wallet-requests-approve',
+        'admin/wallet-requests-reject',
+        'bookings/accept',
+        'bookings/cancel',
+        'bookings/cancel-seats',
+        'bookings/passenger-confirm',
+        'bookings/passenger-no-show',
+        'bookings/reject',
+        'rides/book',
+        'rides/cancel',
+        'rides/create',
+        'rides/create-with-route',
+        'rides/driver-no-show',
+        'staff/bookings-cancel',
+        'staff/trips-cancel',
+        'wallet/create-direct',
+        'wallet/initiate',
+        'wallet/request-charge',
+        'wallet/request-withdraw',
+        'wallet/requests-destroy',
+        'wallet/requests-store',
+        'wallet/verify-and-create-missing-session',
+    ];
+
+    /**
+     * Non-GET cases that write NOTHING, so a state snapshot would pin rows the route never touched.
+     *
+     * The list is deliberately tiny and each entry carries the reason. `StateSnapshotCoverageTest`
+     * proves every entry exists and is a real non-GET case, so this cannot silently absorb a route
+     * that starts writing later.
+     *
+     * @var array<string, string>
+     */
+    public const READ_ONLY_POST_CASES = [
+        'rides/route-options' => 'POST because the body carries a whole address/route payload; it computes candidate routes and writes no row',
+        'rides/search-post' => 'search with a structured filter body; it shares the read path with rides/search-get and neither writes',
+    ];
+
+    /**
+     * The money and ride rows every mutation case pins.
+     *
+     * Only meaning-bearing, run-stable columns: an id (aliased), a status, a balance, an escrow or
+     * seat count. Deliberately excluded: `wallet_transactions.transaction_id` (`ADM-7-<uuid>` - the
+     * absolute user id inside the string changes between runs while the alias inside the JSON
+     * columns does not), `ledger_entries.description`, and every timestamp (masked where kept).
+     *
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    protected function captureMoneyAndRideState(): array
+    {
+        return [
+            'wallets' => DB::table('wallets')->orderBy('id')
+                ->get(['id', 'user_id', 'phone_number', 'kind', 'balance', 'cash_ride_debt'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+            'wallet_transactions' => DB::table('wallet_transactions')->orderBy('id')
+                ->get(['id', 'wallet_id', 'user_id', 'type', 'amount', 'previous_balance', 'new_balance', 'status', 'reference', 'posting_key'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+            'ledger_entries' => DB::table('ledger_entries')->orderBy('id')
+                ->get(['id', 'wallet_id', 'wallet_transaction_id', 'amount'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+            'wallet_requests' => DB::table('wallet_requests')->orderBy('id')
+                ->get(['id', 'user_id', 'wallet_id', 'type', 'amount', 'status'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+            'bookings' => DB::table('bookings')->orderBy('id')
+                ->get(['id', 'user_id', 'ride_id', 'seats', 'status', 'unit_price', 'amount_paid', 'escrow_held'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+            'rides' => DB::table('rides')->orderBy('id')
+                ->get(['id', 'driver_id', 'status', 'available_seats', 'price_per_seat'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+        ];
     }
 
     /**

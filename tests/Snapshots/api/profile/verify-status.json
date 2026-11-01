@@ -3,8 +3,8 @@
         "documents": {
             "back_id": "<id:2>",
             "face_id": "<id:1>",
-            "license": "https://replace_with_your.onrender.com/storage/documents/snapshot-license-733.jpg",
-            "mechanic_card": "https://replace_with_your.onrender.com/storage/documents/snapshot-mechanic_card-733.jpg"
+            "license": "https://replace_with_your.onrender.com/storage/documents/snapshot-license-passenger.jpg",
+            "mechanic_card": "https://replace_with_your.onrender.com/storage/documents/snapshot-mechanic_card-passenger.jpg"
         },
         "status": "approved",
         "success": true,

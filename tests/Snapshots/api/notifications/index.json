@@ -9,9 +9,9 @@
                     "notification": {
                         "created_at": "<timestamp>",
                         "data": {
-                            "ride_id": "<id:3>"
+                            "ride_id": "<id:4>"
                         },
-                        "id": "<id:1>",
+                        "id": "<id:3>",
                         "message": "A deterministic notification for the snapshot batch.",
                         "sent_at": "<timestamp>",
                         "title": "Snapshot notification",
@@ -19,22 +19,22 @@
                         "updated_at": "<timestamp>",
                         "user_id": "<id:2>"
                     },
-                    "notification_id": "<id:1>",
+                    "notification_id": "<id:3>",
                     "read_at": null,
                     "updated_at": "<timestamp>",
                     "user_id": "<id:2>"
                 },
                 {
                     "created_at": "<timestamp>",
-                    "id": "<id:4>",
+                    "id": "<id:5>",
                     "notification": {
                         "created_at": "<timestamp>",
                         "data": {
-                            "booking_id": "<id:6>",
-                            "ride_id": "<id:5>",
+                            "booking_id": "<id:8>",
+                            "ride_id": "<id:7>",
                             "seats": 1
                         },
-                        "id": "<id:4>",
+                        "id": "<id:6>",
                         "message": "Your 1 seat(s) on the ride from Damascus to Homs are confirmed.",
                         "sent_at": "<timestamp>",
                         "title": "Booking Confirmed ✓",
@@ -42,7 +42,7 @@
                         "updated_at": "<timestamp>",
                         "user_id": null
                     },
-                    "notification_id": "<id:4>",
+                    "notification_id": "<id:6>",
                     "read_at": null,
                     "updated_at": "<timestamp>",
                     "user_id": "<id:2>"

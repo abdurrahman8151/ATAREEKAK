@@ -5,8 +5,8 @@
             "documents": {
                 "back_id": "<id:4>",
                 "face_id": "<id:3>",
-                "license": "https://replace_with_your.onrender.com/storage/documents/snapshot-license-85.jpg",
-                "mechanic_card": "https://replace_with_your.onrender.com/storage/documents/snapshot-mechanic_card-85.jpg"
+                "license": "https://replace_with_your.onrender.com/storage/documents/snapshot-license-driver.jpg",
+                "mechanic_card": "https://replace_with_your.onrender.com/storage/documents/snapshot-mechanic_card-driver.jpg"
             },
             "driver_ref": "<id:2>",
             "email": "<email:1>",
@@ -58,7 +58,7 @@
                     "bookings_count": 0,
                     "departure_time": "<timestamp>",
                     "destination_address": "Aleppo",
-                    "id": "<id:1>",
+                    "id": "<id:9>",
                     "pickup_address": "Damascus",
                     "status": "active"
                 }

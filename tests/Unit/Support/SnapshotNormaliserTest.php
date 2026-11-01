@@ -67,19 +67,81 @@ class SnapshotNormaliserTest extends TestCase
         $this->assertSame(['source' => 'snapshot'], $out['metadata'], 'an unmasked object is untouched');
     }
 
-    public function test_the_same_id_gets_the_same_alias_and_different_ids_get_different_ones(): void
+    public function test_aliases_are_scoped_by_the_entity_so_independent_id_sequences_cannot_merge(): void
     {
+        // THE REGRESSION THIS SCOPING EXISTS FOR. `rides.id` and `user_ratings.id` are independent
+        // auto-increment sequences: in a young database both are 2, in a mature one they are not.
+        // When the alias map was keyed by the number alone, whether these two merged depended on how
+        // far the suite's own history had drifted the counters - so a partial run rewrote thirteen
+        // committed snapshots. They must now never merge, and the SAME entity must still merge with
+        // itself.
         $out = $this->normaliseObject([
-            'id' => 5,
-            'driver_id' => 5,
-            'passenger_id' => 9,
-            'rider_id' => 5,
+            'data' => [
+                [
+                    'id' => 2,
+                    'driver' => [
+                        'received_ratings' => [
+                            ['id' => 2, 'rated_user_id' => 2],
+                            ['id' => 3, 'rated_user_id' => 2],
+                        ],
+                    ],
+                    'bookings' => [
+                        ['ride_id' => 2, 'user_id' => 2],
+                    ],
+                ],
+            ],
         ]);
 
-        $this->assertSame('<id:1>', $out['id']);
-        $this->assertSame('<id:1>', $out['driver_id'], 'the same id in another field carries the same alias');
-        $this->assertSame('<id:2>', $out['passenger_id']);
-        $this->assertSame('<id:1>', $out['rider_id']);
+        $ride = $out['data'][0];
+
+        $this->assertNotSame(
+            $ride['id'],
+            $ride['driver']['received_ratings'][0]['id'],
+            'a ride id and a rating id that happen to be the same number must not claim one alias'
+        );
+
+        $this->assertSame(
+            $ride['driver']['received_ratings'][0]['rated_user_id'],
+            $ride['driver']['received_ratings'][1]['rated_user_id'],
+            'the same user id in two rows still carries the same alias'
+        );
+
+        $this->assertNotSame(
+            $ride['driver']['received_ratings'][0]['id'],
+            $ride['driver']['received_ratings'][1]['id'],
+            'two different ratings never share an alias'
+        );
+
+        $this->assertSame(
+            '<id:'.substr($ride['id'], 4, -1).'>',
+            $ride['id'],
+            'the top-level ride keeps a well-formed alias'
+        );
+
+        $this->assertNotSame(
+            $ride['id'],
+            $ride['bookings'][0]['user_id'],
+            'a booking user id is not the ride id, even when both are 2'
+        );
+    }
+
+    public function test_a_reference_shares_the_alias_of_the_entity_it_names(): void
+    {
+        $out = $this->normaliseObject([
+            'id' => 9,
+            'ride' => ['id' => 4],
+            'bookings' => [['ride_id' => 4]],
+        ]);
+
+        // The owner's name wins over the container: `ride.id` and `bookings[].ride_id` both name
+        // the entity "ride", so they share one alias. That is the property that still pins
+        // "this booking points at that ride".
+        $this->assertSame('<id:'.substr($out['ride']['id'], 4, -1).'>', $out['ride']['id']);
+        $this->assertSame($out['ride']['id'], $out['bookings'][0]['ride_id']);
+
+        // A bare id at the top of the document is its own entity ("root"), not the ride.
+        $this->assertSame('<id:2>', $out['id']);
+        $this->assertNotSame($out['id'], $out['ride']['id']);
     }
 
     public function test_aliases_are_assigned_in_a_canonical_order_so_key_order_does_not_move_them(): void
@@ -114,16 +176,24 @@ class SnapshotNormaliserTest extends TestCase
 
     public function test_ids_inside_a_url_path_share_the_body_alias(): void
     {
+        // The real shape of `admin/wallet-transactions`: the wallet is a named field, and the
+        // paginator URL repeats its id. Both name the entity "wallet", so both get one alias.
         $out = $this->normaliseObject([
-            'id' => 33,
+            'wallet' => ['id' => 33],
             'first_page_url' => 'https://api.example.test/api/admin/wallet/33/transactions?page=1',
+            'unrelated_ride_id' => 33,
         ]);
 
-        $this->assertSame('<id:1>', $out['id']);
+        $this->assertSame('<id:1>', $out['wallet']['id']);
         $this->assertSame(
             'https://api.example.test/api/admin/wallet/<id:1>/transactions?page=1',
             $out['first_page_url'],
             'the paginator must be pinned to the SAME wallet the body describes'
+        );
+        $this->assertSame(
+            '<id:2>',
+            $out['unrelated_ride_id'],
+            'a ride id that happens to be the same number must not borrow the wallet alias'
         );
     }
 

@@ -3,7 +3,7 @@
         "data": {
             "created_at": "<timestamp>",
             "id": "<id:1>",
-            "notification_id": "<id:1>",
+            "notification_id": "<id:3>",
             "read_at": null,
             "updated_at": "<timestamp>",
             "user_id": "<id:2>"

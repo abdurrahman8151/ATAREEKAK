@@ -206,10 +206,36 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - stage 0.5 step 3 reached its terminal state: committed, verified, audit 239.3. Steps 4-8
+- (empty - stage 0.5 step 4 reached its terminal state: committed, verified, audit 239.4. Steps 5-8
   of stage 0.5 are next.)
 
 ## Done recently
+- **STAGE 0.5 step 4 - the rows behind every money and ride mutation are pinned, and the three
+  determinism defects that uncovered are fixed (R2 sec 239.4), tests only: NO app/ change in this
+  step.** `tests/Support/Snapshots/StateSnapshotRepository.php` + 24 files under
+  `tests/Snapshots/state/` pin wallets, wallet_transactions, ledger_entries, wallet_requests,
+  bookings (status, escrow_held, seats, amount_paid) and rides (status, available_seats) for the 24
+  money/ride mutation cases, written only under `SNAPSHOT_UPDATE=1` and compared byte-for-byte
+  otherwise. `StateSnapshotCoverageTest` (3 tests, DB-free) DERIVES the required set from the case
+  definitions, which found four routes step 4 had not listed, and forces every exemption to name a
+  real non-GET case. Non-vacuity proven both ways: a hand-edited `escrow_held` and a deleted state
+  file each turn their own guard red by name.
+- **The step-3 alias scheme was counter-dependent and had to be replaced.** Keying the alias map by
+  the raw number alone (the limitation step 3's own docblock admitted) made the corpus depend on the
+  auto-increment counters, so a FIVE-module run rewrote 13 snapshots the nine-module run had just
+  verified - fatal for step 8's order matrix. Aliases are now keyed by (entity, number): `ride_id` ->
+  `ride`, the enclosing container for a bare `id`, singularised so `wallet_transactions[].id` matches
+  `wallet_transaction_id`, and the URL segment for a path id. Also fixed: the fixture named uploaded
+  files after the raw row id (`snapshot-license-733/206/78.jpg` for one account across three files)
+  and `ledger_entries.wallet_transaction_id` could never match a transaction's `id` because of a
+  plural/singular namespace split. Regeneration category report: STATUS 0, NEW-ITEMS 0, ALIAS 131,
+  NULL 0, NUMBER 0, ANYTHING ELSE 22 - the 22 being the de-id-ed filenames (14) and renumbered ids
+  inside complaint URLs (8).
+- **New owner action recorded (parked, no app change):** `ledger_entries.wallet_transaction_id` is
+  never written by any money service - the string appears only in `LedgerEntry`'s `$fillable` and an
+  unused `belongsTo` - so a ledger leg cannot be traced to its transaction. The state snapshots pin
+  it as null and will flag the day it is populated.
+
 - **STAGE 0.5 step 3 - normaliser rules, per-document aliases, an enriched world and a gate that
   refuses an empty list (R2 sec 239.3), tests only: NO app/ change in this step.** `SnapshotNormaliser`
   now masks only non-null scalars and aliases ids/emails per document (`<id:1>`, `<email:1>`), with

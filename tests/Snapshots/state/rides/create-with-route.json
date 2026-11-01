@@ -1,0 +1,450 @@
+{
+    "bookings": [
+        {
+            "amount_paid": "5000.00",
+            "escrow_held": "5000.00",
+            "id": "<id:55>",
+            "ride_id": "<id:56>",
+            "seats": 1,
+            "status": "confirmed",
+            "unit_price": "5000.00",
+            "user_id": "<id:7>"
+        },
+        {
+            "amount_paid": "5000.00",
+            "escrow_held": "5000.00",
+            "id": "<id:57>",
+            "ride_id": "<id:58>",
+            "seats": 1,
+            "status": "confirmed",
+            "unit_price": "5000.00",
+            "user_id": "<id:9>"
+        },
+        {
+            "amount_paid": "5000.00",
+            "escrow_held": "5000.00",
+            "id": "<id:59>",
+            "ride_id": "<id:60>",
+            "seats": 1,
+            "status": "confirmed",
+            "unit_price": "5000.00",
+            "user_id": "<id:13>"
+        },
+        {
+            "amount_paid": "5000.00",
+            "escrow_held": "5000.00",
+            "id": "<id:61>",
+            "ride_id": "<id:56>",
+            "seats": 1,
+            "status": "confirmed",
+            "unit_price": "5000.00",
+            "user_id": "<id:9>"
+        }
+    ],
+    "ledger_entries": [
+        {
+            "amount": "-20000.00",
+            "id": "<id:38>",
+            "wallet_id": "<id:3>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "20000.00",
+            "id": "<id:39>",
+            "wallet_id": "<id:6>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "-35000.00",
+            "id": "<id:40>",
+            "wallet_id": "<id:3>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "35000.00",
+            "id": "<id:41>",
+            "wallet_id": "<id:6>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "-12500.00",
+            "id": "<id:42>",
+            "wallet_id": "<id:3>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "12500.00",
+            "id": "<id:43>",
+            "wallet_id": "<id:6>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:44>",
+            "wallet_id": "<id:6>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:45>",
+            "wallet_id": "<id:2>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:46>",
+            "wallet_id": "<id:8>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:47>",
+            "wallet_id": "<id:2>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:48>",
+            "wallet_id": "<id:12>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:49>",
+            "wallet_id": "<id:2>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:50>",
+            "wallet_id": "<id:8>",
+            "wallet_transaction_id": null
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:51>",
+            "wallet_id": "<id:2>",
+            "wallet_transaction_id": null
+        }
+    ],
+    "rides": [
+        {
+            "available_seats": 4,
+            "driver_id": "<id:63>",
+            "id": "<id:62>",
+            "price_per_seat": "50000.00",
+            "status": "active"
+        },
+        {
+            "available_seats": 3,
+            "driver_id": "<id:63>",
+            "id": "<id:64>",
+            "price_per_seat": "45000.00",
+            "status": "active"
+        },
+        {
+            "available_seats": 3,
+            "driver_id": "<id:66>",
+            "id": "<id:65>",
+            "price_per_seat": "45000.00",
+            "status": "active"
+        },
+        {
+            "available_seats": 3,
+            "driver_id": "<id:63>",
+            "id": "<id:67>",
+            "price_per_seat": "45000.00",
+            "status": "active"
+        },
+        {
+            "available_seats": 1,
+            "driver_id": "<id:63>",
+            "id": "<id:56>",
+            "price_per_seat": "5000.00",
+            "status": "active"
+        },
+        {
+            "available_seats": 2,
+            "driver_id": "<id:66>",
+            "id": "<id:58>",
+            "price_per_seat": "5000.00",
+            "status": "active"
+        },
+        {
+            "available_seats": 2,
+            "driver_id": "<id:63>",
+            "id": "<id:60>",
+            "price_per_seat": "5000.00",
+            "status": "active"
+        },
+        {
+            "available_seats": 3,
+            "driver_id": "<id:63>",
+            "id": "<id:68>",
+            "price_per_seat": "25000.00",
+            "status": "active"
+        }
+    ],
+    "wallet_requests": [
+        {
+            "amount": "75000.00",
+            "id": "<id:52>",
+            "status": "approved",
+            "type": "charge",
+            "user_id": "<id:7>",
+            "wallet_id": "<id:6>"
+        },
+        {
+            "amount": "10000.00",
+            "id": "<id:53>",
+            "status": "rejected",
+            "type": "withdraw",
+            "user_id": "<id:7>",
+            "wallet_id": "<id:6>"
+        },
+        {
+            "amount": "25000.00",
+            "id": "<id:54>",
+            "status": "cancelled",
+            "type": "charge",
+            "user_id": "<id:7>",
+            "wallet_id": "<id:6>"
+        }
+    ],
+    "wallet_transactions": [
+        {
+            "amount": "20000.00",
+            "id": "<id:14>",
+            "new_balance": "1020000.00",
+            "posting_key": null,
+            "previous_balance": "1000000.00",
+            "reference": "<id:16>",
+            "status": "completed",
+            "type": "admin_charge",
+            "user_id": "<id:15>",
+            "wallet_id": "<id:6>"
+        },
+        {
+            "amount": "-20000.00",
+            "id": "<id:17>",
+            "new_balance": "-20000.00",
+            "posting_key": null,
+            "previous_balance": "0.00",
+            "reference": "<id:16>",
+            "status": "completed",
+            "type": "external_inbound",
+            "user_id": null,
+            "wallet_id": "<id:3>"
+        },
+        {
+            "amount": "35000.00",
+            "id": "<id:18>",
+            "new_balance": "1055000.00",
+            "posting_key": null,
+            "previous_balance": "1020000.00",
+            "reference": "<id:16>",
+            "status": "completed",
+            "type": "admin_charge",
+            "user_id": "<id:15>",
+            "wallet_id": "<id:6>"
+        },
+        {
+            "amount": "-35000.00",
+            "id": "<id:19>",
+            "new_balance": "-55000.00",
+            "posting_key": null,
+            "previous_balance": "-20000.00",
+            "reference": "<id:16>",
+            "status": "completed",
+            "type": "external_inbound",
+            "user_id": null,
+            "wallet_id": "<id:3>"
+        },
+        {
+            "amount": "12500.00",
+            "id": "<id:20>",
+            "new_balance": "1067500.00",
+            "posting_key": null,
+            "previous_balance": "1055000.00",
+            "reference": "<id:16>",
+            "status": "completed",
+            "type": "admin_charge",
+            "user_id": "<id:15>",
+            "wallet_id": "<id:6>"
+        },
+        {
+            "amount": "-12500.00",
+            "id": "<id:21>",
+            "new_balance": "-67500.00",
+            "posting_key": null,
+            "previous_balance": "-55000.00",
+            "reference": "<id:16>",
+            "status": "completed",
+            "type": "external_inbound",
+            "user_id": null,
+            "wallet_id": "<id:3>"
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:22>",
+            "new_balance": "1062500.00",
+            "posting_key": null,
+            "previous_balance": "1067500.00",
+            "reference": "<id:23>",
+            "status": "completed",
+            "type": "ride_booking_payment",
+            "user_id": "<id:7>",
+            "wallet_id": "<id:6>"
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:24>",
+            "new_balance": "1005000.00",
+            "posting_key": "<id:25>",
+            "previous_balance": "1000000.00",
+            "reference": "<id:23>",
+            "status": "completed",
+            "type": "escrow_received",
+            "user_id": null,
+            "wallet_id": "<id:2>"
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:26>",
+            "new_balance": "995000.00",
+            "posting_key": null,
+            "previous_balance": "1000000.00",
+            "reference": "<id:27>",
+            "status": "completed",
+            "type": "ride_booking_payment",
+            "user_id": "<id:9>",
+            "wallet_id": "<id:8>"
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:28>",
+            "new_balance": "1010000.00",
+            "posting_key": "<id:29>",
+            "previous_balance": "1005000.00",
+            "reference": "<id:27>",
+            "status": "completed",
+            "type": "escrow_received",
+            "user_id": null,
+            "wallet_id": "<id:2>"
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:30>",
+            "new_balance": "245000.00",
+            "posting_key": null,
+            "previous_balance": "250000.00",
+            "reference": "<id:31>",
+            "status": "completed",
+            "type": "ride_booking_payment",
+            "user_id": "<id:13>",
+            "wallet_id": "<id:12>"
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:32>",
+            "new_balance": "1015000.00",
+            "posting_key": "<id:33>",
+            "previous_balance": "1010000.00",
+            "reference": "<id:31>",
+            "status": "completed",
+            "type": "escrow_received",
+            "user_id": null,
+            "wallet_id": "<id:2>"
+        },
+        {
+            "amount": "-5000.00",
+            "id": "<id:34>",
+            "new_balance": "990000.00",
+            "posting_key": null,
+            "previous_balance": "995000.00",
+            "reference": "<id:35>",
+            "status": "completed",
+            "type": "ride_booking_payment",
+            "user_id": "<id:9>",
+            "wallet_id": "<id:8>"
+        },
+        {
+            "amount": "5000.00",
+            "id": "<id:36>",
+            "new_balance": "1020000.00",
+            "posting_key": "<id:37>",
+            "previous_balance": "1015000.00",
+            "reference": "<id:35>",
+            "status": "completed",
+            "type": "escrow_received",
+            "user_id": null,
+            "wallet_id": "<id:2>"
+        }
+    ],
+    "wallets": [
+        {
+            "balance": "1000000.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:1>",
+            "kind": "system",
+            "phone_number": "0912345678",
+            "user_id": null
+        },
+        {
+            "balance": "1020000.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:2>",
+            "kind": "system",
+            "phone_number": "0987654321",
+            "user_id": null
+        },
+        {
+            "balance": "-67500.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:3>",
+            "kind": "system",
+            "phone_number": "0900000042",
+            "user_id": null
+        },
+        {
+            "balance": "1000000.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:4>",
+            "kind": "user",
+            "phone_number": "0900000001",
+            "user_id": "<id:5>"
+        },
+        {
+            "balance": "1062500.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:6>",
+            "kind": "user",
+            "phone_number": "0900000002",
+            "user_id": "<id:7>"
+        },
+        {
+            "balance": "990000.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:8>",
+            "kind": "user",
+            "phone_number": "0900000003",
+            "user_id": "<id:9>"
+        },
+        {
+            "balance": "500000.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:10>",
+            "kind": "user",
+            "phone_number": "0900000011",
+            "user_id": "<id:11>"
+        },
+        {
+            "balance": "245000.00",
+            "cash_ride_debt": "0.00",
+            "id": "<id:12>",
+            "kind": "user",
+            "phone_number": "0900000012",
+            "user_id": "<id:13>"
+        }
+    ]
+}

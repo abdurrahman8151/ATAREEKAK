@@ -15,10 +15,10 @@
                     "departure_time": "<timestamp>",
                     "destination_address": "Aleppo",
                     "driver": {
-                        "id": "<id:3>",
+                        "id": "<id:4>",
                         "name": "Snapshot Driver"
                     },
-                    "id": "<id:2>",
+                    "id": "<id:3>",
                     "pickup_address": "Damascus",
                     "price_per_seat": "50000.00",
                     "ride_status": "active"
@@ -31,20 +31,20 @@
                 "booked_at": "<timestamp>",
                 "communication_number": "+963900000003",
                 "completed_at": null,
-                "id": "<id:4>",
+                "id": "<id:5>",
                 "passenger": {
                     "email": "<email:2>",
-                    "id": "<id:5>",
+                    "id": "<id:6>",
                     "name": "Snapshot Other"
                 },
                 "ride": {
                     "departure_time": "<timestamp>",
                     "destination_address": "Homs",
                     "driver": {
-                        "id": "<id:3>",
+                        "id": "<id:4>",
                         "name": "Snapshot Driver"
                     },
-                    "id": "<id:6>",
+                    "id": "<id:7>",
                     "pickup_address": "Damascus",
                     "price_per_seat": "5000.00",
                     "ride_status": "active"
@@ -57,44 +57,18 @@
                 "booked_at": "<timestamp>",
                 "communication_number": "+963911000000",
                 "completed_at": null,
-                "id": "<id:7>",
+                "id": "<id:8>",
                 "passenger": {
                     "email": "<email:3>",
-                    "id": "<id:6>",
+                    "id": "<id:9>",
                     "name": "Snapshot PendingDriver"
                 },
                 "ride": {
                     "departure_time": "<timestamp>",
                     "destination_address": "Hama",
                     "driver": {
-                        "id": "<id:3>",
+                        "id": "<id:4>",
                         "name": "Snapshot Driver"
-                    },
-                    "id": "<id:8>",
-                    "pickup_address": "Damascus",
-                    "price_per_seat": "5000.00",
-                    "ride_status": "active"
-                },
-                "seats": 1,
-                "status": "confirmed",
-                "total_price": 5000
-            },
-            {
-                "booked_at": "<timestamp>",
-                "communication_number": "+963911000000",
-                "completed_at": null,
-                "id": "<id:9>",
-                "passenger": {
-                    "email": "<email:2>",
-                    "id": "<id:5>",
-                    "name": "Snapshot Other"
-                },
-                "ride": {
-                    "departure_time": "<timestamp>",
-                    "destination_address": "Latakia",
-                    "driver": {
-                        "id": "<id:11>",
-                        "name": "Snapshot SecondDriver"
                     },
                     "id": "<id:10>",
                     "pickup_address": "Damascus",
@@ -109,7 +83,33 @@
                 "booked_at": "<timestamp>",
                 "communication_number": "+963911000000",
                 "completed_at": null,
-                "id": "<id:12>",
+                "id": "<id:11>",
+                "passenger": {
+                    "email": "<email:2>",
+                    "id": "<id:6>",
+                    "name": "Snapshot Other"
+                },
+                "ride": {
+                    "departure_time": "<timestamp>",
+                    "destination_address": "Latakia",
+                    "driver": {
+                        "id": "<id:13>",
+                        "name": "Snapshot SecondDriver"
+                    },
+                    "id": "<id:12>",
+                    "pickup_address": "Damascus",
+                    "price_per_seat": "5000.00",
+                    "ride_status": "active"
+                },
+                "seats": 1,
+                "status": "confirmed",
+                "total_price": 5000
+            },
+            {
+                "booked_at": "<timestamp>",
+                "communication_number": "+963911000000",
+                "completed_at": null,
+                "id": "<id:14>",
                 "passenger": {
                     "email": "<email:1>",
                     "id": "<id:2>",
@@ -119,10 +119,10 @@
                     "departure_time": "<timestamp>",
                     "destination_address": "Homs",
                     "driver": {
-                        "id": "<id:3>",
+                        "id": "<id:4>",
                         "name": "Snapshot Driver"
                     },
-                    "id": "<id:6>",
+                    "id": "<id:7>",
                     "pickup_address": "Damascus",
                     "price_per_seat": "5000.00",
                     "ride_status": "active"
