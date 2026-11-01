@@ -323,6 +323,7 @@ class TestDeterminismRatchetTest extends TestCase
         // other code path only reads. They also refuse to write outside tests/Snapshots
         // (the path is derived from base tests/ plus the case key).
         'tests/Support/Snapshots/SnapshotRepository.php' => 'Writes the committed snapshot corpus under tests/Snapshots, only when SNAPSHOT_UPDATE=1; a normal run is read-only.',
+        'tests/Support/Snapshots/StateSnapshotRepository.php' => 'Writes the committed STATE corpus under tests/Snapshots/state (stage 0.5 step 4), only when SNAPSHOT_UPDATE=1; a normal run only reads it and compares byte-for-byte.',
         'tests/Support/Snapshots/QueryBudgetStore.php' => 'Writes tests/Snapshots/query-budgets.json, only when SNAPSHOT_UPDATE=1; a normal run only reads the committed baseline.',
         'tests/Support/Concerns/AssertsApiSnapshot.php' => 'fwrite(STDERR, ...) only - prints the shrink hint for a query budget that can be lowered; it does not touch the filesystem.',
         'tests/Feature/Review/RV22OauthCredentialRedactionTest.php' => 'The subject of the test is a log file, so it must create one: the path is '

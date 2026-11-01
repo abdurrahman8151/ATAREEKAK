@@ -206,10 +206,27 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - stage 0.5 step 4 reached its terminal state: committed, verified, audit 239.4. Steps 5-8
+- (empty - stage 0.5 step 5 reached its terminal state: committed, verified, audit 239.5. Steps 6-8
   of stage 0.5 are next.)
 
 ## Done recently
+- **STAGE 0.5 step 5 - the committed-row leak guard now derives its table list from the schema
+  (R2 sec 239.5), tests only: NO app/ change in this step.** `CommittedRowLeakDetector::TABLES`
+  (seven hand-picked tables: the ones the RV45 pollution happened to damage) is gone; the guard now
+  watches **every base table except `migrations`** (30 on the scratch schema), derived at run time
+  from `Schema::getTableListing()` and cached per process, still in one round trip with a per-table
+  fallback that cannot turn a dead connection into an accusation. Measured cost: 1.15 ms per test
+  (`C:\temp\s05\guard-cost.php`, 200 calls over 30 tables). The component test now asserts the
+  derived list equals the schema minus the named exclusion, keeps the old seven inside it, and
+  proves non-vacuity by leaking into `notifications` - a table the old seven never watched.
+- **Because the guard runs after every test, verification was the whole suite in five directory
+  slices (all 25 Feature directories + Unit): 2,785 tests, 2 skipped, zero failures and zero
+  committed-row leaks.** This is also the first run of the `Review` battery since step 4, where
+  `TestDeterminismRatchetTest` correctly flagged the new `StateSnapshotRepository` for
+  `file_put_contents()`; it is now in `FS_WRITE_ALLOWLIST` with the same reason as its
+  response-snapshot twin (writes only under `tests/Snapshots`, only when `SNAPSHOT_UPDATE=1`).
+  Infrastructure note: the first full-suite attempt died with the harness (which took the scratch
+  MySQL down); MySQL was restarted once from the documented command and the slices then ran green.
 - **STAGE 0.5 step 4 - the rows behind every money and ride mutation are pinned, and the three
   determinism defects that uncovered are fixed (R2 sec 239.4), tests only: NO app/ change in this
   step.** `tests/Support/Snapshots/StateSnapshotRepository.php` + 24 files under

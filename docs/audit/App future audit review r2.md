@@ -15099,3 +15099,57 @@ never written by any money service: the string appears twice in `app/`, both ins
 (the `$fillable` entry and a `belongsTo` that nothing populates), so a ledger leg cannot be traced to
 the transaction that produced it. The state snapshots pin it as `null` for every leg and will flag the
 day it is populated. Step 4 adds no N+1 of its own; the nine parked from step 3 are untouched.
+
+#### 239.5 Step 5 - the leak guard now watches every base table, not the seven RV45 happened to touch
+
+**What the guard is.** `RefreshDatabase` rolls every test back; one DDL statement (MySQL commits
+implicitly) breaks that, and everything the class had inserted becomes permanent. The guard runs
+AFTER the rollback, on a fresh connection, and fails the class that leaked. That is how the RV45
+pollution turned a fixture in one file into 24 red `CashRideFeeService` tests somewhere else.
+
+**What changed.** `CommittedRowLeakDetector::TABLES` was a hand-written list of the seven tables that
+pollution damaged (`wallets`, `users`, `rides`, `bookings`, `user_ratings`, `profile_comments`,
+`refresh_tokens`). A leak into any other table was invisible, and "these are the tables that matter"
+goes stale the moment a migration adds one. The list is now DERIVED at run time from
+`Schema::getTableListing()`, minus one named exclusion:
+
+| Excluded | Reason |
+|---|---|
+| `migrations` | written by the migration runner OUTSIDE every test transaction, on purpose |
+
+That is the whole exclusion list. Derived on the scratch schema: **30 guarded tables**. The detector
+still asks one question in one round trip (a single `SELECT` with one scalar subquery per table),
+falls back to per-table counts if a cached table no longer exists - re-deriving the list once first -
+and never turns a dead connection into an accusation.
+
+**Cost, measured rather than assumed.** `C:\temp\s05\guard-cost.php` (outside the repo) boots the app
+and calls `detect()` 200 times: **1.15 ms per call** over 30 tables, so the whole suite pays roughly
+3 seconds for the widened scope.
+
+**The ratchet caught what the widening could not.** `TestDeterminismRatchetTest::no_test_writes_a_tracked_file`
+failed on `tests/Support/Snapshots/StateSnapshotRepository.php` (step 4's new writer) because it calls
+`file_put_contents()`. The class is legitimate for exactly the reason the response-snapshot repository
+is: it writes under `tests/Snapshots`, which IS tracked, and only when `SNAPSHOT_UPDATE=1`. It is now
+in `FS_WRITE_ALLOWLIST` with that reason. Worth noting: step 4 never ran the `Review` directory, so
+this is the ratchet doing its job on the next pass rather than a defect in the writer.
+
+**Verification - every directory of the suite, because this change is a global invariant.** The guard
+runs after EVERY test, so a partial run would prove nothing about the classes it did not run. The
+first attempt was a single full-suite job; it died at 32% when the harness restarted and took the
+scratch MySQL down with it (the run after the restart was entirely `E` from connection failures - the
+detector was never involved). MySQL was restarted once from the documented command, and the suite was
+then run in five directory slices that together cover all 25 Feature directories plus Unit:
+
+| Slice | Result |
+|---|---|
+| Admin, AppFuture, Auth, Bookings, Broadcast, Chat, Complaints, Config, Console, Documents, Notifications, Otp | `OK (416 tests, 1133 assertions)` |
+| Payment, Profile, RateLimiting, Repositories, Rides, Security, Staff, T3Batch, T4Batch, Verification, Wallet | `OK (565 tests, 2103 assertions)` |
+| Review (118 classes) | `Tests: 654, Assertions: 2253, Skipped: 2` (green; the 2 pre-existing skips) |
+| Unit | `OK (987 tests, 1569 assertions)` |
+| Snapshots (the whole API corpus) | `OK (163 tests, 1500 assertions)` |
+
+2,785 tests, 2 skipped, zero failures, and **not one committed-row leak reported anywhere** - the
+seven tables the old guard watched were already clean, and the other twenty-three are clean too. The
+guard component test grew a case that leaks into `notifications` (a table the old seven never
+watched) and asserts the derived list equals the schema minus the exclusion, so a future migration
+cannot quietly fall outside the guard.
