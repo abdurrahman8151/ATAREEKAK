@@ -1,6 +1,37 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "admin_notes": null,
+                "amount": 25000,
+                "created_at": "<timestamp>",
+                "id": "<id:1>",
+                "processed_at": null,
+                "status": "cancelled",
+                "type": "charge",
+                "user_notes": "A decided request seeded by the snapshot world."
+            },
+            {
+                "admin_notes": null,
+                "amount": 10000,
+                "created_at": "<timestamp>",
+                "id": "<id:2>",
+                "processed_at": null,
+                "status": "rejected",
+                "type": "withdraw",
+                "user_notes": "A decided request seeded by the snapshot world."
+            },
+            {
+                "admin_notes": null,
+                "amount": 75000,
+                "created_at": "<timestamp>",
+                "id": "<id:3>",
+                "processed_at": null,
+                "status": "approved",
+                "type": "charge",
+                "user_notes": "A decided request seeded by the snapshot world."
+            }
+        ],
         "status": "success",
         "success": true
     },

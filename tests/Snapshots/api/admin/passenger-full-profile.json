@@ -1,8 +1,57 @@
 {
     "json": {
         "data": {
-            "complaints": [],
+            "complaints": [
+                {
+                    "assigned_to": null,
+                    "created_at": "<timestamp>",
+                    "id": "<id:3>",
+                    "status": "resolved",
+                    "type": "driver_behavior",
+                    "type_label": "سلوك السائق"
+                },
+                {
+                    "assigned_to": null,
+                    "created_at": "<timestamp>",
+                    "id": "<id:4>",
+                    "status": "in_review",
+                    "type": "financial_issue",
+                    "type_label": "مشكلة مالية"
+                },
+                {
+                    "assigned_to": null,
+                    "created_at": "<timestamp>",
+                    "id": "<id:5>",
+                    "status": "pending",
+                    "type": "trip_safety",
+                    "type_label": "أمان الرحلة"
+                }
+            ],
             "monthly_trips": [
+                {
+                    "month": "يناير",
+                    "month_key": "2026-01",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "فبراير",
+                    "month_key": "2026-02",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "مارس",
+                    "month_key": "2026-03",
+                    "total_cost": 0,
+                    "trips": 0
+                },
+                {
+                    "month": "أبريل",
+                    "month_key": "2026-04",
+                    "total_cost": 0,
+                    "trips": 0
+                },
                 {
                     "month": "مايو",
                     "month_key": "2026-05",
@@ -10,58 +59,90 @@
                     "trips": 0
                 },
                 {
-                    "month": "يوليو",
-                    "month_key": "2026-07",
-                    "total_cost": 0,
-                    "trips": 0
-                },
-                {
-                    "month": "يوليو",
-                    "month_key": "2026-07",
-                    "total_cost": 0,
-                    "trips": 0
-                },
-                {
-                    "month": "أغسطس",
-                    "month_key": "2026-08",
-                    "total_cost": 0,
-                    "trips": 0
-                },
-                {
-                    "month": "أكتوبر",
-                    "month_key": "2026-10",
-                    "total_cost": 0,
-                    "trips": 0
-                },
-                {
-                    "month": "أكتوبر",
-                    "month_key": "2026-10",
+                    "month": "يونيو",
+                    "month_key": "2026-06",
                     "total_cost": 0,
                     "trips": 0
                 }
             ],
-            "recent_trips": [],
+            "recent_trips": [
+                {
+                    "date": "<timestamp>",
+                    "departure_time": "<timestamp>",
+                    "driver": "Snapshot Driver",
+                    "id": "<id:2>",
+                    "price_per_seat": 5000,
+                    "route_from": "Damascus",
+                    "route_to": "Homs",
+                    "seats": 1,
+                    "status": "confirmed",
+                    "total_cost": 5000
+                }
+            ],
             "stats": {
                 "avg_rating": 3,
                 "total_rides": 0,
                 "total_spending": 0,
-                "wallet_balance": 1000000
+                "wallet_balance": 1062500
             },
             "user": {
                 "account_status": "active",
                 "address": "دمشق",
                 "ban": null,
-                "email": "<email>",
+                "email": "<email:1>",
                 "full_name": "Snapshot Passenger",
                 "gender": "M",
-                "id": "<id>",
+                "id": "<id:1>",
                 "is_verified_passenger": true,
                 "joined_at": "<timestamp>",
                 "phone": null,
                 "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                 "verification_status": "approved"
             },
-            "wallet_charges": []
+            "wallet_charges": [
+                {
+                    "amount": 12500,
+                    "created_at": "<timestamp>",
+                    "date": "<timestamp>",
+                    "id": "<id:6>",
+                    "new_balance": 1067500,
+                    "notes": "Admin wallet charge seeded by the snapshot world",
+                    "previous_balance": 1055000,
+                    "processed_by_id": "<id:8>",
+                    "processed_by_name": "Snapshot Admin",
+                    "processed_by_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                    "status": "completed",
+                    "transaction_id": "<id:7>"
+                },
+                {
+                    "amount": 35000,
+                    "created_at": "<timestamp>",
+                    "date": "<timestamp>",
+                    "id": "<id:9>",
+                    "new_balance": 1055000,
+                    "notes": "Admin wallet charge seeded by the snapshot world",
+                    "previous_balance": 1020000,
+                    "processed_by_id": "<id:8>",
+                    "processed_by_name": "Snapshot Admin",
+                    "processed_by_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                    "status": "completed",
+                    "transaction_id": "<id:10>"
+                },
+                {
+                    "amount": 20000,
+                    "created_at": "<timestamp>",
+                    "date": "<timestamp>",
+                    "id": "<id:11>",
+                    "new_balance": 1020000,
+                    "notes": "Admin wallet charge seeded by the snapshot world",
+                    "previous_balance": 1000000,
+                    "processed_by_id": "<id:8>",
+                    "processed_by_name": "Snapshot Admin",
+                    "processed_by_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                    "status": "completed",
+                    "transaction_id": "<id:12>"
+                }
+            ]
         },
         "status": "success"
     },

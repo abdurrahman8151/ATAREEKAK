@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Snapshots;
 
+use Illuminate\Http\UploadedFile;
+
 /**
  * Batch G - score, complaints, support contact and the two public health doors.
  *
@@ -52,6 +54,12 @@ final class MiscSnapshotTest extends ApiSnapshotTestCase
                     'title' => 'Snapshot complaint',
                     'description' => 'A deterministic complaint created by the snapshot batch.',
                     'type' => 'technical_issue',
+                ],
+                // The store door accepts attachments and every other complaint case uploads one, so
+                // this case does too. Without it the response pinned `attachments: []` while the
+                // index and the show door returned a populated list for the same kind of row.
+                'files' => [
+                    'attachments' => [UploadedFile::fake()->create('snapshot-attachment.pdf', 12, 'application/pdf')],
                 ],
                 'expect' => 201,
             ],

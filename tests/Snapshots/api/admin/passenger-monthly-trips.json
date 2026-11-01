@@ -2,38 +2,38 @@
     "json": {
         "data": [
             {
+                "month": "يناير",
+                "month_key": "2026-01",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "فبراير",
+                "month_key": "2026-02",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "مارس",
+                "month_key": "2026-03",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
+                "month": "أبريل",
+                "month_key": "2026-04",
+                "total_cost": 0,
+                "trips": 0
+            },
+            {
                 "month": "مايو",
                 "month_key": "2026-05",
                 "total_cost": 0,
                 "trips": 0
             },
             {
-                "month": "يوليو",
-                "month_key": "2026-07",
-                "total_cost": 0,
-                "trips": 0
-            },
-            {
-                "month": "يوليو",
-                "month_key": "2026-07",
-                "total_cost": 0,
-                "trips": 0
-            },
-            {
-                "month": "أغسطس",
-                "month_key": "2026-08",
-                "total_cost": 0,
-                "trips": 0
-            },
-            {
-                "month": "أكتوبر",
-                "month_key": "2026-10",
-                "total_cost": 0,
-                "trips": 0
-            },
-            {
-                "month": "أكتوبر",
-                "month_key": "2026-10",
+                "month": "يونيو",
+                "month_key": "2026-06",
                 "total_cost": 0,
                 "trips": 0
             }

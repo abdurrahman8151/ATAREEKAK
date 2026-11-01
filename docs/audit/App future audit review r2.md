@@ -14868,4 +14868,129 @@ The route is out of the parked list (5 parked, 149 snapshotted, totals `api_rout
 `findConversation()` and now pays for the eager loads the read path needs (participants.profile,
 latestMessage + its sender - constant per request, not an N+1; the count does not grow with the
 number of participants). Shrink-only stays the rule for every other case; this single entry was
-raised by hand with this reason, and it is the only rise in stage 0.5.
+raised by hand with this reason. It was the only rise until step 3, which records fifteen more with
+the owner's explicit approval (see 239.3).
+
+#### 239.3 Step 3 - the normaliser's three rules, per-document aliases, and a corpus that is never empty
+
+Owner constraints honoured: tests only (no `app/`, `config/`, `routes/`, migration or `phpunit.xml`
+change in this step), `SNAPSHOT_UPDATE=1` used only for the regeneration, one phpunit process at a
+time, no assertion edited, no budget raised without the owner's decision recorded below.
+
+**The normaliser** (`tests/Support/Snapshots/SnapshotNormaliser.php`), now with nine DB-free unit
+tests in `tests/Unit/Support/SnapshotNormaliserTest.php`:
+
+1. Only a non-null SCALAR under a masked key is replaced. `id: null`, `updated_at: null` and an
+   already-normalised `"<timestamp>"` stay exactly as the app sent them, so a fixture bug that stops
+   populating a field on an ERROR path can no longer hide behind the mask.
+2. Ids and emails get per-document aliases by first appearance: `<id:1>`, `<id:2>`, `<email:1>`.
+   Before this, two different users both pinned as `<id>` and a snapshot could not tell "the same id
+   twice" from "two different ids" - nor could a diff show that a relation changed owner.
+3. Timestamps, tokens, uuids, stored filenames (`[A-Za-z0-9]{16,}`) and ids inside URL paths share
+   the same first-appearance treatment, so a paginated `.../wallet/<id:1>/transactions` link and the
+   `wallet.id` beside it are visibly the same id.
+
+**The fixtures** (`ApiSnapshotTestCase`, `EngagementSnapshotTest`, `MiscSnapshotTest`,
+`RidesSnapshotTest`): every list the owner named carries at least three rows, and every nested
+collection that was empty carries at least one real row - profiles and four photos per account, three
+live trips (each booked through the real endpoint), three future Damascus-Aleppo trips for the
+search window, three score movements, three decided wallet requests, three admin wallet charges
+written through the same two service calls the endpoint uses, three complaints with a real
+attachment, profile comments, chat images with a metadata map. The world is built once in
+`enrichWorld()` and costed once.
+
+**A new gate, `SnapshotEmptinessTest`** (four tests, DB-free): ten mandated lists must carry >=3
+items; twenty nested collections must carry >=1 row; any message list must contain a populated
+`metadata` map; and any OTHER empty array in the whole corpus must appear in `EMPTY_BY_DESIGN` or
+match `EMPTY_PATTERNS` with a written reason. The exemptions are genuine app behaviour, not
+convenience: `chat/messages-store` and `staff/chat-send` return `metadata: []` for the TEXT type by
+design (the image row in the same list pins the populated shape), and `profile/show` /
+`profile/update` emit documents for the OWNER only (`ProfileController::ownerDocuments()` returns
+`[]` for a non-owner view, and the update response formats through `formatProfileData()` with the
+default `$isOwner = false` at `ProfileController:348`) - `profile/verify-status` pins the populated
+map instead.
+
+**The category report**, `C:\temp\snapshot-diff.php` against a byte copy of the committed corpus
+(153 cases compared, 40 byte-identical, 113 files changed):
+
+| Category | Count | What it is |
+|---|---|---|
+| STATUS | 0 | no case changed its HTTP status |
+| ALIAS | 263 | `<id>` -> `<id:1>`, `<email>` -> `<email:1>`, plus ids inside pagination URLs |
+| NEW-ITEMS | 207 | lists that gained rows (`1 -> 3 items`) and new nested keys |
+| NULL | 54 | null <-> value flips, both directions |
+| NUMBER | 98 | balances, scores, counters, `previous_balance`/`new_balance` |
+| ANYTHING ELSE | 137 | explained below, every one of them |
+
+The 137 are five groups, no unexplained entries:
+
+1. Month windows and labels (`May 2026` -> `Jan 2026`, `joined_label` June instead of October):
+   the clock is pinned to 2026-06-15, so a six-month window ending "now" moved with it.
+2. `data.documents`: `[]` -> `{face_id, back_id, license}` on `admin/driver-profile` and
+   `profile/verify-status` - the collections this step was asked to populate.
+3. List composition and ordering: the world now has a second and third driver and a platform-admin
+   account, so `admin/drivers`, `admin/users`, `staff/users`, the verification queues and the
+   efficiency deltas report different (correct) rows, and `trips`/`rides/index` lead with tomorrow's
+   trip at 45,000 instead of today's at 50,000.
+4. Money: the passenger's wallet carries the three admin charges (+67,500), `admin/reports` escrow
+   moves 50,000 -> 70,000 because the extra Homs booking holds one more seat, and the External
+   Capital system wallet reads -67,500 (by design: external money enters the ledger against that
+   account, decision un3).
+5. Two formatter observations, recorded as findings rather than fixed (app frozen):
+   `admin/dashboard.recent_activities[].date` is a STRING for an old row and an OBJECT
+   (`{human, raw}`) once the same row is recent - the field's type depends on recency;
+   `staff/chat-messages.conversation.last_message.created_at_iso` lost its `+03:00` suffix because
+   the whole ISO string now matches `<timestamp>` (cosmetic, deterministic).
+
+**Two determinism defects the verifying run found, both in the fixtures, both fixed:** with three
+rows the corpus stopped being order-stable. `admin/routes-popular` ordered Hama and Homs - identical
+trip_count, passengers and percentage - by whatever MySQL felt like, so an isolated run pinned one
+order and a full run the other; a second passenger on the Homs trip breaks the tie with real data.
+`notifications/index`, `complaints/show`, `staff/bookings` and `staff/trips` flipped because every
+row in the world is written inside one pinned SECOND, and a list ordered by `created_at` breaks ties
+arbitrarily. `settleRowTimestamps()` now ladders `created_at`/`updated_at` one second per row, by id,
+for the 21 tables this API sorts by (auth and queue tables are deliberately excluded), immediately
+before each request and outside the measured query window. Both defects were proven gone by running
+the affected cases twice, and then the whole suite twice: `OK (160 tests, 1468 assertions)` twice in
+a row, from the same corpus.
+
+**Owner decision, recorded verbatim: the fifteen query budgets that the mandated enrichment makes
+unachievable were re-recorded to the measured counts.** At least six are one-off costs no eager load
+can remove (an extra INSERT for the complaint attachment, a new nested collection); the other nine
+show a per-row signature and are parked as N+1 findings for the performance batch:
+
+| Case | Was | Now | Shape |
+|---|---|---|---|
+| `rides/search-get` | 1 | 10 | empty -> 3 rows, ~3/row (N+1) |
+| `rides/search-post` | 1 | 10 | same (N+1) |
+| `chat/messages-index` | 3 | 10 | 3 rows, ~2/row (N+1) |
+| `admin/trips-live` | 6 | 16 | 4 rows, ~2.5/row (N+1) |
+| `rides/index` | 7 | 15 | 3 rows, ~2.7/row (N+1) |
+| `admin/passenger-full-profile` | 18 | 22 | 4 rows, per-row (N+1) |
+| `admin/drivers` | 11 | 15 | 4 rows (N+1) |
+| `admin/dashboard-recent` | 6 | 9 | 3 activities, +1 each (N+1) |
+| `admin/passenger-wallet-charges` | 8 | 11 | 3 charges, +1 each (N+1) |
+| `admin/drivers-activity` | 7 | 8 | +1 one-off |
+| `chat/conversations-index` | 4 | 5 | +1 one-off |
+| `bookings/index` | 12 | 13 | +1 one-off |
+| `complaints/store` | 11 | 12 | +1 one-off (the new attachment INSERT) |
+| `staff/chat-messages` | 13 | 14 | +1 one-off |
+| `staff/users-show` | 13 | 14 | +1 one-off |
+
+Every other entry in `tests/Snapshots/query-budgets.json` either stayed or shrank in the same
+regeneration, and shrink-only remains the rule from here on.
+
+**Parked (app frozen, each needs an owner decision):**
+
+- The nine N+1 signatures above: a per-row lazy load behind an unchanged controller. The cheapest
+  fix is one `->with(...)` per route; the numbers above are the proof they exist.
+- `GET /api/score/transactions` still answers 500 for any score row that references a Ride or a
+  Booking (`ScoreTransactionResource` reads `$ride->origin`/`$destination`, which the Ride model does
+  not have, and `preventAccessingMissingAttributes` is on). The mirrored fix is two attribute names.
+- `admin/dashboard.recent_activities[].date` changes type with recency (string vs `{human, raw}`).
+- `POST /api/profile` hides the caller's own documents because `formatProfileData()` is called
+  without its `$isOwner` argument.
+
+Verification: `pint --test` clean on the changed test files, `php -l` clean, the emptiness gate green
+on the settled corpus, and the whole snapshot directory green twice (above). No app file was touched
+in this step.

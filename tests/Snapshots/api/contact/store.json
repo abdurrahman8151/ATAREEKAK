@@ -3,7 +3,7 @@
         "agent": {
             "name": "Snapshot Staff"
         },
-        "conversation_id": "<id>",
+        "conversation_id": "<id:1>",
         "message": "Support chat started.",
         "status": "success"
     },

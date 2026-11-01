@@ -2,13 +2,20 @@
     "json": {
         "data": {
             "assigned_to": null,
-            "attachments": [],
+            "attachments": [
+                {
+                    "id": "<id:1>",
+                    "mime_type": "application/pdf",
+                    "original_name": "snapshot-attachment.pdf",
+                    "url": "<file>"
+                }
+            ],
             "created_at": "<timestamp>",
             "description": "A deterministic complaint created by the snapshot batch.",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_escalated": true,
             "resolution_notes": "[ESCALATED by Snapshot Staff at <timestamp>]\nThe snapshot batch escalates this complaint for the queue test.",
-            "resolved_at": "<timestamp>",
+            "resolved_at": null,
             "status": "escalated",
             "status_color": "orange",
             "status_label": "Escalated",
@@ -17,8 +24,8 @@
             "type_label": "عطل تقني",
             "updated_at": "<timestamp>",
             "user": {
-                "email": "<email>",
-                "id": "<id>",
+                "email": "<email:1>",
+                "id": "<id:2>",
                 "name": "Snapshot Passenger"
             }
         },

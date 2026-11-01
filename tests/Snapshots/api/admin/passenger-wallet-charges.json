@@ -1,11 +1,54 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "amount": 12500,
+                "created_at": "<timestamp>",
+                "date": "<timestamp>",
+                "id": "<id:1>",
+                "new_balance": 1067500,
+                "notes": "Admin wallet charge seeded by the snapshot world",
+                "previous_balance": 1055000,
+                "processed_by_id": "<id:3>",
+                "processed_by_name": "Snapshot Admin",
+                "processed_by_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "status": "completed",
+                "transaction_id": "<id:2>"
+            },
+            {
+                "amount": 35000,
+                "created_at": "<timestamp>",
+                "date": "<timestamp>",
+                "id": "<id:4>",
+                "new_balance": 1055000,
+                "notes": "Admin wallet charge seeded by the snapshot world",
+                "previous_balance": 1020000,
+                "processed_by_id": "<id:3>",
+                "processed_by_name": "Snapshot Admin",
+                "processed_by_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "status": "completed",
+                "transaction_id": "<id:5>"
+            },
+            {
+                "amount": 20000,
+                "created_at": "<timestamp>",
+                "date": "<timestamp>",
+                "id": "<id:6>",
+                "new_balance": 1020000,
+                "notes": "Admin wallet charge seeded by the snapshot world",
+                "previous_balance": 1000000,
+                "processed_by_id": "<id:3>",
+                "processed_by_name": "Snapshot Admin",
+                "processed_by_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "status": "completed",
+                "transaction_id": "<id:7>"
+            }
+        ],
         "meta": {
             "current_page": 1,
             "last_page": 1,
             "per_page": 15,
-            "total": 0
+            "total": 3
         },
         "status": "success"
     },

@@ -5,13 +5,25 @@
                 "date": "<timestamp>",
                 "departure_time": "<timestamp>",
                 "driver": "Snapshot Driver",
-                "id": "<id>",
+                "id": "<id:1>",
                 "price_per_seat": 50000,
                 "route_from": "Damascus",
                 "route_to": "Aleppo",
                 "seats": 1,
                 "status": "confirmed",
                 "total_cost": 50000
+            },
+            {
+                "date": "<timestamp>",
+                "departure_time": "<timestamp>",
+                "driver": "Snapshot Driver",
+                "id": "<id:2>",
+                "price_per_seat": 5000,
+                "route_from": "Damascus",
+                "route_to": "Homs",
+                "seats": 1,
+                "status": "confirmed",
+                "total_cost": 5000
             }
         ],
         "status": "success"

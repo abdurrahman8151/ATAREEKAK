@@ -4,21 +4,21 @@
         "user": {
             "address": "دمشق",
             "avatar": null,
-            "ban_expires_at": "<timestamp>",
+            "ban_expires_at": null,
             "ban_reason": null,
             "ban_type": null,
-            "banned_at": "<timestamp>",
+            "banned_at": null,
             "banned_by": null,
             "created_at": "<timestamp>",
-            "email": "<email>",
+            "email": "<email:1>",
             "email_verified_at": "<timestamp>",
             "first_name": "Snapshot",
             "gender": "M",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_verified_driver": 0,
             "is_verified_passenger": 1,
             "last_name": "Passenger",
-            "national_id": "<id>",
+            "national_id": null,
             "profile": {
                 "address": "دمشق",
                 "back_id_pic": null,
@@ -30,7 +30,7 @@
                 "face_id_pic": null,
                 "full_name": "Snapshot Passenger",
                 "gender": "M",
-                "id": "<id>",
+                "id": "<id:1>",
                 "mechanic_card_pic": null,
                 "number_of_rides": 0,
                 "number_of_seats": null,
@@ -39,13 +39,13 @@
                 "smoking": 0,
                 "type_of_car": null,
                 "updated_at": "<timestamp>",
-                "user_id": "<id>"
+                "user_id": "<id:1>"
             },
             "status": 1,
             "token_version": 1,
             "updated_at": "<timestamp>",
             "verification_status": "approved",
-            "wallet_id": "<id>"
+            "wallet_id": "<id:2>"
         }
     },
     "status": 200

@@ -1,7 +1,7 @@
 {
     "json": {
         "data": {
-            "id": "<id>",
+            "id": "<id:1>",
             "type": "face_id",
             "url": "<file>"
         },

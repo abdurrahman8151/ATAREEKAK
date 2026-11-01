@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Snapshots;
 
+use App\Models\Message;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -183,13 +184,36 @@ final class EngagementSnapshotTest extends ApiSnapshotTestCase
         }
 
         $this->caseVars['{conversation}'] = (string) $response->json('data.conversation_id');
+
+        // A conversation with no messages makes the messages index pin `[]`, which says nothing
+        // about its query. Three messages, one of them an image row with real metadata (the text
+        // handler always writes `metadata: []`, so a text-only conversation can never show the
+        // shape), written directly because an upload's stored filename carries the two user ids.
+        $this->sendSnapshotMessage('Hello, is the trip still leaving at nine?');
+        $this->sendSnapshotMessage('Yes, I will be at the pickup point.');
+
+        $image = $this->seedChatImage((int) $this->caseVars['{conversation}'], $this->otherPassenger->id);
+
+        // The index answers newest first, so the image is stamped as the NEWEST of the three: the
+        // populated `metadata` map belongs on `data.0`, and the two text rows pin the empty map the
+        // text handler writes. Stamping all three explicitly keeps the order independent of the
+        // second in which each row was inserted.
+        $textIds = Message::where('conversation_id', (int) $this->caseVars['{conversation}'])
+            ->where('type', 'text')
+            ->orderBy('id')
+            ->pluck('id')
+            ->all();
+
+        foreach ($textIds as $offset => $id) {
+            Message::where('id', $id)->update(['created_at' => now()->subMinutes(3 - $offset)]);
+        }
     }
 
-    public function sendSnapshotMessage(): void
+    public function sendSnapshotMessage(?string $content = null): void
     {
         $response = $this->withToken($this->passengerToken)->postJson(
             '/api/chat/conversations/'.$this->caseVars['{conversation}'].'/messages',
-            ['content' => 'A message that will be deleted.']
+            ['content' => $content ?? 'A message that will be deleted.']
         );
 
         if ($response->getStatusCode() !== 201) {

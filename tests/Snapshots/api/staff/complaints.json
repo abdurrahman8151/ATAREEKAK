@@ -1,22 +1,29 @@
 {
     "json": {
         "counts": {
-            "all": 1,
+            "all": 4,
             "closed": 0,
-            "in_review": 0,
-            "pending": 1,
-            "resolved": 0
+            "in_review": 1,
+            "pending": 2,
+            "resolved": 1
         },
         "data": [
             {
                 "assigned_to": null,
-                "attachments": [],
+                "attachments": [
+                    {
+                        "id": "<id:1>",
+                        "mime_type": "application/pdf",
+                        "original_name": "snapshot-attachment.pdf",
+                        "url": "<file>"
+                    }
+                ],
                 "created_at": "<timestamp>",
                 "description": "A deterministic complaint created by the snapshot batch.",
-                "id": "<id>",
+                "id": "<id:1>",
                 "is_escalated": false,
                 "resolution_notes": null,
-                "resolved_at": "<timestamp>",
+                "resolved_at": null,
                 "status": "pending",
                 "status_color": "yellow",
                 "status_label": "Pending",
@@ -25,8 +32,95 @@
                 "type_label": "عطل تقني",
                 "updated_at": "<timestamp>",
                 "user": {
-                    "email": "<email>",
-                    "id": "<id>",
+                    "email": "<email:1>",
+                    "id": "<id:2>",
+                    "name": "Snapshot Passenger"
+                }
+            },
+            {
+                "assigned_to": null,
+                "attachments": [
+                    {
+                        "id": "<id:3>",
+                        "mime_type": "application/pdf",
+                        "original_name": "snapshot-attachment.pdf",
+                        "url": "https://replace_with_your.onrender.com/storage/complaints/<id:3>/snapshotattachment30000000000000000000"
+                    }
+                ],
+                "created_at": "<timestamp>",
+                "description": "A deterministic complaint seeded by the snapshot world.",
+                "id": "<id:3>",
+                "is_escalated": false,
+                "resolution_notes": null,
+                "resolved_at": null,
+                "status": "resolved",
+                "status_color": "green",
+                "status_label": "Resolved",
+                "title": "Snapshot driver issue",
+                "type": "driver_behavior",
+                "type_label": "سلوك السائق",
+                "updated_at": "<timestamp>",
+                "user": {
+                    "email": "<email:1>",
+                    "id": "<id:2>",
+                    "name": "Snapshot Passenger"
+                }
+            },
+            {
+                "assigned_to": null,
+                "attachments": [
+                    {
+                        "id": "<id:4>",
+                        "mime_type": "application/pdf",
+                        "original_name": "snapshot-attachment.pdf",
+                        "url": "https://replace_with_your.onrender.com/storage/complaints/<id:4>/snapshotattachment20000000000000000000"
+                    }
+                ],
+                "created_at": "<timestamp>",
+                "description": "A deterministic complaint seeded by the snapshot world.",
+                "id": "<id:4>",
+                "is_escalated": false,
+                "resolution_notes": null,
+                "resolved_at": null,
+                "status": "in_review",
+                "status_color": "blue",
+                "status_label": "In Review",
+                "title": "Snapshot payment issue",
+                "type": "financial_issue",
+                "type_label": "مشكلة مالية",
+                "updated_at": "<timestamp>",
+                "user": {
+                    "email": "<email:1>",
+                    "id": "<id:2>",
+                    "name": "Snapshot Passenger"
+                }
+            },
+            {
+                "assigned_to": null,
+                "attachments": [
+                    {
+                        "id": "<id:5>",
+                        "mime_type": "application/pdf",
+                        "original_name": "snapshot-attachment.pdf",
+                        "url": "https://replace_with_your.onrender.com/storage/complaints/<id:5>/snapshotattachment10000000000000000000"
+                    }
+                ],
+                "created_at": "<timestamp>",
+                "description": "A deterministic complaint seeded by the snapshot world.",
+                "id": "<id:5>",
+                "is_escalated": false,
+                "resolution_notes": null,
+                "resolved_at": null,
+                "status": "pending",
+                "status_color": "yellow",
+                "status_label": "Pending",
+                "title": "Snapshot ride issue",
+                "type": "trip_safety",
+                "type_label": "أمان الرحلة",
+                "updated_at": "<timestamp>",
+                "user": {
+                    "email": "<email:1>",
+                    "id": "<id:2>",
                     "name": "Snapshot Passenger"
                 }
             }
@@ -35,7 +129,7 @@
             "current_page": 1,
             "last_page": 1,
             "per_page": 15,
-            "total": 1
+            "total": 4
         },
         "status": "success"
     },

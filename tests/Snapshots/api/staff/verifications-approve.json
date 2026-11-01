@@ -1,13 +1,13 @@
 {
     "json": {
         "data": {
-            "is_verified_driver": false,
+            "is_verified_driver": true,
             "is_verified_passenger": true,
-            "national_id": "<id>",
-            "user_id": "<id>",
+            "national_id": "<id:2>",
+            "user_id": "<id:1>",
             "verification_status": "approved"
         },
-        "message": "Passenger verification approved.",
+        "message": "Driver verification approved.",
         "status": "success"
     },
     "status": 200

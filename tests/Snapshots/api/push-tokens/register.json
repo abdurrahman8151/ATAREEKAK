@@ -3,11 +3,11 @@
         "data": {
             "created_at": "<timestamp>",
             "device_type": "android",
-            "id": "<id>",
+            "id": "<id:2>",
             "is_active": true,
             "token": "<token>",
             "updated_at": "<timestamp>",
-            "user_id": "<id>"
+            "user_id": "<id:1>"
         },
         "message": "Push notification token registered successfully",
         "success": true

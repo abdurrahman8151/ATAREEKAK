@@ -7,7 +7,7 @@
             "refund_amount_source": "none",
             "refund_bookings": 0,
             "refund_total": 0,
-            "ride_id": "<id>"
+            "ride_id": "<id:1>"
         },
         "message": "Trip cancelled successfully. All affected passengers have been notified.",
         "status": "success"

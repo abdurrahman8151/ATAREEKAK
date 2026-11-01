@@ -3,12 +3,48 @@
         "data": [
             {
                 "amount": "-50000.00",
-                "balance_after": "950000.00",
+                "balance_after": "1012500.00",
                 "created_at": "<timestamp>",
                 "description": "Payment for 1 seat(s): Damascus → Aleppo",
-                "id": "<id>",
-                "reference": "<id>",
+                "id": "<id:1>",
+                "reference": "<id:2>",
                 "type": "ride_booking_payment"
+            },
+            {
+                "amount": "-5000.00",
+                "balance_after": "1062500.00",
+                "created_at": "<timestamp>",
+                "description": "Payment for 1 seat(s): Damascus → Homs",
+                "id": "<id:3>",
+                "reference": "<id:4>",
+                "type": "ride_booking_payment"
+            },
+            {
+                "amount": "12500.00",
+                "balance_after": "1067500.00",
+                "created_at": "<timestamp>",
+                "description": "Admin wallet charge seeded by the snapshot world",
+                "id": "<id:5>",
+                "reference": "<id:6>",
+                "type": "admin_charge"
+            },
+            {
+                "amount": "35000.00",
+                "balance_after": "1055000.00",
+                "created_at": "<timestamp>",
+                "description": "Admin wallet charge seeded by the snapshot world",
+                "id": "<id:7>",
+                "reference": "<id:6>",
+                "type": "admin_charge"
+            },
+            {
+                "amount": "20000.00",
+                "balance_after": "1020000.00",
+                "created_at": "<timestamp>",
+                "description": "Admin wallet charge seeded by the snapshot world",
+                "id": "<id:8>",
+                "reference": "<id:6>",
+                "type": "admin_charge"
             }
         ],
         "links": {
@@ -18,7 +54,7 @@
             "prev": null
         },
         "meta": {
-            "balance": "950000.00",
+            "balance": "1012500.00",
             "cash_ride_debt": "0.00",
             "current_page": 1,
             "from": 1,
@@ -42,8 +78,8 @@
             ],
             "path": "https://replace_with_your.onrender.com/api/wallet/transactions",
             "per_page": 15,
-            "to": 1,
-            "total": 1
+            "to": 5,
+            "total": 5
         }
     },
     "status": 200

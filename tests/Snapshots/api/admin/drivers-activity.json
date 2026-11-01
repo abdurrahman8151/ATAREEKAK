@@ -1,6 +1,57 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "actor": "Snapshot PendingDriver",
+                "color": "blue",
+                "human_time": "59 mins ago",
+                "icon": "clock",
+                "message": "Verification request submitted by \"Snapshot PendingDriver\"",
+                "occurred_at": "<timestamp>",
+                "type": "verification_pending",
+                "user_id": "<id:1>"
+            },
+            {
+                "actor": "Admin",
+                "color": "green",
+                "human_time": "59 mins ago",
+                "icon": "check",
+                "message": "Verification request for \"Snapshot SecondDriver\" accepted",
+                "occurred_at": "<timestamp>",
+                "type": "verification_approved",
+                "user_id": "<id:2>"
+            },
+            {
+                "actor": "Admin",
+                "color": "green",
+                "human_time": "59 mins ago",
+                "icon": "check",
+                "message": "Verification request for \"Snapshot Other\" accepted",
+                "occurred_at": "<timestamp>",
+                "type": "verification_approved",
+                "user_id": "<id:3>"
+            },
+            {
+                "actor": "Admin",
+                "color": "green",
+                "human_time": "59 mins ago",
+                "icon": "check",
+                "message": "Verification request for \"Snapshot Passenger\" accepted",
+                "occurred_at": "<timestamp>",
+                "type": "verification_approved",
+                "user_id": "<id:4>"
+            },
+            {
+                "actor": "Admin",
+                "color": "green",
+                "human_time": "1 hours ago",
+                "icon": "check",
+                "message": "Verification request for \"Snapshot Driver\" accepted",
+                "occurred_at": "<timestamp>",
+                "type": "verification_approved",
+                "user_id": "<id:5>"
+            }
+        ],
         "status": "success"
     },
     "status": 200

@@ -1,10 +1,10 @@
 {
     "json": {
-        "message": "Passenger verification approved",
+        "message": "Driver verification approved",
         "status": "success",
         "user": {
-            "id": "<id>",
-            "national_id": "<id>",
+            "id": "<id:1>",
+            "national_id": "<id:2>",
             "verification_status": "approved"
         }
     },

@@ -5,89 +5,111 @@
                 "admin_type": "system_admin",
                 "balance": "1,000,000.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:1>",
                 "name": null,
                 "phone_number": "0912345678",
                 "updated_at": "<timestamp>",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:2>"
             },
             {
                 "admin_type": "sycash",
-                "balance": "1,000,000.00 SYP",
+                "balance": "1,020,000.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:3>",
                 "name": null,
                 "phone_number": "0987654321",
                 "updated_at": "<timestamp>",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:4>"
             }
         ],
         "all_wallets": [
             {
-                "balance": "1,000,000.00 SYP",
+                "balance": "245,000.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:5>",
+                "is_system": false,
+                "name": null,
+                "owner": "Snapshot PendingDriver",
+                "owner_email": "<email:1>",
+                "phone_number": "0900000012",
+                "wallet_number": "<id:6>"
+            },
+            {
+                "balance": "500,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id:7>",
+                "is_system": false,
+                "name": null,
+                "owner": "Snapshot SecondDriver",
+                "owner_email": "<email:2>",
+                "phone_number": "0900000011",
+                "wallet_number": "<id:8>"
+            },
+            {
+                "balance": "990,000.00 SYP",
+                "created_at": "<timestamp>",
+                "id": "<id:9>",
                 "is_system": false,
                 "name": null,
                 "owner": "Snapshot Other",
-                "owner_email": "<email>",
+                "owner_email": "<email:3>",
                 "phone_number": "0900000003",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:10>"
             },
             {
-                "balance": "1,000,000.00 SYP",
+                "balance": "1,062,500.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:11>",
                 "is_system": false,
                 "name": null,
                 "owner": "Snapshot Passenger",
-                "owner_email": "<email>",
+                "owner_email": "<email:4>",
                 "phone_number": "0900000002",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:12>"
             },
             {
                 "balance": "1,000,000.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:13>",
                 "is_system": false,
                 "name": null,
                 "owner": "Snapshot Driver",
-                "owner_email": "<email>",
+                "owner_email": "<email:5>",
                 "phone_number": "0900000001",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:14>"
             },
             {
-                "balance": "0.00 SYP",
+                "balance": "-67,500.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:15>",
                 "is_system": true,
                 "name": null,
                 "owner": "System",
                 "owner_email": null,
                 "phone_number": "0900000042",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:16>"
             },
             {
-                "balance": "1,000,000.00 SYP",
+                "balance": "1,020,000.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:3>",
                 "is_system": true,
                 "name": null,
                 "owner": "System",
                 "owner_email": null,
                 "phone_number": "0987654321",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:4>"
             },
             {
                 "balance": "1,000,000.00 SYP",
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:1>",
                 "is_system": true,
                 "name": null,
                 "owner": "System",
                 "owner_email": null,
                 "phone_number": "0912345678",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:2>"
             }
         ],
         "status": "success"

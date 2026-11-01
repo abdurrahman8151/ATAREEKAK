@@ -3,10 +3,19 @@
         "data": [
             {
                 "avg_rating": 3,
-                "id": "<id>",
+                "id": "<id:1>",
                 "name": "Snapshot Driver",
                 "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                 "rank": 1,
+                "rating_count": 1,
+                "total_rides": 0
+            },
+            {
+                "avg_rating": 3,
+                "id": "<id:2>",
+                "name": "Snapshot SecondDriver",
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "rank": 2,
                 "rating_count": 1,
                 "total_rides": 0
             }

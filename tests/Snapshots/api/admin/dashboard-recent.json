@@ -1,6 +1,67 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "booking_id": "<id:1>",
+                "date": {
+                    "human": "Today, 11:00",
+                    "raw": "<timestamp>"
+                },
+                "driver": "Snapshot Driver",
+                "route": "Damascus ← Homs",
+                "status": "confirmed",
+                "user": {
+                    "name": "Snapshot Other",
+                    "number": "XXX-XXX-0003"
+                },
+                "value": "5,000.00 SYP"
+            },
+            {
+                "booking_id": "<id:2>",
+                "date": {
+                    "human": "Today, 11:00",
+                    "raw": "<timestamp>"
+                },
+                "driver": "Snapshot Driver",
+                "route": "Damascus ← Hama",
+                "status": "confirmed",
+                "user": {
+                    "name": "Snapshot PendingDriver",
+                    "number": "XXX-XXX-0000"
+                },
+                "value": "5,000.00 SYP"
+            },
+            {
+                "booking_id": "<id:3>",
+                "date": {
+                    "human": "Today, 11:00",
+                    "raw": "<timestamp>"
+                },
+                "driver": "Snapshot SecondDriver",
+                "route": "Damascus ← Latakia",
+                "status": "confirmed",
+                "user": {
+                    "name": "Snapshot Other",
+                    "number": "XXX-XXX-0000"
+                },
+                "value": "5,000.00 SYP"
+            },
+            {
+                "booking_id": "<id:4>",
+                "date": {
+                    "human": "Today, 11:00",
+                    "raw": "<timestamp>"
+                },
+                "driver": "Snapshot Driver",
+                "route": "Damascus ← Homs",
+                "status": "confirmed",
+                "user": {
+                    "name": "Snapshot Passenger",
+                    "number": "XXX-XXX-0000"
+                },
+                "value": "5,000.00 SYP"
+            }
+        ],
         "status": "success"
     },
     "status": 200

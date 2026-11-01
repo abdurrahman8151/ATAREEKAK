@@ -7,6 +7,30 @@
                 "from": "Damascus",
                 "to": "Aleppo",
                 "total_passengers": 0,
+                "trip_count": 4
+            },
+            {
+                "demand_level": "Medium",
+                "demand_percentage": 25,
+                "from": "Damascus",
+                "to": "Hama",
+                "total_passengers": 1,
+                "trip_count": 1
+            },
+            {
+                "demand_level": "Medium",
+                "demand_percentage": 25,
+                "from": "Damascus",
+                "to": "Latakia",
+                "total_passengers": 1,
+                "trip_count": 1
+            },
+            {
+                "demand_level": "Medium",
+                "demand_percentage": 25,
+                "from": "Damascus",
+                "to": "Homs",
+                "total_passengers": 2,
                 "trip_count": 1
             }
         ],

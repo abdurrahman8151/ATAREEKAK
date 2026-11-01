@@ -1,6 +1,43 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "action": "passenger_no_show",
+                "created_at": "<timestamp>",
+                "high_cancel_rate_applied": false,
+                "id": "<id:1>",
+                "new_score": 65,
+                "points": "-15",
+                "previous_score": 80,
+                "reason": "Did not show up for the trip",
+                "reference_id": null,
+                "reference_type": ""
+            },
+            {
+                "action": "passenger_cancel_early",
+                "created_at": "<timestamp>",
+                "high_cancel_rate_applied": false,
+                "id": "<id:2>",
+                "new_score": 80,
+                "points": "+0",
+                "previous_score": 80,
+                "reason": "Cancelled a booking in good time",
+                "reference_id": null,
+                "reference_type": ""
+            },
+            {
+                "action": "ride_completed",
+                "created_at": "<timestamp>",
+                "high_cancel_rate_applied": false,
+                "id": "<id:3>",
+                "new_score": 80,
+                "points": "+10",
+                "previous_score": 70,
+                "reason": "Completed a trip",
+                "reference_id": null,
+                "reference_type": ""
+            }
+        ],
         "success": true
     },
     "status": 200

@@ -12,10 +12,10 @@
         "user": {
             "address": "دمشق",
             "created_at": "<timestamp>",
-            "email": "<email>",
+            "email": "<email:1>",
             "first_name": "Snapshot",
             "gender": "M",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_verified_driver": 0,
             "is_verified_passenger": 1,
             "last_name": "Passenger",

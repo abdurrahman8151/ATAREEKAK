@@ -4,7 +4,38 @@
             "address": "دمشق",
             "car_pic": null,
             "color_of_car": null,
-            "comments": [],
+            "comments": [
+                {
+                    "comment": "Snapshot comment number 3 for Snapshot.",
+                    "commenter": {
+                        "id": "<id:4>",
+                        "name": "Snapshot SecondDriver"
+                    },
+                    "created_at": "<timestamp>",
+                    "id": "<id:2>",
+                    "ride_id": "<id:3>"
+                },
+                {
+                    "comment": "Snapshot comment number 2 for Snapshot.",
+                    "commenter": {
+                        "id": "<id:6>",
+                        "name": "Snapshot Other"
+                    },
+                    "created_at": "<timestamp>",
+                    "id": "<id:5>",
+                    "ride_id": "<id:3>"
+                },
+                {
+                    "comment": "Snapshot comment number 1 for Snapshot.",
+                    "commenter": {
+                        "id": "<id:8>",
+                        "name": "Snapshot Driver"
+                    },
+                    "created_at": "<timestamp>",
+                    "id": "<id:7>",
+                    "ride_id": "<id:3>"
+                }
+            ],
             "description": "Snapshot profile",
             "documents": [],
             "full_name": "Snapshot Passenger",
@@ -28,7 +59,7 @@
                     "cancelled": 0,
                     "completed": 0,
                     "no_show": 0,
-                    "total_booked": 0
+                    "total_booked": 1
                 }
             },
             "score": {
@@ -42,7 +73,7 @@
             },
             "smoking": 0,
             "type_of_car": null,
-            "user_id": "<id>",
+            "user_id": "<id:1>",
             "verification_status": "approved"
         },
         "message": "Profile updated successfully",

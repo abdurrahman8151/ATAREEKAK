@@ -2,17 +2,24 @@
     "json": {
         "data": {
             "assigned_to": {
-                "id": "<id>",
+                "id": "<id:2>",
                 "name": "Snapshot Staff",
                 "role": "support_agent"
             },
-            "attachments": [],
+            "attachments": [
+                {
+                    "id": "<id:1>",
+                    "mime_type": "application/pdf",
+                    "original_name": "snapshot-attachment.pdf",
+                    "url": "<file>"
+                }
+            ],
             "created_at": "<timestamp>",
             "description": "A deterministic complaint created by the snapshot batch.",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_escalated": false,
             "resolution_notes": null,
-            "resolved_at": "<timestamp>",
+            "resolved_at": null,
             "status": "in_review",
             "status_color": "blue",
             "status_label": "In Review",
@@ -21,8 +28,8 @@
             "type_label": "عطل تقني",
             "updated_at": "<timestamp>",
             "user": {
-                "email": "<email>",
-                "id": "<id>",
+                "email": "<email:1>",
+                "id": "<id:3>",
                 "name": "Snapshot Passenger"
             }
         },

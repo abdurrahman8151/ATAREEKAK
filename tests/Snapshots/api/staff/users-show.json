@@ -3,12 +3,40 @@
         "data": {
             "account_status": "active",
             "address": "دمشق",
-            "comments_received": [],
+            "comments_received": [
+                {
+                    "comment": "Snapshot comment number 1 for Snapshot.",
+                    "commenter": {
+                        "id": "<id:3>",
+                        "name": "Snapshot Driver"
+                    },
+                    "created_at": "<timestamp>",
+                    "id": "<id:2>"
+                },
+                {
+                    "comment": "Snapshot comment number 2 for Snapshot.",
+                    "commenter": {
+                        "id": "<id:5>",
+                        "name": "Snapshot Other"
+                    },
+                    "created_at": "<timestamp>",
+                    "id": "<id:4>"
+                },
+                {
+                    "comment": "Snapshot comment number 3 for Snapshot.",
+                    "commenter": {
+                        "id": "<id:7>",
+                        "name": "Snapshot SecondDriver"
+                    },
+                    "created_at": "<timestamp>",
+                    "id": "<id:6>"
+                }
+            ],
             "description": null,
-            "email": "<email>",
+            "email": "<email:1>",
             "full_name": "Snapshot Passenger",
             "gender": "M",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_verified_driver": false,
             "is_verified_passenger": true,
             "joined_at": "<timestamp>",
@@ -26,7 +54,7 @@
                 "as_passenger": {
                     "cancelled": 0,
                     "completed": 0,
-                    "total": 0
+                    "total": 1
                 }
             },
             "score": {

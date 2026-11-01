@@ -2,11 +2,11 @@
     "json": {
         "message": "Wallet charged successfully",
         "status": "success",
-        "transaction_id": "<id>",
+        "transaction_id": "<id:1>",
         "wallet": {
-            "new_balance": "1,005,000.00 SYP",
+            "new_balance": "1,067,500.00 SYP",
             "phone_number": "0900000002",
-            "previous_balance": "1,000,000.00 SYP"
+            "previous_balance": "1,062,500.00 SYP"
         }
     },
     "status": 200

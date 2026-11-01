@@ -1,28 +1,52 @@
 {
     "json": {
         "counts": {
-            "all": 1,
+            "all": 4,
             "closed": 0,
             "escalated": 0,
-            "in_review": 0,
-            "pending": 1,
-            "resolved": 0
+            "in_review": 1,
+            "pending": 2,
+            "resolved": 1
         },
         "data": [
             {
                 "assigned_to": null,
                 "created_at": "<timestamp>",
-                "id": "<id>",
+                "id": "<id:1>",
                 "status": "pending",
                 "type": "technical_issue",
                 "type_label": "عطل تقني"
+            },
+            {
+                "assigned_to": null,
+                "created_at": "<timestamp>",
+                "id": "<id:2>",
+                "status": "resolved",
+                "type": "driver_behavior",
+                "type_label": "سلوك السائق"
+            },
+            {
+                "assigned_to": null,
+                "created_at": "<timestamp>",
+                "id": "<id:3>",
+                "status": "in_review",
+                "type": "financial_issue",
+                "type_label": "مشكلة مالية"
+            },
+            {
+                "assigned_to": null,
+                "created_at": "<timestamp>",
+                "id": "<id:4>",
+                "status": "pending",
+                "type": "trip_safety",
+                "type_label": "أمان الرحلة"
             }
         ],
         "meta": {
             "current_page": 1,
             "last_page": 1,
             "per_page": 15,
-            "total": 1
+            "total": 4
         },
         "status": "success"
     },

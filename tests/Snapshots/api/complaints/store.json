@@ -2,11 +2,19 @@
     "json": {
         "complaint": {
             "assigned_to": null,
-            "attachments": [],
+            "attachments": [
+                {
+                    "id": "<id:1>",
+                    "mime_type": "application/pdf",
+                    "original_name": "snapshot-attachment.pdf",
+                    "size_kb": 12,
+                    "url": "<file>"
+                }
+            ],
             "description": "A deterministic complaint created by the snapshot batch.",
-            "id": "<id>",
+            "id": "<id:1>",
             "resolution_notes": null,
-            "resolved_at": "<timestamp>",
+            "resolved_at": null,
             "status": "pending",
             "status_color": "yellow",
             "status_label": "Pending",

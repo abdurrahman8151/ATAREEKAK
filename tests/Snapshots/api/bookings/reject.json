@@ -2,32 +2,32 @@
     "json": {
         "data": {
             "communication_number": "+963900000003",
-            "completed_at": "<timestamp>",
+            "completed_at": null,
             "created_at": "<timestamp>",
-            "id": "<id>",
+            "id": "<id:1>",
             "passenger": {
                 "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
-                "id": "<id>",
+                "id": "<id:3>",
                 "name": "Snapshot Other",
                 "rating": 3
             },
-            "passenger_confirmed_at": "<timestamp>",
+            "passenger_confirmed_at": null,
             "ride": {
                 "departure_time": "<timestamp>",
                 "destination_address": "Homs",
                 "driver": {
                     "avatar": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                     "communication_number": null,
-                    "id": "<id>",
+                    "id": "<id:4>",
                     "name": "Snapshot Driver"
                 },
-                "id": "<id>",
+                "id": "<id:2>",
                 "payment_method": "e-pay",
                 "pickup_address": "Damascus",
                 "price_per_seat": "40000.00",
                 "vehicle_type": "car"
             },
-            "ride_id": "<id>",
+            "ride_id": "<id:2>",
             "seats": 1,
             "status": "cancelled",
             "total_price": 40000,

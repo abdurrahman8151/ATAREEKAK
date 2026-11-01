@@ -5,24 +5,47 @@
             "data": [
                 {
                     "created_at": "<timestamp>",
-                    "id": "<id>",
+                    "id": "<id:1>",
                     "notification": {
                         "created_at": "<timestamp>",
                         "data": {
-                            "ride_id": "<id>"
+                            "ride_id": "<id:3>"
                         },
-                        "id": "<id>",
+                        "id": "<id:1>",
                         "message": "A deterministic notification for the snapshot batch.",
                         "sent_at": "<timestamp>",
                         "title": "Snapshot notification",
                         "type": "general",
                         "updated_at": "<timestamp>",
-                        "user_id": "<id>"
+                        "user_id": "<id:2>"
                     },
-                    "notification_id": "<id>",
-                    "read_at": "<timestamp>",
+                    "notification_id": "<id:1>",
+                    "read_at": null,
                     "updated_at": "<timestamp>",
-                    "user_id": "<id>"
+                    "user_id": "<id:2>"
+                },
+                {
+                    "created_at": "<timestamp>",
+                    "id": "<id:4>",
+                    "notification": {
+                        "created_at": "<timestamp>",
+                        "data": {
+                            "booking_id": "<id:6>",
+                            "ride_id": "<id:5>",
+                            "seats": 1
+                        },
+                        "id": "<id:4>",
+                        "message": "Your 1 seat(s) on the ride from Damascus to Homs are confirmed.",
+                        "sent_at": "<timestamp>",
+                        "title": "Booking Confirmed ✓",
+                        "type": "booking_confirmed",
+                        "updated_at": "<timestamp>",
+                        "user_id": null
+                    },
+                    "notification_id": "<id:4>",
+                    "read_at": null,
+                    "updated_at": "<timestamp>",
+                    "user_id": "<id:2>"
                 }
             ],
             "first_page_url": "https://replace_with_your.onrender.com/api/notifications?page=1",
@@ -50,11 +73,11 @@
             "path": "https://replace_with_your.onrender.com/api/notifications",
             "per_page": 15,
             "prev_page_url": null,
-            "to": 1,
-            "total": 1
+            "to": 2,
+            "total": 2
         },
         "success": true,
-        "unread_count": 1
+        "unread_count": 2
     },
     "status": 200
 }

@@ -2,18 +2,18 @@
     "json": {
         "data": {
             "comparison": {
-                "delta": 0,
-                "delta_display": "+0%",
-                "text": "Same as last week",
-                "trend": "flat"
+                "delta": -20,
+                "delta_display": "-20%",
+                "text": "20% lower than last week",
+                "trend": "down"
             },
             "current": {
-                "efficiency_pct": 100,
+                "efficiency_pct": 80,
                 "end": "<timestamp>",
-                "pending": 0,
-                "processed": 0,
+                "pending": 1,
+                "processed": 4,
                 "start": "<timestamp>",
-                "total_incoming": 0
+                "total_incoming": 5
             },
             "period": "week",
             "period_label": "Week",

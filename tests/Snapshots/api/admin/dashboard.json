@@ -6,12 +6,42 @@
                 {
                     "city": "دمشق",
                     "city_en": "Damascus",
-                    "count": 4,
-                    "percentage": 100
+                    "count": 6,
+                    "percentage": 86
+                },
+                {
+                    "city": "حلب",
+                    "city_en": "Aleppo",
+                    "count": 1,
+                    "percentage": 14
                 }
             ],
             "growth_chart": {
                 "data": [
+                    {
+                        "completed_trips": 0,
+                        "label": "Jan 2026",
+                        "month": "Jan",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Feb 2026",
+                        "month": "Feb",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Mar 2026",
+                        "month": "Mar",
+                        "new_users": 0
+                    },
+                    {
+                        "completed_trips": 0,
+                        "label": "Apr 2026",
+                        "month": "Apr",
+                        "new_users": 0
+                    },
                     {
                         "completed_trips": 0,
                         "label": "May 2026",
@@ -22,39 +52,18 @@
                         "completed_trips": 0,
                         "label": "Jun 2026",
                         "month": "Jun",
-                        "new_users": 0
-                    },
-                    {
-                        "completed_trips": 0,
-                        "label": "Jul 2026",
-                        "month": "Jul",
-                        "new_users": 0
-                    },
-                    {
-                        "completed_trips": 0,
-                        "label": "Aug 2026",
-                        "month": "Aug",
-                        "new_users": 0
-                    },
-                    {
-                        "completed_trips": 0,
-                        "label": "Sep 2026",
-                        "month": "Sep",
-                        "new_users": 0
-                    },
-                    {
-                        "completed_trips": 0,
-                        "label": "Oct 2026",
-                        "month": "Oct",
-                        "new_users": 4
+                        "new_users": 7
                     }
                 ],
                 "period": "last_6_months"
             },
             "recent_activities": [
                 {
-                    "booking_id": "<id>",
-                    "date": "<timestamp>",
+                    "booking_id": "<id:1>",
+                    "date": {
+                        "human": "Today, 11:00",
+                        "raw": "<timestamp>"
+                    },
                     "driver": "Snapshot Driver",
                     "route": "Damascus ← Aleppo",
                     "status": "confirmed",
@@ -63,18 +72,78 @@
                         "number": "XXX-XXX-0002"
                     },
                     "value": "50,000.00 SYP"
+                },
+                {
+                    "booking_id": "<id:2>",
+                    "date": {
+                        "human": "Today, 11:00",
+                        "raw": "<timestamp>"
+                    },
+                    "driver": "Snapshot Driver",
+                    "route": "Damascus ← Homs",
+                    "status": "confirmed",
+                    "user": {
+                        "name": "Snapshot Other",
+                        "number": "XXX-XXX-0003"
+                    },
+                    "value": "5,000.00 SYP"
+                },
+                {
+                    "booking_id": "<id:3>",
+                    "date": {
+                        "human": "Today, 11:00",
+                        "raw": "<timestamp>"
+                    },
+                    "driver": "Snapshot Driver",
+                    "route": "Damascus ← Hama",
+                    "status": "confirmed",
+                    "user": {
+                        "name": "Snapshot PendingDriver",
+                        "number": "XXX-XXX-0000"
+                    },
+                    "value": "5,000.00 SYP"
+                },
+                {
+                    "booking_id": "<id:4>",
+                    "date": {
+                        "human": "Today, 11:00",
+                        "raw": "<timestamp>"
+                    },
+                    "driver": "Snapshot SecondDriver",
+                    "route": "Damascus ← Latakia",
+                    "status": "confirmed",
+                    "user": {
+                        "name": "Snapshot Other",
+                        "number": "XXX-XXX-0000"
+                    },
+                    "value": "5,000.00 SYP"
+                },
+                {
+                    "booking_id": "<id:5>",
+                    "date": {
+                        "human": "Today, 11:00",
+                        "raw": "<timestamp>"
+                    },
+                    "driver": "Snapshot Driver",
+                    "route": "Damascus ← Homs",
+                    "status": "confirmed",
+                    "user": {
+                        "name": "Snapshot Passenger",
+                        "number": "XXX-XXX-0000"
+                    },
+                    "value": "5,000.00 SYP"
                 }
             ],
             "stats": {
-                "active_trips": 1,
+                "active_trips": 7,
                 "completed_trips": 0,
-                "pending_complaints": 0,
+                "pending_complaints": 1,
                 "total_revenue": {
                     "formatted": "1,000,000.00 SYP",
                     "raw": 1000000
                 },
-                "total_users": 4,
-                "verification_requests": 0
+                "total_users": 7,
+                "verification_requests": 1
             }
         },
         "status": "success"

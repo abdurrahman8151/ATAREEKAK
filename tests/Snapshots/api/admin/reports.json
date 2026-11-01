@@ -6,24 +6,24 @@
                 "start": null
             },
             "financial_stats": {
-                "active_rides_locked": "50,000.00 SYP",
+                "active_rides_locked": "70,000.00 SYP",
                 "primary_admin": {
                     "current_balance": "1,000,000.00 SYP",
                     "total_platform_fees": "0.00 SYP"
                 },
                 "sycash": {
-                    "current_balance": "1,050,000.00 SYP",
-                    "total_escrow_in": "50,000.00 SYP",
+                    "current_balance": "1,070,000.00 SYP",
+                    "total_escrow_in": "70,000.00 SYP",
                     "total_escrow_out": "0.00 SYP",
                     "total_refunds_paid": "0.00 SYP"
                 }
             },
             "ride_stats": {
-                "active": 1,
+                "active": 7,
                 "awaiting_confirmation": 0,
                 "cancelled": 0,
                 "completed": 0,
-                "total": 1
+                "total": 7
             }
         },
         "status": "success"

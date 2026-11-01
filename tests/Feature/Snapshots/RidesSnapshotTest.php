@@ -16,7 +16,7 @@ final class RidesSnapshotTest extends ApiSnapshotTestCase
 {
     public static function cases(): array
     {
-        $departure = now()->addHours(4)->format('Y-m-d H:i:s');
+        $departure = self::snapshotNow()->addHours(4)->format('Y-m-d H:i:s');
 
         return [
             'rides/index' => [
@@ -96,7 +96,7 @@ final class RidesSnapshotTest extends ApiSnapshotTestCase
                 'route' => 'GET /api/rides/search',
                 'method' => 'GET',
                 'uri' => '/api/rides/search?source_address=Damascus&destination_address=Aleppo&departure_date='
-                    .now()->addDay()->format('Y-m-d').'&seats_required=1',
+                    .self::snapshotNow()->addDay()->format('Y-m-d').'&seats_required=1',
                 'actor' => 'passenger',
                 'expect' => 200,
             ],
@@ -108,7 +108,7 @@ final class RidesSnapshotTest extends ApiSnapshotTestCase
                 'body' => [
                     'source_address' => 'Damascus',
                     'destination_address' => 'Aleppo',
-                    'departure_date' => now()->addDay()->format('Y-m-d'),
+                    'departure_date' => self::snapshotNow()->addDay()->format('Y-m-d'),
                     'seats_required' => 1,
                 ],
                 'expect' => 200,
@@ -150,7 +150,7 @@ final class RidesSnapshotTest extends ApiSnapshotTestCase
                 'prepare' => static function (ApiSnapshotTestCase $test): void {
                     // Reporting a driver unlocks one hour after departure, so move the standard
                     // ride into the past instead of waiting for the clock.
-                    $test->ride->update(['departure_time' => now()->subHours(2)]);
+                    $test->ride->update(['departure_time' => self::snapshotNow()->subHours(2)]);
                 },
                 'expect' => 200,
             ],

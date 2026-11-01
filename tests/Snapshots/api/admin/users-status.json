@@ -3,10 +3,10 @@
         "data": {
             "account_status": "active",
             "ban": null,
-            "email": "<email>",
+            "email": "<email:1>",
             "name": "Snapshot Other",
             "status_code": 1,
-            "user_id": "<id>"
+            "user_id": "<id:1>"
         },
         "status": "success"
     },

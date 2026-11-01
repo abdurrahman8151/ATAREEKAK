@@ -2,12 +2,17 @@
     "json": {
         "data": {
             "address": "دمشق",
-            "documents": [],
-            "driver_ref": "<id>",
-            "email": "<email>",
+            "documents": {
+                "back_id": "<id:4>",
+                "face_id": "<id:3>",
+                "license": "https://replace_with_your.onrender.com/storage/documents/snapshot-license-85.jpg",
+                "mechanic_card": "https://replace_with_your.onrender.com/storage/documents/snapshot-mechanic_card-85.jpg"
+            },
+            "driver_ref": "<id:2>",
+            "email": "<email:1>",
             "full_name": "Snapshot Driver",
             "gender": "M",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_verified_driver": true,
             "joined_at": "<timestamp>",
             "phone": "0911000000",
@@ -18,17 +23,49 @@
             },
             "recent_rides": [
                 {
+                    "bookings_count": 1,
+                    "departure_time": "<timestamp>",
+                    "destination_address": "Hama",
+                    "id": "<id:5>",
+                    "pickup_address": "Damascus",
+                    "status": "active"
+                },
+                {
+                    "bookings_count": 2,
+                    "departure_time": "<timestamp>",
+                    "destination_address": "Homs",
+                    "id": "<id:6>",
+                    "pickup_address": "Damascus",
+                    "status": "active"
+                },
+                {
                     "bookings_count": 0,
                     "departure_time": "<timestamp>",
                     "destination_address": "Aleppo",
-                    "id": "<id>",
+                    "id": "<id:7>",
+                    "pickup_address": "Damascus",
+                    "status": "active"
+                },
+                {
+                    "bookings_count": 0,
+                    "departure_time": "<timestamp>",
+                    "destination_address": "Aleppo",
+                    "id": "<id:8>",
+                    "pickup_address": "Damascus",
+                    "status": "active"
+                },
+                {
+                    "bookings_count": 0,
+                    "departure_time": "<timestamp>",
+                    "destination_address": "Aleppo",
+                    "id": "<id:1>",
                     "pickup_address": "Damascus",
                     "status": "active"
                 }
             ],
             "stats": {
                 "completed_rides": 0,
-                "total_rides": 1
+                "total_rides": 5
             },
             "status": "verified",
             "vehicle": {

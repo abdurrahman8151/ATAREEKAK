@@ -4,22 +4,22 @@
             "admin_notes": "The snapshot batch rejects this request.",
             "amount": 5000,
             "created_at": "<timestamp>",
-            "id": "<id>",
+            "id": "<id:1>",
             "processed_at": "<timestamp>",
             "status": "rejected",
             "type": "charge",
             "user": {
-                "email": "<email>",
-                "id": "<id>",
+                "email": "<email:1>",
+                "id": "<id:2>",
                 "name": "Snapshot Passenger"
             },
             "user_notes": "snapshot prepare",
             "wallet": {
                 "cash_ride_debt": 0,
-                "current_balance": 1000000,
-                "id": "<id>",
+                "current_balance": 1062500,
+                "id": "<id:3>",
                 "phone_number": "0900000002",
-                "wallet_number": "<id>"
+                "wallet_number": "<id:4>"
             }
         },
         "message": "Request rejected.",

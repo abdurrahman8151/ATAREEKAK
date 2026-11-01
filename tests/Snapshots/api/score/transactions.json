@@ -1,11 +1,75 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "event": {
+                    "code": "passenger_no_show",
+                    "label": "Passenger no-show",
+                    "summary": "-15 pts — Passenger no-show"
+                },
+                "high_cancel_rate_applied": false,
+                "id": "<id:1>",
+                "occurred_at": "<timestamp>",
+                "points": {
+                    "display": "-15",
+                    "value": -15
+                },
+                "reason": "Did not show up for the trip",
+                "reference": null,
+                "score": {
+                    "after": 65,
+                    "before": 80,
+                    "delta": -15
+                }
+            },
+            {
+                "event": {
+                    "code": "passenger_cancel_early",
+                    "label": "Passenger cancelled (early)",
+                    "summary": "+0 pts — Passenger cancelled (early)"
+                },
+                "high_cancel_rate_applied": false,
+                "id": "<id:2>",
+                "occurred_at": "<timestamp>",
+                "points": {
+                    "display": "+0",
+                    "value": 0
+                },
+                "reason": "Cancelled a booking in good time",
+                "reference": null,
+                "score": {
+                    "after": 80,
+                    "before": 80,
+                    "delta": 0
+                }
+            },
+            {
+                "event": {
+                    "code": "ride_completed",
+                    "label": "Ride completed",
+                    "summary": "+10 pts — Ride completed"
+                },
+                "high_cancel_rate_applied": false,
+                "id": "<id:3>",
+                "occurred_at": "<timestamp>",
+                "points": {
+                    "display": "+10",
+                    "value": 10
+                },
+                "reason": "Completed a trip",
+                "reference": null,
+                "score": {
+                    "after": 80,
+                    "before": 70,
+                    "delta": 10
+                }
+            }
+        ],
         "meta": {
             "current_page": 1,
             "last_page": 1,
             "per_page": 20,
-            "total": 0
+            "total": 3
         },
         "success": true
     },

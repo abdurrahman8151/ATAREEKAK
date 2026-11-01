@@ -2,28 +2,79 @@
     "json": {
         "data": {
             "admin_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
-            "recent_activity": [],
+            "recent_activity": [
+                {
+                    "actor": "Snapshot PendingDriver",
+                    "color": "blue",
+                    "human_time": "59 mins ago",
+                    "icon": "clock",
+                    "message": "Verification request submitted by \"Snapshot PendingDriver\"",
+                    "occurred_at": "<timestamp>",
+                    "type": "verification_pending",
+                    "user_id": "<id:1>"
+                },
+                {
+                    "actor": "Admin",
+                    "color": "green",
+                    "human_time": "59 mins ago",
+                    "icon": "check",
+                    "message": "Verification request for \"Snapshot SecondDriver\" accepted",
+                    "occurred_at": "<timestamp>",
+                    "type": "verification_approved",
+                    "user_id": "<id:2>"
+                },
+                {
+                    "actor": "Admin",
+                    "color": "green",
+                    "human_time": "59 mins ago",
+                    "icon": "check",
+                    "message": "Verification request for \"Snapshot Other\" accepted",
+                    "occurred_at": "<timestamp>",
+                    "type": "verification_approved",
+                    "user_id": "<id:3>"
+                },
+                {
+                    "actor": "Admin",
+                    "color": "green",
+                    "human_time": "59 mins ago",
+                    "icon": "check",
+                    "message": "Verification request for \"Snapshot Passenger\" accepted",
+                    "occurred_at": "<timestamp>",
+                    "type": "verification_approved",
+                    "user_id": "<id:4>"
+                },
+                {
+                    "actor": "Admin",
+                    "color": "green",
+                    "human_time": "1 hours ago",
+                    "icon": "check",
+                    "message": "Verification request for \"Snapshot Driver\" accepted",
+                    "occurred_at": "<timestamp>",
+                    "type": "verification_approved",
+                    "user_id": "<id:5>"
+                }
+            ],
             "stats": {
-                "active_drivers": 1,
+                "active_drivers": 2,
                 "average_rating": 3,
-                "pending_verifications": 0,
+                "pending_verifications": 1,
                 "suspended_drivers": 0,
-                "total_drivers": 1
+                "total_drivers": 3
             },
             "verification_efficiency": {
                 "comparison": {
-                    "delta": 0,
-                    "delta_display": "+0%",
-                    "text": "Same as last week",
-                    "trend": "flat"
+                    "delta": -20,
+                    "delta_display": "-20%",
+                    "text": "20% lower than last week",
+                    "trend": "down"
                 },
                 "current": {
-                    "efficiency_pct": 100,
+                    "efficiency_pct": 80,
                     "end": "<timestamp>",
-                    "pending": 0,
-                    "processed": 0,
+                    "pending": 1,
+                    "processed": 4,
                     "start": "<timestamp>",
-                    "total_incoming": 0
+                    "total_incoming": 5
                 },
                 "period": "week",
                 "period_label": "Week",

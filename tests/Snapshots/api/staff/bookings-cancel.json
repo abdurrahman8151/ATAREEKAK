@@ -1,7 +1,7 @@
 {
     "json": {
         "data": {
-            "booking_id": "<id>",
+            "booking_id": "<id:1>",
             "needs_manual_review": 0,
             "new_status": "cancelled",
             "refund_amount_source": "amount_paid",

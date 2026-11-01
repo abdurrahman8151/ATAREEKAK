@@ -3,11 +3,11 @@
         "data": {
             "content": "Hello from the snapshot batch.",
             "created_at": "<timestamp>",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_edited": null,
             "metadata": [],
             "sender": {
-                "id": "<id>",
+                "id": "<id:2>",
                 "name": "Snapshot Passenger",
                 "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
             },

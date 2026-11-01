@@ -4,9 +4,9 @@
         "wallet": {
             "admin_type": "system_admin",
             "balance": "1,000,000.00 SYP",
-            "id": "<id>",
+            "id": "<id:1>",
             "phone_number": "0912345678",
-            "wallet_number": "<id>"
+            "wallet_number": "<id:2>"
         }
     },
     "status": 200

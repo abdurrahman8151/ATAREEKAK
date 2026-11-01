@@ -1,32 +1,32 @@
 {
     "json": {
         "counts": {
-            "approved": 0,
-            "cancelled": 0,
+            "approved": 1,
+            "cancelled": 1,
             "pending": 1,
-            "rejected": 0
+            "rejected": 1
         },
         "data": [
             {
                 "admin_notes": null,
                 "amount": 5000,
                 "created_at": "<timestamp>",
-                "id": "<id>",
-                "processed_at": "<timestamp>",
+                "id": "<id:1>",
+                "processed_at": null,
                 "status": "pending",
                 "type": "charge",
                 "user": {
-                    "email": "<email>",
-                    "id": "<id>",
+                    "email": "<email:1>",
+                    "id": "<id:2>",
                     "name": "Snapshot Passenger"
                 },
                 "user_notes": "snapshot prepare",
                 "wallet": {
                     "cash_ride_debt": 0,
-                    "current_balance": 1000000,
-                    "id": "<id>",
+                    "current_balance": 1062500,
+                    "id": "<id:3>",
                     "phone_number": "0900000002",
-                    "wallet_number": "<id>"
+                    "wallet_number": "<id:4>"
                 }
             }
         ],

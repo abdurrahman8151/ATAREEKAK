@@ -3,9 +3,35 @@
         "data": [
             {
                 "avg_rating": 3,
-                "driver_ref": "<id>",
+                "driver_ref": "<id:2>",
+                "full_name": "Snapshot PendingDriver",
+                "id": "<id:1>",
+                "is_verified_driver": false,
+                "joined_at": "<timestamp>",
+                "phone": null,
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "status": "pending",
+                "vehicle": null,
+                "verification_status": "pending"
+            },
+            {
+                "avg_rating": 3,
+                "driver_ref": "<id:4>",
+                "full_name": "Snapshot SecondDriver",
+                "id": "<id:3>",
+                "is_verified_driver": true,
+                "joined_at": "<timestamp>",
+                "phone": "0911000000",
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "status": "verified",
+                "vehicle": null,
+                "verification_status": "approved"
+            },
+            {
+                "avg_rating": 3,
+                "driver_ref": "<id:6>",
                 "full_name": "Snapshot Driver",
-                "id": "<id>",
+                "id": "<id:5>",
                 "is_verified_driver": true,
                 "joined_at": "<timestamp>",
                 "phone": "0911000000",
@@ -20,7 +46,7 @@
             "filter": "all",
             "last_page": 1,
             "per_page": 10,
-            "total": 1
+            "total": 3
         },
         "status": "success"
     },

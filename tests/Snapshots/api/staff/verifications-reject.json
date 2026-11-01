@@ -1,7 +1,7 @@
 {
     "json": {
         "data": {
-            "user_id": "<id>",
+            "user_id": "<id:1>",
             "verification_status": "rejected"
         },
         "message": "Verification rejected. User has been notified.",

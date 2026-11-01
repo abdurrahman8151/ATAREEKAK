@@ -206,10 +206,29 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - Batch 233 reached its terminal state; no task is mid-flight. The 2026-10-31 triage below is
-  also terminal.)
+- (empty - stage 0.5 step 3 reached its terminal state: committed, verified, audit 239.3. Steps 4-8
+  of stage 0.5 are next.)
 
 ## Done recently
+- **STAGE 0.5 step 3 - normaliser rules, per-document aliases, an enriched world and a gate that
+  refuses an empty list (R2 sec 239.3), tests only: NO app/ change in this step.** `SnapshotNormaliser`
+  now masks only non-null scalars and aliases ids/emails per document (`<id:1>`, `<email:1>`), with
+  nine DB-free unit tests in `tests/Unit/Support/SnapshotNormaliserTest.php`. `enrichWorld()` gives
+  every mandated list >=3 rows and every nested collection >=1, and the new
+  `tests/Feature/Snapshots/SnapshotEmptinessTest.php` (4 tests, DB-free) makes "no empty list snapshot"
+  a permanent gate with a written reason for each exemption. Regeneration category report vs the
+  committed corpus (153 cases, 113 changed): STATUS 0, ALIAS 263, NEW-ITEMS 207, NULL 54, NUMBER 98,
+  ANYTHING ELSE 137 - every one of the 137 explained in 239.3. **The verifying run found two
+  determinism defects the thin corpus had hidden** (a total ORDER BY tie on `admin/routes-popular`, and
+  `created_at` ties across five cases because the whole world is written inside one pinned second);
+  both were fixed in the fixtures - a second Homs passenger, and `settleRowTimestamps()` ladders
+  `created_at`/`updated_at` per row for the 21 tables this API sorts by - and the whole directory is
+  `OK (160 tests, 1468 assertions)` twice in a row from the same corpus. **Owner decision recorded: the
+  15 query budgets the enrichment makes unachievable were re-recorded to the measured counts** (nine
+  of them show a per-row N+1 signature, parked for the performance batch; six are one-off costs).
+- **STAGE 0.5 step 3 scratch tools (outside the repo, removed from the tree): `C:\temp\snapshot-diff.php`
+  classifies a regeneration into new-items / alias / null / number / anything-else; `C:\temp\s05\`
+  holds the pre-regeneration corpus copy and every run log.**
 - **API safety net - DONE (R2 sec 238; commits 6114816, c3b691b, f4b08c5 + the guard-test commit), tests only, no app/ change.** The owner's rule is satisfied: the net exists before any structural move. 154 api/* routes; 148 snapshotted by 152 exact-JSON cases in ten module files (committed bodies + shrink-only query budgets); 6 parked with a written reason. The 7-table committed-row leak guard runs AFTER RefreshDatabase rolls back, so a class that commits (the RV45 DDL pattern) fails at ITSELF, and CommittedRowLeakGuardTest proves the detector reports a real row. Ledger property tests: legs sum to zero, money conserved, escrow never negative, posting key idempotent, across charge / payout / cancel / no-show at three amounts. Order matrix: six serialized full runs (default, Feature-first, three random seeds, default again on the final tree) ALL green at 2767 tests / 8269 assertions / 2 skipped, and 0 rows left in all ten watched tables.
 - **OWNER ACTION from the safety net, parked not fixed (no app/ change in that batch): GET /api/staff/chat/conversations/{id}/messages answers 500 on EVERY conversation.** StaffChatController::messages() formats through formatConversation(), which reads $conversation->latestMessage, and ChatRepository::findConversation() does not eager-load it, so the lazy-loading guard throws. The fix is a single eager-load of that relation on that query; the route is parked in tests/Snapshots/route-inventory.json with this reason until then.
 - **Triage 2026-10-31 - the 24 red cash-fee unit tests are a committed-fixture leak, the whole-tree Pint gate is green, and the serialized full suite is green in BOTH orderings (`R2 sec 237`, commit `fd1dac1` + the Pint commit).** One distinct error kind, not RV-46 and not a tier: `UniqueConstraintViolationException ... Duplicate entry '0912345678' for key wallets.wallets_phone_number_unique`, thrown from `CashRideFeeServiceTest` (20) + `L18CashRideFeeOutcomeLedgerTest` (4) `setUp()`. Root cause: `RV45RideNotFoundTest::faultOnRideRead()` drops a column (DDL implicitly commits its `RefreshDatabase` transaction) and `deleteCommittedFixtures()` cleaned up the driver's rows but not the three system wallets `seedSystemWallets(10_000_000)` seeds in `setUp()`; they kept 0912345678 / 0987654321 / 0900000042 occupied and the later blind `Wallet::create()` collided. Fixed in the fixture only (same command: 24 errors -> `OK (28 tests, 66 assertions)`; schema after the run 0 wallets rows, was 3). Pint: 10 pre-existing whole-tree offenders (`737 files, 10 style issues`) formatted on explicit paths only, now `PASS ... 737 files`; formatting-only proven by `OK (318 tests, 602 assertions)` over the money floor plus every affected file. Full suite serialized: default order and Feature-first order are both `Tests: 2598, Assertions: 6888, Skipped: 2`, 0 errors, 0 failures (Feature-first was 24 errors before). **Two process lessons recorded in `sec 237.5`: a wall of `E` from test 1 means the scratch MySQL is down (infrastructure, not code), and the scratch database is ONE shared resource - a second phpunit process running `migrate:fresh` mid-suite manufactured 19 schema-level errors that were a measuring artifact of this task, not a defect.**

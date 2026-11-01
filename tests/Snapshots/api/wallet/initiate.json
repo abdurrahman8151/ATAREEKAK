@@ -1,6 +1,6 @@
 {
     "json": {
-        "email_hint": "<email>",
+        "email_hint": "<email:1>",
         "message": "A 6-digit verification code has been sent to snapshot.walletless@example.test. It expires in 10 minutes.",
         "otp_code": "<token>",
         "success": true

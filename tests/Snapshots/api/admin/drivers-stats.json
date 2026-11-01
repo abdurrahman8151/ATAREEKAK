@@ -1,11 +1,11 @@
 {
     "json": {
         "data": {
-            "active_drivers": 1,
+            "active_drivers": 2,
             "average_rating": 3,
-            "pending_verifications": 0,
+            "pending_verifications": 1,
             "suspended_drivers": 0,
-            "total_drivers": 1
+            "total_drivers": 3
         },
         "status": "success"
     },

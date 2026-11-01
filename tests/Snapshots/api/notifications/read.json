@@ -2,11 +2,11 @@
     "json": {
         "data": {
             "created_at": "<timestamp>",
-            "id": "<id>",
-            "notification_id": "<id>",
+            "id": "<id:1>",
+            "notification_id": "<id:1>",
             "read_at": "<timestamp>",
             "updated_at": "<timestamp>",
-            "user_id": "<id>"
+            "user_id": "<id:2>"
         },
         "message": "Notification marked as read",
         "success": true

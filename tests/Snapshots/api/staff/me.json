@@ -2,9 +2,9 @@
     "json": {
         "employee": {
             "created_at": "<timestamp>",
-            "email": "<email>",
+            "email": "<email:1>",
             "full_name": "Snapshot Staff",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_active": true,
             "last_login_at": "<timestamp>",
             "role": "support_agent",

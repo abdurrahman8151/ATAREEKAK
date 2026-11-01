@@ -4,8 +4,8 @@
             "admin_notes": null,
             "amount": 3000,
             "created_at": "<timestamp>",
-            "id": "<id>",
-            "processed_at": "<timestamp>",
+            "id": "<id:1>",
+            "processed_at": null,
             "status": "pending",
             "type": "charge",
             "user_notes": "snapshot prepare"

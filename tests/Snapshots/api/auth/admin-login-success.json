@@ -1,9 +1,9 @@
 {
     "json": {
         "admin": {
-            "email": "<email>",
+            "email": "<email:1>",
             "first_name": "Snapshot",
-            "id": "<id>",
+            "id": "<id:1>",
             "last_name": "Admin",
             "role": "system_admin",
             "role_label": "System Administrator",

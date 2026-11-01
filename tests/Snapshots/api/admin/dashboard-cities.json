@@ -4,8 +4,14 @@
             {
                 "city": "دمشق",
                 "city_en": "Damascus",
-                "count": 4,
-                "percentage": 100
+                "count": 6,
+                "percentage": 86
+            },
+            {
+                "city": "حلب",
+                "city_en": "Aleppo",
+                "count": 1,
+                "percentage": 14
             }
         ],
         "status": "success"

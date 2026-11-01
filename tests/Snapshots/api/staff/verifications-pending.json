@@ -2,19 +2,64 @@
     "json": {
         "data": [
             {
+                "address": "حلب",
+                "documents": [
+                    {
+                        "type": "face_id",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:2>"
+                    },
+                    {
+                        "type": "back_id",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:3>"
+                    },
+                    {
+                        "type": "license",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:4>"
+                    },
+                    {
+                        "type": "mechanic_card",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:5>"
+                    }
+                ],
+                "email": "<email:1>",
+                "gender": "M",
+                "name": "Snapshot PendingDriver",
+                "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                "submitted_at": "<timestamp>",
+                "type": "driver",
+                "user_id": "<id:1>"
+            },
+            {
                 "address": "دمشق",
-                "documents": [],
-                "email": "<email>",
+                "documents": [
+                    {
+                        "type": "face_id",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:7>"
+                    },
+                    {
+                        "type": "back_id",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:8>"
+                    },
+                    {
+                        "type": "license",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:9>"
+                    },
+                    {
+                        "type": "mechanic_card",
+                        "url": "https://replace_with_your.onrender.com/api/staff/documents/<id:10>"
+                    }
+                ],
+                "email": "<email:2>",
                 "gender": "M",
                 "name": "Snapshot Other",
                 "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                 "submitted_at": "<timestamp>",
-                "type": "passenger",
-                "user_id": "<id>"
+                "type": "driver",
+                "user_id": "<id:6>"
             }
         ],
         "status": "success",
-        "total": 1
+        "total": 2
     },
     "status": 200
 }

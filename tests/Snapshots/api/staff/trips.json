@@ -1,21 +1,102 @@
 {
     "json": {
         "counts": {
-            "active": 0,
-            "all": 1,
+            "active": 3,
+            "all": 7,
             "awaiting": 0,
             "cancelled": 0,
             "completed": 0,
-            "scheduled": 1
+            "scheduled": 4
         },
         "data": [
             {
                 "driver": {
-                    "id": "<id>",
+                    "id": "<id:3>",
                     "name": "Snapshot Driver",
                     "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
                 },
-                "id": "<id>",
+                "id": "<id:1>",
+                "passengers": {
+                    "booked": 0,
+                    "label": "0/3",
+                    "total": 3
+                },
+                "payment_method": "e-pay",
+                "price_per_seat": "45000.00",
+                "route": {
+                    "from": "Damascus",
+                    "to": "Aleppo"
+                },
+                "status": "scheduled",
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "label": "Tomorrow",
+                    "time_only": "<timestamp>"
+                },
+                "trip_ref": "<id:2>",
+                "vehicle_type": "car"
+            },
+            {
+                "driver": {
+                    "id": "<id:5>",
+                    "name": "Snapshot SecondDriver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:3>",
+                "passengers": {
+                    "booked": 0,
+                    "label": "0/3",
+                    "total": 3
+                },
+                "payment_method": "e-pay",
+                "price_per_seat": "45000.00",
+                "route": {
+                    "from": "Damascus",
+                    "to": "Aleppo"
+                },
+                "status": "scheduled",
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "label": "Tomorrow",
+                    "time_only": "<timestamp>"
+                },
+                "trip_ref": "<id:4>",
+                "vehicle_type": "car"
+            },
+            {
+                "driver": {
+                    "id": "<id:3>",
+                    "name": "Snapshot Driver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:6>",
+                "passengers": {
+                    "booked": 0,
+                    "label": "0/3",
+                    "total": 3
+                },
+                "payment_method": "e-pay",
+                "price_per_seat": "45000.00",
+                "route": {
+                    "from": "Damascus",
+                    "to": "Aleppo"
+                },
+                "status": "scheduled",
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "label": "Tomorrow",
+                    "time_only": "<timestamp>"
+                },
+                "trip_ref": "<id:7>",
+                "vehicle_type": "car"
+            },
+            {
+                "driver": {
+                    "id": "<id:3>",
+                    "name": "Snapshot Driver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:8>",
                 "passengers": {
                     "booked": 0,
                     "label": "0/4",
@@ -33,7 +114,88 @@
                     "label": "Today",
                     "time_only": "<timestamp>"
                 },
-                "trip_ref": "<id>",
+                "trip_ref": "<id:9>",
+                "vehicle_type": "car"
+            },
+            {
+                "driver": {
+                    "id": "<id:3>",
+                    "name": "Snapshot Driver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:10>",
+                "passengers": {
+                    "booked": 2,
+                    "label": "2/3",
+                    "total": 3
+                },
+                "payment_method": "e-pay",
+                "price_per_seat": "5000.00",
+                "route": {
+                    "from": "Damascus",
+                    "to": "Homs"
+                },
+                "status": "active",
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "label": "Today",
+                    "time_only": "<timestamp>"
+                },
+                "trip_ref": "<id:11>",
+                "vehicle_type": "car"
+            },
+            {
+                "driver": {
+                    "id": "<id:5>",
+                    "name": "Snapshot SecondDriver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:12>",
+                "passengers": {
+                    "booked": 1,
+                    "label": "1/3",
+                    "total": 3
+                },
+                "payment_method": "e-pay",
+                "price_per_seat": "5000.00",
+                "route": {
+                    "from": "Damascus",
+                    "to": "Latakia"
+                },
+                "status": "active",
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "label": "Today",
+                    "time_only": "<timestamp>"
+                },
+                "trip_ref": "<id:13>",
+                "vehicle_type": "car"
+            },
+            {
+                "driver": {
+                    "id": "<id:3>",
+                    "name": "Snapshot Driver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:5>",
+                "passengers": {
+                    "booked": 1,
+                    "label": "1/3",
+                    "total": 3
+                },
+                "payment_method": "e-pay",
+                "price_per_seat": "5000.00",
+                "route": {
+                    "from": "Damascus",
+                    "to": "Hama"
+                },
+                "status": "active",
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "label": "Today",
+                    "time_only": "<timestamp>"
+                },
+                "trip_ref": "<id:14>",
                 "vehicle_type": "car"
             }
         ],
@@ -42,7 +204,7 @@
             "filter": "all",
             "last_page": 1,
             "per_page": 15,
-            "total": 1
+            "total": 7
         },
         "status": "success"
     },

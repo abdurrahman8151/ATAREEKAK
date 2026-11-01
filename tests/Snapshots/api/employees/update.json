@@ -2,11 +2,11 @@
     "json": {
         "employee": {
             "created_at": "<timestamp>",
-            "created_by": "<id>",
-            "email": "<email>",
+            "created_by": null,
+            "email": "<email:1>",
             "first_name": "Renamed",
             "full_name": "Renamed BySnapshot",
-            "id": "<id>",
+            "id": "<id:1>",
             "is_active": true,
             "last_name": "BySnapshot",
             "role": "support_agent",

@@ -1,6 +1,51 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "content": "Hello, is the trip still leaving at nine?",
+                "created_at": "<timestamp>",
+                "id": "<id:1>",
+                "is_edited": false,
+                "metadata": [],
+                "sender": {
+                    "id": "<id:2>",
+                    "name": "Snapshot Passenger",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "type": "text"
+            },
+            {
+                "content": "Yes, I will be at the pickup point.",
+                "created_at": "<timestamp>",
+                "id": "<id:3>",
+                "is_edited": false,
+                "metadata": [],
+                "sender": {
+                    "id": "<id:2>",
+                    "name": "Snapshot Passenger",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "type": "text"
+            },
+            {
+                "content": "https://replace_with_your.onrender.com/storage/chat-images/snapshot-map.png",
+                "created_at": "<timestamp>",
+                "id": "<id:4>",
+                "is_edited": false,
+                "metadata": {
+                    "caption": "The pickup point",
+                    "mime_type": "image/png",
+                    "original_name": "snapshot-map.png",
+                    "size": 2048
+                },
+                "sender": {
+                    "id": "<id:5>",
+                    "name": "Snapshot Other",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "type": "image"
+            }
+        ],
         "success": true
     },
     "status": 200

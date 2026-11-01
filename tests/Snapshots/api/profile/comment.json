@@ -3,12 +3,12 @@
         "data": {
             "comment": "A calm and punctual driver.",
             "commenter": {
-                "id": "<id>",
+                "id": "<id:3>",
                 "name": "Snapshot Passenger"
             },
             "created_at": "<timestamp>",
-            "id": "<id>",
-            "ride_id": "<id>"
+            "id": "<id:1>",
+            "ride_id": "<id:2>"
         },
         "message": "Comment added",
         "success": true

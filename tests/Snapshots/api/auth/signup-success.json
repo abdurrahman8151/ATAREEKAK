@@ -3,9 +3,9 @@
         "message": "Registration successful. Check your email for a verification code.",
         "status": "success",
         "user": {
-            "email": "<email>",
+            "email": "<email:1>",
             "first_name": "Snapshot",
-            "id": "<id>"
+            "id": "<id:1>"
         }
     },
     "status": 201

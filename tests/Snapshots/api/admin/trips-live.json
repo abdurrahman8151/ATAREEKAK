@@ -1,8 +1,131 @@
 {
     "json": {
-        "data": [],
+        "data": [
+            {
+                "distance_km": 0.3,
+                "driver": {
+                    "communication_number": "0911000000",
+                    "id": "<id:3>",
+                    "name": "Snapshot Driver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:1>",
+                "passenger_count": 1,
+                "passengers": [
+                    {
+                        "id": "<id:4>",
+                        "name": "Snapshot PendingDriver",
+                        "seats": 1
+                    }
+                ],
+                "route": {
+                    "destination_coords": {
+                        "lat": 36.2021,
+                        "lng": 37.1343
+                    },
+                    "from": "Damascus",
+                    "geometry": null,
+                    "pickup_coords": {
+                        "lat": 33.5138,
+                        "lng": 36.2765
+                    },
+                    "to": "Hama"
+                },
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "duration_total": 4,
+                    "eta_minutes": 0,
+                    "minutes_elapsed": 95
+                },
+                "trip_ref": "<id:2>",
+                "vehicle_type": "car"
+            },
+            {
+                "distance_km": 0.3,
+                "driver": {
+                    "communication_number": "0911000000",
+                    "id": "<id:6>",
+                    "name": "Snapshot SecondDriver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:4>",
+                "passenger_count": 1,
+                "passengers": [
+                    {
+                        "id": "<id:7>",
+                        "name": "Snapshot Other",
+                        "seats": 1
+                    }
+                ],
+                "route": {
+                    "destination_coords": {
+                        "lat": 36.2021,
+                        "lng": 37.1343
+                    },
+                    "from": "Damascus",
+                    "geometry": null,
+                    "pickup_coords": {
+                        "lat": 33.5138,
+                        "lng": 36.2765
+                    },
+                    "to": "Latakia"
+                },
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "duration_total": 4,
+                    "eta_minutes": 0,
+                    "minutes_elapsed": 70
+                },
+                "trip_ref": "<id:5>",
+                "vehicle_type": "car"
+            },
+            {
+                "distance_km": 0.3,
+                "driver": {
+                    "communication_number": "0911000000",
+                    "id": "<id:3>",
+                    "name": "Snapshot Driver",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg"
+                },
+                "id": "<id:6>",
+                "passenger_count": 2,
+                "passengers": [
+                    {
+                        "id": "<id:9>",
+                        "name": "Snapshot Passenger",
+                        "seats": 1
+                    },
+                    {
+                        "id": "<id:7>",
+                        "name": "Snapshot Other",
+                        "seats": 1
+                    }
+                ],
+                "route": {
+                    "destination_coords": {
+                        "lat": 36.2021,
+                        "lng": 37.1343
+                    },
+                    "from": "Damascus",
+                    "geometry": null,
+                    "pickup_coords": {
+                        "lat": 33.5138,
+                        "lng": 36.2765
+                    },
+                    "to": "Homs"
+                },
+                "timing": {
+                    "departure_time": "<timestamp>",
+                    "duration_total": 4,
+                    "eta_minutes": 0,
+                    "minutes_elapsed": 45
+                },
+                "trip_ref": "<id:8>",
+                "vehicle_type": "car"
+            }
+        ],
         "status": "success",
-        "total": 0
+        "total": 3
     },
     "status": 200
 }

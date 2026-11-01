@@ -4,7 +4,7 @@
         "message": "Wallet created successfully.",
         "phone_number": "0900000004",
         "success": true,
-        "wallet_number": "<id>"
+        "wallet_number": "<id:1>"
     },
     "status": 201
 }

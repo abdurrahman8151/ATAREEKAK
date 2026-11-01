@@ -5,18 +5,18 @@
             "ban": {
                 "banned_at": "<timestamp>",
                 "banned_by": {
-                    "id": "<id>",
+                    "id": "<id:2>",
                     "name": "Snapshot Admin"
                 },
-                "expires_at": "<timestamp>",
+                "expires_at": null,
                 "is_expired": false,
                 "reason": "The snapshot batch bans this account.",
                 "type": "permanent"
             },
-            "email": "<email>",
+            "email": "<email:1>",
             "name": "Snapshot Other",
             "status_code": -1,
-            "user_id": "<id>"
+            "user_id": "<id:1>"
         },
         "message": "User has been banned successfully.",
         "status": "success"

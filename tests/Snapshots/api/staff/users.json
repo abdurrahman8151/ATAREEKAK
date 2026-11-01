@@ -10,52 +10,82 @@
                 },
                 "last_page": 1,
                 "per_page": 10,
-                "total": 4
+                "total": 7
             },
             "stats": {
-                "active_drivers": 1,
-                "passengers": 3,
-                "pending_drivers": 0,
+                "active_drivers": 2,
+                "passengers": 5,
+                "pending_drivers": 1,
                 "suspended_users": 0,
-                "total_registered": 4
+                "total_registered": 7
             },
             "users": [
                 {
-                    "email": "<email>",
+                    "email": "<email:1>",
+                    "full_name": "Snapshot Admin",
+                    "id": "<id:1>",
+                    "joined_at": "<timestamp>",
+                    "joined_label": "15 Jun 2026",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                    "status": "verified",
+                    "type": "passenger"
+                },
+                {
+                    "email": "<email:2>",
+                    "full_name": "Snapshot PendingDriver",
+                    "id": "<id:2>",
+                    "joined_at": "<timestamp>",
+                    "joined_label": "15 Jun 2026",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                    "status": "verified",
+                    "type": "driver"
+                },
+                {
+                    "email": "<email:3>",
+                    "full_name": "Snapshot SecondDriver",
+                    "id": "<id:3>",
+                    "joined_at": "<timestamp>",
+                    "joined_label": "15 Jun 2026",
+                    "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
+                    "status": "verified",
+                    "type": "driver"
+                },
+                {
+                    "email": "<email:4>",
                     "full_name": "Snapshot Walletless",
-                    "id": "<id>",
+                    "id": "<id:4>",
                     "joined_at": "<timestamp>",
-                    "joined_label": "31 Oct 2026",
+                    "joined_label": "15 Jun 2026",
                     "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                     "status": "verified",
                     "type": "passenger"
                 },
                 {
-                    "email": "<email>",
+                    "email": "<email:5>",
                     "full_name": "Snapshot Other",
-                    "id": "<id>",
+                    "id": "<id:5>",
                     "joined_at": "<timestamp>",
-                    "joined_label": "31 Oct 2026",
+                    "joined_label": "15 Jun 2026",
                     "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                     "status": "verified",
-                    "type": "passenger"
+                    "type": "driver"
                 },
                 {
-                    "email": "<email>",
+                    "email": "<email:6>",
                     "full_name": "Snapshot Passenger",
-                    "id": "<id>",
+                    "id": "<id:6>",
                     "joined_at": "<timestamp>",
-                    "joined_label": "31 Oct 2026",
+                    "joined_label": "15 Jun 2026",
                     "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                     "status": "verified",
-                    "type": "passenger"
+                    "type": "driver"
                 },
                 {
-                    "email": "<email>",
+                    "email": "<email:7>",
                     "full_name": "Snapshot Driver",
-                    "id": "<id>",
+                    "id": "<id:7>",
                     "joined_at": "<timestamp>",
-                    "joined_label": "31 Oct 2026",
+                    "joined_label": "15 Jun 2026",
                     "profile_photo": "https://replace_with_your.onrender.com/storage/profiles/profile_photo/default-profile-photo.jpg",
                     "status": "verified",
                     "type": "driver"
