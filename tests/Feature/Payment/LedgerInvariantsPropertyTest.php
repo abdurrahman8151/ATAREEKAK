@@ -3,11 +3,9 @@
 namespace Tests\Feature\Payment;
 
 use App\Models\Booking;
-use App\Models\LedgerEntry;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Services\Payment\BookingCharge;
 use App\Services\Payment\CancellationRefund;
 use App\Services\Payment\NoShowSettlement;
@@ -16,7 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
-use RuntimeException;
+use Tests\Support\Concerns\AssertsLedgerInvariants;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
@@ -44,6 +42,7 @@ use Tests\TestCase;
  */
 final class LedgerInvariantsPropertyTest extends TestCase
 {
+    use AssertsLedgerInvariants;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -118,55 +117,10 @@ final class LedgerInvariantsPropertyTest extends TestCase
         return $booking->fresh();
     }
 
-    /** 1 + 2 + 3: the ledger balances, money is conserved, escrow is a non-negative snapshot. */
-    private function assertInvariantsHold(float $moneyBefore, string $context): void
-    {
-        $ledgerSum = (float) LedgerEntry::query()->sum('amount');
-
-        $this->assertSame(
-            0.0,
-            round($ledgerSum, 2),
-            "{$context}: the signed ledger legs must sum to zero (debits equal credits), got {$ledgerSum}."
-        );
-
-        $moneyAfter = (float) Wallet::query()->sum('balance');
-
-        $this->assertSame(
-            round($moneyBefore, 2),
-            round($moneyAfter, 2),
-            "{$context}: money must be conserved - the wallet total moved from {$moneyBefore} to {$moneyAfter}."
-        );
-
-        $negativeEscrow = Booking::query()->where('escrow_held', '<', 0)->count();
-
-        $this->assertSame(0, $negativeEscrow, "{$context}: escrow_held must never be negative, {$negativeEscrow} booking(s) are.");
-    }
-
-    /** Replay the same movement and prove it raised before touching anything. */
-    private function assertReplayChangesNothing(callable $replay, string $context): void
-    {
-        $ledgerRows = LedgerEntry::query()->count();
-        $transactions = WalletTransaction::query()->count();
-        $balances = Wallet::query()->orderBy('id')->pluck('balance', 'id')->toArray();
-        $escrow = Booking::query()->orderBy('id')->pluck('escrow_held', 'id')->toArray();
-
-        try {
-            $replay();
-            $this->fail("{$context}: replaying the same movement must be refused by its posting key.");
-        } catch (RuntimeException $e) {
-            $this->assertMatchesRegularExpression(
-                '/already posted|already been applied/i',
-                $e->getMessage(),
-                "{$context}: the refusal must say the movement was already posted, got: ".$e->getMessage()
-            );
-        }
-
-        $this->assertSame($ledgerRows, LedgerEntry::query()->count(), "{$context}: the replay must not write a ledger leg.");
-        $this->assertSame($transactions, WalletTransaction::query()->count(), "{$context}: the replay must not write a transaction row.");
-        $this->assertSame($balances, Wallet::query()->orderBy('id')->pluck('balance', 'id')->toArray(), "{$context}: the replay must not move a balance.");
-        $this->assertSame($escrow, Booking::query()->orderBy('id')->pluck('escrow_held', 'id')->toArray(), "{$context}: the replay must not move escrow.");
-    }
-
+    /** 1 + 2 + 3: the ledger balances, money is conserved, escrow is a non-negative snapshot.
+     *
+     * The assertions themselves live in `AssertsLedgerInvariants`, shared with the randomized
+     * property test, so the two files cannot drift on what "the invariants" are. */
     #[DataProvider('amounts')]
     public function test_charging_a_booking_balances_the_ledger_and_parks_the_charge_in_escrow(float $price): void
     {

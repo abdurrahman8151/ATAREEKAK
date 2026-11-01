@@ -326,6 +326,7 @@ class TestDeterminismRatchetTest extends TestCase
         'tests/Support/Snapshots/StateSnapshotRepository.php' => 'Writes the committed STATE corpus under tests/Snapshots/state (stage 0.5 step 4), only when SNAPSHOT_UPDATE=1; a normal run only reads it and compares byte-for-byte.',
         'tests/Support/Snapshots/QueryBudgetStore.php' => 'Writes tests/Snapshots/query-budgets.json, only when SNAPSHOT_UPDATE=1; a normal run only reads the committed baseline.',
         'tests/Support/Concerns/AssertsApiSnapshot.php' => 'fwrite(STDERR, ...) only - prints the shrink hint for a query budget that can be lowered; it does not touch the filesystem.',
+        'tests/Support/LedgerPropertySeed.php' => 'fwrite(STDERR, ...) only - prints the randomized ledger seed and case count so a red run can be replayed; it does not touch the filesystem.',
         'tests/Feature/Review/RV22OauthCredentialRedactionTest.php' => 'The subject of the test is a log file, so it must create one: the path is '
             .'storage_path(\'logs/rv22-*.log\') — under storage/, which .gitignore excludes — '
             .'and the test unlinks it in a finally.',

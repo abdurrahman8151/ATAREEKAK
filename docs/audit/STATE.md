@@ -206,10 +206,27 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - stage 0.5 step 5 reached its terminal state: committed, verified, audit 239.5. Steps 6-8
+- (empty - stage 0.5 step 6 reached its terminal state: committed, verified, audit 239.6. Steps 7-8
   of stage 0.5 are next.)
 
 ## Done recently
+- **STAGE 0.5 step 6 - the ledger properties are randomized over 220 seeded cases and the seed is
+  printed on every run (R2 sec 239.6), tests only: NO app/ change in this step.**
+  `tests/Support/LedgerPropertySeed.php` draws four movements x 55 cases from one seed (honouring
+  `LEDGER_SEED`, otherwise random per run) with prices built in minor units - including the one-fils
+  boundaries - random seat counts and, for payout/refund, sometimes a second booking. The four
+  invariants moved into `tests/Support/Concerns/AssertsLedgerInvariants.php` and are now shared with
+  the fixed-amount anchors, so the two files cannot drift. Every assertion names
+  `seed=<n> case=<n> <movement> price=<p> seats=<n>`, so a red run is replayed exactly. Four extra
+  tests break each invariant on purpose and prove the properties can fail.
+- **The randomized layer's first run found 22 failures that were the TEST's fault, not the app's:**
+  seed `619114569` showed that a payout settles ONE booking, so the other passenger's escrow must
+  survive - an over-broad assertion that three fixture amounts had made look correct. It is now
+  pinned the right way round (target booking empty AND the other booking still positive).
+  Verification: seed `619114569` green after the fix, a fresh random seed (`583514455`) green, the
+  whole Payment directory green at seed `1`, and Payment + Review + Unit\Support green at seed
+  `20261101` (943 tests, 2 skipped) after one `FS_WRITE_ALLOWLIST` entry for the seed printer's
+  STDERR-only `fwrite()`.
 - **STAGE 0.5 step 5 - the committed-row leak guard now derives its table list from the schema
   (R2 sec 239.5), tests only: NO app/ change in this step.** `CommittedRowLeakDetector::TABLES`
   (seven hand-picked tables: the ones the RV45 pollution happened to damage) is gone; the guard now

@@ -15153,3 +15153,63 @@ seven tables the old guard watched were already clean, and the other twenty-thre
 guard component test grew a case that leaks into `notifications` (a table the old seven never
 watched) and asserts the derived list equals the schema minus the exclusion, so a future migration
 cannot quietly fall outside the guard.
+
+#### 239.6 Step 6 - the ledger properties are randomized: 220 seeded cases, and the seed is printed on every run
+
+**What was there.** `LedgerInvariantsPropertyTest` asserted the four properties (signed legs sum to
+zero, money is conserved, escrow is never negative, a replayed movement moves nothing) over FOUR
+movements at THREE hand-picked amounts - 50,000, 1,000.50 and 33.33. Twelve cases, chosen by the
+person who wrote the fix, which is exactly how a property test stops being a search.
+
+**What was added.** `tests/Support/LedgerPropertySeed.php` generates the scenario set from ONE
+integer seed for the whole run: four movements x 55 cases = **220 cases**. Each case draws its own
+price in MINOR UNITS (so every amount has exactly two decimals) from five bands that deliberately
+include the one-fils boundaries (`0.01`, `1.01`), the single-digit and hundred ranges, and the tens
+of thousands; its own seat count (1-3); and, for payout and refund, sometimes a SECOND booking on the
+ride, because a collection of one booking cannot catch a bug that only appears when the settlement
+loop runs twice.
+
+**Reproducibility is the feature, not a nicety.** `LEDGER_SEED` is honoured if set; otherwise the
+seed is drawn once per run and printed to STDERR before the first case:
+
+```
+[ledger-seed] seed=619114569 cases=220 - re-run a failure with LEDGER_SEED=619114569
+```
+
+Every assertion message carries `seed=<n> case=<index> <movement> price=<p> seats=<n>`, so a red line
+is reproducible without re-reading the failure. The four invariants themselves moved into
+`tests/Support/Concerns/AssertsLedgerInvariants.php`, used by BOTH property files, so the fixed
+anchors and the randomized search cannot drift apart on what "the invariants" are. The random
+generator is pure (no database), which is why `tests/Unit/Support/LedgerPropertySeedTest.php` can pin
+its contract without a connection: at least 200 cases, four equal movement buckets, the same seed
+reproduces the same set, a different seed does not, case names are unique and carry their amount.
+
+**What the randomized layer found on its FIRST run - and it was an assertion, not the app.** Seed
+`619114569` produced 22 failures, all of them `payout` cases with a second booking, all with the same
+message: `the movement must empty the escrow snapshot, it holds 302770.08`. The test assumed a payout
+empties the RIDE; `RidePayout::releaseEscrowToDriver()` settles ONE booking, and the second
+passenger's escrow surviving is the correct behaviour. The assertion was corrected, and the case is
+now pinned properly: after a per-booking movement the target booking's escrow is empty AND **the
+other booking's escrow must still be positive** - a property the fixed-amount test never stated. This
+is precisely the failure mode the layer exists for: three fixture amounts had made an over-broad
+claim look like a passing test.
+
+**Non-vacuity is explicit.** Four tests break each invariant on purpose (delete a ledger leg; move a
+wallet balance alone; set `escrow_held` to -1; replay with a different posting key) and assert that
+the property notices. A property layer that cannot fail is a green suite that checks nothing.
+
+**Verification.**
+
+| Run | Seed | Result |
+|---|---|---|
+| the seed that found the 22 over-broad assertions, after the fix | `619114569` | `OK (220 tests, 2526 assertions)` |
+| a fresh random seed | `583514455` | `OK (220 tests, 2534 assertions)` |
+| the whole Payment directory | `1` | `OK (271 tests, 2696 assertions)` |
+| the guard tests plus the generator unit test | `20261101` | `OK (224 tests, 2548 assertions)` |
+| Payment + Review + Unit\Support | `20261101` | `Tests: 943, Assertions: 6342, Skipped: 2` - green after one allowlist entry |
+| Review + Unit\Support after the allowlist | `20261101` | `Tests: 668, Assertions: 3621, Skipped: 2` |
+| final scoped re-run (both property files + generator tests) | `20261101` | `OK (240 tests, 3986 assertions)` |
+
+`TestDeterminismRatchetTest` flagged `LedgerPropertySeed.php` for `fwrite()` - the same STDERR-only
+pattern as `AssertsApiSnapshot`, and it is now in `FS_WRITE_ALLOWLIST` with that reason. No `app/`
+file was touched in this step.
