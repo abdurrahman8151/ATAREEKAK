@@ -206,10 +206,27 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - stage 0.5 step 6 reached its terminal state: committed, verified, audit 239.6. Steps 7-8
-  of stage 0.5 are next.)
+- (empty - stage 0.5 step 7 reached its terminal state: committed, verified, audit 239.7. Step 8
+  (order matrix + freeze the corpus) is the last one.)
 
 ## Done recently
+- **STAGE 0.5 step 7 - the refusal doors of the money and ride surface are pinned for the first time
+  (R2 sec 239.7), tests only: NO app/ change in this step.** Measured gap first: of the corpus's 153
+  responses, not one was a 403/404/409/422 on a money or ride route. `ErrorPathSnapshotTest` adds 16
+  (5 wallet, 5 ride, 3 booking, 2 admin, 1 staff), all POST/PATCH/DELETE, so all 16 also pin their
+  ROWS through `MONEY_AND_RIDE_MUTATION_CASES` - a refusal that half-wrote a booking or moved a
+  balance is now visible. Five statuses in the first draft were wrong and the app was right (409 for
+  "already have a wallet", 404 for another account's wallet request, 422 rather than 403 for a
+  foreign actor's ride cancel and booking accept/cancel); the generation run named the real status,
+  so the corpus records behaviour, not preference. The 16 new query budgets are 0-10 queries and the
+  budget diff changed no existing line.
+- **Parked from step 7: `rides/book` reports insufficient balance with the same generic 422 as an
+  authorization refusal, and bookings accept/cancel answer a foreign actor with that generic 422
+  instead of 403/404; the `errors` envelope also differs between admin, wallet-validation and
+  business refusals.** Documented by the snapshots, not changed.
+- Verification: the whole Snapshots directory read-only `OK (179 tests, 1612 assertions)`; no
+  pre-existing snapshot file modified; non-vacuity proven both ways (a tampered status fails by name,
+  a deleted state file fails by name); `pint --test` PASS on 15 files.
 - **STAGE 0.5 step 6 - the ledger properties are randomized over 220 seeded cases and the seed is
   printed on every run (R2 sec 239.6), tests only: NO app/ change in this step.**
   `tests/Support/LedgerPropertySeed.php` draws four movements x 55 cases from one seed (honouring

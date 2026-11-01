@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Only the ride creator can cancel it",
+        "status": "error"
+    },
+    "status": 422
+}

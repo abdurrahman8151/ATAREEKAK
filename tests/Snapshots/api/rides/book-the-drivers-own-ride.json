@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Drivers cannot book their own rides",
+        "success": false
+    },
+    "status": 422
+}

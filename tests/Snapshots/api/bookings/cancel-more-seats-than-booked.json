@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Cannot cancel 5 seat(s). You have 2 seat(s) booked.",
+        "status": "error"
+    },
+    "status": 422
+}

@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Not enough seats available. Requested: 5, Available: 4",
+        "success": false
+    },
+    "status": 422
+}

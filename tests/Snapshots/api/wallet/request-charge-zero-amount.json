@@ -1,0 +1,11 @@
+{
+    "json": {
+        "errors": {
+            "amount": [
+                "The amount field must be at least 1."
+            ]
+        },
+        "message": "The amount field must be at least 1."
+    },
+    "status": 422
+}

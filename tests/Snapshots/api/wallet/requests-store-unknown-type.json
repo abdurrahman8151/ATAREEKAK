@@ -1,0 +1,11 @@
+{
+    "json": {
+        "errors": {
+            "type": [
+                "The selected type is invalid."
+            ]
+        },
+        "message": "The selected type is invalid."
+    },
+    "status": 422
+}

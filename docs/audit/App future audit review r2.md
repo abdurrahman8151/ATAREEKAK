@@ -15213,3 +15213,72 @@ the property notices. A property layer that cannot fail is a green suite that ch
 `TestDeterminismRatchetTest` flagged `LedgerPropertySeed.php` for `fwrite()` - the same STDERR-only
 pattern as `AssertsApiSnapshot`, and it is now in `FS_WRITE_ALLOWLIST` with that reason. No `app/`
 file was touched in this step.
+
+#### 239.7 Step 7 - the refusal doors of the money and ride surface are pinned, and they were completely unpinned before
+
+**The gap, measured first.** Before this step the corpus held 153 responses: 123 x 200, 17 x 201, 7 x
+400 and 6 x 401. Not one 403, 404, 409 or 422 on any money or ride route - the only error statuses
+anywhere came from auth and OTP. A corpus like that documents what success looks like and leaves the
+boundary, which is precisely where a client needs to know the code, the message key and the shape of
+`errors`.
+
+**16 error-path cases, one new module** (`tests/Feature/Snapshots/ErrorPathSnapshotTest.php`), each a
+POST/PATCH/DELETE on a wallet, booking or ride route: 5 wallet, 5 ride, 3 booking, 2 admin, 1 staff.
+
+| Case | Status | Answer |
+|---|---|---|
+| `wallet/request-withdraw-more-than-balance` | 422 | `Insufficient balance. Your current balance is...` |
+| `wallet/request-charge-zero-amount` | 422 | `The amount field must be at least 1.` (`errors`) |
+| `wallet/requests-store-unknown-type` | 422 | `The selected type is invalid.` (`errors`) |
+| `wallet/create-direct-already-has-a-wallet` | **409** | `You already have a wallet.` |
+| `wallet/requests-destroy-not-the-owner` | **404** | `Request not found.` |
+| `rides/book-without-the-balance` | 422 | the generic masked message (see below) |
+| `rides/book-more-seats-than-the-ride-has` | 422 | `Not enough seats available. Requested: 5, Av...` |
+| `rides/book-the-drivers-own-ride` | 422 | `Drivers cannot book their own rides` |
+| `rides/cancel-someone-elses-trip` | **422** | `Only the ride creator can cancel it` |
+| `rides/create-departure-in-the-past` | 422 | `Departure time must be at least 5 minutes in...` |
+| `bookings/accept-someone-elses-request` | **422** | the generic masked message |
+| `bookings/cancel-someone-elses-booking` | **422** | the generic masked message |
+| `bookings/cancel-more-seats-than-booked` | 422 | `Cannot cancel 5 seat(s). You have 2 seat(s)...` |
+| `admin/wallet-charge-a-negative-amount` | 422 | `errors` + `code` + `status` |
+| `admin/passenger-charge-a-negative-amount` | 422 | `errors` + `status` |
+| `staff/bookings-cancel-a-booking-that-does-not-exist` | 404 | `Booking not found.` |
+
+The five bold statuses are where the case-writing guess was wrong and the APP was right: the first
+generation run refused to write those files and named the real status in its message, so the corpus
+records behaviour rather than preference. All 16 are POST/PATCH/DELETE, so all 16 are also in
+`MONEY_AND_RIDE_MUTATION_CASES` and pin their ROWS: the state twins prove a refusal did not write the
+booking it refused, move a balance or touch escrow.
+
+**The refusals are cheap, and that is now pinned.** The 16 new query budgets are 0, 0, 1, 1, 2, 2, 2,
+4, 4, 4, 5, 6, 6, 7, 8, 10 queries - a validation refusal refuses before doing work. The budget diff
+is 16 added lines and ZERO changed lines, so no existing case's budget moved.
+
+**Parked findings from this batch (no app change).**
+
+1. `POST /api/rides/{ride}/book` answers an INSUFFICIENT BALANCE with the same generic 422
+   `The request could not be completed. Please try again.` that an authorization refusal uses. A
+   passenger whose wallet is short cannot tell that from "you may not do this at all", and neither can
+   a client deciding whether to offer a top-up.
+2. `POST /api/bookings/{id}/accept` and `/cancel` answer a foreign actor's attempt with the same
+   generic 422 instead of 403/404, so an authorization failure is reported as a validation failure.
+   Leaking less about another user's booking is defensible; reporting it as "try again" is not,
+   because retrying cannot succeed.
+3. The error `errors` envelope is not uniform: admin routes answer `{code, errors, status}`, wallet
+   validation answers `{errors, message}`, wallet business refusals answer
+   `{message, status, success}`, and booking/ride refusals answer `{message, success}`. Documented by
+   the snapshots rather than changed.
+
+**Verification.**
+
+| Check | Result |
+|---|---|
+| generation run (SNAPSHOT_UPDATE=1) | 16 cases; 5 statuses corrected to the app's own, then `OK (16 tests, 32 assertions)` |
+| read-only comparison of the WHOLE corpus (`tests/Feature/Snapshots`, 163 + 16 cases + the coverage and emptiness guards) | `OK (179 tests, 1612 assertions)` |
+| the module alone after the non-vacuity proof was undone and the files restored | `OK (16 tests, 112 assertions)` |
+| `git status` on `tests/Snapshots/api` and `tests/Snapshots/state` | no pre-existing snapshot modified; 16 + 16 new files |
+| non-vacuity: tampered status in `rides/book-without-the-balance` | `Snapshot 'rides/book-without-the-balance': HTTP status changed from the committed 200 to 422` |
+| non-vacuity: deleted `tests/Snapshots/state/wallet/request-charge-zero-amount.json` | `No committed state snapshot for 'wallet/request-charge-zero-amount'` |
+| `pint --test tests/Feature/Snapshots` | PASS on 15 files |
+
+No `app/` file was touched in this step.

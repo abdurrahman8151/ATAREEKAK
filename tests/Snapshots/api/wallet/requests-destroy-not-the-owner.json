@@ -1,0 +1,8 @@
+{
+    "json": {
+        "message": "Request not found.",
+        "status": "error",
+        "success": false
+    },
+    "status": 404
+}

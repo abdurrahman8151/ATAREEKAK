@@ -1,0 +1,12 @@
+{
+    "json": {
+        "code": "VALIDATION_FAILED",
+        "errors": {
+            "amount": [
+                "The amount field must be at least 1."
+            ]
+        },
+        "status": "error"
+    },
+    "status": 422
+}

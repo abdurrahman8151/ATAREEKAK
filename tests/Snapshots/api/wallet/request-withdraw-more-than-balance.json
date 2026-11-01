@@ -1,0 +1,8 @@
+{
+    "json": {
+        "message": "Insufficient balance. Your current balance is 1062500.00 SYP.",
+        "status": "error",
+        "success": false
+    },
+    "status": 422
+}

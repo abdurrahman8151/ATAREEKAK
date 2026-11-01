@@ -1,0 +1,11 @@
+{
+    "json": {
+        "errors": {
+            "departure_time": [
+                "Departure time must be at least 5 minutes in the future"
+            ]
+        },
+        "message": "Departure time must be at least 5 minutes in the future"
+    },
+    "status": 422
+}

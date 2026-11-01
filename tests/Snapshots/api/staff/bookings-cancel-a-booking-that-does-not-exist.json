@@ -1,0 +1,7 @@
+{
+    "json": {
+        "message": "Booking not found.",
+        "status": "error"
+    },
+    "status": 404
+}
