@@ -125,9 +125,9 @@ class SnapshotEmptinessTest extends TestCase
     }
 
     /**
-     * `admin/routes-popular` sorts by ONE key - `trip_count` - with no tiebreaker
-     * (`AdminTripService::getPopularRoutes()`), so two destinations with the same count come back in
-     * whatever order MySQL's grouping produces.
+     * `admin/routes-popular` sorted by ONE key - `trip_count` - with no tiebreaker when this guard
+     * was written (`AdminTripService::getPopularRoutes()`), so two destinations with the same count
+     * came back in whatever order MySQL's grouping produced.
      *
      * Step 8's order matrix proved it: with Homs, Latakia and Hama at one trip each, four execution
      * orders answered Hama/Latakia/Homs and the reversed order answered Homs first. The fixture now
@@ -136,8 +136,10 @@ class SnapshotEmptinessTest extends TestCase
      *
      * This test is the guard on that fixture invariant: if a future edit reintroduces a tie, the
      * snapshot becomes arbitrary again, and this fails at the point of regeneration instead of as an
-     * intermittent, unreproducible red in someone else's run. The real fix is a tiebreaker in the
-     * service; it is parked because app/ is frozen in this batch.
+     * intermittent, unreproducible red in someone else's run. The app-side fix landed afterwards
+     * (stage 0.6 item 3: `trip_count DESC, destination ASC`), and the tie path is pinned against the
+     * app by `tests/Feature/Review/AdminPopularRoutesTieBreakTest.php`; the fixture keeps distinct
+     * counts because the committed snapshot is frozen.
      */
     #[Test]
     public function the_popular_routes_snapshot_can_actually_pin_its_ordering(): void

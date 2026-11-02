@@ -15517,3 +15517,46 @@ state file moved.
 Verification: `tests/Feature/Snapshots` + the new value test -> `OK (188 tests, 2080 assertions)`; the
 item-2 area floor (`tests/Feature/Review`, `tests/Feature/Rides`, `tests/Unit/Models`) ->
 `Tests: 912, Assertions: 2712, Skipped: 2`, exit 0, no failures.
+#### 240.3 Item 3 - `AdminTripService::getPopularRoutes()` gets a deterministic tiebreaker, and the tie path gets a test the frozen snapshot cannot provide
+
+**The finding (carried from stage 0.5 step 8).** `GET /api/admin/routes/popular` grouped by
+`(pickup_address, destination_address)` and sorted by exactly one key, `trip_count`. Two destinations
+with the same count were therefore returned in whatever order MySQL's grouping happened to produce:
+the step-8 order matrix answered `Hama/Latakia/Homs` in four execution orders and `Homs`-first in the
+fifth. The committed snapshot only stopped flapping because the fixture was changed to give the three
+live trips DISTINCT counts (Aleppo 4, Latakia 2, Homs 1), with a DB-free guard
+(`SnapshotEmptinessTest::the_popular_routes_snapshot_can_actually_pin_its_ordering`) that fails at
+regeneration time if a tie ever comes back.
+
+**The fix** is one line: `->orderBy('rides.destination_address')` after `->orderByDesc('trip_count')`.
+`destination_address` is a grouping column, so ordering by it is stable, and it only ever decides
+ties - the primary ranking is untouched.
+
+**The frozen snapshot did not move.** Ordering by a second key cannot reorder rows that differ on the
+first key, and the fixture has no ties, so `admin/routes-popular.json` is byte-identical;
+`git status --short tests/Snapshots` is empty after the change. Re-verified before the commit.
+
+**Why the corpus cannot protect this, and what does.** The fixture guard exists precisely to make the
+corpus tie-free, so no committed snapshot can ever exercise the tie path - that is what a
+characterization test is for. `tests/Feature/Review/AdminPopularRoutesTieBreakTest.php` builds one
+clear leader (Aleppo, twice) and a THREE-way tie at one trip each (Hama, Homs, Latakia), then asserts
+the response order is `Aleppo, Hama, Homs, Latakia` with counts `2, 1, 1, 1`, and that two identical
+requests answer identical documents.
+
+**Non-vacuity, proven by a wrong fix.** A tiebreaker test can look green by luck (that was the whole
+bug), so the test was checked against a deliberately WRONG tiebreaker: flipping it to
+`orderByDesc('rides.destination_address')` turned it red (`Failed asserting that two arrays are
+identical`, `Tests: 1, Failures: 1`), and restoring the ascending order turned it green again
+(`OK (1 test, 5 assertions)`). The test therefore constrains the tiebreaker's direction, not MySQL's
+mood.
+
+**Stale comments corrected (documentation only, no assertion touched).** Two fixtures still claimed
+this work was "parked because app/ is frozen": the `$liveTrips` comment in
+`tests/Feature/Snapshots/ApiSnapshotTestCase.php` and the guard's docblock in
+`SnapshotEmptinessTest.php`. Both now state that the app-side tiebreaker landed and that the tie path
+is pinned by the Review test; the same file's comment about the score reference defect (item 2) was
+corrected at the same time, since it also described a parked defect that is now fixed.
+
+Verification: `tests/Feature/Review/AdminPopularRoutesTieBreakTest.php` + `tests/Feature/Admin` ->
+`OK (123 tests, 270 assertions)`, and `tests/Feature/Snapshots` -> `OK (188 tests, 2080 assertions)`
+after the comment edits.

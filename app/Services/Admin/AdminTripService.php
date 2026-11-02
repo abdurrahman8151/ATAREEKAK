@@ -172,6 +172,13 @@ final class AdminTripService
             ->whereNotIn('rides.status', ['cancelled'])
             ->groupBy('rides.pickup_address', 'rides.destination_address')
             ->orderByDesc('trip_count')
+            // A tiebreaker, and not a cosmetic one: trip_count alone left two destinations with the
+            // same count in whatever order MySQL's grouping happened to produce. Stage 0.5's order
+            // matrix caught it (the snapshot answered Hama/Latakia/Homs in four execution orders and
+            // Homs-first in the fifth). destination_address is a grouping column, so ordering by it
+            // is stable and deterministic. It only ever decides ties: the committed
+            // `admin/routes-popular` snapshot did not change when this was added.
+            ->orderBy('rides.destination_address')
             ->limit($limit)
             ->get();
         $maxCount = $rows->max('trip_count') ?: 1;

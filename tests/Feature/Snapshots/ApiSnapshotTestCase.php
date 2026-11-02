@@ -419,21 +419,26 @@ abstract class ApiSnapshotTestCase extends TestCase
         // ledger all agree with what the app would have written.
         //
         // THE DESTINATIONS ARE NOT DECORATION. `GET /api/admin/routes/popular` groups by
-        // (pickup_address, destination_address) and sorts by ONE key: `trip_count` (COUNT(*) of
-        // non-cancelled rides), with no tiebreaker. Two destinations with equal trip_count are
-        // therefore returned in whatever order MySQL's grouping happens to produce. Step 8's order
-        // matrix caught exactly that: with Homs, Latakia and Hama at one trip each the endpoint
-        // answered Hama/Latakia/Homs in four orders and Homs-first in the fifth, so the snapshot
-        // could not be green twice in a row. Step 3 had tried to break the tie with a second
-        // PASSENGER on Homs, which does not work - `total_passengers` is not a sort key, only
-        // displayed.
+        // (pickup_address, destination_address) and sorted by ONE key - `trip_count` (COUNT(*) of
+        // non-cancelled rides) - with no tiebreaker when this fixture was written. Two destinations
+        // with equal trip_count were therefore returned in whatever order MySQL's grouping happened
+        // to produce. Step 8's order matrix caught exactly that: with Homs, Latakia and Hama at one
+        // trip each the endpoint answered Hama/Latakia/Homs in four orders and Homs-first in the
+        // fifth, so the snapshot could not be green twice in a row. Step 3 had tried to break the tie
+        // with a second PASSENGER on Homs, which does not work - `total_passengers` is not a sort
+        // key, only displayed.
         //
         // The two Aleppo search rides plus the standard ride keep Damascus -> Aleppo at four, so
         // the three live trips must contribute THREE DIFFERENT counts: Latakia twice and Homs once
         // (4 / 2 / 1). `SnapshotEmptinessTest::test_the_popular_routes_snapshot_can_actually_pin_its_ordering`
         // fails the moment a fixture change reintroduces a tie, which is what turns this from an
-        // intermittent flake into a deterministic red. The real fix is a tiebreaker in
-        // `AdminTripService::getPopularRoutes()` - parked for the owner, app/ is frozen in this batch.
+        // intermittent flake into a deterministic red.
+        //
+        // The app-side tiebreaker landed later (stage 0.6 item 3): `getPopularRoutes()` now sorts
+        // `trip_count DESC, destination ASC`. The fixture still keeps distinct counts because the
+        // committed `admin/routes-popular` snapshot is FROZEN - rewriting it would buy nothing - and
+        // the tie path itself is pinned against the APP, not the fixture, by
+        // `tests/Feature/Review/AdminPopularRoutesTieBreakTest.php`.
         $liveTrips = [
             ['destination' => 'Homs', 'minutes_ago' => 45, 'driver' => $this->driver, 'passenger' => $this->passenger],
             ['destination' => 'Latakia', 'minutes_ago' => 70, 'driver' => $this->secondDriver, 'passenger' => $this->otherPassenger],
@@ -500,17 +505,21 @@ abstract class ApiSnapshotTestCase extends TestCase
         // populated. The action strings must be valid `ScoreAction` cases - the resource casts with
         // `ScoreAction::from()`, so an action the enum does not know is a 500, not an empty list.
         //
-        // The references stay NULL deliberately, and the reason is a REAL DEFECT this fixture found
-        // (parked for the owner, app/ is frozen): `ScoreTransactionResource::formatRide()` reads
-        // `$ride->origin` / `$ride->destination`, which the Ride model does not have (it has
-        // `pickup_address` / `destination_address`) and `Model::preventAccessingMissingAttributes()`
-        // is on, so ANY score row that references a Ride throws MissingAttributeException and the
-        // endpoint answers 500. `ScoreLedger::resolveReference()` writes exactly those references
-        // for ride and booking events, so the branch is reachable in production. Referencing a
-        // Booking is no better: `formatBooking()` reads `$booking->ride->origin` too. Seeding a
-        // reference here would bake a 500 into the committed corpus, so the reference shape is left
-        // for the owner's fix and the three rows pin the populated list, the points/score blocks and
-        // the nullable reference instead.
+        // The references stay NULL in THIS fixture, and the reason was a REAL DEFECT it found:
+        // `ScoreTransactionResource::formatRide()` read `$ride->origin` / `$ride->destination`,
+        // which the Ride model does not have (it has `pickup_address` / `destination_address`) and
+        // `Model::preventAccessingMissingAttributes()` is on, so ANY score row that references a
+        // Ride threw MissingAttributeException and the endpoint answered 500.
+        // `ScoreLedger::resolveReference()` writes exactly those references for ride and booking
+        // events, so the branch is reachable in production. Referencing a Booking was no better:
+        // `formatBooking()` read `$booking->ride->origin` too.
+        //
+        // That is FIXED (stage 0.6 item 2), and the populated path now has its own case -
+        // `score/transactions-with-ride-and-booking-references`, seeded through the real score
+        // service, with a score state twin and value assertions in
+        // `tests/Feature/Review/ScoreTransactionReferenceValuesTest.php`. These three rows
+        // deliberately keep NULL references: they are the nullable-reference shape, and their
+        // snapshot is FROZEN, so changing them would rewrite `score/transactions` for nothing.
         foreach ([
             ['action' => 'ride_completed', 'points' => 10, 'previous' => 70, 'new' => 80, 'reason' => 'Completed a trip'],
             ['action' => 'passenger_cancel_early', 'points' => 0, 'previous' => 80, 'new' => 80, 'reason' => 'Cancelled a booking in good time'],
