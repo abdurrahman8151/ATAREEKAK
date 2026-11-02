@@ -15695,3 +15695,62 @@ Verification: no file outside this audit section changed (`git status --short` b
 only the owner's pre-existing modifications). Every number above was produced by reading the working
 tree at this commit: the corpus survey used the committed JSON, the ledger counts used
 `tests/Snapshots/state/**`, and the call-site counts used `git grep`-equivalent scans of `app/`.
+
+#### 240.5 Item 5 (final) - the full default-order suite once, then the five-order matrix: all green, 475 tests in every order, 0 leftover rows after every run
+
+**Part 1: the full suite, default order, once.** `php vendor/bin/phpunit --no-coverage` over the
+whole `tests/` tree, wall clock 1004 s:
+
+| Check | Result |
+|---|---|
+| full default-order run | `Tests: 3040, Assertions: 13026, Skipped: 2.` - exit 0, no failures, no errors |
+| leftovers after it (`C:\temp\s05\leftover-rows.php`, all 30 guarded tables) | `LEFTOVER ROWS: clean - 0 rows in all 30 guarded tables` |
+| corpus after it | `git status --short tests/Snapshots` empty - not one snapshot moved |
+
+The two skips are the pre-existing pair carried through every run of this batch (the same count the
+item-1 and item-2 area floors reported).
+
+**Part 2: the five-order matrix.** The same selection as step 8 - the whole snapshot corpus, the money
+suite and the snapshot support unit tests - run five times, each in a different execution order, with a
+leftover-row probe after EVERY run. `C:\temp\s05\matrix.ps1`, results in `matrix-summary.txt`:
+
+| Run | Order | Seconds | Result | Leftover rows |
+|---|---|---|---|---|
+| 1 | `--order-by=default` | 355 | `OK (475 tests, 6145 assertions)` | clean (30 tables) |
+| 2 | `--order-by=reverse` | 359 | `OK (475 tests, 6148 assertions)` | clean |
+| 3 | `--order-by=random --random-order-seed=1` | 354 | `OK (475 tests, 6146 assertions)` | clean |
+| 4 | `--order-by=random --random-order-seed=20261101` | 361 | `OK (475 tests, 6156 assertions)` | clean |
+| 5 | `--order-by=random --random-order-seed=999983` | 383 | `OK (475 tests, 6152 assertions)` | clean |
+
+The test COUNT is identical in all five (475) - every case was executed in every order and every
+snapshot compared byte-for-byte, which is what "the corpus does not depend on what ran before it"
+means. The assertion counts differ slightly for the documented reason from step 8: the randomized
+ledger property test draws a fresh seed each run (`LEDGER_SEED` 578602818, 146053438, 991806069,
+156117181, 806324074), 220 randomized cases per run, so the matrix also executed **1,100 fresh
+randomized money cases**, all green.
+
+**The reverse order is the headline.** In step 8 this exact run was the one that FAILED:
+`admin/routes-popular` answered tied destinations in an arbitrary order. It is green now for two
+independent reasons, and both are recorded above: the fixture gives every destination a distinct
+`trip_count` (step 8, tests only) and `AdminTripService::getPopularRoutes()` has a real tiebreaker
+(item 3, app side), with the tie path itself pinned by a test the frozen corpus cannot provide.
+
+**Corpus after the matrix:** `git status --short tests/Snapshots` is empty, so 475 green tests in five
+orders wrote nothing - the corpus stays frozen by `MANIFEST.json` (213 files: 169 response + 41 state +
+`query-budgets.json` + `route-inventory.json`; the item-2 case added one of each).
+
+**The batch, in five commits.**
+
+| Item | Commit | What it did |
+|---|---|---|
+| 1 | `baaa803` | batched the three REAL per-row lookups (`chat/messages-index` 10 -> 8, `admin/drivers` 15 -> 9, `admin/passenger-full-profile` 22 -> 20, plus `staff/chat-messages` 14 -> 13 free); two of the nine were already batched; the four ride-list signatures are a `RideBuilder` fixture artefact and are PARKED (240.1) |
+| 2 | `fecea4e` | `GET /api/score/transactions` no longer 500s on a Ride or Booking reference (two wrong attribute names), plus a populated-path snapshot case, a score state twin and a value test (240.2) |
+| 3 | `f17d87b` | deterministic tiebreaker `trip_count DESC, destination ASC`, pinned by a tie-path test (240.3) |
+| 4 | `5ddc71e` | the five parked findings with re-measured evidence and one question each (240.4) |
+| 5 | this commit | full default-order suite + five-order matrix + this record |
+
+**Freeze compliance, for the whole batch:** response snapshots are byte-identical everywhere except
+the two files item 2 was allowed to add; the only changed corpus file is `query-budgets.json` (three
+budgets lowered in item 1, one added in item 2); `MANIFEST.json` was refreshed twice with
+`scripts/refresh-snapshot-manifest.php` in the same commits, ending at 213 files. Nothing was pushed;
+branch `Agentic` only.

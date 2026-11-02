@@ -206,22 +206,78 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- STAGE 0.6 (owner's new goal, five items, one commit each): (1) eager-load the 9 N+1 routes and
-  re-record their budgets DOWN; (2) fix the `GET /api/score/transactions` 500 for score rows that
-  reference a Ride or Booking, add a populated-path snapshot case + state coverage; (3) deterministic
-  tiebreaker in `AdminTripService::getPopularRoutes()`; (4) PARK four items with questions for the
-  owner (no code change); (5) the full default-order suite, then the five-order matrix.
-  Files expected to change: `app/Repositories/RideRepository.php`, `app/Services/Ride/RideSearchService.php`,
-  the other N+1 handlers (Chat/Admin/PassengerProfile), `app/Services/Admin/AdminTripService.php`,
-  `app/Http/Resources/ScoreTransactionResource.php`, `tests/Snapshots/query-budgets.json`,
-  `tests/Snapshots/MANIFEST.json`, one new snapshot case (+ its state file), the audit and this file.
-  Snapshot freeze: response snapshots must stay byte-identical; only budgets, NEW case files and the
-  refreshed manifest may change.
-  Temporary probe (DELETED before the item-1 commit, proven with `git status`):
-  `tests/Feature/Snapshots/NPlusOneProbeTest.php` (dumps the query log for the 9 cases; never records
-  a snapshot or a budget). Scratch outside the repo: `C:\temp\s05\`.
+- (empty - no task is mid-flight. STAGE 0.6 is COMPLETE: five items, five commits, `R2 sec 240.1`-`240.5`.)
 
-## Done recently
+## Owner decisions needed - stage 0.6 parked five findings, full evidence in `R2 sec 240.4`
+1. **A refusal is reported as a validation failure (422 instead of 403/404).** `bookings/accept-someone-elses-request`,
+   `bookings/cancel-someone-elses-booking` and `rides/cancel-someone-elses-trip` answer 422 `{message, success}`
+   for a foreign row, and an insufficient wallet balance answers the same generic 422 "The request could not be
+   completed. Please try again." an authorization refusal uses. **Question: 403 or 404 for a foreign
+   booking/ride, and may the balance refusal keep 422 with a balance-specific message?** Both change frozen
+   response snapshots.
+2. **The error envelope has ELEVEN shapes across the 28 committed error responses** (measured: `message+success`
+   x13, `code+message+status` x6, `errors+message` x3, and eight more combinations; `success` is on some refusals
+   and not others). **Question: one envelope for every non-2xx (which?), or is the per-surface shape deliberate?
+   Unifying it rewrites essentially every error snapshot, so it needs a freeze exemption.**
+3. **`POST /api/profile` hides the caller's OWN documents.** `ProfileController::profileUpdateResponse()` calls
+   `formatProfileData()` without `$isOwner`, so the default `false` applies; the caller of that route is always
+   the profile's owner, and the world gives them four documents. `profile/update.json` answers
+   `"documents": []` while `GET /api/profile/{ownId}` would show them. **Question: should the update response
+   carry them (one-line fix, one snapshot changes), or is the POST deliberately minimal?**
+4. **`ledger_entries.wallet_transaction_id` - the earlier record was WRONG.** It IS written by
+   `LedgerService` and read back at `LedgerService:185`; what is true is that only ONE path passes a
+   transaction (`AdminWalletCharger`), while all 11 `postTransfer()` sites do not, so 601 of the 603 committed
+   ledger legs are untraceable to their `wallet_transactions` row. **Question: is each converted money path
+   meant to pass its `wallet_transaction_id` until the column is a real FK everywhere (its own batch, with a
+   freeze exemption for the state corpus), or is the admin-credit path the only one that needs it?**
+5. **The four ride-list "N+1" budgets are a `RideBuilder` fixture artefact** (`rides/index` 15,
+   `rides/search-get` 10, `rides/search-post` 10, `admin/trips-live` 16 - all `ST_AsText` fallbacks because the
+   fixture writes raw geometry without scalar lat/lng). Writing the scalars in the fixture drops them to
+   5 / 4 / 4 / 10 but changes four frozen response bodies (`"destination_lat": null` -> `"36.20210000"`).
+   **Question: (a) fix the fixture with a freeze exemption for those four files, (b) hide the scalar columns
+   from the API (response-shape change, fallback stays), or (c) keep the budgets and leave it documented?**
+Carried from `R2 sec 239.3`, still open: (a) `admin/dashboard.recent_activities[].date` changes TYPE with
+recency (string vs `{human, raw}`) - normalise to the object, exempt from the freeze? (b)
+`staff/chat-messages...created_at_iso` lost its `+03:00` because the ISO string is masked as `<timestamp>` -
+accept the mask or keep the offset?
+
+## Done recently (STAGE 0.6, newest first)
+- **Item 5 (`R2 sec 240.5`, docs only): the full default-order suite ONCE and the five-order matrix, both
+  green.** Full suite `Tests: 3040, Assertions: 13026, Skipped: 2`, exit 0, 1004 s, 0 leftover rows in all 30
+  guarded tables, corpus unchanged. Matrix (the corpus + the money suite + the snapshot support units, the
+  step-8 selection) 475 tests in five orders - `default` 6145, `reverse` 6148, `random-1` 6146,
+  `random-20261101` 6156, `random-999983` 6152 assertions - all exit 0, 0 leftover rows after EVERY run, and
+  five distinct `LEDGER_SEED`s (578602818 / 146053438 / 991806069 / 156117181 / 806324074) = 1,100 fresh
+  randomized money cases. **`--order-by=reverse` was the RED order in step 8; it is green now** (the fixture
+  fix from step 8 plus the real tiebreaker from item 3).
+- **Item 4 (`5ddc71e`, `R2 sec 240.4`, docs only): the five parked findings re-measured with a question for the
+  owner each** - see "Owner decisions needed" above. The 422-vs-403/404 list, the eleven envelope shapes, the
+  `isOwner` omission and the 601-of-603 ledger legs are all counted from the current tree, not quoted.
+- **Item 3 (`f17d87b`, `R2 sec 240.3`): `AdminTripService::getPopularRoutes()` now sorts `trip_count DESC, then
+  destination ASC`.** The frozen `admin/routes-popular` snapshot did NOT move (a second key cannot reorder rows
+  that differ on the first, and the fixture has no ties). The tie path is pinned by
+  `tests/Feature/Review/AdminPopularRoutesTieBreakTest.php`, because the fixture guard deliberately keeps the
+  corpus tie-free - and the test was proven non-vacuous by flipping the tiebreaker to DESC and watching it go
+  red. Two stale "parked" comments corrected in `ApiSnapshotTestCase` / `SnapshotEmptinessTest`.
+- **Item 2 (`fecea4e`, `R2 sec 240.2`): `GET /api/score/transactions` no longer 500s** on a score row that
+  references a Ride or a Booking. `ScoreTransactionResource::formatRide()`/`formatBooking()` read
+  `$ride->origin` / `$destination`, which the Ride model does not have (`pickup_address` /
+  `destination_address`) and `preventAccessingMissingAttributes` is armed, so the read threw - invisible until
+  now because no world score row carried a reference. Fixed to the real attribute names (JSON keys unchanged);
+  new case `score/transactions-with-ride-and-booking-references` (seeded through the real score service, one
+  Ride and one Booking reference) + its score state twin (`'state' => 'score'`, a new value on the harness's
+  existing knob) + `tests/Feature/Review/ScoreTransactionReferenceValuesTest.php`, which asserts the VALUES the
+  snapshot cannot (the normaliser aliases every scalar under `reference` to `<id:N>`). Regeneration wrote ONLY
+  the two new files and `query-budgets.json`; manifest refreshed to 213 files.
+- **Item 1 (`baaa803`, `R2 sec 240.1`): three of the nine "N+1 routes" were real and are batched** -
+  `chat/messages-index` 10 -> 8 (`sender.profile`), `admin/drivers` 15 -> 9 (`withAvg` + one correlated
+  `latest_communication_number` subquery, per-row `transform()` deleted), `admin/passenger-full-profile`
+  22 -> 20 (`buildWalletCharges` reuses the user + wallet the controller already loaded), plus
+  `staff/chat-messages` 14 -> 13 free. `admin/dashboard-recent` (9) and `admin/passenger-wallet-charges` (11)
+  were already batched - no N+1. The four ride-list signatures are the `RideBuilder` fixture artefact now
+  parked as decision 5. Budgets re-recorded DOWN for the three (the store is shrink-only).
+
+## Done recently (STAGE 0.5, older)
 - **STAGE 0.5 step 8 (final) - the order matrix found a real order dependence, and the corpus is now
   frozen by a manifest (R2 sec 239.8), tests only: NO app/ change in this step.** The same 474 tests
   (the whole corpus + the money suite + the snapshot support units) ran in five orders with a
