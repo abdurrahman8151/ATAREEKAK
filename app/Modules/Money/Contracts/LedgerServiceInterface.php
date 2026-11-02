@@ -11,7 +11,7 @@ use App\Models\WalletTransaction;
  *
  * CONSOLE credits and withdraws against the External Capital wallet; MONEY owns the double-entry
  * legs. Before this port `AdminWalletRequestController` and `AdminWalletCharger` type-hinted
- * `App\Services\Payment\LedgerService` directly. Only the external-transfer entry point is on the
+ * `App\Modules\Money\Services\LedgerService` directly. Only the external-transfer entry point is on the
  * port, because that is the only one those callers use - the rest of the ledger stays MONEY-internal.
  */
 interface LedgerServiceInterface

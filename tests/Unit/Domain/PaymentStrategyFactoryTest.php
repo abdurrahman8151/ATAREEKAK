@@ -2,10 +2,10 @@
 
 namespace Tests\Unit\Domain;
 
-use App\Domain\Payment\Strategies\CashPaymentStrategy;
-use App\Domain\Payment\Strategies\EPayPaymentStrategy;
-use App\Domain\Payment\Strategies\PaymentStrategyFactory;
 use App\Enums\PaymentMethod;
+use App\Modules\Money\Domain\Strategies\CashPaymentStrategy;
+use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
+use App\Modules\Money\Domain\Strategies\PaymentStrategyFactory;
 use InvalidArgumentException;
 use Tests\TestCase;
 

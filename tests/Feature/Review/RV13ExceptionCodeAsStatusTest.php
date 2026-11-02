@@ -8,7 +8,7 @@ use App\Exceptions\Domain\DomainException;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
-use App\Services\Wallet\WalletRequestService;
+use App\Modules\Money\Services\WalletRequestService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -46,7 +46,7 @@ class RV13ExceptionCodeAsStatusTest extends TestCase
     {
         $offenders = [];
 
-        foreach ($this->phpFilesIn(app_path('Http/Controllers')) as $file) {
+        foreach ($this->controllerFiles() as $file) {
             foreach (explode("\n", (string) file_get_contents($file)) as $number => $line) {
                 if ($this->isOffendingLine($line)) {
                     $offenders[] = $this->relative($file).':'.($number + 1);
@@ -158,7 +158,7 @@ class RV13ExceptionCodeAsStatusTest extends TestCase
      */
     public function every_domain_status_this_service_can_produce_is_a_real_http_status(): void
     {
-        $source = (string) file_get_contents(app_path('Services/Wallet/WalletRequestService.php'));
+        $source = (string) file_get_contents(app_path('Modules/Money/Services/WalletRequestService.php'));
 
         preg_match_all('/throw new (\w+)\(/', $source, $matches);
         $classes = array_values(array_unique($matches[1]));
@@ -200,7 +200,7 @@ class RV13ExceptionCodeAsStatusTest extends TestCase
      */
     public function the_service_no_longer_throws_the_spl_domain_exception(): void
     {
-        $source = (string) file_get_contents(app_path('Services/Wallet/WalletRequestService.php'));
+        $source = (string) file_get_contents(app_path('Modules/Money/Services/WalletRequestService.php'));
 
         foreach (explode("\n", $source) as $number => $line) {
             if ($this->isCommentOrBlank($line)) {
@@ -262,6 +262,29 @@ class RV13ExceptionCodeAsStatusTest extends TestCase
     }
 
     /** @return list<string> */
+    /**
+     * Every controller file, kernel and module alike: `app/Http/Controllers` plus each module's
+     * `Http/Controllers` (stage 1 phase 2). The same files the ratchet used to read, at their new
+     * locations - reading only the kernel directory would silently shrink the sweep as modules move.
+     *
+     * @return list<string>
+     */
+    private function controllerFiles(): array
+    {
+        $roots = array_merge(
+            [app_path('Http/Controllers')],
+            glob(app_path('Modules/*/Http/Controllers'), GLOB_ONLYDIR) ?: []
+        );
+
+        $files = [];
+
+        foreach ($roots as $root) {
+            $files = array_merge($files, $this->phpFilesIn($root));
+        }
+
+        return $files;
+    }
+
     private function phpFilesIn(string $directory): array
     {
         if (! is_dir($directory)) {

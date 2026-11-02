@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Payment;
+namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
@@ -9,8 +9,6 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\RidePayoutInterface;
-use App\Support\FeeSplit;
-use App\Support\PostingKey;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,7 +41,7 @@ class RidePayout implements RidePayoutInterface
         // RV-19: one definition of the 95/5 split. This used to round each share independently,
         // which produced legs summing to one cent MORE than the escrow debit for any total ending
         // in an odd tenth (1000.50 -> 950.48 + 50.03 = 1000.51), so postTransfer() refused the
-        // transfer and the ride could never complete. See App\Support\FeeSplit.
+        // transfer and the ride could never complete. See App\Modules\Money\Services\FeeSplit.
         ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);
 
         [$syCashWallet, $primaryWallet, $driverWallet] = $this->lockPayoutWallets($ride->driver_id);

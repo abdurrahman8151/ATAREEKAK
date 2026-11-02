@@ -9,7 +9,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserNotification;
 use App\Models\Wallet;
-use App\Services\Payment\BookingCharge;
+use App\Modules\Money\Services\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Str;

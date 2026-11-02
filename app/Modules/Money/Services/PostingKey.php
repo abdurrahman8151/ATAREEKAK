@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support;
+namespace App\Modules\Money\Services;
 
 use App\Models\WalletTransaction;
 use RuntimeException;

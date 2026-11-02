@@ -8,13 +8,13 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Payment\CashRideFeeService;
+use App\Modules\Money\Services\CashRideFeeService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * @covers \App\Services\Payment\CashRideFeeService
+ * @covers \App\Modules\Money\Services\CashRideFeeService
  */
 class CashRideFeeServiceTest extends TestCase
 {

@@ -2,18 +2,18 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Domain\Payment\Strategies\PaymentStrategy;
 use App\Enums\PaymentMethod;
+use App\Modules\Money\Domain\Strategies\PaymentStrategy;
 
 /**
  * Port over the payment-strategy selector (batch 233).
  *
  * RIDE decides which payment method a ride uses; MONEY owns the strategies that execute it.
  * Before this port `BookingService` and `BookingCompletionService` type-hinted
- * `App\Domain\Payment\Strategies\PaymentStrategyFactory` directly.
+ * `App\Modules\Money\Domain\Strategies\PaymentStrategyFactory` directly.
  *
  * `make()` deliberately declares NO return type here: the concrete return is
- * `App\Domain\Payment\Strategies\PaymentStrategy`, and naming that in the shared kernel would
+ * `App\Modules\Money\Domain\Strategies\PaymentStrategy`, and naming that in the shared kernel would
  * make the kernel depend on the MONEY context. An interface method may omit the return type and
  * the implementation may narrow it (PHP return-type covariance), so this stays a one-way
  * dependency: RIDE -> App\Interfaces -> App\Services\Payment. Callers receive the identical

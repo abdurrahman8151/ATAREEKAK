@@ -5,7 +5,7 @@ namespace Tests\Feature\Review;
 use App\Domain\ValueObjects\Money;
 use App\Models\LedgerEntry;
 use App\Models\Wallet;
-use App\Services\Payment\LedgerService;
+use App\Modules\Money\Services\LedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\TestCase;
@@ -47,9 +47,9 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
      * @var array<int, string>
      */
     private const CONVERTED = [
-        'app/Services/Payment/LedgerService.php',
-        'app/Services/Payment/CashRideFeeRefundService.php',
-        'app/Services/Payment/RidePayout.php',
+        'app/Modules/Money/Services/LedgerService.php',
+        'app/Modules/Money/Services/CashRideFeeRefundService.php',
+        'app/Modules/Money/Services/RidePayout.php',
         'app/Services/Admin/AdminDriverPresenter.php',
         'app/Services/Profile/PassengerProfilePanelBuilder.php',
         'app/Console/Commands/BackfillBookingMoneySnapshot.php',
@@ -69,9 +69,9 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     private const CONVERTED_HOMES = [
         'app/Services/Admin/AdminDashboardActivityService.php',
         'app/Services/Admin/AdminDriverDashboardService.php',
-        'app/Services/Payment/PassengerWalletCharger.php',
-        'app/Services/Payment/CashRideFeeService.php',
-        'app/Services/Payment/CashRideDebtClearanceService.php',
+        'app/Modules/Money/Services/PassengerWalletCharger.php',
+        'app/Modules/Money/Services/CashRideFeeService.php',
+        'app/Modules/Money/Services/CashRideDebtClearanceService.php',
         'app/Console/Testing/Testfullrideflow.php',
     ];
 
@@ -146,7 +146,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
     {
         $this->assertStringContainsString(
             'round($elapsedPct, 2)',
-            file_get_contents(base_path('app/Services/Payment/CashRideFeeRefundService.php')),
+            file_get_contents(base_path('app/Modules/Money/Services/CashRideFeeRefundService.php')),
             'a PERCENTAGE is not money and is still rounded for the log payload'
         );
 

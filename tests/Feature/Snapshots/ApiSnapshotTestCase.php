@@ -17,7 +17,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
 use App\Models\WalletTransaction;
-use App\Services\Payment\PassengerWalletCharger;
+use App\Modules\Money\Services\PassengerWalletCharger;
 use App\Services\Score\ScoreService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;

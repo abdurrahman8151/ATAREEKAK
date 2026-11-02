@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Domain\Payment\Strategies\RefundResult;
+use App\Modules\Money\Domain\Strategies\RefundResult;
 use PHPUnit\Framework\TestCase;
 
 /**

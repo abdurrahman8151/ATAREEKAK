@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Collection;
 /**
  * Port over the cancellation-refund paths (batch 227; the time-based policy and per-booking
  * refund entry points were added for `BookingCancellationService` in batch 233). Implemented by
- * `App\Services\Payment\CancellationRefund`; the return shapes match that service exactly
+ * `App\Modules\Money\Services\CancellationRefund`; the return shapes match that service exactly
  * (`refundPassengersForStaffCancellation()` returns the refund summary array).
  */
 interface CancellationRefundInterface

@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Modules\Money\Http\Controllers;
 
 use App\Exceptions\Domain\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\WalletChargeRequest;
 use App\Http\Requests\Wallet\WalletStoreRequest;
 use App\Http\Requests\Wallet\WalletWithdrawRequest;
-use App\Services\Wallet\WalletRequestService;
+use App\Modules\Money\Services\WalletRequestService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

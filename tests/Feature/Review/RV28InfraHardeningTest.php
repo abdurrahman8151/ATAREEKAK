@@ -68,7 +68,7 @@ class RV28InfraHardeningTest extends TestCase
         $sites = [
             'app/Repositories/UserRepository.php' => 'findByEmail (login/auth lookup)',
             'app/Services/JwtService.php' => 'findUserCached (cache-miss rehydrate)',
-            'app/Http/Controllers/API/WalletController.php' => 'getBalance (money read)',
+            'app/Modules/Money/Http/Controllers/WalletController.php' => 'getBalance (money read)',
         ];
 
         foreach ($sites as $file => $what) {

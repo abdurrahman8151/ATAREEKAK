@@ -7,7 +7,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\BookingCharge;
+use App\Modules\Money\Services\BookingCharge;
 use App\Services\Ride\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

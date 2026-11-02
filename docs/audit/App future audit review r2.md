@@ -15987,3 +15987,117 @@ OK, 15:58, on `127.0.0.1:3399/t3_batch`. Same test count as phase 1 (3046), so n
 silently skipped by the move; the extra assertions are the ratchets' new scanned-file floors. Snapshot
 corpus byte-identical (`MANIFEST.json` still 213 files, `SNAPSHOT_UPDATE=1` never used), the leak guard
 clean inside that run, whole-tree Pint PASS. Nothing pushed; branch `Agentic` only.
+
+---
+
+### 243. Stage 1, phase 2 (2 of 5) - the Money module, and the ratchet that caught the layer the planner got wrong
+
+**What moved (26 files, 125 references across 75 files).** `app/Modules/Money/` now owns the money
+context end to end:
+
+| New path | Was | Files |
+|---|---|---|
+| `Domain/Strategies/` | `app/Domain/Payment/Strategies/` | 6 (both payment strategies, the factory, `PaymentStrategy`, `PaymentResult`, `RefundResult`) |
+| `Services/` | `app/Services/Payment/` | 14 (ledger, charge, payout, refund, no-show settlement, escrow guard, ledger writer, fee/refund/debt services, wallet access, primary admin wallet, ...) |
+| `Services/` | `app/Services/Wallet/` | 2 (`WalletProvisioningService`, `WalletRequestService`) |
+| `Services/` | `app/Support/FeeSplit.php`, `app/Support/PostingKey.php` | 2 (the ledger posting helpers; see below) |
+| `Http/Controllers/` | `app/Http/Controllers/API/{WalletController,WalletRequestController}.php` | 2 |
+
+The module now holds 35 PHP files: 26 code + 8 ports + its provider.
+
+**The ratchet corrected the plan, which is the point of having one.** The ledger helpers `FeeSplit` and
+`PostingKey` were placed in `Modules/Money/Domain/` on the reasoning that posting-keys are domain
+concepts. `BoundaryDependencyTest` immediately failed: `domain_to_models` (baseline 0, never raised)
+reported `Modules/Money/Domain/PostingKey.php`, because that file reads `App\Models\WalletTransaction`.
+A domain file that touches Eloquent is exactly what that rule forbids, and the rule was right: the pair
+belongs with the services, so they moved to `Modules/Money/Services/` and the violation disappeared.
+The audit records it because the alternative - quietly relaxing a baseline - is the failure mode the
+whole batch exists to prevent.
+
+**Rule B needed no work this time.** No kernel file named a Money implementation after the move (the
+batch-233 ports already carried every cross-context money call), so the kernel->Contracts ceiling fell
+from 82 files to **71** and the module floor rose from 9 to **35**.
+
+**Path-based tests re-pointed (mechanical only, no assertion touched).**
+`MoneyRoundingIsDecidedInOnePlaceTest` pinned seven `app/Services/Payment/*.php` paths; they now name
+`app/Modules/Money/Services/*.php` (the test's whole purpose is to prove rounding is decided in one
+place, so it has to look at where that place is now). `RV28InfraHardeningTest`'s
+"primary-only reads still force the write PDO" list named `app/Http/Controllers/API/WalletController.php`;
+it now names the module's controller. `CrossContextBoundaryTest`'s `Support/FeeSplit.php` /
+`Support/PostingKey.php` branch became unreachable (the module prefix covers them), so it was removed
+and the docblock updated to the new MONEY paths. `BoundaryDependencyTest` and
+`CrossContextBoundaryTest` needed no further change: the layer-aware classification and the
+`Modules/<Name>/` context mapping added with the Communication commit already see these files, which
+is why all nine layer baselines and all 20 ordered pairs are still at their recorded numbers.
+
+**One defect of my own, caught and fixed inside this commit.**
+`C:\temp\s05\relocate.php` (the helper that moves a file *within* a module) tested the moved file's
+new path against a map keyed by old paths, so it rewrote the FQCN references but not the file's own
+`namespace` line. The money-area run failed instantly with
+`Cannot declare class App\Modules\Money\Domain\PostingKey ... in .../Services/PostingKey.php`, which is
+the good kind of failure: loud, immediate, and impossible to mistake for a pass. Both namespaces were
+rewritten from their paths, `composer dump-autoload --no-scripts` re-run, and the same 526-test
+selection re-run green.
+
+**Verification.** Ratchets plus the money area floor (`tests/Feature/AppFuture`, the path-based Review
+tests, `tests/Feature/Wallet`, `tests/Feature/Payment`, `tests/Unit/Domain`): 526 tests, 3409
+assertions, OK. Whole-tree Pint: 8 fixes, all import order (plus one pre-existing style file that the
+move rewrote), then PASS over 778 files. Snapshot corpus untouched; the leak guard is inside the full
+run below.
+
+#### 243.a The scanners that would have gone quietly blind (and the inventory that stops it recurring)
+
+The first full-suite run of this commit failed with 3 errors - all of them path-pinning tests that had
+been reading files which moved. That is the loud, harmless kind. The dangerous kind is the *ceiling*
+tests: they count matches under a directory or a file list and assert `count <= N`, so when the files
+move away the count simply falls and the test passes while no longer looking at anything. Two of them
+were reading the controller tree and would have lost the module's controllers permanently:
+
+* `RV13ExceptionCodeAsStatusTest::no_controller_uses_an_exception_code_as_an_http_status` swept
+  `app_path('Http/Controllers')` only. It now uses a `controllerFiles()` helper that reads that
+  directory plus `glob(app_path('Modules/*/Http/Controllers'))`. It is the same file set as before the
+  moves.
+* `ExceptionMessageLeakRatchetTest` did the same in `leaks()` and in the server-side-logging probe
+  (two `RecursiveDirectoryIterator` loops). Both now read `controllerFiles()`; the leak count is a
+  `array_sum(array_map('count', ...))`, so the added module controllers cannot change the ordering
+  assumptions of any assertion.
+* `RV33BoundaryDependencyTest::payment_method_branching_outside_the_domain_only_decreases` exempted
+  files under `/Domain/Payment/`. After the move the money domain is `Modules/Money/Domain/`, so the
+  exemption silently stopped applying and the ceiling would have been measuring the very layer it
+  exists to exempt. It now exempts both spellings.
+
+Re-pointed outright because they name a file that moved (mechanical, no assertion touched):
+`MoneyRoundingIsDecidedInOnePlaceTest` (7 `app/Services/Payment/*` paths),
+`RV28InfraHardeningTest` (`WalletController`), `RV13ExceptionCodeAsStatusTest` (2 x
+`app_path('Services/Wallet/WalletRequestService.php')`), `RV19FeeSplitTest` (5 x
+`app_path('Services/Payment/*.php')`), and `CrossContextBoundaryTest` (the now-unreachable
+`Support/FeeSplit.php` / `Support/PostingKey.php` branch).
+
+**Inventory for the modules still to move** (found by sweeping `tests/` for path literals and directory
+sweeps; each must be re-pointed in the commit that moves its file, never left pointing at a directory
+that no longer holds it):
+
+| Test | Path it reads | Moves with |
+|---|---|---|
+| `RV11ScoreLedgerTest` (3 sites) | `app_path('Services/Score/ScoreLedger.php')`, `.../ScoreService.php` | Ride |
+| `RV16EnumerationUniformityTest:204` | `glob(app_path('Http/Controllers/API/*Controller.php'))`, filtered to the four auth controllers | Identity |
+| `RV16SignupMailAfterCommitTest` (2 sites) | `app_path('Http/Controllers/API/Support/SignupRegistrationHandler.php')` | Identity |
+| `TlsAndOctaneHygieneTest:107` | `app_path('Services/WhatsAppOtpService.php')` | Identity |
+| `WaveZeroVerificationTest:268` | `app_path('Repositories/VerificationRepository.php')` | Identity |
+| `RV19FeeSplitTest:186` | `app_path('Services/Admin/AdminDriverService.php')` | Console |
+| `WaveZeroVerificationTest:248` | `app_path('Services/Admin/AdminReportService.php')` | Console |
+| `T48CommentEncodingTest` (9 pinned paths) | the profile/KYC comment-encoding files | Identity |
+
+**Verification (pre-commit).** Ratchets (all of `tests/Feature/AppFuture`) + the eight path-based Review
+tests + the money area floor (`tests/Feature/Wallet`, `tests/Feature/Payment`, `tests/Unit/Domain`):
+547 tests, 3619 assertions, OK. Whole-tree Pint PASS (778 files).
+
+**Commit.** `Stage 1 phase 2 (Money)` - this commit.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3046, Assertions: 13058, Skipped: 2` -
+OK, 16:43, on `127.0.0.1:3399/t3_batch`. The same test count as the baseline and as the Communication
+commit, so nothing was lost or silently skipped by the move; the assertion total moved only with the
+ratchets' own numbers. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (778 files).
+The first full-suite run of this commit was RED - the three errors and the two blind scanners they
+exposed are recorded above; the tree was never committed red.

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\Payment\Strategies;
+namespace App\Modules\Money\Domain\Strategies;
 
 use App\Enums\PaymentMethod;
 use App\Modules\Money\Contracts\BookingChargeInterface;

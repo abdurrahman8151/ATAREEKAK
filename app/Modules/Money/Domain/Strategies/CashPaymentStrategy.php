@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\Payment\Strategies;
+namespace App\Modules\Money\Domain\Strategies;
 
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Log;

@@ -163,8 +163,13 @@ class RV33BoundaryDependencyTest extends TestCase
     {
         $n = 0;
         foreach ($this->appPhpFiles() as $file) {
-            if (str_contains(str_replace('\\', '/', $file), '/Domain/Payment/')) {
-                continue; // the domain layer is allowed to branch on payment_method
+            $normalised = str_replace('\\', '/', $file);
+            // The domain layer is allowed to branch on payment_method. Stage 1 phase 2 moved it from
+            // app/Domain/Payment to Modules/Money/Domain (Strategies live one level below), so both
+            // spellings are excluded - otherwise the exclusion would silently stop applying and the
+            // ceiling below would be measuring the domain it is meant to exempt.
+            if (str_contains($normalised, '/Domain/Payment/') || str_contains($normalised, '/Modules/Money/Domain/')) {
+                continue;
             }
             foreach ($this->significantLines($file) as $line) {
                 if (preg_match('/payment_method\s*===/', $line)) {

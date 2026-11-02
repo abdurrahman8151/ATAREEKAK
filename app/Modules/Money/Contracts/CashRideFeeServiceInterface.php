@@ -11,7 +11,7 @@ use App\Models\Wallet;
  *
  * RIDE decides WHEN the fee is charged, refused or refunded; MONEY owns the wallets, the debt
  * and the ledger rows. Before this port `RideService`, `RideCancellationService` and
- * `RideCompletionService` name-hinted `App\Services\Payment\CashRideFeeService` directly. The
+ * `RideCompletionService` name-hinted `App\Modules\Money\Services\CashRideFeeService` directly. The
  * surface below is exactly the four methods its callers use - step (c) added `autoClearDebt` for
  * the CONSOLE top-up path; implemented by that same service and bound to its singleton, so no
  * amount, tier or posting key can change.

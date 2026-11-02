@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Payment;
+namespace App\Modules\Money\Services;
 
 use App\Models\Booking;
 use App\Models\Ride;

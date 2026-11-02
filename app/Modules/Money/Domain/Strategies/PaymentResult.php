@@ -1,23 +1,24 @@
 <?php
 
-namespace App\Domain\Payment\Strategies;
+namespace App\Modules\Money\Domain\Strategies;
 
 /**
- * Refund Result
+ * Payment Result
  *
- * Returned from refund operations.
+ * Returned from payment operations.
  * MOVED to its own file so PSR-4 autoloader can find it.
  */
-final class RefundResult
+final class PaymentResult
 {
     public function __construct(
         public readonly bool $success,
         public readonly string $message,
         public readonly ?array $transactionIds = null,
+        public readonly ?array $metadata = null,
     ) {}
 
     public static function success(
-        string $message = 'Refund processed successfully',
+        string $message = 'Payment processed successfully',
         ?array $transactionIds = null
     ): self {
         return new self(true, $message, $transactionIds);

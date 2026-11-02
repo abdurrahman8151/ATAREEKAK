@@ -17,8 +17,9 @@ use Tests\TestCase;
  *
  *   RIDE     app/Services/Ride, Services/Score, Services/Geocoding, Domain/Score,
  *            Repositories/RideRepository, RideController, ScoreController, API/Support/Ride*Handler
- *   MONEY    app/Services/Payment, Services/Wallet, Domain/Payment, Support/FeeSplit,
- *            Support/PostingKey, WalletController, WalletRequestController
+ *   MONEY    app/Modules/Money/{Services,Domain,Http/Controllers} (stage 1: the old
+ *            Services/Payment, Services/Wallet, Domain/Payment, Support/FeeSplit and
+ *            Support/PostingKey paths)
  *   IDENTITY Services/Auth, Services/Verification, Services/Profile, JwtService, the three
  *            OTP services, EmployeeAuthService, StaffJwtService, the auth/profile
  *            controllers and handlers, the User/Otp/PasswordReset/Verification/Photo/Profile
@@ -174,9 +175,6 @@ class CrossContextBoundaryTest extends TestCase
             if (str_starts_with($rel, $prefix)) {
                 return 'MONEY';
             }
-        }
-        if (in_array($rel, ['Support/FeeSplit.php', 'Support/PostingKey.php'], true)) {
-            return 'MONEY';
         }
 
         // ---- RIDE -----------------------------------------------------------

@@ -31,12 +31,12 @@ use App\Http\Controllers\API\Staff\StaffReviewController;
 use App\Http\Controllers\API\TextMeOtpController;      // ← NEW
 use App\Http\Controllers\API\VerificationController;      // decision 1b
 use App\Http\Controllers\API\VerifyPasswordOtpController;
-use App\Http\Controllers\API\WalletController;
-use App\Http\Controllers\API\WalletRequestController;
 use App\Modules\Communication\Http\Controllers\ChatController;
 use App\Modules\Communication\Http\Controllers\ContactController;
 use App\Modules\Communication\Http\Controllers\NotificationController;
 use App\Modules\Communication\Http\Controllers\PushNotificationController;
+use App\Modules\Money\Http\Controllers\WalletController;
+use App\Modules\Money\Http\Controllers\WalletRequestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 

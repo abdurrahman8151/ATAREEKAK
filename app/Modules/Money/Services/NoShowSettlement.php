@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Payment;
+namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\NoShowSettlementInterface;
-use App\Support\FeeSplit;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -31,7 +30,7 @@ class NoShowSettlement implements NoShowSettlementInterface
         // RV-19: one definition of the 95/5 split. This used to round each share independently,
         // which produced legs summing to one cent MORE than the escrow debit for any total ending
         // in an odd tenth (1000.50 -> 950.48 + 50.03 = 1000.51), so postTransfer() refused the
-        // transfer and the ride could never complete. See App\Support\FeeSplit.
+        // transfer and the ride could never complete. See App\Modules\Money\Services\FeeSplit.
         ['driver' => $driverShare, 'platform' => $primaryShare] = FeeSplit::driverAndPlatform($total);
 
         [$syCashWallet, $driverWallet, $primaryWallet] = $this->lockPassengerNoShowWallets($ride, $total);

@@ -7,7 +7,7 @@ use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\BookingCharge;
+use App\Modules\Money\Services\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;

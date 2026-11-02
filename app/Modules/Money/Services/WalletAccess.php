@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Payment;
+namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Enums\WalletKind;
@@ -8,7 +8,6 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Support\PostingKey;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 

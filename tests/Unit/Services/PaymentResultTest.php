@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Services;
 
-use App\Domain\Payment\Strategies\PaymentResult;
-use App\Domain\Payment\Strategies\PaymentStrategy; // loading this file also defines PaymentResult & RefundResult
+use App\Modules\Money\Domain\Strategies\PaymentResult;
+use App\Modules\Money\Domain\Strategies\PaymentStrategy; // loading this file also defines PaymentResult & RefundResult
 use PHPUnit\Framework\TestCase;
 
 /**

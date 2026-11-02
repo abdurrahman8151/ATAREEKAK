@@ -2,9 +2,9 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\Payment\CancellationRefund;
-use App\Services\Payment\LedgerService;
-use App\Services\Payment\WalletAccess;
+use App\Modules\Money\Services\CancellationRefund;
+use App\Modules\Money\Services\LedgerService;
+use App\Modules\Money\Services\WalletAccess;
 use Carbon\Carbon;
 use PHPUnit\Framework\TestCase;
 

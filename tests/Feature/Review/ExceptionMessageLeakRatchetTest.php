@@ -34,20 +34,47 @@ class ExceptionMessageLeakRatchetTest extends TestCase
     /** 2026-10-04: 47 -> 42 (Chat) -> 21 (specific catches excluded) -> 15 (four controllers) -> 0 (RideController swept). ZERO. Kept as a permanent gate. */
     private const BASELINE = 0;
 
+    /**
+     * Every controller file this ratchet must read: the kernel's `app/Http/Controllers` plus each
+     * module's `Http/Controllers` (stage 1 phase 2). It is the same set of files as before the moves
+     * - only their location changed - and a ratchet still reading the old directory alone would
+     * quietly stop seeing most of what it exists to police.
+     *
+     * @return list<string>
+     */
+    private static function controllerFiles(): array
+    {
+        $roots = array_merge(
+            [app_path('Http/Controllers')],
+            glob(app_path('Modules/*/Http/Controllers'), GLOB_ONLYDIR) ?: []
+        );
+
+        $files = [];
+
+        foreach ($roots as $root) {
+            if (! is_dir($root)) {
+                continue;
+            }
+
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root));
+
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $files[] = $file->getPathname();
+                }
+            }
+        }
+
+        return $files;
+    }
+
     /** @return array<string, array<int, int>> file => line numbers that leak a message to a client */
     private function leaks(): array
     {
         $found = [];
-        $files = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator(app_path('Http/Controllers'))
-        );
 
-        foreach ($files as $file) {
-            if ($file->getExtension() !== 'php') {
-                continue;
-            }
-
-            $lines = file($file->getPathname(), FILE_IGNORE_NEW_LINES);
+        foreach (self::controllerFiles() as $path) {
+            $lines = file($path, FILE_IGNORE_NEW_LINES);
             $hits = [];
 
             foreach ($lines as $i => $line) {
@@ -94,7 +121,7 @@ class ExceptionMessageLeakRatchetTest extends TestCase
             }
 
             if ($hits !== []) {
-                $found[str_replace(app_path().DIRECTORY_SEPARATOR, '', $file->getPathname())] = $hits;
+                $found[str_replace(app_path().DIRECTORY_SEPARATOR, '', $path)] = $hits;
             }
         }
 
@@ -170,13 +197,8 @@ class ExceptionMessageLeakRatchetTest extends TestCase
         // Proves the ratchet is aimed at the right thing rather than banning getMessage() outright.
         $logged = 0;
 
-        foreach (new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator(app_path('Http/Controllers'))
-        ) as $file) {
-            if ($file->getExtension() !== 'php') {
-                continue;
-            }
-            $raw = file_get_contents($file->getPathname());
+        foreach (self::controllerFiles() as $path) {
+            $raw = file_get_contents($path);
             $logged += preg_match_all('/Log::(error|warning)\([^;]*getMessage\(\)/', (string) $raw);
         }
 

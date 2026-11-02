@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Port over the driver-payout / escrow-release steps (batch 227; the whole-set release was added
- * for `RideCompletionService` in batch 233). Implemented by `App\Services\Payment\RidePayout`,
+ * for `RideCompletionService` in batch 233). Implemented by `App\Modules\Money\Services\RidePayout`,
  * which the domain strategies and the ride services receive unchanged.
  */
 interface RidePayoutInterface

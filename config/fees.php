@@ -6,7 +6,7 @@
  * THE 95/5 SPLIT USED TO BE WRITTEN OUT IN FOUR PLACES - `WalletTransactionService` (twice),
  * `AdminDriverService` and the seeder - each with its own copy of the literals `0.95` and `0.05`.
  * Changing the platform's cut meant finding all four, and one of them had already drifted (see
- * `App\Support\FeeSplit`). There is exactly one definition now, and `FeeSplit` is the only
+ * `App\Modules\Money\Services\FeeSplit`). There is exactly one definition now, and `FeeSplit` is the only
  * supported way to apply it.
  *
  * ARITHMETIC, NOT POLICY, IS THE INTERESTING PART. The two shares must SUM to the total exactly,

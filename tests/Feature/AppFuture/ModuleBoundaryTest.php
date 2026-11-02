@@ -54,7 +54,8 @@ class ModuleBoundaryTest extends TestCase
      */
     private const MODULE_FILE_FLOORS = [
         'Communication' => 19,
-        'Money' => 9,
+        // Money: 26 code files + 8 ports + its provider.
+        'Money' => 35,
         'Ride' => 7,
         'Identity' => 13,
         'Console' => 5,
@@ -67,7 +68,7 @@ class ModuleBoundaryTest extends TestCase
     private const MIN_SCANNED_FILES = 352;
 
     /** Measured kernel -> module Contracts file count. Ceiling: lower it in phase 2, never raise it. */
-    private const KERNEL_CONTRACTS_CEILING = 82;
+    private const KERNEL_CONTRACTS_CEILING = 71;
 
     /**
      * Entrypoints that name module IMPLEMENTATION code. Measured 2026-11-02, after the Communication

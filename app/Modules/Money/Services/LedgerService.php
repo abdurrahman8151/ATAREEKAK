@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Payment;
+namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\LedgerEntry;

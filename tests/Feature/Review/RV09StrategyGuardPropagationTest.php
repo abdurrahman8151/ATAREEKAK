@@ -2,19 +2,19 @@
 
 namespace Tests\Feature\Review;
 
-use App\Domain\Payment\Strategies\EPayPaymentStrategy;
-use App\Domain\Payment\Strategies\RefundResult;
 use App\Models\Booking;
 use App\Models\LedgerEntry;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\BookingCharge;
-use App\Services\Payment\CancellationRefund;
-use App\Services\Payment\LedgerService;
-use App\Services\Payment\RidePayout;
-use App\Support\PostingKey;
+use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
+use App\Modules\Money\Domain\Strategies\RefundResult;
+use App\Modules\Money\Services\BookingCharge;
+use App\Modules\Money\Services\CancellationRefund;
+use App\Modules\Money\Services\LedgerService;
+use App\Modules\Money\Services\PostingKey;
+use App\Modules\Money\Services\RidePayout;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;

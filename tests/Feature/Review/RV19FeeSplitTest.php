@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Review;
 
-use App\Support\FeeSplit;
+use App\Modules\Money\Services\FeeSplit;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -178,11 +178,11 @@ class RV19FeeSplitTest extends TestCase
         $offenders = [];
 
         foreach ([
-            app_path('Services/Payment/BookingCharge.php'),
-            app_path('Services/Payment/RidePayout.php'),
-            app_path('Services/Payment/CancellationRefund.php'),
-            app_path('Services/Payment/NoShowSettlement.php'),
-            app_path('Services/Payment/WalletAccess.php'),
+            app_path('Modules/Money/Services/BookingCharge.php'),
+            app_path('Modules/Money/Services/RidePayout.php'),
+            app_path('Modules/Money/Services/CancellationRefund.php'),
+            app_path('Modules/Money/Services/NoShowSettlement.php'),
+            app_path('Modules/Money/Services/WalletAccess.php'),
             app_path('Services/Admin/AdminDriverService.php'),
         ] as $file) {
             $src = (string) file_get_contents($file);

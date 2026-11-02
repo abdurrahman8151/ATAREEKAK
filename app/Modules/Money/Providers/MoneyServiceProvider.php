@@ -2,9 +2,6 @@
 
 namespace App\Modules\Money\Providers;
 
-use App\Domain\Payment\Strategies\CashPaymentStrategy;
-use App\Domain\Payment\Strategies\EPayPaymentStrategy;
-use App\Domain\Payment\Strategies\PaymentStrategyFactory;
 use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
@@ -13,15 +10,18 @@ use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
 use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
-use App\Services\Payment\BookingCharge;
-use App\Services\Payment\CancellationRefund;
-use App\Services\Payment\CashRideFeeService;
-use App\Services\Payment\LedgerService;
-use App\Services\Payment\NoShowSettlement;
-use App\Services\Payment\PassengerWalletCharger;
-use App\Services\Payment\RidePayout;
-use App\Services\Payment\WalletAccess;
-use App\Services\Wallet\WalletRequestService;
+use App\Modules\Money\Domain\Strategies\CashPaymentStrategy;
+use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
+use App\Modules\Money\Domain\Strategies\PaymentStrategyFactory;
+use App\Modules\Money\Services\BookingCharge;
+use App\Modules\Money\Services\CancellationRefund;
+use App\Modules\Money\Services\CashRideFeeService;
+use App\Modules\Money\Services\LedgerService;
+use App\Modules\Money\Services\NoShowSettlement;
+use App\Modules\Money\Services\PassengerWalletCharger;
+use App\Modules\Money\Services\RidePayout;
+use App\Modules\Money\Services\WalletAccess;
+use App\Modules\Money\Services\WalletRequestService;
 use Illuminate\Support\ServiceProvider;
 
 /**

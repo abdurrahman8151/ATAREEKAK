@@ -7,7 +7,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Payment\CashRideFeeService;
+use App\Modules\Money\Services\CashRideFeeService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;

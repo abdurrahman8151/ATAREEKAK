@@ -5,7 +5,7 @@ namespace Tests\Feature\Review;
 use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Payment\BookingCharge;
+use App\Modules\Money\Services\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\Concerns\ActsAsStaff;

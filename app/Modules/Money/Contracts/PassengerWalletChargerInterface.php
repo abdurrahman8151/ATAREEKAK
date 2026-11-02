@@ -11,10 +11,10 @@ use Illuminate\Http\JsonResponse;
  *
  * IDENTITY's passenger profile controller performs the admin "charge wallet" action; the mechanics
  * are a MONEY operation. This class used to live in `App\Services\Profile` (IDENTITY) and reach into
- * `App\Services\Payment\LedgerService`; step (c) moved it to `App\Services\Payment` and put this port
+ * `App\Modules\Money\Services\LedgerService`; step (c) moved it to `App\Services\Payment` and put this port
  * in front of it, so the move does not simply turn one IDENTITY -> MONEY edge into another.
  *
- * Implemented by `App\Services\Payment\PassengerWalletCharger`; bound to the same auto-resolved
+ * Implemented by `App\Modules\Money\Services\PassengerWalletCharger`; bound to the same auto-resolved
  * instance the controller used to receive. Bodies unchanged.
  */
 interface PassengerWalletChargerInterface
