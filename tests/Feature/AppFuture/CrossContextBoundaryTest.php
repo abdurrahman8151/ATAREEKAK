@@ -15,8 +15,9 @@ use Tests\TestCase;
  * those layers, so a Ride service could still reach straight into `App\Services\Wallet`
  * and the suite stayed green. This file is the rule for that:
  *
- *   RIDE     app/Services/Ride, Services/Score, Services/Geocoding, Domain/Score,
- *            Repositories/RideRepository, RideController, ScoreController, API/Support/Ride*Handler
+ *   RIDE     app/Modules/Ride/{Services,Domain,Repositories,Http} (stage 1: the old
+ *            Services/Ride, Services/Score, Services/Geocoding, Domain/Score, RideRepository
+ *            and API/Support/Ride*Handler paths)
  *   MONEY    app/Modules/Money/{Services,Domain,Http/Controllers} (stage 1: the old
  *            Services/Payment, Services/Wallet, Domain/Payment, Support/FeeSplit and
  *            Support/PostingKey paths)
@@ -171,21 +172,11 @@ class CrossContextBoundaryTest extends TestCase
         }
 
         // ---- MONEY ----------------------------------------------------------
-        foreach (['Services/Payment/', 'Services/Wallet/', 'Domain/Payment/'] as $prefix) {
-            if (str_starts_with($rel, $prefix)) {
-                return 'MONEY';
-            }
-        }
+        // Stage 1 phase 2 moved these under `Modules/Money/`, which the module rule above already
+        // maps, so the old prefixes are gone rather than left to match nothing.
 
         // ---- RIDE -----------------------------------------------------------
-        foreach (['Services/Ride/', 'Services/Score/', 'Services/Geocoding/', 'Domain/Score/'] as $prefix) {
-            if (str_starts_with($rel, $prefix)) {
-                return 'RIDE';
-            }
-        }
-        if ($rel === 'Repositories/RideRepository.php') {
-            return 'RIDE';
-        }
+        // Same for `Modules/Ride/`: the prefixes below are the pre-move spellings and are dead.
 
         // ---- IDENTITY -------------------------------------------------------
         foreach (['Services/Auth/', 'Services/Verification/', 'Services/Profile/'] as $prefix) {

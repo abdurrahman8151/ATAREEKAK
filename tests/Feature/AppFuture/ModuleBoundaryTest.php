@@ -56,7 +56,8 @@ class ModuleBoundaryTest extends TestCase
         'Communication' => 19,
         // Money: 26 code files + 8 ports + its provider.
         'Money' => 35,
-        'Ride' => 7,
+        // Ride: 39 code files + 6 ports + its provider.
+        'Ride' => 46,
         'Identity' => 13,
         'Console' => 5,
     ];
@@ -68,16 +69,29 @@ class ModuleBoundaryTest extends TestCase
     private const MIN_SCANNED_FILES = 352;
 
     /** Measured kernel -> module Contracts file count. Ceiling: lower it in phase 2, never raise it. */
-    private const KERNEL_CONTRACTS_CEILING = 71;
+    private const KERNEL_CONTRACTS_CEILING = 52;
 
     /**
-     * Entrypoints that name module IMPLEMENTATION code. Measured 2026-11-02, after the Communication
-     * move: none - the three console files that touch this module all go through its Contracts
-     * (`NotificationPort`, `OtpRepositoryInterface`), which rule B allows for kernel files anyway. So
-     * the exemption exists, is currently unused, and any entrypoint that starts naming module
-     * implementation must be added here deliberately, at its measured count.
+     * Entrypoints that name module IMPLEMENTATION code, at their measured reference count. Measured
+     * 2026-11-02.
+     *
+     * After the Communication move this list was empty: the three console files touching that module
+     * all go through its Contracts. The Ride move put four artisan commands on it, and that is the
+     * exemption working as designed rather than a relaxed rule - the no-show report/penalty surface
+     * and `passengerConfirmCompletion` have no port, and inventing one for them is a domain-API
+     * decision about the most money-adjacent code in the repo, not something a file move should
+     * decide. They are named here so the surface stays visible, and the list may only shrink from
+     * here: each entry disappears when that command is converted to a port.
+     * `Noshowservice` (3 files: `ResolveExpiredNoshowReports`, `Testing/Testfullrideflow`,
+     * `Testing/Support/FullRideFlowScenarios`) and `BookingService` (1 file:
+     * `Testing/Testridecompletionflow`).
      */
-    private const ENTRYPOINT_ALLOWLIST = [];
+    private const ENTRYPOINT_ALLOWLIST = [
+        'Console/Commands/ResolveExpiredNoshowReports.php' => 1,
+        'Console/Testing/Support/FullRideFlowScenarios.php' => 1,
+        'Console/Testing/Testfullrideflow.php' => 1,
+        'Console/Testing/Testridecompletionflow.php' => 1,
+    ];
 
     /** @var array{files: array<string, string>, refs: array<string, array<int, string>>}|null */
     private static ?array $scan = null;

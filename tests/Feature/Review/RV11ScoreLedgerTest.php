@@ -7,7 +7,7 @@ use App\Models\Ride;
 use App\Models\ScoreTransaction;
 use App\Models\User;
 use App\Models\UserScore;
-use App\Services\Score\ScoreService;
+use App\Modules\Ride\Services\ScoreService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
@@ -61,7 +61,7 @@ class RV11ScoreLedgerTest extends TestCase
      */
     public function the_high_cancel_flag_is_written_from_the_policy_and_never_as_a_literal(): void
     {
-        $src = (string) file_get_contents(app_path('Services/Score/ScoreLedger.php'));
+        $src = (string) file_get_contents(app_path('Modules/Ride/Services/ScoreLedger.php'));
 
         $this->assertStringContainsString(
             "'high_cancel_rate_applied' => \$result->highCancelRateApplied,",
@@ -232,7 +232,7 @@ class RV11ScoreLedgerTest extends TestCase
      */
     public function score_service_no_longer_writes_score_rows_itself(): void
     {
-        $src = (string) file_get_contents(app_path('Services/Score/ScoreService.php'));
+        $src = (string) file_get_contents(app_path('Modules/Ride/Services/ScoreService.php'));
 
         $offenders = [];
         foreach (['UserScore::firstOrCreate', 'ScoreTransaction::create', 'applyDelta('] as $needle) {
@@ -261,7 +261,7 @@ class RV11ScoreLedgerTest extends TestCase
      */
     public function the_ledger_is_the_single_creation_path_too(): void
     {
-        $src = (string) file_get_contents(app_path('Services/Score/ScoreLedger.php'));
+        $src = (string) file_get_contents(app_path('Modules/Ride/Services/ScoreLedger.php'));
 
         $this->assertSame(
             1,

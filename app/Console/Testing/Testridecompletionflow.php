@@ -9,7 +9,7 @@ use App\Enums\RideStatus;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Ride\BookingService;
+use App\Modules\Ride\Services\BookingService;
 use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Console\Command;

@@ -5,13 +5,13 @@ namespace App\Observers;
 use App\Models\User;
 use App\Models\UserRating;
 use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
-use App\Services\Score\ScoreService;
+use App\Modules\Ride\Contracts\ScoreServiceInterface;
 
 class UserObserver
 {
     public function __construct(
         private ProfileRepositoryInterface $profileRepo,
-        private ScoreService $scoreService,
+        private ScoreServiceInterface $scoreService,
     ) {}
 
     public function created(User $user): void

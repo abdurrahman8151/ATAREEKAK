@@ -18,7 +18,7 @@ use App\Models\Wallet;
 use App\Models\WalletRequest;
 use App\Models\WalletTransaction;
 use App\Modules\Money\Services\PassengerWalletCharger;
-use App\Services\Score\ScoreService;
+use App\Modules\Ride\Services\ScoreService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;

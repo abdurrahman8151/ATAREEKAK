@@ -9,7 +9,7 @@ use Illuminate\Support\Collection;
  *
  * IDENTITY and CONSOLE render "rides as driver / bookings as passenger" counters; RIDE owns the
  * queries (AF-7 consolidated the once-duplicated rollup there). Before this port `ProfileController`
- * and `StaffUserProfileService` type-hinted `App\Services\Ride\UserRideStatsService` directly.
+ * and `StaffUserProfileService` type-hinted `App\Modules\Ride\Services\UserRideStatsService` directly.
  */
 interface UserRideStatsInterface
 {

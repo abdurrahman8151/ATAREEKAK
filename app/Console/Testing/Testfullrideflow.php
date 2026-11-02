@@ -12,7 +12,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserScore;
 use App\Models\Wallet;
-use App\Services\Ride\Noshowservice;
+use App\Modules\Ride\Services\Noshowservice;
 use App\Support\GeoPoint;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;

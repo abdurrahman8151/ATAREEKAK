@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\Ride\Noshowservice;
+use App\Modules\Ride\Services\Noshowservice;
 use Illuminate\Console\Command;
 
 /**

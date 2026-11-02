@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Review;
 
-use App\Http\Controllers\API\RideController;
-use App\Http\Controllers\API\Support\RideSearchReadHandler;
 use App\Http\Requests\BookRideRequest;
 use App\Http\Requests\SendOtpRequest;
+use App\Modules\Ride\Http\Controllers\RideController;
+use App\Modules\Ride\Http\Handlers\RideSearchReadHandler;
 use Tests\TestCase;
 
 /**

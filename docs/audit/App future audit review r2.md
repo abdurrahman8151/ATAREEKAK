@@ -16101,3 +16101,81 @@ ratchets' own numbers. Snapshot corpus byte-identical (`MANIFEST.json` still 213
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (778 files).
 The first full-suite run of this commit was RED - the three errors and the two blind scanners they
 exposed are recorded above; the tree was never committed red.
+
+---
+
+### 244. Stage 1, phase 2 (3 of 5) - the Ride module, the one port that had to grow a write, and a deliberate allowlist entry
+
+**What moved (39 files, 118 references across 79 files).** `app/Modules/Ride/`:
+
+| New path | Was | Files |
+|---|---|---|
+| `Domain/Policies/`, `Domain/ScoreBounds.php`, `Domain/ScorePolicyFactory.php`, `Domain/ScoreResult.php` | `app/Domain/Score/...` | 10 (the seven score policies, the bounds, the factory, the result) |
+| `Repositories/RideRepository.php` | `app/Repositories/RideRepository.php` | 1 |
+| `Services/` | `app/Services/Ride/` | 17 |
+| `Services/` | `app/Services/Score/` | 3 (`ScoreService`, `ScoreLedger`, `ScoreHistoryService`) |
+| `Services/` | `app/Services/Geocoding/` | 3 (`GeocodingService`, `ArabicPlaceNameService`, `RouteCalculationService`) |
+| `Http/Controllers/` | `app/Http/Controllers/API/{RideController,ScoreController}.php` | 2 |
+| `Http/Handlers/` | `app/Http/Controllers/API/Support/Ride*Handler.php` | 5 |
+
+The module now holds 46 PHP files (39 code + 6 ports + its provider), and the kernel->Contracts
+ceiling fell from **71 to 52** files.
+
+**The one kernel caller that could not stay as it was.** `BoundaryDependencyTest`'s rule B found
+exactly one violation after the move:
+
+```
+Observers/UserObserver.php: App\Modules\Ride\Services\ScoreService
+```
+
+`UserObserver` is kernel code (the owner's layout keeps observers and models where they are) and it is
+*not* an entrypoint, so it cannot sit in the exemption list; it calls `initializeScore()` on user
+creation to lay down the starting trust score. The fix is a port change, and it is the only place in
+this batch where a port gained a method that writes:
+
+`App\Modules\Ride\Contracts\ScoreServiceInterface` now also declares
+`initializeScore(User $user): UserScore`, with a docblock that says exactly why it is the exception:
+it takes no amount, it is safe to call twice, it delegates to the single creation path the ledger
+already owns, and it is the one lifecycle write the account-creation observer has to make. The
+interface's existing warning against widening it to mutations still stands and is still quoted there,
+so the next reader sees the decision rather than an unexplained extra method. `ScoreService` already
+implemented `ScoreServiceInterface` and already had that method with that signature, so no behaviour
+changed; `UserObserver` now takes the port and resolves to the same singleton.
+
+**A deliberate, measured growth of the entrypoint allowlist (0 -> 4).** Four artisan commands name
+Ride implementation:
+
+| Command | Names |
+|---|---|
+| `Console/Commands/ResolveExpiredNoshowReports.php` | `Ride\Services\Noshowservice` |
+| `Console/Testing/Testfullrideflow.php` | `Ride\Services\Noshowservice` |
+| `Console/Testing/Support/FullRideFlowScenarios.php` | `Ride\Services\Noshowservice` |
+| `Console/Testing/Testridecompletionflow.php` | `Ride\Services\BookingService` |
+
+They call `resolveExpiredReports()`, `reportDriverNoShow()`, `reportPassengerNoShow()` and
+`passengerConfirmCompletion()`. No port exposes any of those, and inventing one would be a domain-API
+decision about the most money-adjacent code in the repository (no-show penalties, escrow release,
+refunds) - not something a file move should decide on its own authority. The owner's rule covers
+exactly this case: entrypoints are exempt from rule B but must be named at their measured count. So
+they are named, with the reason, and the list is shrink-only from here: each entry disappears when its
+command is converted to a port. For contrast, the three console files that touch the Communication
+module reach it through `NotificationPort` and are not on the list at all.
+
+**Follow-ups inside this commit.** `RV11ScoreLedgerTest` read `app_path('Services/Score/ScoreLedger.php')`
+and `ScoreService.php` (3 sites) - re-pointed to the module. `CrossContextBoundaryTest`'s MONEY and
+RIDE prefix loops had become dead once those files moved under `Modules/`, so the loops were deleted
+and the docblock now records the module paths, leaving no list entry pointing at a directory that no
+longer holds anything. Ride's floor in `ModuleBoundaryTest` rose from 7 to **46**.
+
+**Verification.** Ratchets + the ride area floor (`tests/Feature/AppFuture`, the path-based Review
+tests, `tests/Feature/Rides`, `tests/Feature/Bookings`, `tests/Unit/Domain`): the first run found only
+the allowlist mismatch above; after it, `tests/Feature/AppFuture` is 46 tests / 380 assertions OK.
+Whole-tree Pint PASS (778 files).
+
+**Commit.** `Stage 1 phase 2 (Ride)` - this commit.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3046, Assertions: 13062, Skipped: 2` -
+OK, 17:04, on `127.0.0.1:3399/t3_batch`. The same test count as the baseline and as the Communication
+and Money commits; snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (778 files).
+Nothing pushed; branch `Agentic` only.

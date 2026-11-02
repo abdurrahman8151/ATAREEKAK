@@ -2,11 +2,11 @@
 
 namespace Tests\Unit\Domain;
 
-use App\Domain\Score\Policies\DriverNoShowPolicy;
-use App\Domain\Score\Policies\ScorePolicyInterface;
-use App\Domain\Score\ScoreResult;
 use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
+use App\Modules\Ride\Domain\Policies\DriverNoShowPolicy;
+use App\Modules\Ride\Domain\Policies\ScorePolicyInterface;
+use App\Modules\Ride\Domain\ScoreResult;
 use PHPUnit\Framework\TestCase;
 
 class DriverNoShowPolicyTest extends TestCase

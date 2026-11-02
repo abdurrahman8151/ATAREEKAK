@@ -6,7 +6,7 @@ use App\Http\Resources\RideResource;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
-use App\Services\Ride\RideSearchService;
+use App\Modules\Ride\Services\RideSearchService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;

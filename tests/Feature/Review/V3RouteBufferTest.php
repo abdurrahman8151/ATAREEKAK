@@ -3,7 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Models\User;
-use App\Services\Ride\RideSearchService;
+use App\Modules\Ride\Services\RideSearchService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;

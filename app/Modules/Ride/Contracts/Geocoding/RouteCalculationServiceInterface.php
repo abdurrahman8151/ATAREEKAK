@@ -4,7 +4,7 @@ namespace App\Modules\Ride\Contracts\Geocoding;
 
 /**
  * Port over route calculation (batch 227). Implemented by
- * `App\Services\Geocoding\RouteCalculationService`; only the method the repository calls is
+ * `App\Modules\Ride\Services\RouteCalculationService`; only the method the repository calls is
  * declared, so the port stays a statement of what its consumer needs.
  */
 interface RouteCalculationServiceInterface

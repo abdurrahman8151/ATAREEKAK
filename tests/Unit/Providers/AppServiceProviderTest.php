@@ -13,13 +13,13 @@ use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
+use App\Modules\Ride\Services\ArabicPlaceNameService;
+use App\Modules\Ride\Services\BookingService;
+use App\Modules\Ride\Services\GeocodingService;
+use App\Modules\Ride\Services\RideService;
 use App\Providers\AppServiceProvider;
 use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminWalletService;
-use App\Services\Geocoding\ArabicPlaceNameService;
-use App\Services\Geocoding\GeocodingService;
-use App\Services\Ride\BookingService;
-use App\Services\Ride\RideService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

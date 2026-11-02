@@ -5,7 +5,7 @@ namespace Tests\Feature\Review;
 use App\Enums\RideStatus;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Ride\RideSearchService;
+use App\Modules\Ride\Services\RideSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;

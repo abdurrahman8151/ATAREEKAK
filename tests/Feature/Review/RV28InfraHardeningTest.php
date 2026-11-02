@@ -3,7 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Http\Controllers\API\TextMeOtpController;
-use App\Services\Geocoding\ArabicPlaceNameService;
+use App\Modules\Ride\Services\ArabicPlaceNameService;
 use App\Services\WhatsAppOtpService;
 use Tests\TestCase;
 

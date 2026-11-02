@@ -9,7 +9,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\Money\Services\BookingCharge;
-use App\Services\Ride\Noshowservice;
+use App\Modules\Ride\Services\Noshowservice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Concerns\SeedsSystemWallets;

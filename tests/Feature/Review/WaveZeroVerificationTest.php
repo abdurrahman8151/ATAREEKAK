@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Review;
 
-use App\Http\Controllers\API\RideController;
 use App\Http\Middleware\TrustProxies;
 use App\Models\Ride;
 use App\Models\User;
+use App\Modules\Ride\Http\Controllers\RideController;
+use App\Modules\Ride\Services\RideSearchService;
 use App\Services\JwtService;
-use App\Services\Ride\RideSearchService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;

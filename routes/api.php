@@ -17,8 +17,6 @@ use App\Http\Controllers\API\PassengerProfileController;
 use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\RefreshTokenController;
 use App\Http\Controllers\API\ResetPasswordController;
-use App\Http\Controllers\API\RideController;
-use App\Http\Controllers\API\ScoreController;
 use App\Http\Controllers\API\SignupController;
 use App\Http\Controllers\API\Staff\EmployeeManagementController;
 use App\Http\Controllers\API\Staff\StaffAdminController;
@@ -28,15 +26,17 @@ use App\Http\Controllers\API\Staff\StaffComplaintController;
 use App\Http\Controllers\API\Staff\StaffDocumentController;
 use App\Http\Controllers\API\Staff\StaffOperationsController;
 use App\Http\Controllers\API\Staff\StaffReviewController;
-use App\Http\Controllers\API\TextMeOtpController;      // ← NEW
-use App\Http\Controllers\API\VerificationController;      // decision 1b
-use App\Http\Controllers\API\VerifyPasswordOtpController;
-use App\Modules\Communication\Http\Controllers\ChatController;
+use App\Http\Controllers\API\TextMeOtpController;
+use App\Http\Controllers\API\VerificationController;
+use App\Http\Controllers\API\VerifyPasswordOtpController;      // ← NEW
+use App\Modules\Communication\Http\Controllers\ChatController;      // decision 1b
 use App\Modules\Communication\Http\Controllers\ContactController;
 use App\Modules\Communication\Http\Controllers\NotificationController;
 use App\Modules\Communication\Http\Controllers\PushNotificationController;
 use App\Modules\Money\Http\Controllers\WalletController;
 use App\Modules\Money\Http\Controllers\WalletRequestController;
+use App\Modules\Ride\Http\Controllers\RideController;
+use App\Modules\Ride\Http\Controllers\ScoreController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 

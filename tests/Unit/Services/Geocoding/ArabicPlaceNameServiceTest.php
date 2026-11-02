@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services\Geocoding;
 
-use App\Services\Geocoding\ArabicPlaceNameService;
+use App\Modules\Ride\Services\ArabicPlaceNameService;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 

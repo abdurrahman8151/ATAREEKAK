@@ -33,11 +33,11 @@ class RoutesIntegrityTest extends TestCase
      * Each entry must say WHY, so this list is a decision and not a dumping ground.
      */
     private const UNROUTED_BY_DESIGN = [
-        'App\Http\Controllers\API\ScoreController@formatScore' => 'Static formatter, called internally by RideController::create to render driver_score.',
-        'App\Http\Controllers\API\RideController@autocomplete' => 'Unwired by decision: the Flutter client uses /api/rides/search address fields instead. '
+        'App\Modules\Ride\Http\Controllers\ScoreController@formatScore' => 'Static formatter, called internally by RideController::create to render driver_score.',
+        'App\Modules\Ride\Http\Controllers\RideController@autocomplete' => 'Unwired by decision: the Flutter client uses /api/rides/search address fields instead. '
             .'Kept for a future /places/autocomplete route — do NOT route under this name (it would '
             .'collide with /api/rides/{rideId} ordering).',
-        'App\Http\Controllers\API\RideController@index' => 'Unwired by decision: /api/rides is served by getRides(). index() is a per-user listing '
+        'App\Modules\Ride\Http\Controllers\RideController@index' => 'Unwired by decision: /api/rides is served by getRides(). index() is a per-user listing '
             .'with no public route; delete it under RV-31 if it stays unwired.',
         'App\Modules\Communication\Http\Controllers\PushNotificationController@testNotification' => 'RV-27: a local-only debug sender (it self-gates to '
             .'app()->environment("local") and 403s elsewhere). The push routes added in RV-27 make this '

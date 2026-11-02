@@ -4,7 +4,7 @@ namespace Tests\Unit\Services;
 
 use App\Models\Photo;
 use App\Models\User;
-use App\Services\Ride\RideValidationService;
+use App\Modules\Ride\Services\RideValidationService;
 use App\Services\Verification\DocumentVerificationService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;

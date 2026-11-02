@@ -12,7 +12,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\WalletRequestService;
-use App\Services\Ride\Noshowservice;
+use App\Modules\Ride\Services\Noshowservice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;

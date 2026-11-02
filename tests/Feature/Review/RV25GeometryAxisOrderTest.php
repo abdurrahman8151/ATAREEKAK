@@ -3,7 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Models\Ride;
-use App\Services\Ride\RideSearchService;
+use App\Modules\Ride\Services\RideSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\RideBuilder;

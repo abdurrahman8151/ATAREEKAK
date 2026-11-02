@@ -8,7 +8,7 @@ use App\Models\Ride;
 use App\Models\ScoreTransaction;
 use App\Models\User;
 use App\Models\UserScore;
-use App\Services\Score\ScoreService;
+use App\Modules\Ride\Services\ScoreService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;

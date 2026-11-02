@@ -5,7 +5,7 @@ namespace Tests\Feature\Review;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Score\ScoreService;
+use App\Modules\Ride\Services\ScoreService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\Concerns\ActsAsStaff;

@@ -6,7 +6,7 @@ use App\Domain\ValueObjects\Money;
 use App\Models\Complaint;
 use App\Models\NoshowReport;
 use App\Models\Ride;
-use App\Services\Ride\Noshowservice;
+use App\Modules\Ride\Services\Noshowservice;
 use Illuminate\Console\Command;
 
 /**
