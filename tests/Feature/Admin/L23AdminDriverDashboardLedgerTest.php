@@ -6,7 +6,7 @@ use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Admin\AdminDriverService;
+use App\Modules\Console\Services\AdminDriverService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Concerns\SeedsSystemWallets;

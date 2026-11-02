@@ -95,7 +95,7 @@ class BoundaryDependencyTest extends TestCase
         // The two that remained when this slice landed - AdminWalletRequestController (the money-path
         // review queue) and PassengerProfileController - are now done too, so the edge is at zero:
         //
-        //   AdminWalletRequestController 493 -> 468: App\Services\Admin\AdminWalletRequestService (new)
+        //   AdminWalletRequestController 493 -> 468: App\Modules\Console\Services\AdminWalletRequestService (new)
         //     owns the filtered review list, the GROUP BY tab counts, the two row lookups, the two
         //     lockForUpdate() wallet reads (the decision wallet and the External Capital account) and
         //     both WalletTransaction::create() rows. The controller keeps the transaction boundaries,

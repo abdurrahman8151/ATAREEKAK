@@ -4,8 +4,8 @@ namespace Tests\Feature\Review;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
+use App\Modules\Console\Services\AdminAuthService;
 use App\Modules\Identity\Services\EmployeeAuthService;
-use App\Services\Admin\AdminAuthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;

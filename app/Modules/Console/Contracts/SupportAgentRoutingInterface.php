@@ -9,7 +9,7 @@ use App\Models\Employee;
  *
  * COMM needs "which agent should this contact message go to?"; CONSOLE owns the staff table and the
  * load metric. Before this port `ContactController` type-hinted
- * `App\Services\Staff\SupportAgentRoutingService` directly.
+ * `App\Modules\Console\Services\SupportAgentRoutingService` directly.
  */
 interface SupportAgentRoutingInterface
 {

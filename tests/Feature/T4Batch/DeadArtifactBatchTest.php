@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\T4Batch;
 
-use App\Http\Controllers\API\AdminDashboardController;
 use App\Models\UserRating;
+use App\Modules\Console\Http\Controllers\AdminDashboardController;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 

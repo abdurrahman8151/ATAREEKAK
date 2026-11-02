@@ -60,7 +60,8 @@ class ModuleBoundaryTest extends TestCase
         'Ride' => 46,
         // Identity: 41 code files + 13 ports (incl. EmployeeAuthInterface) + its provider.
         'Identity' => 55,
-        'Console' => 5,
+        // Console: 42 code files + 4 ports + its provider.
+        'Console' => 47,
     ];
 
     /**
@@ -70,7 +71,7 @@ class ModuleBoundaryTest extends TestCase
     private const MIN_SCANNED_FILES = 353;
 
     /** Measured kernel -> module Contracts file count. Ceiling: lower it in phase 2, never raise it. */
-    private const KERNEL_CONTRACTS_CEILING = 25;
+    private const KERNEL_CONTRACTS_CEILING = 5;
 
     /**
      * Entrypoints that name module IMPLEMENTATION code, at their measured reference count. Measured
@@ -107,8 +108,8 @@ class ModuleBoundaryTest extends TestCase
         'Console/Testing/Testfullrideflow.php' => 1,
         'Console/Testing/Testridecompletionflow.php' => 1,
         'Console/Testing/Testridegatedinteractioncommand.php' => 1,
-        'Http/Middleware/StaffJwtMiddleware.php' => 1,
-        'Http/Middleware/Support/JwtAuthHandler.php' => 1,
+        'Http/Middleware/StaffJwtMiddleware.php' => 2,
+        'Http/Middleware/Support/JwtAuthHandler.php' => 2,
     ];
 
     /** @var array{files: array<string, string>, refs: array<string, array<int, string>>}|null */

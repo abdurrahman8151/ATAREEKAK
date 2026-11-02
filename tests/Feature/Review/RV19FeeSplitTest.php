@@ -183,7 +183,7 @@ class RV19FeeSplitTest extends TestCase
             app_path('Modules/Money/Services/CancellationRefund.php'),
             app_path('Modules/Money/Services/NoShowSettlement.php'),
             app_path('Modules/Money/Services/WalletAccess.php'),
-            app_path('Services/Admin/AdminDriverService.php'),
+            app_path('Modules/Console/Services/AdminDriverService.php'),
         ] as $file) {
             $src = (string) file_get_contents($file);
             // Ignore comments; only executable arithmetic counts.

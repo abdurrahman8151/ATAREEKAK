@@ -6,6 +6,8 @@ use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Modules\Communication\Services\FcmSenderService;
 use App\Modules\Communication\Services\NotificationService;
 use App\Modules\Communication\Services\PushNotificationService;
+use App\Modules\Console\Services\AdminAuthService;
+use App\Modules\Console\Services\AdminWalletService;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
@@ -18,8 +20,6 @@ use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\RideService;
 use App\Providers\AppServiceProvider;
-use App\Services\Admin\AdminAuthService;
-use App\Services\Admin\AdminWalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

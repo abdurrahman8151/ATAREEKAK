@@ -4,7 +4,7 @@ namespace Tests\Feature\Repositories;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
-use App\Repositories\EmployeeRepository;
+use App\Modules\Console\Repositories\EmployeeRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

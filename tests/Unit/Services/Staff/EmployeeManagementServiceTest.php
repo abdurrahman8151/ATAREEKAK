@@ -4,8 +4,8 @@ namespace Services\Staff;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
+use App\Modules\Console\Services\EmployeeManagementService;
 use App\Modules\Identity\Services\EmployeeAuthService;
-use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;

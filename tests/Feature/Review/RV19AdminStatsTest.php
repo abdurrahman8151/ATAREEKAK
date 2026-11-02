@@ -7,7 +7,7 @@ use App\Enums\ComplaintType;
 use App\Models\Complaint;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Admin\AdminReportService;
+use App\Modules\Console\Services\AdminReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;

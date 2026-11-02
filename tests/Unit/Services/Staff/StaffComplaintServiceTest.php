@@ -8,7 +8,7 @@ use App\Enums\StaffRole;
 use App\Models\Complaint;
 use App\Models\Employee;
 use App\Models\User;
-use App\Services\Staff\StaffComplaintService;
+use App\Modules\Console\Services\StaffComplaintService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;

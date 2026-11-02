@@ -10,7 +10,7 @@ use App\Models\User;
  *
  * COMM routes a contact-form message to a support agent; CONSOLE owns staff records and the shadow
  * `users` rows they map to. Before this port `ContactController` type-hinted
- * `App\Services\Staff\EmployeeManagementService` for the one call below.
+ * `App\Modules\Console\Services\EmployeeManagementService` for the one call below.
  */
 interface EmployeeManagementInterface
 {

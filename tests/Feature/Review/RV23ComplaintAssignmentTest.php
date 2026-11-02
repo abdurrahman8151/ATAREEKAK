@@ -7,7 +7,7 @@ use App\Enums\ComplaintType;
 use App\Models\Complaint;
 use App\Models\Employee;
 use App\Models\User;
-use App\Services\Complaint\ComplaintService;
+use App\Modules\Console\Services\ComplaintService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

@@ -6,7 +6,7 @@ use App\Domain\ValueObjects\Money;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Admin\AdminWalletService;
+use App\Modules\Console\Services\AdminWalletService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;

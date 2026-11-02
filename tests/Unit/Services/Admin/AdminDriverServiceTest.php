@@ -9,7 +9,7 @@ use App\Models\User;
 use App\Models\UserRating;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use App\Services\Admin\AdminDriverService;
+use App\Modules\Console\Services\AdminDriverService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;

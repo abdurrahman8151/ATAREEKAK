@@ -193,14 +193,7 @@ class CrossContextBoundaryTest extends TestCase
         }
 
         // ---- CONSOLE --------------------------------------------------------
-        foreach (['Services/Admin/', 'Services/Complaint/'] as $prefix) {
-            if (str_starts_with($rel, $prefix)) {
-                return 'CONSOLE';
-            }
-        }
-        if (str_starts_with($rel, 'Services/Staff/')) {
-            return 'CONSOLE';
-        }
+        // Stage 1 phase 2 moved these under Modules/Console/, which the module rule maps.
         if (str_starts_with($rel, 'Repositories/') && in_array(basename($rel), [
             'ComplaintRepository.php', 'EmployeeRepository.php',
         ], true)) {

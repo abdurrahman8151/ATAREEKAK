@@ -50,7 +50,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
         'app/Modules/Money/Services/LedgerService.php',
         'app/Modules/Money/Services/CashRideFeeRefundService.php',
         'app/Modules/Money/Services/RidePayout.php',
-        'app/Services/Admin/AdminDriverPresenter.php',
+        'app/Modules/Console/Services/AdminDriverPresenter.php',
         'app/Modules/Identity/Services/PassengerProfilePanelBuilder.php',
         'app/Console/Commands/BackfillBookingMoneySnapshot.php',
         'app/Console/Testing/Support/FullRideFlowScenarios.php',
@@ -67,8 +67,8 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
      * @var array<int, string>
      */
     private const CONVERTED_HOMES = [
-        'app/Services/Admin/AdminDashboardActivityService.php',
-        'app/Services/Admin/AdminDriverDashboardService.php',
+        'app/Modules/Console/Services/AdminDashboardActivityService.php',
+        'app/Modules/Console/Services/AdminDriverDashboardService.php',
         'app/Modules/Money/Services/PassengerWalletCharger.php',
         'app/Modules/Money/Services/CashRideFeeService.php',
         'app/Modules/Money/Services/CashRideDebtClearanceService.php',
@@ -152,7 +152,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
 
         $this->assertStringContainsString(
             'round((float) $avgRating',
-            file_get_contents(base_path('app/Services/Admin/AdminDashboardActivityService.php')),
+            file_get_contents(base_path('app/Modules/Console/Services/AdminDashboardActivityService.php')),
             'a RATING is not money and stays at its own scale'
         );
 

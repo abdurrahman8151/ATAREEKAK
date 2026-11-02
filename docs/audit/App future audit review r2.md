@@ -16256,4 +16256,68 @@ OK, 17:30, on `127.0.0.1:3399/t3_batch`. The same test count as the baseline and
 module commits; snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (779 files).
 The one edit made after that run is the Identity provider's docblock correction (comment text only):
-it was verified with `php -l` and `pint --test` on the file. Nothing pushed; branch `Agentic` only.
+it was verified with `php -l` and `pint --test` on the file. Nothing pushed; branch `Agentic` only.---
+
+### 246. Stage 1, phase 2 (5 of 5) - the Console module, and the last of the kernel's reach into a module
+
+**What moved (42 files, 78 references across 40 files, plus 66 files rewritten in the reference pass).**
+`app/Modules/Console/`:
+
+| New path | Was | Files |
+|---|---|---|
+| `Http/Controllers/` | `app/Http/Controllers/API/Admin{Ban,Dashboard,Driver,Trip,User,WalletRequest}Controller.php`, `ComplaintController.php`, `API/Staff/{EmployeeManagement,StaffAdmin,StaffAuth,StaffChat,StaffComplaint,StaffDocument,StaffOperations,StaffReview}Controller.php` | 15 |
+| `Repositories/` | `app/Repositories/{Complaint,Employee}Repository.php` | 2 |
+| `Services/` | `app/Services/Admin/` (15), `app/Services/Complaint/` (1), `app/Services/Staff/` (9: everything except `EmployeeAuthService` and `StaffJwtService`, which the previous commit took to Identity) | 25 |
+
+The module now holds **47** PHP files, and this is the commit where the kernel's reach into the modules
+became small enough to read in one glance. `kernel -> module Contracts` is now **5 files**:
+
+| Kernel file | What it holds |
+|---|---|
+| `Jobs/SendPushNotification.php` | `Communication\Contracts\PushNotifierInterface` |
+| `Jobs/SendPushNotificationJob.php` | `Communication\Contracts\PushNotifierInterface` |
+| `Listeners/SendUserVerifiedNotification.php` | `Communication\Contracts\NotificationPort` |
+| `Mail/OtpMailer.php` | `Identity\Contracts\OtpMailInterface` (it implements it) |
+| `Observers/UserObserver.php` | `Identity\Contracts\ProfileRepositoryInterface`, `Ride\Contracts\ScoreServiceInterface` |
+
+Both layer rules measured **0 violations** after this move with no code changes needed: the ports that
+the earlier batches created already covered every Console-to-other-context call, which is the payoff
+the batch-233 design was aiming at. The ceiling fell from 25 to **5**.
+
+**Two operational defects hit in this commit, both found by the suite and both fixed here.**
+
+1. *A case-mismatched tracked path stopped the move halfway.* This repository tracks
+   `app/Http/Controllers/API/Staff/Staffchatcontroller.php` (lowercase `c`) while every reference and
+   the class itself spell it `StaffChatController`; on Windows that works, but `git mv` refused it and
+   the move stopped after ten controllers. Their references were therefore never rewritten, so
+   `routes/api.php` still imported `App\Http\Controllers\API\AdminBanController` and the whole Admin
+   suite failed (112 tests, mostly `expected 200, got 401` because the route action pointed at a class
+   that no longer existed). Fix: the move helper now resolves the real tracked path with
+   `git ls-files` before asking git to move a file, and the ten stale references were rewritten
+   explicitly; `namespaces-from-paths.php` then corrected the ten files whose `namespace` line was
+   still the kernel's.
+2. *Composer's optimized classmap was stale.* After the move, an error surfaced as
+   `include(C:\...\vendor/composer/../../app/Http/Controllers/API/ComplaintController.php)` from inside
+   the autoloader - the classmap still pointed at the old path. `composer dump-autoload --no-scripts`
+   regenerated it (11901 classes). This is worth recording because it is the only failure mode in the
+   whole batch that looked like a code error but was purely a generated-artifact problem.
+
+**Path-based tests re-pointed (mechanical, no assertion touched).**
+`MoneyRoundingIsDecidedInOnePlaceTest` (four `app/Services/Admin/*` paths in its money-shaped file
+list), `RV19FeeSplitTest` (`AdminDriverService`), `WaveZeroVerificationTest` (`AdminReportService`).
+`CrossContextBoundaryTest` lost its last dead prefixes (`Services/Admin/`, `Services/Complaint/`,
+`Services/Staff/`) - every module path is now mapped by the single `Modules/<Name>/` rule. Console's
+floor rose from 5 to **47**. The entrypoint allowlist kept the same twelve files, with two counts
+moving 1 -> 2 (`Http/Middleware/StaffJwtMiddleware.php`, `Http/Middleware/Support/JwtAuthHandler.php`),
+because those two kernel middleware files now name an Identity implementation *and* a Console one.
+
+**Verification.** Ratchets + the console area floor (`tests/Feature/AppFuture`, `tests/Feature/Admin`,
+and the re-pointed Review tests): 218 tests, and after the allowlist count update the only failures left
+were the ones this section describes. Whole-tree Pint PASS (779 files).
+**Commit.** `Stage 1 phase 2 (Console)` - this commit.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3046, Assertions: 13071, Skipped: 2` -
+OK, 17:54, on `127.0.0.1:3399/t3_batch`. The same test count as the baseline and as all four earlier
+module commits; snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (779 files).
+Nothing pushed; branch `Agentic` only.

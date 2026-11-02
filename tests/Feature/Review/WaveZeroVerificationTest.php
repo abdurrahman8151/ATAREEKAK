@@ -245,7 +245,7 @@ class WaveZeroVerificationTest extends TestCase
         // would be fooled by the explanatory comment naming the old call (it matched during
         // development and proved this), so the scan is comment-stripped via the tokenizer,
         // the same house pattern TlsAndOctaneHygieneTest uses.
-        $report = $this->stripComments(app_path('Services/Admin/AdminReportService.php'));
+        $report = $this->stripComments(app_path('Modules/Console/Services/AdminReportService.php'));
         $this->assertStringNotContainsString(
             "config('system_admin.phone')",
             $report,

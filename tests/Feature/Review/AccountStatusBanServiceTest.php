@@ -4,7 +4,7 @@ namespace Tests\Feature\Review;
 
 use App\Enums\AccountStatus;
 use App\Models\User;
-use App\Services\Admin\BanService;
+use App\Modules\Console\Services\BanService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;

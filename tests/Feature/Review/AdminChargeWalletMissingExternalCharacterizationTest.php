@@ -5,7 +5,7 @@ namespace Tests\Feature\Review;
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Admin\AdminWalletService;
+use App\Modules\Console\Services\AdminWalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\Support\Concerns\SeedsSystemWallets;

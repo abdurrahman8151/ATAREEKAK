@@ -4,7 +4,7 @@ namespace Staff;
 
 use App\Models\ProfileComment;
 use App\Models\User;
-use App\Services\Staff\ReviewModerationService;
+use App\Modules\Console\Services\ReviewModerationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Review;
 
-use App\Http\Controllers\API\Staff\StaffDocumentController;
 use App\Models\Photo;
 use App\Models\User;
+use App\Modules\Console\Http\Controllers\StaffDocumentController;
 use App\Services\File\FileUploadService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
