@@ -5,9 +5,9 @@ namespace Tests\Feature\Review;
 use App\Http\Middleware\TrustProxies;
 use App\Models\Ride;
 use App\Models\User;
+use App\Modules\Identity\Services\JwtService;
 use App\Modules\Ride\Http\Controllers\RideController;
 use App\Modules\Ride\Services\RideSearchService;
-use App\Services\JwtService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -265,7 +265,7 @@ class WaveZeroVerificationTest extends TestCase
         //
         // FLIPPED: this used to assert the dormant read was still present, pinning the bug. It now
         // asserts the read is GONE, so the config file cannot be reintroduced from the other side.
-        $verify = $this->stripComments(app_path('Repositories/VerificationRepository.php'));
+        $verify = $this->stripComments(app_path('Modules/Identity/Repositories/VerificationRepository.php'));
         $this->assertStringNotContainsString(
             'system_admin',
             $verify,

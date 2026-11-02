@@ -1,0 +1,282 @@
+<?php
+
+namespace App\Modules\Identity\Services;
+
+use App\Domain\ValueObjects\PhoneNumber;
+use App\Models\Otp;
+use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Support\OtpDisclosure;
+use Carbon\Carbon;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+use Illuminate\Support\Facades\Log;
+
+class TextMeBotOtpService
+{
+    protected $otpRepository;
+
+    protected $apiKey;
+
+    public function __construct(OtpRepositoryInterface $otpRepository)
+    {
+        $this->otpRepository = $otpRepository;
+
+        // RV-37: read at SEND time from config, not once in the constructor from
+        // env(). Two reasons: config can then be overridden per test without fighting
+        // a value frozen at construction, and the "is a provider configured?" question
+        // stops depending on ambient process state. This matters concretely — while
+        // testing the unconfigured branch, a test that only called putenv() to clear
+        // the key did NOT clear it (putenv never reaches the Dotenv repository env()
+        // reads), so the service opened a real connection to the live provider.
+        $this->apiKey = config('services.textmebot.api_key');
+    }
+
+    /**
+     * Send OTP via WhatsApp using TextMeBot
+     */
+    public function sendOtp(string $phoneNumber, string $type = 'E-PAYMENT'): array
+    {
+        // RV-16: this service leaked the code in TWO ways unrelated to any "mode" —
+        // when the provider API key is unset, and when sending FAILS. Both now pass
+        // through OtpDisclosure, so only local/testing can ever read it back.
+        return OtpDisclosure::sanitize($this->dispatchOtp($phoneNumber, $type));
+    }
+
+    private function dispatchOtp(string $phoneNumber, string $type = 'E-PAYMENT'): array
+    {
+        try {
+            // Validate Syrian phone number
+            $validatedPhone = $this->validateSyrianPhone($phoneNumber);
+
+            // Check rate limiting
+            if (! $this->canSendOtp($validatedPhone)) {
+                return [
+                    'success' => false,
+                    'message' => 'Too many OTP requests. Please try again later.',
+                ];
+            }
+
+            [$otpCode, $otp] = $this->issueOtp($validatedPhone, $type);
+
+            // Always try to send if API key exists
+            if (! empty($this->apiKey)) {
+                return $this->dispatchViaProvider($validatedPhone, $otpCode, $otp);
+            }
+
+            return $this->unconfiguredResponse($validatedPhone, $otpCode, $otp);
+
+        } catch (\Exception $e) {
+            Log::error('TextMeBot OTP send error: '.$e->getMessage());
+
+            return [
+                'success' => false,
+                'message' => 'Failed to send OTP. Please try again.',
+            ];
+        }
+    }
+
+    /**
+     * Delete any outstanding codes for the phone and persist the new OTP record.
+     *
+     * @return array{0: string, 1: Otp}
+     */
+    private function issueOtp(string $validatedPhone, string $type): array
+    {
+        // Delete existing OTPs for this phone
+        $this->otpRepository->deleteByPhone($validatedPhone);
+
+        // Generate OTP
+        $otpCode = Otp::generateCode();
+
+        // Create OTP record
+        $otp = $this->otpRepository->create([
+            'phone_number' => $validatedPhone,
+            'otp_code' => $otpCode,
+            'type' => $type,
+            'expires_at' => Carbon::now()->addMinutes(5),
+            'is_verified' => false,
+            'attempts' => 0,
+        ]);
+
+        return [$otpCode, $otp];
+    }
+
+    /**
+     * Call the TextMeBot provider and shape the result of that call.
+     */
+    private function dispatchViaProvider(string $validatedPhone, string $otpCode, Otp $otp): array
+    {
+        $sent = $this->sendViaTextMeBot($validatedPhone, $otpCode);
+
+        if (! $sent) {
+            Log::error("TextMeBot: Failed to send OTP to $validatedPhone");
+
+            return [
+                'success' => false,
+                'message' => 'Failed to send OTP. Please try again.',
+                'otp_code' => $otpCode,
+                'expires_at' => $otp->expires_at->toDateTimeString(),
+            ];
+        }
+
+        Log::info("TextMeBot: OTP sent to $validatedPhone");
+
+        return [
+            'success' => true,
+            'message' => 'OTP sent successfully via WhatsApp (TextMeBot)',
+            'expires_at' => $otp->expires_at->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * Shape the result when no provider API key is configured: the code was
+     * only generated locally (OtpDisclosure decides who may read it back).
+     */
+    private function unconfiguredResponse(string $validatedPhone, string $otpCode, Otp $otp): array
+    {
+        Log::info("TextMeBot: OTP generated for $validatedPhone: $otpCode (no API key)");
+
+        return [
+            'success' => true,
+            'message' => 'OTP generated (TextMeBot not configured)',
+            'otp_code' => $otpCode,
+            'expires_at' => $otp->expires_at->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * Verify OTP (same as WhatsAppOtpService)
+     */
+    public function verifyOtp(string $phoneNumber, string $code): array
+    {
+        try {
+            $validatedPhone = $this->validateSyrianPhone($phoneNumber);
+
+            // Look the issued code up WITHOUT filtering on the guessed value.
+            // Filtering by code made a wrong guess return null, so no attempt was
+            // ever recorded and Otp::isValid()'s 3-attempt cap was unreachable.
+            $otp = $this->otpRepository->findLatestByPhone($validatedPhone);
+
+            if (! $otp) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid or expired OTP',
+                ];
+            }
+
+            if (! $otp->isValid()) {
+                return [
+                    'success' => false,
+                    'message' => 'OTP has expired or exceeded maximum attempts',
+                ];
+            }
+
+            if (! $otp->matchesCode($code)) {
+                $otp->registerFailedAttempt();
+
+                return [
+                    'success' => false,
+                    'message' => 'Invalid or expired OTP',
+                ];
+            }
+
+            // Mark as verified
+            $otp->markAsVerified();
+
+            return [
+                'success' => true,
+                'message' => 'OTP verified successfully',
+                'data' => [
+                    'phone_number' => $validatedPhone,
+                    'verified_at' => $otp->verified_at->toDateTimeString(),
+                ],
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('OTP verification error: '.$e->getMessage());
+
+            return [
+                'success' => false,
+                'message' => 'OTP verification failed',
+            ];
+        }
+    }
+
+    /**
+     * Send OTP via TextMeBot API
+     */
+    private function sendViaTextMeBot(string $phoneNumber, string $otpCode): bool
+    {
+        // Add 5-second delay to prevent WhatsApp blocking
+        sleep(5);
+
+        try {
+            $normalizedPhone = $this->normalizeForTextMeBot($phoneNumber);
+            $message = "Your verification code is: $otpCode\n\nThis code will expire in 5 minutes.\n\nDo not share this code with anyone.";
+
+            $url = 'http://api.textmebot.com/send.php?'.http_build_query([
+                'recipient' => $normalizedPhone,
+                'apikey' => $this->apiKey,
+                'text' => $message,
+                'json' => 'yes', // Request JSON response
+            ]);
+
+            $client = new Client;
+            $response = $client->get($url);
+            $responseData = json_decode($response->getBody()->getContents(), true);
+
+            if (isset($responseData['status']) && $responseData['status'] === 'success') {
+                Log::info("TextMeBot: OTP sent successfully to $phoneNumber");
+
+                return true;
+            }
+
+            Log::error('TextMeBot failed. Response: '.json_encode($responseData));
+
+            return false;
+
+        } catch (RequestException $e) {
+            Log::error('TextMeBot API error: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * Normalize phone for TextMeBot (+963 format)
+     */
+    private function normalizeForTextMeBot(string $phoneNumber): string
+    {
+        $clean = preg_replace('/[^0-9]/', '', $phoneNumber);
+        $clean = ltrim($clean, '0');
+
+        if (str_starts_with($clean, '9639') && strlen($clean) === 12) {
+            return '+'.$clean; // +9639XXXXXXXX
+        }
+
+        if (str_starts_with($clean, '9') && strlen($clean) === 9) {
+            return '+963'.$clean; // +9639XXXXXXXX
+        }
+
+        return '+'.$clean;
+    }
+
+    /**
+     * Validate Syrian phone number
+     */
+    // Replace with in both files
+    private function validateSyrianPhone(string $phoneNumber): string
+    {
+        return (string) PhoneNumber::from($phoneNumber);
+    }
+
+    /**
+     * Check if OTP can be sent (rate limiting)
+     */
+    private function canSendOtp(string $phoneNumber): bool
+    {
+        $recentAttempts = $this->otpRepository->getRecentAttempts($phoneNumber, 5);
+
+        return $recentAttempts < 3;
+    }
+}

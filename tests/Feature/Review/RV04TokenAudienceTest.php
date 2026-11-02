@@ -4,8 +4,8 @@ namespace Tests\Feature\Review;
 
 use App\Models\Employee;
 use App\Models\User;
-use App\Services\JwtService;
-use App\Services\Staff\StaffJwtService;
+use App\Modules\Identity\Services\JwtService;
+use App\Modules\Identity\Services\StaffJwtService;
 use Database\Factories\UserFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

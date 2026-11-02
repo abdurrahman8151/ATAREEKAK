@@ -3,14 +3,14 @@
 namespace Tests\Feature\Review;
 
 use App\Models\User;
-use App\Services\Auth\GoogleUserResolver;
+use App\Modules\Identity\Services\GoogleUserResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use Tests\TestCase;
 
 /**
  * L14 (modular-monolith slice 13, AUTH): characterization of the Google user resolution now owned by
- * App\Services\Auth\GoogleUserResolver (extracted from GoogleController::callback).
+ * App\Modules\Identity\Services\GoogleUserResolver (extracted from GoogleController::callback).
  *
  * The end-to-end callback is already covered by Auth/GoogleControllerTest (create, link, match, token shape)
  * and Auth/GoogleOauthTokenTest (ban refusal, no credential). This file pins the three resolution rules directly,

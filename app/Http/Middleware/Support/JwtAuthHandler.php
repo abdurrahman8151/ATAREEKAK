@@ -4,8 +4,8 @@ namespace App\Http\Middleware\Support;
 
 use App\Enums\AccountStatus;
 use App\Models\User;
+use App\Modules\Identity\Services\JwtService;
 use App\Services\Admin\BanService;
-use App\Services\JwtService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

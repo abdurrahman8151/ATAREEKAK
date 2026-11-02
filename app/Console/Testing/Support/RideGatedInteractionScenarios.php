@@ -4,7 +4,7 @@ namespace App\Console\Testing\Support;
 
 use App\Models\ProfileComment;
 use App\Models\UserRating;
-use App\Services\Profile\ProfileInteractionService;
+use App\Modules\Identity\Services\ProfileInteractionService;
 
 /**
  * Scenario steps (S1–S11) for the ride-gated interaction test harness.

@@ -25,7 +25,7 @@ namespace App\Console\Testing;
 
 use App\Console\Commands\GuardsAgainstProductionExecution;
 use App\Models\User;
-use App\Services\JwtService;
+use App\Modules\Identity\Services\JwtService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 

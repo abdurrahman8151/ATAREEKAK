@@ -3,7 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Models\User;
-use App\Services\JwtService;
+use App\Modules\Identity\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

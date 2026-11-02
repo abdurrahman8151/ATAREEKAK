@@ -201,7 +201,11 @@ class RV16EnumerationUniformityTest extends TestCase
         $forbidden = ['No account found', 'Account not found.', 'This email is already verified.'];
 
         $offenders = [];
-        foreach (glob(app_path('Http/Controllers/API/*Controller.php')) as $file) {
+        $controllerGlobs = array_merge(
+            glob(app_path('Http/Controllers/API/*Controller.php')) ?: [],
+            glob(app_path('Modules/*/Http/Controllers/*Controller.php')) ?: []
+        );
+        foreach ($controllerGlobs as $file) {
             $src = (string) file_get_contents($file);
             // Only the four in scope; admin/staff 404s are lookups behind auth, not enumeration.
             if (! preg_match('/(ForgotPassword|VerifyPasswordOtp|ResetPassword|EmailVerification)Controller/', $file)) {

@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\Verification\DocumentVerificationService;
+use App\Modules\Identity\Services\DocumentVerificationService;
 use PHPUnit\Framework\TestCase;
 
 class DocumentVerificationServiceTest extends TestCase

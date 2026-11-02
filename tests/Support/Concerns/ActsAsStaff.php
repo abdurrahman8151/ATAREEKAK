@@ -5,7 +5,7 @@ namespace Tests\Support\Concerns;
 use App\Enums\StaffRole;
 use App\Models\Employee;
 use App\Models\User;
-use App\Services\JwtService;
+use App\Modules\Identity\Services\JwtService;
 use Illuminate\Testing\TestResponse;
 
 /**

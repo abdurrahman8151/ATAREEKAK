@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Employee;
-use App\Services\Staff\StaffJwtService;
+use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 

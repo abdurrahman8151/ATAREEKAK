@@ -6,7 +6,7 @@ use App\Events\RideCancelled;
 use App\Events\RideCreated;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\JwtService;
+use App\Modules\Identity\Services\JwtService;
 use Illuminate\Broadcasting\Broadcasters\Broadcaster;
 use Illuminate\Broadcasting\BroadcastManager;
 use Illuminate\Broadcasting\Channel;

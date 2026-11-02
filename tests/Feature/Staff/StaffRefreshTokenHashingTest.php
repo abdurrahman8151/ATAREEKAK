@@ -5,7 +5,7 @@ namespace Tests\Feature\Staff;
 use App\Enums\StaffRole;
 use App\Models\Employee;
 use App\Models\StaffRefreshToken;
-use App\Services\Staff\StaffJwtService;
+use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;

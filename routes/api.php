@@ -7,17 +7,6 @@ use App\Http\Controllers\API\AdminTripController;
 use App\Http\Controllers\API\AdminUserController;
 use App\Http\Controllers\API\AdminWalletRequestController;
 use App\Http\Controllers\API\ComplaintController;
-use App\Http\Controllers\API\DocumentController;
-use App\Http\Controllers\API\EmailVerificationController;
-use App\Http\Controllers\API\ForgotPasswordController;
-use App\Http\Controllers\API\LoginController;
-use App\Http\Controllers\API\LogoutController;
-use App\Http\Controllers\API\OtpController;
-use App\Http\Controllers\API\PassengerProfileController;
-use App\Http\Controllers\API\ProfileController;
-use App\Http\Controllers\API\RefreshTokenController;
-use App\Http\Controllers\API\ResetPasswordController;
-use App\Http\Controllers\API\SignupController;
 use App\Http\Controllers\API\Staff\EmployeeManagementController;
 use App\Http\Controllers\API\Staff\StaffAdminController;
 use App\Http\Controllers\API\Staff\StaffAuthController;
@@ -26,13 +15,24 @@ use App\Http\Controllers\API\Staff\StaffComplaintController;
 use App\Http\Controllers\API\Staff\StaffDocumentController;
 use App\Http\Controllers\API\Staff\StaffOperationsController;
 use App\Http\Controllers\API\Staff\StaffReviewController;
-use App\Http\Controllers\API\TextMeOtpController;
-use App\Http\Controllers\API\VerificationController;
-use App\Http\Controllers\API\VerifyPasswordOtpController;      // ← NEW
-use App\Modules\Communication\Http\Controllers\ChatController;      // decision 1b
+use App\Modules\Communication\Http\Controllers\ChatController;
 use App\Modules\Communication\Http\Controllers\ContactController;
 use App\Modules\Communication\Http\Controllers\NotificationController;
 use App\Modules\Communication\Http\Controllers\PushNotificationController;
+use App\Modules\Identity\Http\Controllers\DocumentController;
+use App\Modules\Identity\Http\Controllers\EmailVerificationController;
+use App\Modules\Identity\Http\Controllers\ForgotPasswordController;
+use App\Modules\Identity\Http\Controllers\LoginController;
+use App\Modules\Identity\Http\Controllers\LogoutController;
+use App\Modules\Identity\Http\Controllers\OtpController;
+use App\Modules\Identity\Http\Controllers\PassengerProfileController;
+use App\Modules\Identity\Http\Controllers\ProfileController;
+use App\Modules\Identity\Http\Controllers\RefreshTokenController;
+use App\Modules\Identity\Http\Controllers\ResetPasswordController;      // ← NEW
+use App\Modules\Identity\Http\Controllers\SignupController;      // decision 1b
+use App\Modules\Identity\Http\Controllers\TextMeOtpController;
+use App\Modules\Identity\Http\Controllers\VerificationController;
+use App\Modules\Identity\Http\Controllers\VerifyPasswordOtpController;
 use App\Modules\Money\Http\Controllers\WalletController;
 use App\Modules\Money\Http\Controllers\WalletRequestController;
 use App\Modules\Ride\Http\Controllers\RideController;

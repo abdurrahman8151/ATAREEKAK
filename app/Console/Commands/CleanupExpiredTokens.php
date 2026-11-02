@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\JwtService;
+use App\Modules\Identity\Services\JwtService;
 use Illuminate\Console\Command;
 
 class CleanupExpiredTokens extends Command

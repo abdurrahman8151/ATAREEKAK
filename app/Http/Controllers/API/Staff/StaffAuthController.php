@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Services\Staff\EmployeeAuthService;
+use App\Modules\Identity\Contracts\EmployeeAuthInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Validator;
 final class StaffAuthController extends Controller
 {
     public function __construct(
-        private readonly EmployeeAuthService $authService,
+        private readonly EmployeeAuthInterface $authService,
     ) {}
 
     // ── POST /api/staff/login ─────────────────────────────────────────────────

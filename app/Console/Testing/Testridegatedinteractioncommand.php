@@ -9,7 +9,7 @@ use App\Models\Booking;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Profile\ProfileInteractionService;
+use App\Modules\Identity\Services\ProfileInteractionService;
 use App\Support\GeoPoint;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;

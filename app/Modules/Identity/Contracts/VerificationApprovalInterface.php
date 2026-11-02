@@ -10,7 +10,7 @@ use App\Exceptions\Domain\DuplicateNationalIdException;
  *
  * CONSOLE approves a submitted national ID; IDENTITY owns the uniqueness rule, the document-type
  * decision and the `UserVerified` event. Before this port `AdminDashboardController` and
- * `StaffAdminController` type-hinted `App\Services\Verification\VerificationApprovalService`.
+ * `StaffAdminController` type-hinted `App\Modules\Identity\Services\VerificationApprovalService`.
  *
  * `ApprovedVerification` moved to `App\DTOs\Verification` in the same step so this kernel interface
  * does not have to name a class in the IDENTITY context.

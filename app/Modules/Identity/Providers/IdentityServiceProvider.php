@@ -4,6 +4,7 @@ namespace App\Modules\Identity\Providers;
 
 use App\Modules\Identity\Contracts\DocumentVerificationInterface;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
+use App\Modules\Identity\Contracts\EmployeeAuthInterface;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
@@ -13,33 +14,34 @@ use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use App\Modules\Identity\Contracts\VerificationApprovalInterface;
 use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
-use App\Repositories\OtpRepository;
-use App\Repositories\PasswordResetRepository;
-use App\Repositories\PhotoRepository;
-use App\Repositories\ProfileRepository;
-use App\Repositories\UserRepository;
-use App\Repositories\VerificationRepository;
-use App\Services\EmailOtpService;
-use App\Services\JwtService;
-use App\Services\Profile\ProfileInteractionService;
-use App\Services\Profile\ProfileUpdateService;
-use App\Services\Staff\EmployeeAuthService;
-use App\Services\Staff\StaffJwtService;
-use App\Services\TextMeBotOtpService;
-use App\Services\Verification\DocumentVerificationService;
-use App\Services\Verification\VerificationApprovalService;
+use App\Modules\Identity\Repositories\OtpRepository;
+use App\Modules\Identity\Repositories\PasswordResetRepository;
+use App\Modules\Identity\Repositories\PhotoRepository;
+use App\Modules\Identity\Repositories\ProfileRepository;
+use App\Modules\Identity\Repositories\UserRepository;
+use App\Modules\Identity\Repositories\VerificationRepository;
+use App\Modules\Identity\Services\DocumentVerificationService;
+use App\Modules\Identity\Services\EmailOtpService;
+use App\Modules\Identity\Services\EmployeeAuthService;
+use App\Modules\Identity\Services\JwtService;
+use App\Modules\Identity\Services\ProfileInteractionService;
+use App\Modules\Identity\Services\ProfileUpdateService;
+use App\Modules\Identity\Services\StaffJwtService;
+use App\Modules\Identity\Services\TextMeBotOtpService;
+use App\Modules\Identity\Services\VerificationApprovalService;
 use Illuminate\Support\ServiceProvider;
 
 /**
  * Stage 1, phase 1(a): the Identity module's container bindings, moved verbatim out of
  * `App\Support\ContainerBindings`. Lifetimes unchanged.
  *
- * Two of the ports this module consumes are implemented by KERNEL classes that the layout keeps out
- * of the modules: `OtpMailInterface` by `App\Mail\OtpMailer` and `TokenRevokerInterface` by
- * `App\Services\JwtService`, which stays behind because the staff JWT path shares it. The mailer's
- * binding lives in the Communication provider (mail delivery is that context's transport, and the
- * kernel `Mail/` directory belongs to the communication context in the boundary map), so this
- * provider never names it; `TokenRevokerInterface` is bound here, because identity consumes it.
+ * Phase 2 moved the implementations into this module (`JwtService`, `StaffJwtService`,
+ * `EmployeeAuthService`, the OTP services, the verification services), so the only implementation
+ * this provider still reaches outside `Modules/Identity` is the kernel mailer: `OtpMailInterface` is
+ * implemented by `App\Mail\OtpMailer`, and its binding lives in the Communication provider (mail
+ * delivery is that context's transport, and the kernel `Mail/` directory belongs to the
+ * communication context in the boundary map), so this provider never names it. The staff door
+ * reaches this module through `EmployeeAuthInterface` and `StaffJwtInterface`, never a class.
  */
 final class IdentityServiceProvider extends ServiceProvider
 {
@@ -49,6 +51,7 @@ final class IdentityServiceProvider extends ServiceProvider
         $this->app->singleton(ProfileInteractionService::class);
         $this->app->singleton(StaffJwtService::class);
         $this->app->singleton(EmployeeAuthService::class);
+        $this->app->bind(EmployeeAuthInterface::class, EmployeeAuthService::class);
         $this->app->singleton(DocumentVerificationService::class);
 
         // The one binding that needs a closure: the TextMeBot OTP driver takes the OTP repository.

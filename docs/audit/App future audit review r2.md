@@ -16178,4 +16178,82 @@ Whole-tree Pint PASS (778 files).
 OK, 17:04, on `127.0.0.1:3399/t3_batch`. The same test count as the baseline and as the Communication
 and Money commits; snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (778 files).
-Nothing pushed; branch `Agentic` only.
+Nothing pushed; branch `Agentic` only.---
+
+### 245. Stage 1, phase 2 (4 of 5) - the Identity module, one new port for the staff door, and eight entrypoints named on purpose
+
+**What moved (41 files, 96 references across 82 files).** `app/Modules/Identity/`:
+
+| New path | Was | Files |
+|---|---|---|
+| `Http/Controllers/` | `app/Http/Controllers/API/{Login,Logout,Signup,RefreshToken,Otp,TextMeOtp,VerifyPasswordOtp,EmailVerification,ForgotPassword,ResetPassword,Verification,Document,Profile,PassengerProfile}Controller.php` and `API/Auth/GoogleController.php` | 15 |
+| `Http/Handlers/` | `app/Http/Controllers/API/Support/{LoginHandler,DocumentUploadHandler,SignupRegistrationHandler,ProfileInteractionHandler}.php` | 4 |
+| `Repositories/` | `app/Repositories/{User,Profile,Photo,Otp,PasswordReset,Verification}Repository.php` | 6 |
+| `Services/` | `app/Services/Auth/` (3), `app/Services/Profile/` (4), `app/Services/Verification/` (3), `app/Services/Staff/` (2: `EmployeeAuthService`, `StaffJwtService`), `app/Services/{EmailOtpService,TextMeBotOtpService,WhatsAppOtpService,JwtService}.php` | 16 |
+
+The module now holds **55** PHP files (41 code + 13 ports + the provider + the new
+`EmployeeAuthInterface`), the kernel->Contracts ceiling fell from **52 to 25** files, and the
+scanned-file floor rose to 353 because this commit adds one file to `app/`.
+
+`Services/JwtService.php` moved in with the rest. The Identity provider's docblock used to say it
+stayed behind "because the staff JWT path shares it"; that is no longer true and the docblock was
+corrected in this commit. It implements `TokenRevokerInterface`, the staff path reaches it through
+`StaffJwtInterface`, and no kernel file names it directly (rule B is 0).
+
+**Rule B found exactly one violation, and it needed a new port.**
+
+```
+Http/Controllers/API/Staff/StaffAuthController.php: App\Modules\Identity\Services\EmployeeAuthService
+```
+
+`StaffAuthController` is a Console controller (it moves in the next commit) and it injected the
+concrete `EmployeeAuthService`. Controllers are not entrypoints, so the exemption does not apply.
+`App\Modules\Identity\Contracts\EmployeeAuthInterface` now declares the four methods the service
+already had - `authenticate()`, `refresh()`, `logout()`, `formatEmployee()` - with signatures copied
+unchanged, `EmployeeAuthService` declares that it implements it, the provider binds the port to the
+same `singleton`, and the controller takes the interface. Same object, same behaviour, and once
+Console moves the reference is a module -> module Contracts edge, which is the sanctioned shape.
+
+**Eight entrypoints entered the allowlist (4 -> 12), all measured, none of them a relaxed rule.**
+
+| Entrypoint | Calls |
+|---|---|
+| `Console/Commands/CleanupExpiredTokens.php` | `JwtService::cleanupExpiredTokens()` |
+| `Console/Commands/CleanupExpiredStaffTokens.php` | `StaffJwtService::cleanupExpiredTokens()` |
+| `Console/Commands/RotateAdminPasswordCommand.php` | staff password rotation via the jwt service |
+| `Console/Testing/Getloadtesttokens.php`, `Testing/Support/RideGatedInteractionScenarios.php`, `Testing/Testridegatedinteractioncommand.php` | token minting for load-test fixtures |
+| `Http/Middleware/Support/JwtAuthHandler.php` | `JwtService::decodeToken()`, `findUserCached()` |
+| `Http/Middleware/StaffJwtMiddleware.php` | `StaffJwtService::decodeToken()` |
+
+Neither `TokenRevokerInterface` nor `StaffJwtInterface` exposes `decodeToken`, `findUserCached` or
+`cleanupExpiredTokens`; widening the auth ports to cover decode-and-rehydrate is an auth-design
+decision, not a file move, and the middleware is kernel by the owner's own layout (it is on the
+"not moved" list). So they are named at their measured count, the reason is in the constant's
+docblock, and the list stays shrink-only. This is the same judgement as the Ride entries: make the
+surface visible and countable now, convert to ports deliberately later.
+
+**Path-based tests re-pointed (mechanical, no assertion touched).**
+`TlsAndOctaneHygieneTest` (`WhatsAppOtpService`), `MoneyRoundingIsDecidedInOnePlaceTest` (the profile
+panel builder it lists among the money-shaped files), `RV28InfraHardeningTest` (`UserRepository`,
+`JwtService`), `T49MojibakeRepairTest` (`ProfileController`), `WaveZeroVerificationTest`
+(`VerificationRepository`), `RV16SignupMailAfterCommitTest` (2 x `SignupRegistrationHandler`), and
+`RV16EnumerationUniformityTest`, whose glob now covers `Modules/*/Http/Controllers/*Controller.php` as
+well as the kernel directory - otherwise the four auth controllers it is aimed at would have silently
+left its sweep. `CrossContextBoundaryTest` lost its now-dead IDENTITY prefixes
+(`Services/Auth/`, `Services/Verification/`, `Services/Profile/`) and the dead
+`Services/Staff/{EmployeeAuthService,StaffJwtService}` override, because `Modules/Identity/` maps
+those files to the context already. Identity's floor rose from 13 to **55**.
+
+**Verification.** Ratchets + the identity area floor (`tests/Feature/AppFuture`, `tests/Feature/Auth`,
+`Staff`, `Otp`, `Security`, `tests/Unit/Middleware`, and the seven re-pointed Review tests): the first
+run was 535 tests with a single failure - the allowlist mismatch above; after the update
+`tests/Feature/AppFuture` + `T48CommentEncodingTest` + `tests/Feature/Auth` are 146 tests / 605
+assertions OK. Whole-tree Pint PASS (779 files).
+**Commit.** `Stage 1 phase 2 (Identity)` - this commit.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3046, Assertions: 13066, Skipped: 2` -
+OK, 17:30, on `127.0.0.1:3399/t3_batch`. The same test count as the baseline and as the three earlier
+module commits; snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (779 files).
+The one edit made after that run is the Identity provider's docblock correction (comment text only):
+it was verified with `php -l` and `pint --test` on the file. Nothing pushed; branch `Agentic` only.

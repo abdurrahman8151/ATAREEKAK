@@ -101,7 +101,7 @@ class T49MojibakeRepairTest extends TestCase
     private static function shippedAddressRule(): array
     {
         $source = (string) file_get_contents(
-            dirname(__DIR__, 3).'/app/Http/Controllers/API/ProfileController.php'
+            dirname(__DIR__, 3).'/app/Modules/Identity/Http/Controllers/ProfileController.php'
         );
         if (! preg_match("/'address' => 'nullable\|in:([^']+)'/u", $source, $m)) {
             return [];

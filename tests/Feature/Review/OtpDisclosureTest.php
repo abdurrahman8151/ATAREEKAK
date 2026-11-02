@@ -4,9 +4,9 @@ namespace Tests\Feature\Review;
 
 use App\Domain\ValueObjects\Email;
 use App\DTOs\Auth\SendEmailOtpDTO;
+use App\Modules\Identity\Services\EmailOtpService;
+use App\Modules\Identity\Services\TextMeBotOtpService;
 use App\Providers\AppServiceProvider;
-use App\Services\EmailOtpService;
-use App\Services\TextMeBotOtpService;
 use App\Support\OtpDisclosure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Env;

@@ -51,7 +51,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
         'app/Modules/Money/Services/CashRideFeeRefundService.php',
         'app/Modules/Money/Services/RidePayout.php',
         'app/Services/Admin/AdminDriverPresenter.php',
-        'app/Services/Profile/PassengerProfilePanelBuilder.php',
+        'app/Modules/Identity/Services/PassengerProfilePanelBuilder.php',
         'app/Console/Commands/BackfillBookingMoneySnapshot.php',
         'app/Console/Testing/Support/FullRideFlowScenarios.php',
     ];
@@ -158,7 +158,7 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
 
         $this->assertStringContainsString(
             "'avg_rating' => round((float) \$avgRating, 1)",
-            file_get_contents(base_path('app/Services/Profile/PassengerProfilePanelBuilder.php')),
+            file_get_contents(base_path('app/Modules/Identity/Services/PassengerProfilePanelBuilder.php')),
             'the 1dp average rating is deliberately NOT money - recorded at R2 sec 117 so it is not "fixed"'
         );
     }

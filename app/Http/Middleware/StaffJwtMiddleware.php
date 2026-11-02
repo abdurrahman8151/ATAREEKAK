@@ -3,8 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\Employee;
+use App\Modules\Identity\Services\StaffJwtService;
 use App\Services\Staff\EmployeeManagementService;
-use App\Services\Staff\StaffJwtService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;

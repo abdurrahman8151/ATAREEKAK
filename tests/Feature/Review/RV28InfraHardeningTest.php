@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Review;
 
-use App\Http\Controllers\API\TextMeOtpController;
+use App\Modules\Identity\Http\Controllers\TextMeOtpController;
+use App\Modules\Identity\Services\WhatsAppOtpService;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
-use App\Services\WhatsAppOtpService;
 use Tests\TestCase;
 
 /**
@@ -66,8 +66,8 @@ class RV28InfraHardeningTest extends TestCase
         // Each of these correctness-critical reads must force the primary so a lagging replica
         // cannot serve stale auth/money state. Assert the source carries useWritePdo.
         $sites = [
-            'app/Repositories/UserRepository.php' => 'findByEmail (login/auth lookup)',
-            'app/Services/JwtService.php' => 'findUserCached (cache-miss rehydrate)',
+            'app/Modules/Identity/Repositories/UserRepository.php' => 'findByEmail (login/auth lookup)',
+            'app/Modules/Identity/Services/JwtService.php' => 'findUserCached (cache-miss rehydrate)',
             'app/Modules/Money/Http/Controllers/WalletController.php' => 'getBalance (money read)',
         ];
 

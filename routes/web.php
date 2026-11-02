@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\API\Auth\GoogleController;
 use App\Modules\Communication\Http\Controllers\NotificationController;
+use App\Modules\Identity\Http\Controllers\GoogleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

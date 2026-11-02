@@ -104,7 +104,7 @@ class TlsAndOctaneHygieneTest extends TestCase
         // per send despite already owning a verified one in its constructor.
         // Pin: exactly one `new Client(` in the file — the verified constructor
         // client — and no client construction inside the send method.
-        $src = (string) file_get_contents(app_path('Services/WhatsAppOtpService.php'));
+        $src = (string) file_get_contents(app_path('Modules/Identity/Services/WhatsAppOtpService.php'));
 
         $this->assertSame(
             1,

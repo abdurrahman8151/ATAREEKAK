@@ -101,7 +101,7 @@ class BoundaryDependencyTest extends TestCase
         //     both WalletTransaction::create() rows. The controller keeps the transaction boundaries,
         //     the ledger posting and the response shapes; its three app() calls became constructor
         //     injection. No amount, tier, split, posting key or escrow semantic was touched.
-        //   PassengerProfileController 442 -> 417: App\Services\Profile\PassengerProfileQueryService
+        //   PassengerProfileController 442 -> 417: App\Modules\Identity\Services\PassengerProfileQueryService
         //     (new) owns the two cached bundles, the filtered complaint list, the admin-charge history
         //     and the charge row.
         //

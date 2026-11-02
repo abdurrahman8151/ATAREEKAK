@@ -6,7 +6,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
-use App\Services\JwtService;
+use App\Modules\Identity\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;

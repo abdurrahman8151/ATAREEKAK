@@ -179,17 +179,10 @@ class CrossContextBoundaryTest extends TestCase
         // Same for `Modules/Ride/`: the prefixes below are the pre-move spellings and are dead.
 
         // ---- IDENTITY -------------------------------------------------------
-        foreach (['Services/Auth/', 'Services/Verification/', 'Services/Profile/'] as $prefix) {
-            if (str_starts_with($rel, $prefix)) {
-                return 'IDENTITY';
-            }
-        }
+        // Stage 1 phase 2 moved these under Modules/Identity/, which the module rule maps.
         if (in_array(basename($rel), [
             'JwtService.php', 'EmailOtpService.php', 'TextMeBotOtpService.php', 'WhatsAppOtpService.php',
         ], true)) {
-            return 'IDENTITY';
-        }
-        if (in_array($rel, ['Services/Staff/EmployeeAuthService.php', 'Services/Staff/StaffJwtService.php'], true)) {
             return 'IDENTITY';
         }
         if (str_starts_with($rel, 'Repositories/') && in_array(basename($rel), [

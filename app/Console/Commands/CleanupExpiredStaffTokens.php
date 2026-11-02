@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\Staff\StaffJwtService;
+use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Console\Command;
 
 class CleanupExpiredStaffTokens extends Command

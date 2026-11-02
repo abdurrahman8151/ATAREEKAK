@@ -6,7 +6,7 @@ use App\Models\Employee;
 use App\Models\Ride;
 use App\Models\StaffRefreshToken;
 use App\Models\User;
-use App\Services\Staff\StaffJwtService;
+use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;

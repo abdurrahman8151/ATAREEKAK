@@ -9,7 +9,7 @@ use App\Models\Employee;
  *
  * CONSOLE authenticates employees and revokes their tokens; IDENTITY owns the token format, the
  * hashing and the version bump. Before this port `AdminAuthService` and `EmployeeManagementService`
- * type-hinted `App\Services\Staff\StaffJwtService` directly. Only the three methods those callers
+ * type-hinted `App\Modules\Identity\Services\StaffJwtService` directly. Only the three methods those callers
  * use are on the port; `decodeToken`/`validateTokenVersion` are the middleware's business and stay
  * on the concrete service.
  */
