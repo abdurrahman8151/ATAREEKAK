@@ -15282,3 +15282,89 @@ is 16 added lines and ZERO changed lines, so no existing case's budget moved.
 | `pint --test tests/Feature/Snapshots` | PASS on 15 files |
 
 No `app/` file was touched in this step.
+
+#### 239.8 Step 8 (final) - the order matrix found a real order dependence, and the corpus is now frozen by a manifest
+
+**Part 1: the order matrix.** The same selection - the whole 179-case corpus, the money suite and the
+snapshot support unit tests, 474 tests - was run five times in five execution orders, with a
+leftover-row probe against all 30 guarded tables after each run:
+
+| Run | Order | Result | Leftover rows |
+|---|---|---|---|
+| 1 | `--order-by=default` (Payment, then the corpus, then Unit) | `OK (474 tests, 6143 assertions)` | clean |
+| 2 | `--order-by=reverse` (corpus FIRST, then Payment, then Unit) | **FAILED** - `admin/routes-popular` (see below) | clean |
+| 3 | `--order-by=random --random-order-seed=1` | `OK (474 tests, 6142 assertions)` | clean |
+| 4 | `--order-by=random --random-order-seed=20261101` | `OK (474 tests, 6148 assertions)` | clean |
+| 5 | `--order-by=random --random-order-seed=999983` | `OK (474 tests, 6137 assertions)` | clean |
+
+**The reverse order was red, and that is the value of the matrix.** `admin/routes-popular` answered
+Hama/Latakia/Homs in four orders and Homs-first in the fifth: `AdminTripService::getPopularRoutes()`
+groups by (pickup_address, destination_address) and sorts by EXACTLY ONE key, `trip_count`, with no
+tiebreaker - and the fixture put Homs, Latakia and Hama at one trip each, so all three rows tied on
+the only sort key and MySQL was free to return them in any order. Step 3 had already met this flake
+and thought it had fixed it with a second passenger on Homs; `total_passengers` is displayed but
+never sorted on, so the tie never went away. An intermittent red that four runs out of five cannot
+reproduce is exactly what makes a corpus untrustworthy, and nothing short of a different execution
+order would have found it.
+
+**The fix, and its limits.** `tests/` only, so the fixture now gives the three live trips distinct
+trip counts - Latakia twice, Homs once, plus the four Damascus -> Aleppo rides (4 / 2 / 1). The
+endpoint's one sort key is then unique per row and the ranking is deterministic and worth pinning.
+The diff is confined to the destination string and its consequences: 10 response files, one line
+each except `routes-popular` (Hama disappears, Latakia becomes trip_count 2 / 50% / "High"). No
+state snapshot changed - `captureMoneyAndRideState()` does not pin destinations. The corpus was
+regenerated ONCE, deliberately, and the manifest refreshed in the same commit.
+
+The fixture invariant is now guarded rather than remembered:
+`SnapshotEmptinessTest::the_popular_routes_snapshot_can_actually_pin_its_ordering` fails if the
+committed list ever contains two equal `trip_count` values (or is not ordered by it descending), so a
+future fixture edit that reintroduces the tie turns into a deterministic red at regeneration time
+instead of somebody else's intermittent failure. **The real fix is a tiebreaker in
+`AdminTripService::getPopularRoutes()`; it is PARKED because `app/` is frozen in this batch.**
+
+Bonus coverage from the five orders: `LedgerPropertySeed` drew a different random seed in each run
+(634087025, 140910540, 98509883, 655798503, 403097770), so the matrix also executed **1,100 fresh
+randomized ledger cases**, all green. That is why the assertion counts differ slightly between rows of
+the table: some randomized cases carry a second booking and assert more. Test COUNT is identical
+(474) - which is the number that matters.
+
+**Part 2: the freeze.** `tests/Snapshots/MANIFEST.json` records every committed corpus file and its
+sha256: **211 files** (169 response snapshots, 40 state snapshots, `query-budgets.json`,
+`route-inventory.json`). `SnapshotFreezeTest` (5 tests) compares it in BOTH directions - changed hash,
+missing file, extra file - and names the files. The per-case comparisons only cover the cases a run
+actually executes; the manifest catches a snapshot deleted or renamed in a module the run never
+touched, which is the "structural commit quietly shrinks the corpus" failure this freeze exists for.
+
+The freeze never repairs itself: `SnapshotManifest` writes only through
+`scripts/refresh-snapshot-manifest.php` (a new, documented script outside `tests/`) and the test that
+reads it is read-only, because a freeze that regenerates itself is not a freeze. Both commands are
+printed inside every failure message:
+
+```
+SNAPSHOT_UPDATE=1 php vendor/bin/phpunit tests/Feature/Snapshots   # rewrite the corpus
+php scripts/refresh-snapshot-manifest.php                          # rewrite the manifest
+```
+
+`TestDeterminismRatchetTest` flagged the new writer for `file_put_contents()`, as it should; it is in
+`FS_WRITE_ALLOWLIST` with the reason that it writes the tracked manifest and only from that script.
+
+**Verification.**
+
+| Check | Result |
+|---|---|
+| gate run 1 (before the fix): five orders | reverse FAILED on `admin/routes-popular`, other four green, leftover rows clean |
+| gate run 2 (after the fix and the manifest refresh): five orders | **`OK` in all five** (474 tests each), leftover rows clean after every run |
+| `tests/Feature/Review` (118 classes) after every step-8 file change | green - see the step's commit note |
+| freeze non-vacuity: hash-tampered `api/rides/book-without-the-balance.json` | named, with the refresh command |
+| freeze non-vacuity: deleted `state/rides/book.json` | `The manifest freezes state/rides/book.json, which does not exist.` |
+| freeze non-vacuity: added `api/wallet/__freeze_probe.json` | `on disk but not frozen by the manifest: api/wallet/__freeze_probe.json` |
+| `pint --test` on the changed files | PASS |
+
+**Stage 0.5 is complete - eight steps, eight commits, tests only plus the one approved eager-load
+fix:** (1) `c573725` every snapshot asserts its matched route; (2) `07e7f51` the `ChatRepository`
+eager-load fix and the unparked staff-conversation-messages snapshot; (3) `cb7e8d7` normaliser +
+fixture enrichment, one regeneration, the 15 measured query budgets; (4) `9eced2f` state snapshots for
+the 24 money/ride mutation cases and the three determinism defects that uncovered; (5) `288f5c3` the
+leak guard widened to every base table except `migrations`; (6) `686d084` 220-case seeded randomized
+ledger properties with the seed printed; (7) `40ccdcd` 16 error-path snapshots with their state twins;
+(8) this commit - the order matrix, the tie it found, and the manifest freeze on `tests/Snapshots`.

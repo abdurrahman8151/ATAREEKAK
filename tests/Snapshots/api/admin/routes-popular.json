@@ -10,20 +10,12 @@
                 "trip_count": 4
             },
             {
-                "demand_level": "Medium",
-                "demand_percentage": 25,
-                "from": "Damascus",
-                "to": "Hama",
-                "total_passengers": 1,
-                "trip_count": 1
-            },
-            {
-                "demand_level": "Medium",
-                "demand_percentage": 25,
+                "demand_level": "High",
+                "demand_percentage": 50,
                 "from": "Damascus",
                 "to": "Latakia",
-                "total_passengers": 1,
-                "trip_count": 1
+                "total_passengers": 2,
+                "trip_count": 2
             },
             {
                 "demand_level": "Medium",

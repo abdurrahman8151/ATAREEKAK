@@ -65,7 +65,7 @@
                 },
                 "ride": {
                     "departure_time": "<timestamp>",
-                    "destination_address": "Hama",
+                    "destination_address": "Latakia",
                     "driver": {
                         "id": "<id:4>",
                         "name": "Snapshot Driver"

@@ -124,6 +124,52 @@ class SnapshotEmptinessTest extends TestCase
         $this->assertSame([], $failures, "These lists are still too thin to police their endpoint:\n  ".implode("\n  ", $failures));
     }
 
+    /**
+     * `admin/routes-popular` sorts by ONE key - `trip_count` - with no tiebreaker
+     * (`AdminTripService::getPopularRoutes()`), so two destinations with the same count come back in
+     * whatever order MySQL's grouping produces.
+     *
+     * Step 8's order matrix proved it: with Homs, Latakia and Hama at one trip each, four execution
+     * orders answered Hama/Latakia/Homs and the reversed order answered Homs first. The fixture now
+     * gives the three live trips distinct counts (Aleppo 4, Latakia 2, Homs 1), which makes the
+     * ranking deterministic and worth pinning.
+     *
+     * This test is the guard on that fixture invariant: if a future edit reintroduces a tie, the
+     * snapshot becomes arbitrary again, and this fails at the point of regeneration instead of as an
+     * intermittent, unreproducible red in someone else's run. The real fix is a tiebreaker in the
+     * service; it is parked because app/ is frozen in this batch.
+     */
+    #[Test]
+    public function the_popular_routes_snapshot_can_actually_pin_its_ordering(): void
+    {
+        $json = $this->snapshotJson('admin/routes-popular');
+
+        $this->assertIsArray($json, 'Snapshot admin/routes-popular is missing or unreadable.');
+
+        $rows = $this->at($json, 'data');
+
+        $this->assertIsArray($rows, 'Snapshot admin/routes-popular: data is not a list.');
+
+        $this->assertGreaterThanOrEqual(3, count($rows), 'The popular-routes list is too thin to pin a ranking.');
+
+        $counts = array_map(static fn (array $row): int => (int) $row['trip_count'], $rows);
+
+        $this->assertSame(
+            count($counts),
+            count(array_unique($counts)),
+            'The endpoint sorts by trip_count alone, so two rows with the same trip_count are returned in an arbitrary '
+            .'order and the snapshot cannot be green twice. The fixture must give every destination a distinct trip_count '
+            .'(see the $liveTrips note in ApiSnapshotTestCase). Counts found: '.implode(', ', $counts)
+        );
+
+        // The list is ordered by that key, descending: pinning distinct counts is only worth
+        // anything if the snapshot also pins the order they must come back in.
+        $sorted = $counts;
+        rsort($sorted);
+
+        $this->assertSame($sorted, $counts, 'The popular routes are not ordered by trip_count descending.');
+    }
+
     #[Test]
     public function every_nested_collection_carries_at_least_one_row(): void
     {

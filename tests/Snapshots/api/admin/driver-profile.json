@@ -25,7 +25,7 @@
                 {
                     "bookings_count": 1,
                     "departure_time": "<timestamp>",
-                    "destination_address": "Hama",
+                    "destination_address": "Latakia",
                     "id": "<id:5>",
                     "pickup_address": "Damascus",
                     "status": "active"

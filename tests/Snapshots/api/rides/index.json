@@ -307,7 +307,7 @@
                 "communication_number": "0911000000",
                 "created_at": "<timestamp>",
                 "departure_time": "<timestamp>",
-                "destination_address": "Hama",
+                "destination_address": "Latakia",
                 "destination_lat": null,
                 "destination_lng": null,
                 "destination_location": {

@@ -206,10 +206,35 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - stage 0.5 step 7 reached its terminal state: committed, verified, audit 239.7. Step 8
-  (order matrix + freeze the corpus) is the last one.)
+- (empty - STAGE 0.5 IS COMPLETE. All eight steps are committed, verified and audited (R2 sec
+  239.1-239.8); the last one is 239.8. Nothing is half-finished: the tree holds only the owner's
+  own pre-existing changes.)
 
 ## Done recently
+- **STAGE 0.5 step 8 (final) - the order matrix found a real order dependence, and the corpus is now
+  frozen by a manifest (R2 sec 239.8), tests only: NO app/ change in this step.** The same 474 tests
+  (the whole corpus + the money suite + the snapshot support units) ran in five orders with a
+  leftover-row probe after each: default green, **reverse RED** on `admin/routes-popular`, three
+  random seeds green, 0 leftover rows in all 30 guarded tables after every run. The reverse order
+  exposed that `AdminTripService::getPopularRoutes()` sorts by ONE key (`trip_count`) with no
+  tiebreaker while the fixture had Homs, Latakia and Hama all at one trip, so those rows came back in
+  an arbitrary order; step 3 had thought a second PASSENGER on Homs broke the tie, but
+  `total_passengers` is not a sort key. Fixture fixed in `tests/` only (Latakia twice, Homs once, so
+  the counts are 4/2/1), corpus regenerated once (10 response files, one line each except
+  `routes-popular`), and the invariant is now GUARDED by
+  `SnapshotEmptinessTest::the_popular_routes_snapshot_can_actually_pin_its_ordering`, which fails the
+  moment a tie reappears. The app-side tiebreaker is parked. Re-run after the fix: all five orders
+  green, leftovers clean.
+- **The corpus is frozen:** `tests/Snapshots/MANIFEST.json` pins all 211 corpus files by sha256
+  (169 response + 40 state + query-budgets + route-inventory) and `SnapshotFreezeTest` fails by name
+  on a changed hash, a missing file or an extra file - including in a module the run never executed.
+  It never repairs itself: `scripts/refresh-snapshot-manifest.php` is the only writer, and the
+  refresh commands are printed inside every failure message. Non-vacuity proven all three ways.
+- **Stage 0.5, eight steps, eight commits:** `c573725` (route assertion) - `07e7f51` (eager-load fix +
+  unparked staff messages) - `cb7e8d7` (normaliser + enriched fixtures + measured budgets) - `9eced2f`
+  (state snapshots + three determinism defects) - `288f5c3` (leak guard on every base table) -
+  `686d084` (220 seeded randomized ledger cases) - `40ccdcd` (16 error-path snapshots) - this commit
+  (order matrix + manifest freeze).
 - **STAGE 0.5 step 7 - the refusal doors of the money and ride surface are pinned for the first time
   (R2 sec 239.7), tests only: NO app/ change in this step.** Measured gap first: of the corpus's 153
   responses, not one was a 403/404/409/422 on a money or ride route. `ErrorPathSnapshotTest` adds 16

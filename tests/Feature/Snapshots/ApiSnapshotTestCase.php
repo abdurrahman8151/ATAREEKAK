@@ -416,10 +416,27 @@ abstract class ApiSnapshotTestCase extends TestCase
         // Three trips on the road right now (status active, departure already passed). Each
         // booking goes through the real endpoint, so escrow_held, the wallet balances and the
         // ledger all agree with what the app would have written.
+        //
+        // THE DESTINATIONS ARE NOT DECORATION. `GET /api/admin/routes/popular` groups by
+        // (pickup_address, destination_address) and sorts by ONE key: `trip_count` (COUNT(*) of
+        // non-cancelled rides), with no tiebreaker. Two destinations with equal trip_count are
+        // therefore returned in whatever order MySQL's grouping happens to produce. Step 8's order
+        // matrix caught exactly that: with Homs, Latakia and Hama at one trip each the endpoint
+        // answered Hama/Latakia/Homs in four orders and Homs-first in the fifth, so the snapshot
+        // could not be green twice in a row. Step 3 had tried to break the tie with a second
+        // PASSENGER on Homs, which does not work - `total_passengers` is not a sort key, only
+        // displayed.
+        //
+        // The two Aleppo search rides plus the standard ride keep Damascus -> Aleppo at four, so
+        // the three live trips must contribute THREE DIFFERENT counts: Latakia twice and Homs once
+        // (4 / 2 / 1). `SnapshotEmptinessTest::test_the_popular_routes_snapshot_can_actually_pin_its_ordering`
+        // fails the moment a fixture change reintroduces a tie, which is what turns this from an
+        // intermittent flake into a deterministic red. The real fix is a tiebreaker in
+        // `AdminTripService::getPopularRoutes()` - parked for the owner, app/ is frozen in this batch.
         $liveTrips = [
             ['destination' => 'Homs', 'minutes_ago' => 45, 'driver' => $this->driver, 'passenger' => $this->passenger],
             ['destination' => 'Latakia', 'minutes_ago' => 70, 'driver' => $this->secondDriver, 'passenger' => $this->otherPassenger],
-            ['destination' => 'Hama', 'minutes_ago' => 95, 'driver' => $this->driver, 'passenger' => $this->thirdDriver],
+            ['destination' => 'Latakia', 'minutes_ago' => 95, 'driver' => $this->driver, 'passenger' => $this->thirdDriver],
         ];
 
         $thirdDriverToken = $this->userToken($this->thirdDriver);
@@ -462,12 +479,9 @@ abstract class ApiSnapshotTestCase extends TestCase
             $this->liveRides[] = $ride;
         }
 
-        // A SECOND passenger on the Homs trip, and the reason is a determinism bug this step found
-        // rather than a desire for more rows: with one booking each, Hama and Homs both sit at
-        // trip_count 1 / total_passengers 1 / demand 25%, so `admin/routes-popular` orders two rows
-        // that tie on EVERY sort key and MySQL returns them in whichever order it likes - an
-        // isolated run pinned Homs first, a full run Hama first, so the case could never be green
-        // twice. Two passengers on Homs breaks the tie with real data.
+        // A SECOND passenger on the Homs trip: `routes-popular` and the admin trip screens are
+        // richer with a real second booking behind them (and the total_passengers column is
+        // displayed). It does NOT order anything - see the note on $liveTrips above.
         $response = $this->withToken($this->otherToken)->postJson("/api/rides/{$this->liveRides[0]->id}/book", [
             'seats' => 1,
             'communication_number' => '0900000003',

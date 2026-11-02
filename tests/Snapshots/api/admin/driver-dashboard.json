@@ -37,7 +37,7 @@
             "recent_rides": [
                 {
                     "date": "<timestamp>",
-                    "destination": "Hama",
+                    "destination": "Latakia",
                     "id": "<id:3>",
                     "price_per_seat": 5000,
                     "source": "Damascus",
