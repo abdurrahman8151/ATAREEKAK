@@ -16320,4 +16320,122 @@ were the ones this section describes. Whole-tree Pint PASS (779 files).
 OK, 17:54, on `127.0.0.1:3399/t3_batch`. The same test count as the baseline and as all four earlier
 module commits; snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS (779 files).
-Nothing pushed; branch `Agentic` only.
+Nothing pushed; branch `Agentic` only.---
+
+### 247. Stage 1, phase 3 - the five-order matrix and the leftover-row probe
+
+The five modules are in place, so the last gate is the one that proves the suite does not depend on
+which tests ran before it. Five serialised runs of the **full** suite, one after another, on the
+scratch database, each followed by the leftover-rows probe:
+
+| Order | Result | Tests | Assertions | Skipped | Leftover rows |
+|---|---|---|---|---|---|
+| default | green (exit 0) | 3046 | 13068 | 2 | clean - 0 in all 30 guarded tables |
+| reverse | green (exit 0) | 3046 | 13075 | 2 | clean - 0 in all 30 guarded tables |
+| random seed 11 | green (exit 0) | 3046 | 13074 | 2 | clean - 0 in all 30 guarded tables |
+| random seed 20261102 | green (exit 0) | 3046 | 13073 | 2 | clean - 0 in all 30 guarded tables |
+| random seed 7919 | green (exit 0) | 3046 | 13082 | 2 | clean - 0 in all 30 guarded tables |
+
+Every order: the same 3046 tests, the same 2 skips, no failures, no errors, and no rows left behind in
+any of the 30 guarded tables. The snapshot corpus is inside this selection and compares byte-for-byte in
+all five orders, so "green in every order" is the proof that the corpus and the fixtures do not depend
+on execution order.
+
+One honest note on the numbers: the **assertion** total moves a little between orders (13068 - 13082).
+That is expected and not a red flag - some tests assert inside a loop over rows they query, so the
+number of assertions depends on how many rows the fixtures produced in that run, and the row set itself
+depends on which tests ran before. The invariants that matter - test count, skip count, failure count,
+and the leftover-row probe - are identical in all five orders. This is also what makes the batch rule
+"the default-order full suite is green" meaningful rather than a coin flip: the default order is not
+special, it just happens to be the one recorded per commit.
+
+Runs were serialised deliberately: each one is `php vendor/bin/phpunit --no-coverage` with only the
+ordering flag changed, and the probe is a separate PHP process that boots the app, asks the leak
+detector for the guarded tables and prints the non-zero ones. `SNAPSHOT_UPDATE` is removed from the
+environment by the runner before the first run, so no run could have regenerated the corpus.---
+
+### 248. Stage 1 in review - what the five modules look like, and what the ratchets now say
+
+**The layout.** Five modules under `app/Modules/`, 202 PHP files in total; the kernel keeps 151
+(`app/` is 353 files, was 351 at the start of the batch; the two extras are `PushNotifierInterface` and
+`EmployeeAuthInterface`, both ports). Namespaces are `App\Modules\<Name>\...`; composer's autoload is
+unchanged (PSR-4 on `App\`), so no autoload configuration was edited in this batch.
+
+| Module | Files | Layers it actually uses | Ports | Commit |
+|---|---|---|---|---|
+| Communication | 19 | `Contracts`, `Http/Controllers`, `Providers`, `Repositories`, `Services` | 5 | `27d8866` |
+| Money | 35 | `Contracts`, `Domain/Strategies`, `Http/Controllers`, `Providers`, `Services` | 8 | `367167a` |
+| Ride | 46 | `Contracts` (+`Geocoding`), `Domain` (+`Policies`), `Http/Controllers`, `Http/Handlers`, `Providers`, `Repositories`, `Services` | 6 | `cfc2d2d` |
+| Identity | 55 | `Contracts`, `Http/Controllers`, `Http/Handlers`, `Providers`, `Repositories`, `Services` | 13 | `aa35e6f` |
+| Console | 47 | `Contracts`, `Http/Controllers`, `Providers`, `Repositories`, `Services` | 4 | `1592f64` |
+
+`app/Interfaces/` is empty and git no longer has anything there: its 34 ports were moved in phase 1,
+and they live in the Contracts namespace of the module that implements them.
+
+**The boundary, measured.** `kernel -> module Contracts` went from 87 files (phase 1) to **5**:
+
+| Kernel file | Contract it names |
+|---|---|
+| `Jobs/SendPushNotification.php` | `Communication\Contracts\PushNotifierInterface` |
+| `Jobs/SendPushNotificationJob.php` | `Communication\Contracts\PushNotifierInterface` |
+| `Listeners/SendUserVerifiedNotification.php` | `Communication\Contracts\NotificationPort` |
+| `Mail/OtpMailer.php` | `Identity\Contracts\OtpMailInterface` (implements it) |
+| `Observers/UserObserver.php` | `Identity\Contracts\ProfileRepositoryInterface`, `Ride\Contracts\ScoreServiceInterface` |
+
+That is the whole of the kernel's knowledge of the modules: three queued/serialized classes the owner's
+layout keeps in the kernel, the kernel mailer, and the account-creation observer. Module-to-module
+implementation imports are **0**; kernel-to-module implementation imports are **0**.
+
+**The ratchets, at their final numbers.**
+
+| Ratchet | Before the batch | Now |
+|---|---|---|
+| `BoundaryDependencyTest`, nine layer rules | 8 x 0, `models_to_enums` 3 | unchanged - all nine still pass at the same numbers |
+| `CrossContextBoundaryTest`, 20 ordered pairs | all 0 | all 0 |
+| `ModuleBoundaryTest`, kernel -> Contracts ceiling | 87 (phase 1) | **5** (exact) |
+| `ModuleBoundaryTest`, per-module file floors | 5 / 9 / 7 / 13 / 5 | **19 / 35 / 46 / 55 / 47** |
+| `ModuleBoundaryTest`, scanned app files | 351 | **353** (floor asserted, so a move cannot make the scan vacuous) |
+| `ModuleBoundaryTest`, entrypoint allowlist | 1 file | **12 files** (measured reference counts, shrink-only) |
+| `BoundaryDependencyTest` / `CrossContextBoundaryTest` scanned-file floors | none | **340** each |
+
+Two rules were re-pointed rather than relaxed, and both are worth stating plainly because they are
+where a move could have hidden a problem:
+
+* Both scanners classified a file by its **first path segment**, so `app/Modules/...` was invisible to
+  every layer rule and every context pair - the vacuous pass the owner warned about. Both now derive
+  the layer and the context from `Modules/<Name>/<Layer>` and `Modules/<Name>`, with `Contracts/`
+  treated as SHARED (a port is the published boundary and must not create an edge), exactly the role
+  `app/Interfaces/` played before. Both assert a scanned-file floor.
+* Several `assertCeiling`-style Review tests sweep a directory or a file list and only fail when a
+  count grows, so losing files makes them pass silently. Three of them were reading the controller tree
+  (`RV13ExceptionCodeAsStatusTest`, `ExceptionMessageLeakRatchetTest` twice, `RV33BoundaryDependencyTest`'s
+  domain exemption) and now read the module tree too; the rest were re-pointed by path (the inventory
+  in section 243.a) and the identical file set they measured before the moves is what they measure now.
+
+**Test totals.** Every module commit ran the default-order full suite, serialised, on the scratch
+database, and every one is green with the same test count as the baseline:
+
+| Commit | Tests | Assertions | Skipped |
+|---|---|---|---|
+| baseline (before the batch) | 3040 | 13026 | 2 |
+| phase 1 (`fade3c4`) | 3046 | 13051 | 2 |
+| Communication (`27d8866`) | 3046 | 13062 | 2 |
+| Money (`367167a`) | 3046 | 13058 | 2 |
+| Ride (`cfc2d2d`) | 3046 | 13062 | 2 |
+| Identity (`aa35e6f`) | 3046 | 13066 | 2 |
+| Console (`1592f64`) | 3046 | 13071 | 2 |
+
+The six extra tests over the baseline are `ModuleBoundaryTest`'s own tests (phase 1); nothing else was
+added, skipped or removed. The assertion total drifts only with the ratchets' own counts.
+
+**Snapshot corpus and manifest.** `tests/Snapshots` is byte-identical across the whole batch:
+`git diff --stat fade3c4~1..HEAD -- tests/Snapshots` is empty, `MANIFEST.json` still lists 213 files,
+and `SNAPSHOT_UPDATE=1` was never set (the matrix script explicitly removes the variable). The query
+budgets and the determinism tests are part of the full suite and are green in every order (section 247).
+
+**What is parked.** Nothing in phase 1 or 2 is parked: all five modules moved and each reached the same
+green set. What the batch deliberately did *not* do, and why, is in the allowlist reasoning above: eight
+JWT decode/cleanup entrypoints and four no-show/confirm entrypoints name module implementations because
+no port exposes what they call. Converting them is an auth and domain-API decision, not a file move, and
+the only files that would have needed a *new* port to avoid the list were resolved that way instead
+(`PushNotifierInterface`, `EmployeeAuthInterface`, and the one `ScoreServiceInterface` method).
