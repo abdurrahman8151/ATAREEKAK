@@ -124,14 +124,19 @@ final class ScoreTransactionResource extends JsonResource
 
     /**
      * Fields returned for a Ride reference.
-     * Adjust column names (origin / destination / departure_time / status)
-     * to match your actual Ride migration.
+     *
+     * Stage 0.6 item 2: this read `$ride->origin` / `$ride->destination`, which DO NOT EXIST on the
+     * Ride model (it stores `pickup_address` / `destination_address`). With
+     * `preventAccessingMissingAttributes` armed - the app arms it outside production - the read threw
+     * and the whole endpoint answered 500, but only for a score row that actually referenced a ride.
+     * The JSON keys stay `origin` / `destination` (the documented shape); only the attribute names
+     * were wrong.
      */
     private function formatRide(array $base, Ride $ride): array
     {
         return array_merge($base, [
-            'origin' => $ride->origin,
-            'destination' => $ride->destination,
+            'origin' => $ride->pickup_address,
+            'destination' => $ride->destination_address,
             'departure_time' => $ride->departure_time?->toIso8601String(),
             'status' => $ride->status,
         ]);
@@ -154,8 +159,9 @@ final class ScoreTransactionResource extends JsonResource
         if ($booking->relationLoaded('ride') && $booking->ride) {
             $result['ride'] = [
                 'id' => $booking->ride->id,
-                'origin' => $booking->ride->origin,
-                'destination' => $booking->ride->destination,
+                // Same wrong attribute names as formatRide() above (stage 0.6 item 2).
+                'origin' => $booking->ride->pickup_address,
+                'destination' => $booking->ride->destination_address,
                 'departure_time' => $booking->ride->departure_time?->toIso8601String(),
                 'status' => $booking->ride->status,
             ];

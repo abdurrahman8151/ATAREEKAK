@@ -1,7 +1,7 @@
 {
     "generated_by": "scripts/refresh-snapshot-manifest.php",
     "note": "Freeze on tests/Snapshots: every corpus file and its sha256. Regenerate with the script after a deliberate corpus change; a changed hash, a missing file or an extra file turns SnapshotFreezeTest red.",
-    "count": 211,
+    "count": 213,
     "files": {
         "api/admin/dashboard-cities.json": "cf9ecc6d355316103f7d402df303b5dc81dc8df8ca9170935e379a0618deb472",
         "api/admin/dashboard-growth.json": "3a3b0c821b228e509bb902ae6eda956dee9ae414c99d6d73fa88996d8d102ddb",
@@ -130,6 +130,7 @@
         "api/rides/show.json": "50a45abbaf6c66d424ac6423715deaea1734e9618909bb4c881001eba4e9bc62",
         "api/score/history.json": "237c2406863c250d3f748cd945c434e229ced241fb24f00058ca7d13d933b7d7",
         "api/score/show.json": "eaefd05638cbcb163fff2d7bd7b9dc9f34e75eb912705395fe14d90c4934e4c5",
+        "api/score/transactions-with-ride-and-booking-references.json": "841edcedad52af45c92a4653eff58389606f0463c2fd040fc064abc76e02a8e4",
         "api/score/transactions.json": "06ad627ec0d1c7d8dbd49c98d3e4f05a6043181c2b18e876d52d6a26cfb2ff3c",
         "api/session/logout.json": "23594156750de29d354edaa60312c7ff56276165498b25c0c91dc43efafaec84",
         "api/session/user.json": "2fafd553733e2bd5883ddf80b7c8fa421bc7264eb0101ee1f57ee11a545dbd6d",
@@ -172,7 +173,7 @@
         "api/wallet/requests-store.json": "f681f2bbb54711a0679303f086c5fb8046c57ec2a1a6b8fadcdea17a24fac623",
         "api/wallet/transactions.json": "f1a593229fe7015040490830c9d6ce4b4a8e25a388d5bc9dd0010911ac528ea9",
         "api/wallet/verify-and-create-missing-session.json": "7b6b411709186e74825c1faf69960aff4a147d7abfc621cb15f1f7da6395916d",
-        "query-budgets.json": "4c94f2d31c0c165bfeb909ee54e7845c05a4a37637866af552a2a1444b865eb3",
+        "query-budgets.json": "d57f47d4147c0e4fe51a6ebe488ea1fe0aaa3f5a483ccb4f01b121b25427d1b0",
         "route-inventory.json": "5cbf3c5a810e0fe968b50f5410bb9e6ffe1fe72c3878e95f0ff5058df67b8912",
         "state/admin/passenger-charge-a-negative-amount.json": "88e164507bb1815adf99f5d565b7c6d1d64d1abc75e9d0af04806a0e729587a5",
         "state/admin/passenger-charge-wallet.json": "add37a0dab796e0065ac7a01c783123ad52cddb3bd7fb898cdfe5d00e956dd02",
@@ -199,6 +200,7 @@
         "state/rides/create-with-route.json": "8c52d7344fd6a8875c188367e8e91093dfd0547956b3ab59748ffc213405f6ab",
         "state/rides/create.json": "8c52d7344fd6a8875c188367e8e91093dfd0547956b3ab59748ffc213405f6ab",
         "state/rides/driver-no-show.json": "ab86b4ca2f3c0b1932c98df9e2fe806a624d46e09fac25498d3f12c7c54764b0",
+        "state/score/transactions-with-ride-and-booking-references.json": "a93470602e6de3fa986460718e8c6dbfa2c549432ede185889f829708efc394f",
         "state/staff/bookings-cancel-a-booking-that-does-not-exist.json": "88e164507bb1815adf99f5d565b7c6d1d64d1abc75e9d0af04806a0e729587a5",
         "state/staff/bookings-cancel.json": "b24ef52ae02492423eb063b3f83c8c88d3c6fc27e719db1cd8cabdaf7e14e3b6",
         "state/staff/trips-cancel.json": "361a71a4eca034b69aa80d2eb85b040f4c833c8d2807d8a41d52a0bc4993b20d",

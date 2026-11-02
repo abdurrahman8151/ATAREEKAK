@@ -15444,3 +15444,76 @@ in the same commit (`changed 1`). `git status` also proves the probe is gone:
 | corpus regeneration | `git status tests/Snapshots` -> only `query-budgets.json`; 4 budgets lowered (3 + the free `staff/chat-messages`) |
 | degraded-path proof (the probe, on the frozen corpus) | the two `dashboard-recent`/`wallet-charges` cases have no per-row query: every related read is `where ... in (...)` |
 | verification battery | `tests/Feature/Admin`, `tests/Feature/Profile`, `tests/Feature/Notifications`, `tests/Feature/Rides`, `tests/Feature/Snapshots`, `tests/Unit/Services/Admin` - `OK (586 tests, 2952 assertions)` |
+
+#### 240.2 Item 2 - `GET /api/score/transactions` no longer 500s on a row that references a Ride or a Booking, and the reference VALUES are pinned
+
+**The defect, reproduced before touching anything.** `ScoreTransactionResource::formatRide()` read
+`$ride->origin` and `$ride->destination`, and `formatBooking()` read the same two names on the nested
+ride. The Ride model has no such attributes (it stores `pickup_address` / `destination_address`), and
+the app arms `preventAccessingMissingAttributes` outside production, so the read THREW and the whole
+endpoint answered 500. It stayed invisible because none of the world's score rows carried a
+reference: `hydrateReferences()` never attached a `referenceModel`, `buildReference()` returned
+`id + type` only, and both formatters were unreachable. A new case that seeds the two reference
+shapes proved it on the first run - the harness refused to write a snapshot and reported the app's
+real answer:
+
+```
+Refusing to snapshot 'score/transactions-with-ride-and-booking-references':
+  the case documents status 200 but the call returned 500.
+  Body starts: {"status":"error","message":"An unexpected error occurred.","code":500}
+```
+
+**The fix is two attribute names, and the JSON keys do not move** - the response keeps `origin` /
+`destination`, which is the shape the resource's own docblock documents; only the attribute they are
+read FROM changes. `formatRide()` now reads `pickup_address` / `destination_address`, and
+`formatBooking()`'s nested `ride` block does the same.
+
+**What the new case pins, and what it cannot.** `score/transactions-with-ride-and-booking-references`
+seeds the two shapes through the REAL score service, with the app's own reference-bearing calls:
+
+- `ScoreService::recordRideCompleted($ride)` awards `RIDE_COMPLETED` with `reference: $ride` to the
+  driver AND to every passenger holding a COMPLETED booking on the ride - so the standard booking is
+  completed first, exactly as the endpoint is read in production.
+- `ScoreService::recordPassengerNoShow($passenger, $booking, 'cash')` awards `PASSENGER_NO_SHOW` with
+  `reference: $booking` (cash, so the -15 really applies; e-pay overrides the points to 0).
+
+Verified log evidence: `{"passenger_no_show", -15, reference Booking}` and `{"ride_completed", +10,
+reference Ride}` in the same page, the first with a nested `ride` block (the booking-reference shape)
+and the second without it (the ride-reference shape) - both branches of `buildReference()`.
+
+**The snapshot pins the SHAPE, not the VALUES, and that gap is closed by a second test.**
+`reference` is one of the normaliser's `ID_KEYS`, and the normaliser forces the id family onto every
+scalar inside it, so `reference.origin` and `reference.destination` are aliased to `<id:N>` (the same
+is true of the existing corpus - it is pre-existing behaviour, deliberately untouched because
+changing it would rewrite snapshots the freeze protects). A mapping that swapped origin for
+destination would therefore still produce a byte-identical snapshot. So
+`tests/Feature/Review/ScoreTransactionReferenceValuesTest.php` (2 tests, 17 assertions) hits the same
+endpoint and asserts the real text against the rows it came from: the ride reference's
+`origin`/`destination` are the ride's `pickup_address`/`destination_address` and are NOT equal to each
+other, and the booking reference carries its own id, its status, and a nested ride block with the
+same two addresses.
+
+**State coverage.** The case declares `'state' => 'score'` (a new value for the harness's existing
+per-case `state` knob), which captures the rows behind a score response: `score_transactions`
+(action, points, previous/new score, `reference_type`, `reference_id`, reason) and `user_scores`
+(score, total_rides, total_cancellations). The committed state file proves the fixture is real - one
+row with `reference_type = App\Models\Ride` shared by the driver's and the passenger's award (SAME
+`<id:7>` alias, so the snapshot pins "one ride, two awards"), and one with `reference_type =
+App\Models\Booking` pointing at the booking. `captureMoneyAndRideState()` is untouched, so no existing
+state file moved.
+
+**Freeze compliance, measured.** The regeneration wrote exactly two new files and one changed file:
+
+```
+?? tests/Snapshots/api/score/transactions-with-ride-and-booking-references.json     (new case)
+?? tests/Snapshots/state/score/transactions-with-ride-and-booking-references.json   (new state twin)
+ M tests/Snapshots/query-budgets.json                                              (+ "score/transactions-...": 5)
+```
+
+`git status` on `tests/Snapshots` shows no other file, so all 169 existing response snapshots and all
+40 existing state snapshots are byte-identical. The manifest refresh reports
+`Frozen files: 213 (added 2, removed 0, changed 1)`.
+
+Verification: `tests/Feature/Snapshots` + the new value test -> `OK (188 tests, 2080 assertions)`; the
+item-2 area floor (`tests/Feature/Review`, `tests/Feature/Rides`, `tests/Unit/Models`) ->
+`Tests: 912, Assertions: 2712, Skipped: 2`, exit 0, no failures.

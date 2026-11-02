@@ -18,6 +18,7 @@ use App\Models\Wallet;
 use App\Models\WalletRequest;
 use App\Models\WalletTransaction;
 use App\Services\Payment\PassengerWalletCharger;
+use App\Services\Score\ScoreService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -881,6 +882,37 @@ abstract class ApiSnapshotTestCase extends TestCase
     }
 
     /**
+     * Two score rows for the standard passenger that reference a real Ride and a real Booking, so
+     * `ScoreTransactionResource`'s reference formatters actually run (stage 0.6 item 2).
+     *
+     * Both are written through the REAL score service, with the same shapes the app uses:
+     *
+     *   - `recordRideCompleted()` awards `RIDE_COMPLETED` with `reference: $ride` to every passenger
+     *     holding a COMPLETED booking on the ride (the driver gets one too - it is not in the
+     *     passenger's list, but it is in the score state file). The standard booking is completed
+     *     first because that is the state the endpoint is read in.
+     *   - `recordPassengerNoShow()` awards `PASSENGER_NO_SHOW` with `reference: $booking`, which is
+     *     the app's own booking-referencing shape.
+     *
+     * Without this, `GET /api/score/transactions` looks healthy: none of the world's score rows carry
+     * a reference, so both reference formatters were dead code behind a parked 500.
+     */
+    protected function seedScoreReferenceTransactions(): void
+    {
+        $score = app(ScoreService::class);
+
+        $this->booking->update(['status' => 'completed']);
+        $score->recordRideCompleted($this->ride);
+
+        // Cash, so the passenger's -15 really applies (an e-pay no-show settles the wallet instead
+        // and records 0 points); the reference is the booking either way.
+        $score->recordPassengerNoShow($this->passenger, $this->booking, 'cash');
+
+        $this->caseVars['{ride}'] = (string) $this->ride->id;
+        $this->caseVars['{booking}'] = (string) $this->booking->id;
+    }
+
+    /**
      * Create a complaint through the real endpoint and remember its id as {complaint}.
      *
      * One attachment travels with it. The nested `attachments` list was `[]` in nine complaint
@@ -1129,9 +1161,14 @@ abstract class ApiSnapshotTestCase extends TestCase
 
         // Money and ride mutations additionally pin the ROWS they wrote: a body that says
         // "confirmed" over a write that only half happened is exactly the class of bug a response
-        // snapshot cannot see.
-        if ($definition['state'] ?? in_array($case, self::MONEY_AND_RIDE_MUTATION_CASES, true)) {
-            $this->assertStateSnapshot($case, fn (): array => $this->captureMoneyAndRideState());
+        // snapshot cannot see. A case may also opt in explicitly, and choose WHICH rows: `'state' =>
+        // 'score'` captures the score ledger behind a score response (stage 0.6 item 2).
+        $state = $definition['state'] ?? in_array($case, self::MONEY_AND_RIDE_MUTATION_CASES, true);
+
+        if ($state) {
+            $this->assertStateSnapshot($case, $state === 'score'
+                ? fn (): array => $this->captureScoreState()
+                : fn (): array => $this->captureMoneyAndRideState());
         }
     }
 
@@ -1237,6 +1274,31 @@ abstract class ApiSnapshotTestCase extends TestCase
                 ->all(),
             'rides' => DB::table('rides')->orderBy('id')
                 ->get(['id', 'driver_id', 'status', 'available_seats', 'price_per_seat'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+        ];
+    }
+
+    /**
+     * The score rows behind a score response (stage 0.6 item 2).
+     *
+     * `captureMoneyAndRideState()` pins wallets, ledger entries, bookings and rides; a score
+     * response's own rows are the `score_transactions` audit trail and the `user_scores` counters
+     * the same write moved. Pinning both is what makes the populated-reference case more than a
+     * shape check: the body's `reference.origin`/`destination` must correspond to a row whose
+     * `reference_type`/`reference_id` really point at the ride or booking in the state file.
+     *
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    protected function captureScoreState(): array
+    {
+        return [
+            'score_transactions' => DB::table('score_transactions')->orderBy('id')
+                ->get(['id', 'user_id', 'action', 'points', 'previous_score', 'new_score', 'reference_type', 'reference_id', 'reason'])
+                ->map(fn ($row): array => (array) $row)
+                ->all(),
+            'user_scores' => DB::table('user_scores')->orderBy('id')
+                ->get(['id', 'user_id', 'score', 'total_rides', 'total_cancellations'])
                 ->map(fn ($row): array => (array) $row)
                 ->all(),
         ];

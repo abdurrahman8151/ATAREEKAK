@@ -127,6 +127,7 @@
     "score/history": 1,
     "score/show": 1,
     "score/transactions": 2,
+    "score/transactions-with-ride-and-booking-references": 5,
     "session/logout": 4,
     "session/user": 0,
     "staff/bookings": 11,

@@ -37,6 +37,23 @@ final class MiscSnapshotTest extends ApiSnapshotTestCase
                 'actor' => 'passenger',
                 'expect' => 200,
             ],
+            // Stage 0.6 item 2: the SAME route, but with the two reference shapes the parked 500
+            // needed - a score row that points at a Ride and one that points at a Booking. The case
+            // above cannot catch it: none of the world's score rows carry a reference, so the
+            // resource's reference formatters never ran and the endpoint looked healthy.
+            'score/transactions-with-ride-and-booking-references' => [
+                'route' => 'GET /api/score/transactions',
+                'method' => 'GET',
+                'uri' => '/api/score/transactions',
+                'actor' => 'passenger',
+                'with_booking' => true,
+                'prepare' => static fn (ApiSnapshotTestCase $test) => $test->seedScoreReferenceTransactions(),
+                // The rows behind the response: the score ledger and the score counters it moved.
+                // A response that says "+10" over a row that was never written is exactly what a
+                // body snapshot cannot see.
+                'state' => 'score',
+                'expect' => 200,
+            ],
             'complaints/index' => [
                 'route' => 'GET /api/complaints',
                 'method' => 'GET',
