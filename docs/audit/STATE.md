@@ -206,9 +206,20 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - STAGE 0.5 IS COMPLETE. All eight steps are committed, verified and audited (R2 sec
-  239.1-239.8); the last one is 239.8. Nothing is half-finished: the tree holds only the owner's
-  own pre-existing changes.)
+- STAGE 0.6 (owner's new goal, five items, one commit each): (1) eager-load the 9 N+1 routes and
+  re-record their budgets DOWN; (2) fix the `GET /api/score/transactions` 500 for score rows that
+  reference a Ride or Booking, add a populated-path snapshot case + state coverage; (3) deterministic
+  tiebreaker in `AdminTripService::getPopularRoutes()`; (4) PARK four items with questions for the
+  owner (no code change); (5) the full default-order suite, then the five-order matrix.
+  Files expected to change: `app/Repositories/RideRepository.php`, `app/Services/Ride/RideSearchService.php`,
+  the other N+1 handlers (Chat/Admin/PassengerProfile), `app/Services/Admin/AdminTripService.php`,
+  `app/Http/Resources/ScoreTransactionResource.php`, `tests/Snapshots/query-budgets.json`,
+  `tests/Snapshots/MANIFEST.json`, one new snapshot case (+ its state file), the audit and this file.
+  Snapshot freeze: response snapshots must stay byte-identical; only budgets, NEW case files and the
+  refreshed manifest may change.
+  Temporary probe (DELETED before the item-1 commit, proven with `git status`):
+  `tests/Feature/Snapshots/NPlusOneProbeTest.php` (dumps the query log for the 9 cases; never records
+  a snapshot or a budget). Scratch outside the repo: `C:\temp\s05\`.
 
 ## Done recently
 - **STAGE 0.5 step 8 (final) - the order matrix found a real order dependence, and the corpus is now

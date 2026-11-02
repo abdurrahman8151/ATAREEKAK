@@ -45,7 +45,7 @@ final class AdminDriverPresenter
             'profile_photo' => $profile?->profile_photo
                 ? asset('storage/'.$profile->profile_photo)
                 : null,
-            'phone' => $this->resolveDriverPhone($driver->id),
+            'phone' => $this->driverPhone($driver),
             'vehicle' => $vehicleLabel,
             'status' => $this->resolveDriverStatus($driver),
             'avg_rating' => isset($driver->avg_rating) && $driver->avg_rating !== null
@@ -221,6 +221,25 @@ final class AdminDriverPresenter
         }
 
         return 'unverified';
+    }
+
+    /**
+     * The driver's contact number, without a per-driver query when the caller already materialised
+     * it (stage 0.6 item 1).
+     *
+     * `AdminDriverQueryService::getDrivers()` adds `latest_communication_number` to the list query,
+     * so the admin table answers from that attribute. Every other caller (the single-driver profile)
+     * has no such attribute and keeps the direct query below - same value either way, and the
+     * attribute is checked with array_key_exists so a NULL number does not trigger a redundant
+     * lookup per row.
+     */
+    private function driverPhone(User $driver): ?string
+    {
+        if (array_key_exists('latest_communication_number', $driver->getAttributes())) {
+            return $driver->latest_communication_number;
+        }
+
+        return $this->resolveDriverPhone($driver->id);
     }
 
     public function resolveDriverPhone(int $driverId): ?string

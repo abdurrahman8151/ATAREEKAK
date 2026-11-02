@@ -47,6 +47,26 @@ final class AdminDriverQueryService
             'profile:user_id,profile_photo,type_of_car,color_of_car',
             'photos',
         ])
+            // Stage 0.6 item 1: two per-row lookups moved into this one query.
+            //
+            //  1. avg_rating used to be set by a transform() that ran `UserRating::where(...)->avg()`
+            //     once PER DRIVER (a page of 3 drivers cost 3 queries). withAvg() turns it into one
+            //     aggregate subquery, and the alias keeps the exact attribute name the presenter
+            //     already reads (`avg_rating`), so the JSON is unchanged.
+            //  2. `phone` is `AdminDriverPresenter::resolveDriverPhone()`, which asks for the newest
+            //     non-null `communication_number` among the driver's rides - also once PER DRIVER.
+            //     The correlated subquery materialises the same value as a `latest_communication_number`
+            //     attribute, and the presenter prefers it when it is present. Same ordering
+            //     (`created_at DESC`, then whatever the engine returns for ties - the old scalar
+            //     `value()` query behaved identically), same NULL semantics.
+            ->withAvg('receivedRatings as avg_rating', 'rating')
+            ->addSelect(['latest_communication_number' => Ride::query()
+                ->select('communication_number')
+                ->whereColumn('rides.driver_id', 'users.id')
+                ->whereNotNull('communication_number')
+                ->orderByDesc('created_at')
+                ->limit(1),
+            ])
             ->where(function ($q) {
                 $q->where('is_verified_driver', true)
                     ->orWhere(function ($q2) {
@@ -74,12 +94,6 @@ final class AdminDriverQueryService
         $query->orderByDesc('created_at');
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
-
-        $paginator->getCollection()->transform(function (User $driver) {
-            $driver->avg_rating = UserRating::where('rated_user_id', $driver->id)->avg('rating');
-
-            return $driver;
-        });
 
         return $paginator;
     }

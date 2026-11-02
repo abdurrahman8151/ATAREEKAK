@@ -120,7 +120,12 @@ class ChatRepository implements ChatRepositoryInterface
     public function getMessages(int $conversationId, int $limit = 50, int $offset = 0): Collection
     {
         return Message::where('conversation_id', $conversationId)
-            ->with('sender')
+            // Stage 0.6 item 1: `sender.profile`, not just `sender`. ChatMessageHandler::
+            // formatMessage() reads the sender and its profile photo for EVERY row, and its
+            // getUserProfilePhoto() falls back to `Profile::where('user_id', ...)` when the profile
+            // relation is not loaded - so a three-message page paid three sender loads plus three
+            // profile loads on top of this select. Both are now batched.
+            ->with('sender.profile')
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->offset($offset)

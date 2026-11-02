@@ -15368,3 +15368,79 @@ the 24 money/ride mutation cases and the three determinism defects that uncovere
 leak guard widened to every base table except `migrations`; (6) `686d084` 220-case seeded randomized
 ledger properties with the seed printed; (7) `40ccdcd` 16 error-path snapshots with their state twins;
 (8) this commit - the order matrix, the tie it found, and the manifest freeze on `tests/Snapshots`.
+
+### 240. Stage 0.6 - the performance batch (owner's five items)
+
+#### 240.1 Item 1 - the nine "N+1 routes": three were real, two were already batched, four are a fixture artefact that the freeze forbids fixing
+
+Item 1 of the owner's stage 0.6 list asked for the nine N+1 signatures parked in 239.3 to be eager
+loaded, each budget re-recorded DOWN, with **no response change**. The first thing this item did was
+measure instead of assume: a temporary probe (`tests/Feature/Snapshots/NPlusOneProbeTest.php`, deleted
+before the commit - see the proof at the end of this section) re-ran the nine cases through the real
+harness and printed every query each one issued. That turned the nine into three groups, and the
+split is the finding: **the step-3 "N+1 signature" was inferred from budget deltas, and four of the
+nine were never the app's queries at all.**
+
+**Group 1 - fixed (3 cases). All responses byte-identical.**
+
+| Case | Was | Now | What was per-row |
+|---|---|---|---|
+| `chat/messages-index` | 10 | **8** | `ChatMessageHandler::formatMessage()` reads `$message->sender` and its **profile photo** for every row; `ChatRepository::getMessages()` eager-loaded `sender` but not `sender.profile`, so `getUserProfilePhoto()` took its documented fallback `Profile::where('user_id', ...)` once per message. Now `->with('sender.profile')` - one batched profile query. |
+| `admin/drivers` | 15 | **9** | Two lookups ran once PER DRIVER: `UserRating::where('rated_user_id', ...)->avg('rating')` in a `transform()`, and `AdminDriverPresenter::resolveDriverPhone()` (`Ride::where('driver_id', ...)->whereNotNull(...)->orderByDesc('created_at')->value(...)`). Now `withAvg('receivedRatings as avg_rating', 'rating')` plus a correlated `latest_communication_number` subquery on the list query; the presenter prefers that attribute when the caller materialised it (`array_key_exists`, so a NULL number does not trigger a redundant query) and keeps its own query on every other path. |
+| `admin/passenger-full-profile` | 22 | **20** | `buildWalletCharges($userId)` re-read the user AND its wallet (`User::with('wallet')->find()`) even though `fullProfile()` had just loaded both via `profileBundle()`. The builder now takes an optional already-loaded user; the standalone `/wallet-charges` endpoint passes nothing and is unchanged (still 11). |
+
+A fourth case improved for free: `staff/chat-messages` 14 -> **13** (same message formatter, same
+missing profile eager load).
+
+**Group 2 - no N+1 left to fix (2 cases).** `admin/dashboard-recent` (9) and
+`admin/passenger-wallet-charges` (11) measure exactly their budget, and the probe shows every related
+read already batched (`... where id in (50, 54)`, `... where user_id in (63)`): there is no per-row
+query in either. The "+1 each" in 239.3 was the enriched fixture, not an N+1. Nothing to re-record.
+
+**Group 3 - PARKED, four cases: the queries are the fixture's, and removing them changes the
+response.** `rides/index` (15), `rides/search-get` (10), `rides/search-post` (10) and
+`admin/trips-live` (16) spend 10 / 6 / 6 / 6 queries on
+`SELECT ST_AsText(pickup_location|destination_location) AS wkt FROM rides WHERE id = ?` - two per
+ride. That is `Ride::getPickupLocationAttribute()`'s documented **fallback** path (RV-24): the
+accessor reads the scalar `pickup_lat/pickup_lng/destination_lat/destination_lng` columns and only
+queries the geometry when they are NULL. They are NULL because `RideBuilder` inserts rides with a raw
+`DB::raw` geometry expression and deliberately bypasses the model mutators - `RV24RideCoordinateReadTest`
+PINS that ("precondition: a raw RideBuilder insert has no scalar lat (it is the fallback case)").
+Production rows are never in that state: the mutator writes the scalars on create and the backfill
+migration (`2026_10_05_000001_backfill_ride_lat_lng_from_geometry`) covers legacy rows.
+
+So the fix is a fixture change, and it was implemented and measured: a `withScalarCoordinates()`
+opt-in on `RideBuilder` (writing the four scalar columns from the accessor's OWN lat-first parse of
+the same WKT, so fast path and fallback are equal by construction) applied at the harness's four ride
+creation sites. **Measured result: 15 -> 5, 10 -> 4, 10 -> 4, 16 -> 10 - and four response snapshots
+changed**, because those endpoints serialize the raw model (`select *` plus `toArray()`), so the
+scalar columns ARE part of the JSON:
+
+```
+api/rides/index.json        "destination_lat": null -> "36.20210000"
+                            "pickup_lat": null      -> "33.51380000"     (the same four fields in
+api/rides/search-get.json   ...                                        rides/cancel.json and
+api/rides/search-post.json  ...                                        rides/search-post.json)
+api/rides/cancel.json       ...
+```
+
+The `pickup_location`/`destination_location` OBJECTS were byte-identical, which independently
+confirms the two paths agree. But item 1 says "no response change" and the stage-0.5 freeze says
+response snapshots must stay byte-identical, so **the fixture change was reverted in full** (builder
+opt-in, the four call sites, and the four regenerated snapshots) and the four budgets were left at
+their measured truth. The owner's question is in 240.4.
+
+Verification of item 1: the probe output is in the run log; the corpus was regenerated ONCE
+(`SNAPSHOT_UPDATE=1`), and `git status` on `tests/Snapshots` shows **only `query-budgets.json`**, so
+all 169 response snapshots and all 40 state snapshots are byte-identical. The manifest was refreshed
+in the same commit (`changed 1`). `git status` also proves the probe is gone:
+`tests/Feature/Snapshots/NPlusOneProbeTest.php` does not exist and is not in any commit.
+`pint --test` PASS, `php -l` clean, and the battery below is green.
+
+| Check | Result |
+|---|---|
+| probe: nine cases, every query printed, before the fixes | `rides/index 15, rides/search-get 10, rides/search-post 10, admin/trips-live 16, admin/passenger-full-profile 22, admin/drivers 15, admin/dashboard-recent 9, admin/passenger-wallet-charges 11` (+ chat 10 from its own run's budget hint) |
+| probe after the fixes | `rides/index 5, rides/search-get 4, rides/search-post 4, admin/trips-live 10, admin/passenger-full-profile 20, admin/drivers 9, admin/dashboard-recent 9, admin/passenger-wallet-charges 11`; `chat/messages-index: 8 < 10 - lower the committed baseline` |
+| corpus regeneration | `git status tests/Snapshots` -> only `query-budgets.json`; 4 budgets lowered (3 + the free `staff/chat-messages`) |
+| degraded-path proof (the probe, on the frozen corpus) | the two `dashboard-recent`/`wallet-charges` cases have no per-row query: every related read is `where ... in (...)` |
+| verification battery | `tests/Feature/Admin`, `tests/Feature/Profile`, `tests/Feature/Notifications`, `tests/Feature/Rides`, `tests/Feature/Snapshots`, `tests/Unit/Services/Admin` - `OK (586 tests, 2952 assertions)` |

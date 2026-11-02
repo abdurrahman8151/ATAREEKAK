@@ -149,10 +149,16 @@ final class PassengerProfilePanelBuilder
 
     /**
      * Wallet top-up transactions (admin_charge type only).
+     *
+     * Stage 0.6 item 1: `$user` is optional so the full-profile bundle - which has ALREADY loaded
+     * this user with its wallet (`PassengerProfileQueryService::profileBundle()`) - can hand it over
+     * instead of this method re-reading the same two rows per request. The standalone
+     * `/wallet-charges` endpoint passes nothing and keeps its own lookup, so its query count and
+     * output are unchanged.
      */
-    public function buildWalletCharges(int $userId): array
+    public function buildWalletCharges(int $userId, ?User $user = null): array
     {
-        $user = User::with('wallet')->find($userId);
+        $user ??= User::with('wallet')->find($userId);
         if (! $user?->wallet) {
             return [];
         }

@@ -172,7 +172,7 @@
         "api/wallet/requests-store.json": "f681f2bbb54711a0679303f086c5fb8046c57ec2a1a6b8fadcdea17a24fac623",
         "api/wallet/transactions.json": "f1a593229fe7015040490830c9d6ce4b4a8e25a388d5bc9dd0010911ac528ea9",
         "api/wallet/verify-and-create-missing-session.json": "7b6b411709186e74825c1faf69960aff4a147d7abfc621cb15f1f7da6395916d",
-        "query-budgets.json": "61b2d605e0ffaf55ae34e3acffe7c574129f6d97ee1183e51e114c07be0790dc",
+        "query-budgets.json": "4c94f2d31c0c165bfeb909ee54e7845c05a4a37637866af552a2a1444b865eb3",
         "route-inventory.json": "5cbf3c5a810e0fe968b50f5410bb9e6ffe1fe72c3878e95f0ff5058df67b8912",
         "state/admin/passenger-charge-a-negative-amount.json": "88e164507bb1815adf99f5d565b7c6d1d64d1abc75e9d0af04806a0e729587a5",
         "state/admin/passenger-charge-wallet.json": "add37a0dab796e0065ac7a01c783123ad52cddb3bd7fb898cdfe5d00e956dd02",

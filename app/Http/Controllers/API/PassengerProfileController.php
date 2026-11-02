@@ -85,7 +85,7 @@ final class PassengerProfileController extends Controller
                     'monthly_trips' => $this->panels->buildMonthlyTrips($userId),
                     'recent_trips' => $this->panels->buildRecentTrips($userId),
                     'complaints' => $this->panels->buildComplaints($userId),
-                    'wallet_charges' => $this->panels->buildWalletCharges($userId),
+                    'wallet_charges' => $this->panels->buildWalletCharges($userId, $user),
                 ];
             });
 
