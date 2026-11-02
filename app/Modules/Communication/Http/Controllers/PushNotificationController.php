@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Modules\Communication\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Services\NotificationService;
-use App\Services\PushNotification\PushNotificationService;
+use App\Modules\Communication\Services\NotificationService;
+use App\Modules\Communication\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

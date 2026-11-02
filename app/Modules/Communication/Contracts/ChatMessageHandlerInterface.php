@@ -10,7 +10,7 @@ use App\Models\User;
  *
  * CONSOLE's staff chat console reads, formats and sends messages through the same pipeline the
  * passenger chat uses; COMM owns that pipeline. Before this port `StaffChatController` type-hinted
- * `App\Services\Chat\ChatMessageHandler` directly.
+ * `App\Modules\Communication\Services\ChatMessageHandler` directly.
  */
 interface ChatMessageHandlerInterface
 {

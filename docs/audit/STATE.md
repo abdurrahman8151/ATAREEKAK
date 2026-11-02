@@ -214,7 +214,7 @@
   file floors and the empty-Interfaces check); whole-tree Pint brought from red-at-HEAD to PASS (777
   files). Verified: full default-order suite `Tests: 3046, Assertions: 13051, Skipped: 2` (baseline
   3040/13026/2 plus the new ratchet's 6 tests), leak guard clean, snapshot corpus byte-identical at 213
-  files. **Phase 2 next: Communication** (then Money, Ride, Identity, Console), one commit per module.
+  files. **Phase 2: Communication COMPLETE (audit `R2 sec 242`)** - 13 files moved into `Modules/Communication/{Http/Controllers,Repositories,Services}`, `PushNotifierInterface` added, the two queued Jobs and three kernel consumers retyped to ports (entrypoint allowlist now empty), the `OtpMailer` binding moved to the Communication provider, and both scanners re-pointed to `Modules/<Name>/<Layer>` with scanned-file floors. **Next: Money**, then Ride, Identity, Console - one commit per module.
 - **STAGE 1 (owner's new goal): real modules under `app/Modules/{Communication,Money,Ride,Identity,Console}`,
   namespace `App\Modules\<Name>\`, layout `{Http/Controllers,Http/Handlers,Services,Repositories,Domain,Contracts,Providers}`.**
   NOT moved (kernel/entrypoints): `app/Models`, `Enums`, `DTOs`, `Events`, `Exceptions`, `Domain/ValueObjects`,

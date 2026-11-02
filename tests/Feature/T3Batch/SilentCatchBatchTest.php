@@ -4,7 +4,7 @@ namespace Tests\Feature\T3Batch;
 
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\NotificationService;
+use App\Modules\Communication\Services\NotificationService;
 use App\Services\Wallet\WalletRequestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;

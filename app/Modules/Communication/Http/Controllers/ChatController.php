@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Modules\Communication\Http\Controllers;
 
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
-use App\Services\Chat\ChatMessageHandler;
+use App\Modules\Communication\Services\ChatMessageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;

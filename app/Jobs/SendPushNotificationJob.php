@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\User;
-use App\Services\PushNotification\PushNotificationService;
+use App\Modules\Communication\Contracts\PushNotifierInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -33,7 +33,7 @@ class SendPushNotificationJob implements ShouldQueue
         ];
     }
 
-    public function handle(PushNotificationService $pushService): void
+    public function handle(PushNotifierInterface $pushService): void
     {
         if ($user = User::find($this->userId)) {
             $pushService->sendToUser($user, $this->payload);

@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services\PushNotification;
 
-use App\Services\PushNotification\FcmSenderService;
+use App\Modules\Communication\Services\FcmSenderService;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Chat;
+namespace App\Modules\Communication\Services;
 
 use App\Models\Conversation;
 use App\Models\Message;
@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Services\File\FileUploadService;
-use App\Services\MessageTypes\MessageTypeFactory;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\PushNotification;
+namespace App\Modules\Communication\Services;
 
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Exception\Messaging\InvalidMessage;

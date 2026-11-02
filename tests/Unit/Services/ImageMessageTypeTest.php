@@ -3,7 +3,7 @@
 namespace Tests\Unit\Services;
 
 use App\Modules\Communication\Contracts\MessageTypeInterface;
-use App\Services\MessageTypes\ImageMessageType;
+use App\Modules\Communication\Services\ImageMessageType;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;

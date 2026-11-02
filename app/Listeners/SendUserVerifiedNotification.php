@@ -3,7 +3,7 @@
 namespace App\Listeners;
 
 use App\Events\UserVerified;
-use App\Services\NotificationService;
+use App\Modules\Communication\Contracts\NotificationPort;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -26,7 +26,7 @@ use Throwable;
 class SendUserVerifiedNotification implements ShouldQueue
 {
     public function __construct(
-        private readonly NotificationService $notifications,
+        private readonly NotificationPort $notifications,
     ) {}
 
     public function handle(UserVerified $event): void

@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Services\PushNotification;
+namespace App\Modules\Communication\Services;
 
 use App\Models\User;
+use App\Modules\Communication\Contracts\PushNotifierInterface;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,8 +17,11 @@ use Illuminate\Support\Facades\Log;
  * Delegates to:
  * - PushTokenManager: Token management
  * - FcmSenderService: Sending notifications
+ *
+ * Implements `PushNotifierInterface` (stage 1, phase 2): the queued Jobs that send a push are kernel
+ * files and may reach this module only through its Contracts.
  */
-final class PushNotificationService
+final class PushNotificationService implements PushNotifierInterface
 {
     public function __construct(
         private readonly PushTokenManager $tokenManager,

@@ -123,8 +123,28 @@ class CrossContextBoundaryTest extends TestCase
      */
     private function contextOf(string $rel): string
     {
+        // ---- stage 1 modules: app/Modules/<Name>/ IS that context ------------
+        // A module's Contracts ARE its ports: the published boundary, shared with everyone, exactly
+        // as app/Interfaces/ used to be - so they stay SHARED and cannot create an edge. Everything
+        // else under Modules/<Name>/ belongs to that context, which is what keeps this scanner
+        // honest once phase 2 moves the code out of the old paths.
+        if (str_starts_with($rel, 'Modules/')) {
+            $parts = explode('/', $rel);
+            if (($parts[2] ?? '') === 'Contracts') {
+                return 'SHARED';
+            }
+
+            return [
+                'Communication' => 'COMM',
+                'Money' => 'MONEY',
+                'Ride' => 'RIDE',
+                'Identity' => 'IDENTITY',
+                'Console' => 'CONSOLE',
+            ][$parts[1] ?? ''] ?? 'UNASSIGNED';
+        }
+
         // ---- shared kernel: importable by every context ---------------------
-        foreach (['Models/', 'Enums/', 'DTOs/', 'Interfaces/', 'Events/', 'Exceptions/'] as $prefix) {
+        foreach (['Models/', 'Enums/', 'DTOs/', 'Events/', 'Exceptions/'] as $prefix) {
             if (str_starts_with($rel, $prefix)) {
                 return 'SHARED';
             }
@@ -508,6 +528,16 @@ class CrossContextBoundaryTest extends TestCase
         }
 
         [$classContext, $shortIndex] = $this->declaredClasses();
+
+        // Stage 1: a scan that no longer walks the tree would report zero edges for every pair and
+        // pass vacuously. app/ holds 352 PHP files today and the moves only reshuffle them.
+        $this->assertGreaterThanOrEqual(
+            340,
+            count($this->appFiles()),
+            'The cross-context scan only saw '.count($this->appFiles()).' app/ files; the point of '
+            .'the scanner is to walk all of them.'
+        );
+
         $matrix = [];
         foreach (self::CONTEXTS as $from) {
             foreach (self::CONTEXTS as $to) {
@@ -566,7 +596,7 @@ class CrossContextBoundaryTest extends TestCase
             $baseline,
             count($found),
             "Pair '$pair' (max $baseline): new cross-context import — ".implode(', ', $found)
-                .'. Talk to the other context through an App\\Interfaces port (see '
+                .'. Talk to the other context through one of its Contracts ports (see '
                 .'docs/audit/App future audit review r2.md section 233); do not raise the baseline.'
         );
     }

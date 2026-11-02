@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Modules\Communication\Services;
 
 use App\Events\NotificationSent;
 use App\Jobs\SendPushNotificationJob;

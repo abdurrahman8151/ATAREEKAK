@@ -6,19 +6,15 @@ use App\Http\Controllers\API\AdminDriverController;
 use App\Http\Controllers\API\AdminTripController;
 use App\Http\Controllers\API\AdminUserController;
 use App\Http\Controllers\API\AdminWalletRequestController;
-use App\Http\Controllers\API\ChatController;
 use App\Http\Controllers\API\ComplaintController;
-use App\Http\Controllers\API\ContactController;
 use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\EmailVerificationController;
 use App\Http\Controllers\API\ForgotPasswordController;
 use App\Http\Controllers\API\LoginController;
 use App\Http\Controllers\API\LogoutController;
-use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\OtpController;
 use App\Http\Controllers\API\PassengerProfileController;
 use App\Http\Controllers\API\ProfileController;
-use App\Http\Controllers\API\PushNotificationController;
 use App\Http\Controllers\API\RefreshTokenController;
 use App\Http\Controllers\API\ResetPasswordController;
 use App\Http\Controllers\API\RideController;
@@ -28,15 +24,19 @@ use App\Http\Controllers\API\Staff\EmployeeManagementController;
 use App\Http\Controllers\API\Staff\StaffAdminController;
 use App\Http\Controllers\API\Staff\StaffAuthController;
 use App\Http\Controllers\API\Staff\StaffChatController;
-use App\Http\Controllers\API\Staff\StaffComplaintController;      // ← NEW
-use App\Http\Controllers\API\Staff\StaffDocumentController;      // decision 1b
+use App\Http\Controllers\API\Staff\StaffComplaintController;
+use App\Http\Controllers\API\Staff\StaffDocumentController;
 use App\Http\Controllers\API\Staff\StaffOperationsController;
 use App\Http\Controllers\API\Staff\StaffReviewController;
-use App\Http\Controllers\API\TextMeOtpController;
-use App\Http\Controllers\API\VerificationController;
+use App\Http\Controllers\API\TextMeOtpController;      // ← NEW
+use App\Http\Controllers\API\VerificationController;      // decision 1b
 use App\Http\Controllers\API\VerifyPasswordOtpController;
 use App\Http\Controllers\API\WalletController;
 use App\Http\Controllers\API\WalletRequestController;
+use App\Modules\Communication\Http\Controllers\ChatController;
+use App\Modules\Communication\Http\Controllers\ContactController;
+use App\Modules\Communication\Http\Controllers\NotificationController;
+use App\Modules\Communication\Http\Controllers\PushNotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 

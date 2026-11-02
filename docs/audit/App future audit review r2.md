@@ -15915,3 +15915,75 @@ exactly the 6 tests and 25 assertions of `ModuleBoundaryTest`, which is the arit
 phase 1 changed no other test's outcome: nothing was added to or removed from the suite, and the two
 skips are the same two as before. Snapshot corpus byte-identical (213 files), leak guard clean,
 nothing pushed.
+
+---
+
+### 242. Stage 1, phase 2 (1 of 5) - the Communication module is real, and the two kernel callers now go through ports
+
+**What moved (13 files).** `app/Modules/Communication/` gained the layout the owner specified:
+
+| New path | Was |
+|---|---|
+| `Http/Controllers/{ChatController,NotificationController,PushNotificationController,ContactController}.php` | `app/Http/Controllers/API/*` (and the API subdirectories flatten away) |
+| `Repositories/ChatRepository.php` | `app/Repositories/ChatRepository.php` |
+| `Services/{ChatMessageHandler,NotificationService,FcmSenderService,PushNotificationService,PushTokenManager,ImageMessageType,MessageTypeFactory,TextMessageType}.php` | `app/Services/{Chat,PushNotification,MessageTypes}` plus the root `Services/NotificationService.php` (one level of service subdirectory flattens into `Services/`) |
+
+Controller assignment follows the context map's named patterns (Chat, Notification, PushNotification,
+Contact -> Communication); `routes/api.php` and the 22 files that named one of the 34 moved FQCNs were
+rewritten mechanically, and the route inventory still keys on method and URI, so it did not change.
+The module now holds 19 PHP files: 13 code + 5 ports + 1 provider.
+
+**A new port, because two queued kernel Jobs must not name a module class.**
+`App\Jobs\SendPushNotification` and `App\Jobs\SendPushNotificationJob` are kernel files - the owner's
+layout keeps `Jobs` out of the modules because their class names are serialized into the queue - and
+they called `PushNotificationService::sendToUser()`. `App\Modules\Communication\Contracts\PushNotifierInterface`
+now declares that one method; `PushNotificationService` (which already had it) declares that it
+implements the interface, and the provider binds the port to the same singleton. Both Jobs take
+`PushNotifierInterface` now, so construction, instance identity and behaviour are unchanged.
+
+**Three kernel consumers retyped, no behaviour change.**
+`App\Listeners\SendUserVerifiedNotification` took the concrete `NotificationService`; it now takes
+`NotificationPort` (its only call, `createNotification()`, is on the port). The two console files that
+did the same - `Commands/ExpireStaleBookingsCommand` and `Testing/TestNotificationCommand` - were
+retyped the same way. That is why the entrypoint allowlist is empty rather than three files long: the
+wiring exemption exists, and nothing needs it.
+
+**One binding changed provider, deliberately.** `OtpMailInterface -> App\Mail\OtpMailer` was bound by
+the Identity provider (phase 1). The cross-context ratchet then found a real
+IDENTITY -> COMM edge: the kernel `Mail/` directory belongs to the communication context in the
+boundary map, so an Identity provider naming `OtpMailer` *is* an identity-to-communication import.
+The binding moved to the Communication provider (mail delivery is that context's transport); the
+Identity provider no longer names it, no baseline moved, and the port itself is still Identity's -
+the Communication provider binds an Identity Contract, which the ratchet treats as SHARED, exactly as
+`app/Interfaces` ports were treated before.
+
+**Ratchet re-pointing (the moves must not retire the ratchets).**
+
+* `BoundaryDependencyTest` classified files by their first path segment, so `app/Modules/...` would
+  have been invisible to every rule - the exact vacuous pass the owner warned about. It now derives
+  the layer from `Modules/<Name>/<Layer>/...`, matches a reference in either form
+  (`App\Services\...` or `App\Modules\<Name>\Services\...`), and asserts the scan saw at least 340 app
+  files. All nine baselines are unchanged (`controllers_to_models` 0, `repos_to_services` 0, ...,
+  `models_to_enums` 3) and still hold.
+* `CrossContextBoundaryTest` now maps `Modules/<Name>/` to that context, with
+  `Modules/<Name>/Contracts/` staying SHARED because a port is the published boundary and must not
+  create an edge - the same role `app/Interfaces/` played. It also asserts the scan saw 340+ files.
+  All 20 ordered pairs remain at 0.
+* `ModuleBoundaryTest`: Communication's floor 5 -> 19; the kernel->Contracts ceiling 87 -> 82 (the
+  three retyped kernel files); the entrypoint rule now counts only IMPLEMENTATION references, since a
+  Contracts reference is the sanctioned edge rule B already allows, leaving the measured allowlist
+  empty.
+
+**Verification.** Ratchets + the notification area (`tests/Feature/AppFuture`, the path-based Review
+tests, `tests/Unit/Providers`, `tests/Feature/Notifications`): 149 tests, 554 assertions, OK.
+Whole-tree Pint: 6 fixes (two of them real cleanup - an unused import left by the move in
+`ChatMessageHandler`, plus import order in `routes/api.php` and three test files), then PASS over 778
+files. Snapshot corpus untouched; leak guard green in the full run below.
+
+**Commit.** `Stage 1 phase 2 (Communication)` - this commit.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3046, Assertions: 13062, Skipped: 2` -
+OK, 15:58, on `127.0.0.1:3399/t3_batch`. Same test count as phase 1 (3046), so no test was lost or
+silently skipped by the move; the extra assertions are the ratchets' new scanned-file floors. Snapshot
+corpus byte-identical (`MANIFEST.json` still 213 files, `SNAPSHOT_UPDATE=1` never used), the leak guard
+clean inside that run, whole-tree Pint PASS. Nothing pushed; branch `Agentic` only.

@@ -4,7 +4,7 @@ namespace Tests\Unit\Jobs;
 
 use App\Jobs\SendPushNotification;
 use App\Models\User;
-use App\Services\PushNotification\PushNotificationService;
+use App\Modules\Communication\Services\PushNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;

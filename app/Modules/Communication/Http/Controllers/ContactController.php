@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Modules\Communication\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Modules\Communication\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Services\NotificationService;
+use App\Modules\Communication\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;

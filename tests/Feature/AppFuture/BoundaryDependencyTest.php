@@ -150,6 +150,7 @@ class BoundaryDependencyTest extends TestCase
     {
         $hits = array_fill_keys(array_keys(self::BASELINES), []);
         $app = app_path();
+        $scanned = 0;
 
         $rii = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($app, \FilesystemIterator::SKIP_DOTS)
@@ -158,13 +159,30 @@ class BoundaryDependencyTest extends TestCase
             if (! $f->isFile() || $f->getExtension() !== 'php') {
                 continue;
             }
+            $scanned++;
             $rel = str_replace('\\', '/', substr($f->getPathname(), strlen($app) + 1));
             $parts = explode('/', $rel);
-            $top = $parts[0];
-            $sub = $parts[1] ?? '';
+            if ($parts[0] === 'Modules') {
+                // Stage 1: app/Modules/<Name>/<Layer>/... - the layer is what the rules talk about,
+                // so a moved file is still counted as the layer it belongs to. Without this the
+                // scan would simply stop seeing moved code and every baseline below would rot.
+                $top = $parts[2] ?? '';
+                $sub = $parts[3] ?? '';
+            } else {
+                $top = $parts[0];
+                $sub = $parts[1] ?? '';
+            }
             $src = (string) file_get_contents($f->getPathname());
 
-            $refs = static fn (string $ns): bool => strpos($src, 'App\\'.$ns) !== false;
+            // A layer reference may be a kernel class (App\Services\...) or a module class
+            // (App\Modules\<Name>\Services\...).
+            $refs = static function (string $ns) use ($src): bool {
+                if (strpos($src, 'App\\'.$ns) !== false) {
+                    return true;
+                }
+
+                return preg_match('#App\\\\Modules\\\\[A-Za-z0-9_]+\\\\'.$ns.'\\\\#', $src) === 1;
+            };
             $takesRequest = strpos($src, 'use Illuminate\Http\Request;') !== false;
 
             if ($top === 'Domain') {
@@ -197,6 +215,15 @@ class BoundaryDependencyTest extends TestCase
                 $hits['async_to_http'][] = $rel;
             }
         }
+
+        // Stage 1: a scan that sees nothing passes every rule vacuously. app/ holds 352 PHP files
+        // today; the modules only move files AROUND inside app/, so this floor is stable.
+        $this->assertGreaterThanOrEqual(
+            340,
+            $scanned,
+            "The boundary scan only saw {$scanned} app/ files. Files moved out of the scanned tree "
+            .'would silently retire these rules - that is exactly what this floor exists to catch.'
+        );
 
         return $hits;
     }

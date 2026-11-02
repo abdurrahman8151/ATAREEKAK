@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\PushNotification;
+namespace App\Modules\Communication\Services;
 
 use App\Models\PushNotificationToken;
 use App\Models\User;

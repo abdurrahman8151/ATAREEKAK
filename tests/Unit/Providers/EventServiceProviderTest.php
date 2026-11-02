@@ -6,8 +6,8 @@ use App\Events\RideBooked;
 use App\Events\UserVerified;
 use App\Listeners\SendUserVerifiedNotification;
 use App\Models\User;
+use App\Modules\Communication\Services\NotificationService;
 use App\Providers\EventServiceProvider;
-use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

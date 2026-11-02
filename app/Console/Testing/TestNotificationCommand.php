@@ -4,7 +4,7 @@ namespace App\Console\Testing;
 
 use App\Console\Commands\GuardsAgainstProductionExecution;
 use App\Models\User;
-use App\Services\NotificationService;
+use App\Modules\Communication\Contracts\NotificationPort;
 use Illuminate\Console\Command;
 
 class TestNotificationCommand extends Command
@@ -18,7 +18,7 @@ class TestNotificationCommand extends Command
 
     protected $description = 'Send a test notification to a user';
 
-    public function handle(NotificationService $notificationService)
+    public function handle(NotificationPort $notificationService)
     {
         $userId = $this->argument('user_id') ?? User::first()?->id;
         $type = $this->option('type');
@@ -54,7 +54,7 @@ class TestNotificationCommand extends Command
     /**
      * Dispatch the notification variant picked by the --type option.
      */
-    private function sendTypedNotification(NotificationService $notificationService, User $user, int $userId, $type)
+    private function sendTypedNotification(NotificationPort $notificationService, User $user, int $userId, $type)
     {
         // ✅ FIXED: createWelcomeNotification() and createSystemNotification()
         // do not exist on NotificationService. Use createNotification() directly.

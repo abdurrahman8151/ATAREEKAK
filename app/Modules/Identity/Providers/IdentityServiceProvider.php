@@ -2,10 +2,8 @@
 
 namespace App\Modules\Identity\Providers;
 
-use App\Mail\OtpMailer;
 use App\Modules\Identity\Contracts\DocumentVerificationInterface;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
-use App\Modules\Identity\Contracts\OtpMailInterface;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
@@ -36,10 +34,12 @@ use Illuminate\Support\ServiceProvider;
  * Stage 1, phase 1(a): the Identity module's container bindings, moved verbatim out of
  * `App\Support\ContainerBindings`. Lifetimes unchanged.
  *
- * Two of the ports here are implemented by KERNEL classes that the layout keeps out of the modules:
- * `OtpMailInterface` is implemented by `App\Mail\OtpMailer` and `TokenRevokerInterface` by
- * `App\Services\JwtService`, which stays behind because the staff JWT path shares it. Their bindings
- * still belong to this module: the identity context is what consumes them.
+ * Two of the ports this module consumes are implemented by KERNEL classes that the layout keeps out
+ * of the modules: `OtpMailInterface` by `App\Mail\OtpMailer` and `TokenRevokerInterface` by
+ * `App\Services\JwtService`, which stays behind because the staff JWT path shares it. The mailer's
+ * binding lives in the Communication provider (mail delivery is that context's transport, and the
+ * kernel `Mail/` directory belongs to the communication context in the boundary map), so this
+ * provider never names it; `TokenRevokerInterface` is bound here, because identity consumes it.
  */
 final class IdentityServiceProvider extends ServiceProvider
 {
@@ -68,6 +68,5 @@ final class IdentityServiceProvider extends ServiceProvider
         $this->app->bind(DocumentVerificationInterface::class, DocumentVerificationService::class);
         $this->app->bind(VerificationApprovalInterface::class, VerificationApprovalService::class);
         $this->app->bind(StaffJwtInterface::class, StaffJwtService::class);
-        $this->app->bind(OtpMailInterface::class, OtpMailer::class);
     }
 }

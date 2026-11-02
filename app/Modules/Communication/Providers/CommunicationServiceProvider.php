@@ -2,15 +2,18 @@
 
 namespace App\Modules\Communication\Providers;
 
+use App\Mail\OtpMailer;
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Modules\Communication\Contracts\NotificationPort;
-use App\Repositories\ChatRepository;
-use App\Services\Chat\ChatMessageHandler;
-use App\Services\NotificationService;
-use App\Services\PushNotification\FcmSenderService;
-use App\Services\PushNotification\PushNotificationService;
-use App\Services\PushNotification\PushTokenManager;
+use App\Modules\Communication\Contracts\PushNotifierInterface;
+use App\Modules\Communication\Repositories\ChatRepository;
+use App\Modules\Communication\Services\ChatMessageHandler;
+use App\Modules\Communication\Services\FcmSenderService;
+use App\Modules\Communication\Services\NotificationService;
+use App\Modules\Communication\Services\PushNotificationService;
+use App\Modules\Communication\Services\PushTokenManager;
+use App\Modules\Identity\Contracts\OtpMailInterface;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -44,7 +47,12 @@ final class CommunicationServiceProvider extends ServiceProvider
         // Ports. Each is bound to the singleton above, so a port-typed constructor receives the
         // very same instance it received before the split.
         $this->app->bind(NotificationPort::class, NotificationService::class);
+        $this->app->bind(PushNotifierInterface::class, PushNotificationService::class);
         $this->app->bind(ChatMessageHandlerInterface::class, ChatMessageHandler::class);
         $this->app->bind(ChatRepositoryInterface::class, ChatRepository::class);
+        // The kernel OTP mailer, bound here rather than in the Identity provider: mail delivery is
+        // this context's transport (the boundary map puts the kernel `Mail/` directory with
+        // Communication), so the wiring never has to reach across a context to name it.
+        $this->app->bind(OtpMailInterface::class, OtpMailer::class);
     }
 }

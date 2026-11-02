@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\MessageTypes;
+namespace App\Modules\Communication\Services;
 
 use App\Modules\Communication\Contracts\MessageTypeInterface;
 use Illuminate\Support\Facades\Validator;

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Repositories;
+namespace App\Modules\Communication\Repositories;
 
 use App\Models\Conversation;
 use App\Models\Message;

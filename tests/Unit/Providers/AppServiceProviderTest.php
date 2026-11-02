@@ -3,6 +3,9 @@
 namespace Tests\Unit\Providers;
 
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Communication\Services\FcmSenderService;
+use App\Modules\Communication\Services\NotificationService;
+use App\Modules\Communication\Services\PushNotificationService;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
@@ -15,9 +18,6 @@ use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminWalletService;
 use App\Services\Geocoding\ArabicPlaceNameService;
 use App\Services\Geocoding\GeocodingService;
-use App\Services\NotificationService;
-use App\Services\PushNotification\FcmSenderService;
-use App\Services\PushNotification\PushNotificationService;
 use App\Services\Ride\BookingService;
 use App\Services\Ride\RideService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
