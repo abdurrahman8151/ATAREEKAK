@@ -15560,3 +15560,138 @@ corrected at the same time, since it also described a parked defect that is now 
 Verification: `tests/Feature/Review/AdminPopularRoutesTieBreakTest.php` + `tests/Feature/Admin` ->
 `OK (123 tests, 270 assertions)`, and `tests/Feature/Snapshots` -> `OK (188 tests, 2080 assertions)`
 after the comment edits.
+
+#### 240.4 Item 4 - the five parked findings, each with the evidence as it stands TODAY and the question for the owner
+
+No app code, no snapshot, no test changed in this item: each of these needs a decision, and three of
+them would change a frozen response or a frozen state file. The evidence below was re-measured against
+the working tree at this commit, not quoted from an earlier record - and one of the five came back
+DIFFERENT from what the earlier record said, which is recorded as such.
+
+**Parked 1 - a refusal is reported as a validation failure (422 instead of 403/404).**
+Measured straight off the frozen corpus (11 of the 28 error responses are 4xx refusals):
+
+| Case | Answers | Should read as |
+|---|---|---|
+| `bookings/accept-someone-elses-request` | 422 `{message, success}` | 403/404 - the caller is not the booking's owner |
+| `bookings/cancel-someone-elses-booking` | 422 `{message, success}` | 403/404 |
+| `rides/cancel-someone-elses-trip` | 422 `{message, status}` | 403/404 |
+| `rides/book-the-drivers-own-ride` | 422 `{message, success}` | 403/404 (a driver booking their own ride) |
+| `rides/book-without-the-balance` | 422 `{message, success}` | 422 is defensible, but the MESSAGE is the generic "The request could not be completed. Please try again." - the same text an authorization refusal uses, so a client cannot tell "top up your wallet" from "you may never do this" |
+| `bookings/cancel-more-seats-than-booked` | 422 `{message, status}` | correct as-is (genuine validation) |
+| `staff/bookings-cancel-a-booking-that-does-not-exist` | 404 `{message, status}` | correct as-is - so 404 IS already used elsewhere |
+
+*Why it is parked:* every one of those bodies is a frozen response snapshot; changing a status or a
+message rewrites five committed files, which this batch's freeze forbids. It is also a decision, not a
+fix: 404-for-a-foreign-row hides the row's existence, 403 admits it exists.
+*Question for the owner:* for a foreign booking/ride, should the API answer 403 (the row exists, you
+may not touch it) or 404 (pretend it does not exist)? And on the insufficient-balance path, may I
+replace the generic "try again" message with a balance-specific one (422 kept), given that the message
+text is itself pinned by a snapshot?
+
+**Parked 2 - the error envelope has eleven different shapes.**
+Measured by grouping every one of the 28 committed 4xx/5xx corpus responses by its top-level keys:
+
+| Status | Responses | Top-level keys |
+|---|---|---|
+| 400 | 7 | `message + success` |
+| 401 | 6 | `code + message + status` |
+| 404 | 1 | `message + status` |
+| 404 | 1 | `message + status + success` |
+| 409 | 1 | `message + success` |
+| 422 | 5 | `message + success` |
+| 422 | 3 | `errors + message` |
+| 422 | 2 | `message + status` |
+| 422 | 1 | `errors + status` |
+| 422 | 1 | `message + status + success` |
+| 422 | 1 | `code + errors + status` |
+
+`success` appears on some refusals and not others, `code` on the 401s and one 422 only, `errors` on four
+shapes only, and `status` is sometimes the HTTP code and sometimes absent. A client cannot write one
+error handler against this.
+*Why it is parked:* unifying it rewrites essentially every error snapshot in the corpus (28+ files) -
+the largest possible violation of the freeze - and it is a public response-shape change, which the
+standing rules forbid without an explicit decision.
+*Question for the owner:* do you want ONE envelope for every non-2xx (if so, which: `{status, message,
+code?, errors?}`?), or is the current per-surface shape deliberate? If you want it unified, it must be a
+separate batch with an explicit freeze exemption for the error snapshots.
+
+**Parked 3 - `POST /api/profile` hides the caller's OWN documents.**
+`ProfileController::profileUpdateResponse()` (line 348) calls
+`formatProfileData($result['profile'], $result['user'])` without the third argument, which defaults to
+`false`, and `ownerDocuments($user, false)` returns `[]`. The caller of `POST /api/profile` is always
+the owner of the profile being updated, so the response should carry the documents the owner is allowed
+to see - `GET /api/profile/{ownId}` passes `true` explicitly (line 82) and would show them.
+Evidence: the world gives the standard passenger four documents (`face_id`, `back_id`, `license`,
+`mechanic_card`), and `profile/update.json` answers `"documents": []` for that passenger, while
+`admin/driver-profile.json` shows a populated `documents` block for the driver. The same user, in the
+same session, sees their documents on one route and not on the other.
+*Why it is parked:* `profile/update` is a frozen response snapshot, and the fix ADDS data to a response
+body (`documents` `[]` -> four entries). It is the one-line `true` argument; it is not the ambiguity
+that stops me, the freeze is.
+*Question for the owner:* confirm the intent - should the profile-update response carry the owner's
+document URLs (consistent with the GET), or is the POST deliberately minimal? If the former, it needs a
+freeze exemption for exactly one snapshot.
+
+**Parked 4 - `ledger_entries.wallet_transaction_id`: the earlier record was WRONG, and the measured truth is worse than "unused".**
+The stage 0.5 record (sec 239.3 close) says the column "is never written by any money service" and
+appears twice in `app/`, both inside `LedgerEntry`. Re-measured now: it appears FOUR times, and it IS
+written - `LedgerService` passes `'wallet_transaction_id' => $transaction?->id` into every leg it
+creates, and `LedgerService` line 185 sums a transaction's legs BY that column. What is true instead is
+narrower and more useful:
+
+| Fact | Number |
+|---|---|
+| `postTransfer()` call sites in the money services (BookingCharge, CancellationLedgerWriter x3, CashRideCreationFeeCharger, CashRideDebtClearanceService, CashRideFeeRefundService, NoShowSettlement x2, RidePayout x2) | 11, and NOT ONE passes a `$transaction` |
+| Other entry point: `AdminWalletRequestController` -> `postExternalTransfer()` | called WITHOUT the transaction |
+| Only path that passes one: `AdminWalletCharger` -> `postExternalTransfer(..., transaction: $transaction)` | 1 |
+| Committed ledger legs in the state corpus | 603 |
+| Legs whose `wallet_transaction_id` is non-null | 2 (both in `state/admin/wallet-charge.json`) |
+
+So the column is real and load-bearing on one path and empty on 601 of 603 legs: on every escrow hold,
+release, cancellation split, no-show settlement and payout, the ledger leg cannot be joined back to the
+`wallet_transactions` row that produced it. `LedgerService`'s own docblock calls the conversion
+"DELIBERATELY ADDITIVE ... the remaining money paths convert the same way, one at a time", so this is
+an in-progress migration rather than an oversight.
+*Why it is parked:* passing the transaction on the other paths is a money-path change, and it would
+populate 601 currently-null values across the committed state snapshots - a freeze violation on a scale
+the batch rules forbid.
+*Question for the owner:* is the intent that every converted money path keeps passing its
+`wallet_transaction_id` until the column is a real FK everywhere (a follow-up per-path batch), or is the
+admin-wallet-credit path the only one that needs it? If the former, it should be its own batch with a
+freeze exemption for the state corpus, because every one of the 40 state files may move.
+
+**Parked 5 - the four ride-list "N+1 signatures" are a fixture artefact, and the fix changes four frozen responses (new in this batch).**
+Carried from item 1. `rides/index` (15 queries), `rides/search-get` (10), `rides/search-post` (10) and
+`admin/trips-live` (16) all issue one `SELECT ST_AsText(...)` per row. The cause is `RideBuilder`: it
+inserts rows with raw geometry and does NOT write the scalar `pickup_lat/pickup_lng/
+destination_lat/destination_lng` columns, so `Ride::getPickupLocationAttribute()`'s fast path misses and
+its spatial fallback runs per row. `RV24RideCoordinateReadTest` pins that fallback as a real production
+path (a legacy row without scalars must still resolve), so the queries are not dead code - they are
+correct behaviour on a row shaped the way the fixture shapes it.
+*Why it is parked:* the measured fix was to write scalar coordinates in `RideBuilder`
+(`withScalarCoordinates()`): it drops the four cases to 5 / 4 / 4 / 10 queries, but it changes four
+response snapshots - `api/rides/index.json`, `api/rides/search-get.json`, `api/rides/search-post.json`
+and `api/rides/cancel.json` each go from `"destination_lat": null` to `"36.20210000"` (and the same for
+`pickup_lat` and the other rows), because those routes serialise the raw model. That was implemented,
+measured, and fully reverted via `git checkout`; the four budgets were deliberately left at their old,
+higher numbers.
+*Question for the owner:* the fixture can be made to match production (the model mutator writes those
+scalars on every real ride, so a production ride never takes the fallback), which is a FIXTURE-correct
+change - but it changes four frozen response bodies. Do you want (a) the fixture fixed with an explicit
+freeze exemption for those four files, (b) the scalar coordinate columns hidden from the API so the
+response never carries them (a response-shape change, and the fallback stays), or (c) the four budgets
+kept as they are and the finding left as documentation that the fixture is the reason?
+
+**Still open from earlier batches (unchanged by this batch, listed so nothing is silently dropped).**
+`admin/dashboard.recent_activities[].date` is a string for an old row and an object (`{human, raw}`)
+once the same row is recent, so the field's TYPE depends on recency (`R2 sec 239.3` finding 5) -
+question: should both shapes be normalised to the object, and is that change exempt from the freeze?
+`staff/chat-messages.conversation.last_message.created_at_iso` lost its `+03:00` suffix because the
+whole ISO string is masked as `<timestamp>` (cosmetic, deterministic, same finding) - question: accept
+the mask, or teach the normaliser to keep the offset?
+
+Verification: no file outside this audit section changed (`git status --short` before the commit shows
+only the owner's pre-existing modifications). Every number above was produced by reading the working
+tree at this commit: the corpus survey used the committed JSON, the ledger counts used
+`tests/Snapshots/state/**`, and the call-site counts used `git grep`-equivalent scans of `app/`.
