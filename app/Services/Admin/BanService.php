@@ -3,8 +3,8 @@
 namespace App\Services\Admin;
 
 use App\Enums\AccountStatus;
-use App\Interfaces\TokenRevokerInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

@@ -2,8 +2,8 @@
 
 namespace App\Services\Staff;
 
-use App\Interfaces\SupportAgentRoutingInterface;
 use App\Models\Employee;
+use App\Modules\Console\Contracts\SupportAgentRoutingInterface;
 
 /**
  * Support-agent routing: which agent a new /api/contact conversation should go to.

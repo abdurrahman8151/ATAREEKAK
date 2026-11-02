@@ -3,12 +3,12 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
-use App\Interfaces\Payment\RidePayoutInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\RidePayoutInterface;
 use App\Support\FeeSplit;
 use App\Support\PostingKey;
 use Illuminate\Database\Eloquent\Collection;

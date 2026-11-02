@@ -4,10 +4,10 @@ namespace App\Services\Wallet;
 
 use App\Exceptions\Domain\BusinessRuleViolation;
 use App\Exceptions\Domain\ConflictViolation;
-use App\Interfaces\NotificationPort;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
+use App\Modules\Communication\Contracts\NotificationPort;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

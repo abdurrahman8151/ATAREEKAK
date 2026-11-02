@@ -2,9 +2,9 @@
 
 namespace App\Services\Profile;
 
-use App\Interfaces\PhotoRepositoryInterface;
-use App\Interfaces\ProfileRepositoryInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 use App\Services\File\FileUploadService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;

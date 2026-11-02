@@ -2,8 +2,8 @@
 
 namespace App\Services\Admin;
 
-use App\Interfaces\StaffJwtInterface;
 use App\Models\Employee;
+use App\Modules\Identity\Contracts\StaffJwtInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 

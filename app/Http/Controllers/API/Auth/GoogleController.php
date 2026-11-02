@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Interfaces\UserRepositoryInterface;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use App\Services\Auth\GoogleUserResolver;
 use App\Services\JwtService; // Ensure this is imported
 use GuzzleHttp\Client;

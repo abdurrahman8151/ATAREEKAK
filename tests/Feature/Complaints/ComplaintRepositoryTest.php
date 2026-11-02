@@ -4,9 +4,9 @@ namespace Tests\Feature\Complaints;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Interfaces\ComplaintRepositoryInterface;
 use App\Models\Complaint;
 use App\Models\User;
+use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

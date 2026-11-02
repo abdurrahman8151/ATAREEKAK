@@ -2,7 +2,7 @@
 
 namespace App\Services\MessageTypes;
 
-use App\Interfaces\MessageTypeInterface;
+use App\Modules\Communication\Contracts\MessageTypeInterface;
 use InvalidArgumentException;
 
 class MessageTypeFactory

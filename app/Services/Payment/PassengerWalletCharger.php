@@ -2,11 +2,11 @@
 
 namespace App\Services\Payment;
 
-use App\Interfaces\Payment\LedgerServiceInterface;
-use App\Interfaces\Payment\PassengerWalletChargerInterface;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\LedgerServiceInterface;
+use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;

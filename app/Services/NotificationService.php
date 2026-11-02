@@ -3,11 +3,11 @@
 namespace App\Services;
 
 use App\Events\NotificationSent;
-use App\Interfaces\NotificationPort;
 use App\Jobs\SendPushNotificationJob;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Modules\Communication\Contracts\NotificationPort;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;

@@ -2,11 +2,11 @@
 
 namespace App\Repositories;
 
-use App\Interfaces\Geocoding\GeocodingServiceInterface;
-use App\Interfaces\Geocoding\RouteCalculationServiceInterface;
-use App\Interfaces\RideRepositoryInterface;
 use App\Models\Booking;
 use App\Models\Ride;
+use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
+use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
+use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;

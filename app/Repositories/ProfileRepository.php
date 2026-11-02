@@ -2,9 +2,9 @@
 
 namespace App\Repositories;
 
-use App\Interfaces\ProfileRepositoryInterface;
 use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 
 class ProfileRepository implements ProfileRepositoryInterface
 {

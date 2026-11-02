@@ -3,10 +3,10 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
-use App\Interfaces\Payment\CashRideFeeServiceInterface;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 
 /**
  * CashRideFeeService

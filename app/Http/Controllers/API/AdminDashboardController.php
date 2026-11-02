@@ -5,7 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Domain\ValueObjects\Money;
 use App\Exceptions\Domain\DuplicateNationalIdException;
 use App\Http\Controllers\Controller;
-use App\Interfaces\VerificationApprovalInterface;
+use App\Modules\Identity\Contracts\VerificationApprovalInterface;
 use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminDashboardReadService;
 use App\Services\Admin\AdminExportService;

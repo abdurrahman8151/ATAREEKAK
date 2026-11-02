@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Verification;
 
-use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

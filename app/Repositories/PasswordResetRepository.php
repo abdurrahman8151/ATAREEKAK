@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Interfaces\PasswordResetRepositoryInterface;
-use App\Interfaces\TokenRevokerInterface;
+use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
+use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use Illuminate\Support\Facades\Password;
 
 class PasswordResetRepository implements PasswordResetRepositoryInterface

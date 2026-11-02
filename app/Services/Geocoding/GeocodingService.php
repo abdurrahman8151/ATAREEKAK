@@ -2,7 +2,7 @@
 
 namespace App\Services\Geocoding;
 
-use App\Interfaces\Geocoding\GeocodingServiceInterface;
+use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;

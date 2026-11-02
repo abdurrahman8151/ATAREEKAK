@@ -2,9 +2,9 @@
 
 namespace App\Repositories;
 
-use App\Interfaces\ProfileRepositoryInterface;
-use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
+use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
 
 class VerificationRepository implements VerificationRepositoryInterface
 {

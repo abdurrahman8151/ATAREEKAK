@@ -3,8 +3,8 @@
 namespace App\Repositories;
 
 use App\Enums\StaffRole;
-use App\Interfaces\EmployeeRepositoryInterface;
 use App\Models\Employee;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 
 class EmployeeRepository implements EmployeeRepositoryInterface

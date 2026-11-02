@@ -4,8 +4,8 @@ namespace Tests\Feature\Review;
 
 use App\DTOs\Auth\SendEmailOtpDTO;
 use App\DTOs\Auth\VerifyEmailOtpDTO;
-use App\Interfaces\EmailOtpServiceInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;

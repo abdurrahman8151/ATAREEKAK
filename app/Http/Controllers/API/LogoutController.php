@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Interfaces\UserRepositoryInterface;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use App\Services\JwtService;
 use Illuminate\Http\Request;
 

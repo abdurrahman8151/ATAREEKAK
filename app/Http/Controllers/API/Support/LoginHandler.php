@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\API\Support;
 
-use App\Interfaces\UserRepositoryInterface;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use App\Services\JwtService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

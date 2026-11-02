@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Interfaces\OtpMailInterface;
+use App\Modules\Identity\Contracts\OtpMailInterface;
 use Illuminate\Support\Facades\Mail;
 
 /**

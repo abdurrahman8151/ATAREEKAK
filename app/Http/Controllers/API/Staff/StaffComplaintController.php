@@ -4,7 +4,7 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Enums\ComplaintStatus;
 use App\Http\Controllers\Controller;
-use App\Interfaces\NotificationPort;
+use App\Modules\Communication\Contracts\NotificationPort;
 use App\Services\Staff\StaffComplaintService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;

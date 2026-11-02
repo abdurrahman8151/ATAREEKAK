@@ -5,11 +5,11 @@ namespace App\Services\Ride;
 use App\Enums\BookingStatus;
 use App\Enums\RideStatus;
 use App\Enums\ScoreAction;
-use App\Interfaces\Payment\PaymentStrategyFactoryInterface;
 use App\Models\Booking;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
+use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
 use App\Services\Score\ScoreService;
 use Illuminate\Support\Facades\DB;
 

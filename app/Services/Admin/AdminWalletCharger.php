@@ -3,9 +3,9 @@
 namespace App\Services\Admin;
 
 use App\Domain\ValueObjects\Money;
-use App\Interfaces\Payment\LedgerServiceInterface;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\LedgerServiceInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;

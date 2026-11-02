@@ -2,10 +2,10 @@
 
 namespace App\Services\Staff;
 
-use App\Interfaces\ScoreServiceInterface;
-use App\Interfaces\UserRideStatsInterface;
 use App\Models\Profile;
 use App\Models\UserRating;
+use App\Modules\Ride\Contracts\ScoreServiceInterface;
+use App\Modules\Ride\Contracts\UserRideStatsInterface;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**

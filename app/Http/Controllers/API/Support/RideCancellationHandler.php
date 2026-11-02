@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API\Support;
 
 use App\Http\Resources\BookingResource;
-use App\Interfaces\NotificationPort;
+use App\Modules\Communication\Contracts\NotificationPort;
 use App\Services\Ride\BookingService;
 use App\Services\Ride\RideService;
 use Illuminate\Http\JsonResponse;

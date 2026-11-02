@@ -2,9 +2,9 @@
 
 namespace App\Domain\Payment\Strategies;
 
-use App\Interfaces\Payment\BookingChargeInterface;
-use App\Interfaces\Payment\CancellationRefundInterface;
-use App\Interfaces\Payment\RidePayoutInterface;
+use App\Modules\Money\Contracts\BookingChargeInterface;
+use App\Modules\Money\Contracts\CancellationRefundInterface;
+use App\Modules\Money\Contracts\RidePayoutInterface;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /**

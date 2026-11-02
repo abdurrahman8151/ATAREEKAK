@@ -4,7 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
-use App\Interfaces\ChatRepositoryInterface;
+use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Services\Chat\ChatMessageHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;

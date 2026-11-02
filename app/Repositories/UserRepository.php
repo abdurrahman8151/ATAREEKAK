@@ -3,8 +3,8 @@
 namespace App\Repositories;
 
 use App\Enums\AccountStatus;
-use App\Interfaces\UserRepositoryInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
 
 class UserRepository implements UserRepositoryInterface
 {

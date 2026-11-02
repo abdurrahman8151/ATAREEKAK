@@ -2,9 +2,9 @@
 
 namespace App\Services\Ride;
 
-use App\Interfaces\UserRideStatsInterface;
 use App\Models\Booking;
 use App\Models\Ride;
+use App\Modules\Ride\Contracts\UserRideStatsInterface;
 use Illuminate\Support\Collection;
 
 /**

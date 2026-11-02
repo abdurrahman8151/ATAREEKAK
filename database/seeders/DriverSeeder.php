@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\Photo;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 

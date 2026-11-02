@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Interfaces\MessageTypeInterface;
+use App\Modules\Communication\Contracts\MessageTypeInterface;
 use App\Services\MessageTypes\ImageMessageType;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;

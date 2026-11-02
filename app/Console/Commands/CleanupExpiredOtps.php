@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Interfaces\OtpRepositoryInterface;
+use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use Illuminate\Console\Command;
 
 class CleanupExpiredOtps extends Command

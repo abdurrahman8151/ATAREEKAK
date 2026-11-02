@@ -206,7 +206,38 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- (empty - no task is mid-flight. STAGE 0.6 is COMPLETE: five items, five commits, `R2 sec 240.1`-`240.5`.)
+- **STAGE 1 phase 1: COMPLETE (audit `R2 sec 241`).** Five `<Name>ServiceProvider`s register the 75
+  bindings that used to be `Support/ContainerBindings` (parity proven identical against HEAD); the 34
+  `app/Interfaces` ports `git mv`'d into `Modules/<M>/Contracts` (99 files, 187 references rewritten,
+  `app/Interfaces` now empty); `tests/Feature/AppFuture/ModuleBoundaryTest.php` added (rules A and B
+  hard 0, the measured 1-file entrypoint exemption, the 87-file kernel->Contracts ceiling, per-module
+  file floors and the empty-Interfaces check); whole-tree Pint brought from red-at-HEAD to PASS (777
+  files). Verified: full default-order suite `Tests: 3046, Assertions: 13051, Skipped: 2` (baseline
+  3040/13026/2 plus the new ratchet's 6 tests), leak guard clean, snapshot corpus byte-identical at 213
+  files. **Phase 2 next: Communication** (then Money, Ride, Identity, Console), one commit per module.
+- **STAGE 1 (owner's new goal): real modules under `app/Modules/{Communication,Money,Ride,Identity,Console}`,
+  namespace `App\Modules\<Name>\`, layout `{Http/Controllers,Http/Handlers,Services,Repositories,Domain,Contracts,Providers}`.**
+  NOT moved (kernel/entrypoints): `app/Models`, `Enums`, `DTOs`, `Events`, `Exceptions`, `Domain/ValueObjects`,
+  `Http/Middleware`, `Http/Requests`, `Http/Resources`, artisan commands, `app/Docs`, `Providers`, and
+  `Jobs`, `Listeners`, `Notifications`, `Mail`, `Broadcasting`.
+  Phase 1 (no file moves of module code): (a) one `<Name>ServiceProvider` per module taking that module's
+  bindings out of `Support/ContainerBindings` with identical lifetimes; (b) the 34 `app/Interfaces` ports move
+  into the implementing module's `Contracts`; (c) new `tests/Feature/AppFuture/ModuleBoundaryTest.php`
+  (module file imports only its own module + kernel + other modules' Contracts; kernel may not import a module;
+  entrypoints exempt via a named, measured, shrink-only allowlist; baseline 0; scanned-file floors so a move
+  cannot pass vacuously).
+  Phase 2, one commit per module in the order Communication, Money, Ride, Identity, Console: `git mv`, rewrite
+  namespaces/imports, `routes/api.php` controller use-lines, config and test use-lines (mechanical only),
+  re-point the path-based ratchets (`BoundaryDependencyTest`, `CrossContextBoundaryTest`, `AuthFacadeRatchetTest`,
+  `SilentCatchBatchTest`, `MoneyRoundingIsDecidedInOnePlaceTest`, `RV28InfraHardeningTest`, `T48CommentEncodingTest`,
+  `T49MojibakeRepairTest`) with their numbers unchanged.
+  Phase 3: full-suite five-order matrix + leftover-rows probe.
+  Per-commit hard rules: `tests/Snapshots` byte-identical (no `SNAPSHOT_UPDATE=1`), leak guard clean, whole-tree
+  Pint clean, default-order full suite green; otherwise revert that step and Park it.
+  Expected to change: `app/Modules/**` (new), `app/Support/ContainerBindings.php`, `config/app.php`,
+  `routes/api.php`, the test files above, the audit and this file.
+  Scratch outside the repo: `C:\temp\s05\ports-move.php`, `C:\temp\s05\import-map.php`.
+  State after phase 1(b): 34 ports moved, 99 files rewritten, 187 references.
 
 ## Owner decisions needed - stage 0.6 parked five findings, full evidence in `R2 sec 240.4`
 1. **A refusal is reported as a validation failure (422 instead of 403/404).** `bookings/accept-someone-elses-request`,

@@ -2,11 +2,11 @@
 
 namespace App\Services\Verification;
 
-use App\Interfaces\NotificationPort;
-use App\Interfaces\PhotoRepositoryInterface;
-use App\Interfaces\ProfileRepositoryInterface;
 use App\Models\Photo;
 use App\Models\User;
+use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

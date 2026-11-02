@@ -2,9 +2,9 @@
 
 namespace App\Observers;
 
-use App\Interfaces\ProfileRepositoryInterface;
 use App\Models\User;
 use App\Models\UserRating;
+use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 use App\Services\Score\ScoreService;
 
 class UserObserver

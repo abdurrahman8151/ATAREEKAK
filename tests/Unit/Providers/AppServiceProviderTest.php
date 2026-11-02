@@ -2,14 +2,14 @@
 
 namespace Tests\Unit\Providers;
 
-use App\Interfaces\ChatRepositoryInterface;
-use App\Interfaces\OtpRepositoryInterface;
-use App\Interfaces\PasswordResetRepositoryInterface;
-use App\Interfaces\PhotoRepositoryInterface;
-use App\Interfaces\ProfileRepositoryInterface;
-use App\Interfaces\RideRepositoryInterface;
-use App\Interfaces\UserRepositoryInterface;
-use App\Interfaces\VerificationRepositoryInterface;
+use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
+use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
+use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Providers\AppServiceProvider;
 use App\Services\Admin\AdminAuthService;
 use App\Services\Admin\AdminWalletService;

@@ -2,9 +2,9 @@
 
 namespace App\Services\Staff;
 
-use App\Interfaces\StaffJwtInterface;
 use App\Models\Employee;
 use App\Models\StaffRefreshToken;
+use App\Modules\Identity\Contracts\StaffJwtInterface;
 use Carbon\Carbon;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;

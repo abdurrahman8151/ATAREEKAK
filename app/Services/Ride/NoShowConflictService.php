@@ -4,12 +4,12 @@ namespace App\Services\Ride;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Interfaces\NotificationPort;
 use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
+use App\Modules\Communication\Contracts\NotificationPort;
 use Illuminate\Support\Facades\Log;
 
 /**

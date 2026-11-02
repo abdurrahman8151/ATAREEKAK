@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Interfaces\PhotoRepositoryInterface;
-use App\Interfaces\ProfileRepositoryInterface;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 use App\Services\Verification\VerificationSubmissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

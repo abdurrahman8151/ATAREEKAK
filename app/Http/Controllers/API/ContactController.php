@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Interfaces\ChatRepositoryInterface;
-use App\Interfaces\EmployeeManagementInterface;
-use App\Interfaces\SupportAgentRoutingInterface;
+use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Console\Contracts\EmployeeManagementInterface;
+use App\Modules\Console\Contracts\SupportAgentRoutingInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

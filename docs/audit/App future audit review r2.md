@@ -15754,3 +15754,164 @@ the two files item 2 was allowed to add; the only changed corpus file is `query-
 budgets lowered in item 1, one added in item 2); `MANIFEST.json` was refreshed twice with
 `scripts/refresh-snapshot-manifest.php` in the same commits, ending at 213 files. Nothing was pushed;
 branch `Agentic` only.
+
+---
+
+### 241. Stage 1, phase 1 - five module providers, the 34 ports move into their modules' Contracts, and a boundary ratchet that cannot pass vacuously
+
+**Owner's goal (new batch, same REFACTORING MODE):** real modules under
+`app/Modules/{Communication,Money,Ride,Identity,Console}`, namespace `App\Modules\<Name>\`, layout
+`{Http/Controllers,Http/Handlers,Services,Repositories,Domain,Contracts,Providers}`. Phase 1 is the
+part that moves NO module code: (a) one `<Name>ServiceProvider` per module taking that module's
+bindings out of `Support/ContainerBindings` with identical lifetimes, (b) every port out of
+`app/Interfaces` into the Contracts namespace of the module that IMPLEMENTS it, (c) a
+`ModuleBoundaryTest`. Phases 2 (one commit per module, in the order Communication, Money, Ride,
+Identity, Console) and 3 (five-order matrix + leftover-rows probe over the full suite) follow.
+
+Per-commit hard rules for the whole batch: `tests/Snapshots` byte-identical (no `SNAPSHOT_UPDATE=1`),
+`MANIFEST.json` unchanged, query budgets unchanged, the leak guard clean, whole-tree Pint clean, and
+the default-order full suite green.
+
+#### 241.1 Phase 1(a) - the binding catalogue splits by module, with parity proven against HEAD
+
+`app/Support/ContainerBindings.php` was the whole container catalogue in one body (386 lines, **75
+registrations**: 41 `singleton` + 34 `bind`). It is now five module providers plus a one-binding
+kernel remnant:
+
+| Provider | Registrations | Notes |
+|---|---|---|
+| `app/Modules/Communication/Providers/CommunicationServiceProvider.php` | 8 | push (`PushTokenManager`, `FcmSenderService`, `PushNotificationService`), chat, `NotificationService`, and the three ports |
+| `app/Modules/Money/Providers/MoneyServiceProvider.php` | 18 | the payment services, the two strategies + factory (they stay in `App\Domain\Payment` - the money context owns them), `WalletRequestService`, and the eight `Money\Contracts` ports |
+| `app/Modules/Ride/Providers/RideServiceProvider.php` | 15 | geocoding, score and route calculation (the closures are verbatim, including the RV-11 `ScoreLedger` note), the ride services, and the five `Ride\Contracts` ports |
+| `app/Modules/Identity/Providers/IdentityServiceProvider.php` | 18 | profile, staff-JWT, verification, the `TextMeBotOtpService` closure, the six repositories and the twelve ports |
+| `app/Modules/Console/Providers/ConsoleServiceProvider.php` | 15 | the seven `Admin*` services, the staff business surface, complaints, employees, support routing, and four ports |
+| `app/Support/ContainerBindings.php` (kept) | 1 | `FileUploadService` - the shared kernel's own binding, registered exactly where it always was, from `AppServiceProvider::register()` |
+
+**Parity is measured, not asserted by hand.** `C:\temp\s05\binding-parity.php` reads the HEAD version
+out of `git show` and the union of the five providers plus the remnant, extracts each registration's
+`(kind, key, target)` triple (closure targets normalised to a marker), and compares the sorted sets:
+
+```
+HEAD registrations: 75
+now  registrations: 75
+IDENTICAL binding catalogue (kind, key, target)
+```
+
+**The old promise changed, deliberately.** The file's docblock used to say binding order was
+"byte-for-byte unchanged" - that described batch 227, which moved the body without regrouping it.
+Regrouping by module necessarily reorders registrations. It cannot matter here, and the reason is
+checkable rather than assumed: in phase 1(b) each port went to the module that IMPLEMENTS it, so every
+`bind(Port::class, Impl::class)` now sits in the same provider as the singleton it resolves to, and no
+binding can depend on one that another module registers. The docblock, `config/app.php` and both new
+comments say this instead of the old claim. `config/app.php` registers the five providers after
+`HorizonServiceProvider`, in the modules' own order.
+
+#### 241.2 Phase 1(b) - 34 ports moved into `Contracts`, 99 files and 187 references rewritten
+
+| Module | Ports |
+|---|---|
+| Communication (4) | `ChatMessageHandlerInterface`, `ChatRepositoryInterface`, `MessageTypeInterface`, `NotificationPort` |
+| Money (8) | `BookingCharge`, `CancellationRefund`, `CashRideFeeService`, `LedgerService`, `NoShowSettlement`, `PassengerWalletCharger`, `PaymentStrategyFactory`, `RidePayout` (all `*Interface`) |
+| Ride (6) | the two live `Geocoding\*` ports (kept in a `Contracts\Geocoding` sub-namespace), `RideRepositoryInterface`, `ScoreServiceInterface`, `UserRideStatsInterface`, and the dead flat `GeocodingServiceInterface` (below) |
+| Identity (12) | `DocumentVerification`, `EmailOtpService`, `OtpMail`, `OtpRepository`, `PasswordResetRepository`, `PhotoRepository`, `ProfileRepository`, `StaffJwt`, `TokenRevoker`, `UserRepository`, `VerificationApproval`, `VerificationRepository` (all `*Interface`) |
+| Console (4) | `ComplaintRepository`, `EmployeeManagement`, `EmployeeRepository`, `SupportAgentRouting` (all `*Interface`) |
+
+`app/Interfaces/` is now **empty** (the directory has no PHP file left; `ModuleBoundaryTest` asserts
+that, so a port cannot quietly move back). 34 `git mv`s, 99 files rewritten, 187 references: the move
+script replaces only exact FQCN strings and rewrites each moved file's `namespace` line from its new
+path, so nothing else in those files changed. The rewrite reached `app/` (87 files), `tests/` (10,
+all `use` lines) and `database/seeders` (2, `PassengerSeeder` and `DriverSeeder`). `routes/api.php`,
+`config/`, `bootstrap/`, `public/` and `docs/` never named a port - checked before the move, not after.
+`composer dump-autoload --no-scripts` was run; no autoload setting changed.
+
+**The dead port.** `App\Interfaces\GeocodingServiceInterface` (top-level) had **0 importers and 0
+implementers** before the move, and its moved form
+`App\Modules\Ride\Contracts\GeocodingServiceInterface` has 0 references after it - verified with a
+repository-wide grep for both FQCNs. It could not be flattened into `Contracts/` because the LIVE
+`Geocoding\GeocodingServiceInterface` would collide with it, so it sits one level up from the live one,
+exactly where a reader can see the pair. It was moved rather than deleted: deleting code needs the
+owner, and moving it keeps the change reversible.
+
+#### 241.3 Phase 1(c) - `tests/Feature/AppFuture/ModuleBoundaryTest.php` (6 tests, baseline 0)
+
+Five rules, each with the number it measured on 2026-11-02:
+
+* A. a MODULE file may name its own module, any module's `Contracts`, and the kernel - never another
+  module's implementation. **Measured: 0.**
+* B. a KERNEL file may name module `Contracts` (that is what ports are for) - never module
+  implementation. **Measured: 0.**
+* C. ENTRYPOINTS (artisan commands, `Http/Middleware`, `Providers`, `Support/ContainerBindings`) are
+  the wiring layer and are exempt from B, but the exemption is a named, exact list at its measured
+  count. **Measured: 1 file** - `Console/Commands/CleanupExpiredOtps.php`, which resolves an Identity
+  port. The container catalogue is NOT on the list any more: it registers shared kernel bindings only,
+  so phase 1 narrowed the exemption rather than widening it.
+* D. the kernel's use of module `Contracts` is a **transitional ceiling**: 87 files today, because the
+  ports moved to their modules while their callers (controllers, services, repositories) are still
+  kernel files. Phase 2 moves those callers into their modules, where naming another module's Contracts
+  is the sanctioned edge, so the number falls toward the handful of kernel files that legitimately
+  remain; each phase-2 commit lowers the ceiling to the newly measured number.
+* E. anti-vacuity floors, so no move can make the rules pass by scanning nothing: the scan must see at
+  least 351 app files (the tree has 351), every module must keep at least its measured file count
+  (Communication 5, Money 9, Ride 7, Identity 13, Console 5), and every module must keep its
+  `<Name>ServiceProvider`.
+
+**Interpretation decision, for the owner to correct if wrong.** "The kernel may not import a module"
+is implemented as: the kernel may not import module IMPLEMENTATION; `<Module>\Contracts` is the
+published boundary, and kernel wiring files may use it (rule D bounds how many). The stricter reading
+- the kernel may not name a module at all - would make the ports unusable from the kernel and would
+fail on 87 files today, most of which phase 2 moves into modules anyway.
+
+#### 241.4 Verification
+
+* `tests/Feature/AppFuture` - 46 tests, 360 assertions, OK (includes the pre-existing
+  `BoundaryDependencyTest` and `CrossContextBoundaryTest`, both unchanged and still green: no
+  baseline moved, and neither scanner counts `Modules/` edges).
+* Scoped batch `tests/Feature/Review/CommittedRowLeakGuardTest.php` + `tests/Feature/Snapshots` +
+  `tests/Unit/Providers` + `tests/Feature/Config` - 239 tests, 2149 assertions, **OK**. The leak guard
+  is clean and the snapshot corpus is byte-identical (`MANIFEST.json` still 213 files, no
+  `SNAPSHOT_UPDATE=1` anywhere in this batch).
+* Whole-tree Pint - see 241.5; it now PASSES 777 files, and that required the measurement below.
+* Full default-order suite (the batch's hard rule): result recorded in the table at the end of this
+  section.
+
+**Operational note (production safety).** One full-suite invocation was started in a fresh shell
+WITHOUT the scratch DB variables and was killed within about 40 seconds. `phpunit.xml` pins
+`DB_CONNECTION=mysql`, `DB_HOST=127.0.0.1`, `DB_PORT=3399`, `DB_DATABASE=t3_batch` with `force="true"`,
+so that process hit the scratch database, never Aiven; the folder run was then restarted with the
+shell variables set as well. Recording it because the next reader deserves to know the guard was
+exercised, not assumed.
+
+#### 241.5 Findings
+
+1. **Whole-tree Pint was already red on HEAD.** Before this change, 64 style issues in 64 files
+   (`unary_operator_spaces`, `not_operator_with_successor_space`, `braces_position`,
+   `single_line_empty_body`) - spot-checked against HEAD for `AdminAuthService`, `RideRepository`,
+   `BookingActionService` and `UserObserver`: all four fail identically on the HEAD bytes, so the dirt
+   pre-dates stage 1. The FQCN change did add one complaint of its own: `ordered_imports` in 37 files,
+   because `App\Interfaces\...` sorts before `App\Models\...` while `App\Modules\...` sorts after it.
+   Fix: Pint was run over exactly the 64 dirty files. The 37 import-order fixes are this change's; the
+   27 other files are whitespace-only cosmetics (`!$x` -> `! $x`, brace placement, blank lines) in
+   files this change already touches, and they buy the batch a whole-tree Pint gate that actually
+   passes for every remaining commit. No logic, string, amount or response shape was touched by it.
+2. **The dead Geocoding port** (241.2): a port with no importer and no implementer. Deletion is the
+   owner's call; it is carried, documented and harmless.
+3. **The 87-file kernel -> Contracts ceiling** is the transitional cost of moving the ports before
+   their callers. Phase 2 pays it down per module, and the constant comes down with it.
+
+**Files changed:** `app/Modules/**` (39 new: 34 ports + 5 providers), `app/Support/ContainerBindings.php`
+(386 -> 63 lines), `config/app.php`, 99 files' `use` lines (87 app, 10 tests, 2 seeders),
+`tests/Feature/AppFuture/ModuleBoundaryTest.php` (new), plus the Pint-only reformatting in the 64 files
+above. Nothing was pushed; branch `Agentic` only.
+
+**Phase 1 commit**
+
+| Step | Commit | What it did |
+|---|---|---|
+| Phase 1 | this commit | five `<Name>ServiceProvider`s (75 registrations, parity-proven), 34 ports `git mv`'d into `Modules/<M>/Contracts` (99 files, 187 references), `ModuleBoundaryTest` with A/B hard 0, the measured 1-file entrypoint exemption, the 87-file kernel->Contracts ceiling and per-module file floors; whole-tree Pint brought to PASS (241.5.1) |
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3046, Assertions: 13051, Skipped: 2` -
+OK, 15:57, on `127.0.0.1:3399/t3_batch`. That is the recorded baseline (3040 / 13026 / 2) plus
+exactly the 6 tests and 25 assertions of `ModuleBoundaryTest`, which is the arithmetic proof that
+phase 1 changed no other test's outcome: nothing was added to or removed from the suite, and the two
+skips are the same two as before. Snapshot corpus byte-identical (213 files), leak guard clean,
+nothing pushed.

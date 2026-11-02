@@ -3,10 +3,10 @@
 namespace App\Services\Staff;
 
 use App\Enums\ComplaintStatus;
-use App\Interfaces\NotificationPort;
 use App\Models\Complaint;
 use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Communication\Contracts\NotificationPort;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;

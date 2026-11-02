@@ -4,11 +4,11 @@ namespace App\Services\Complaint;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Interfaces\ComplaintRepositoryInterface;
 use App\Models\Complaint;
 use App\Models\ComplaintAttachment;
 use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 
 final class ComplaintService

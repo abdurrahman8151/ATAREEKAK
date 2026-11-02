@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\API\Support;
 
 use App\DTOs\Auth\SendEmailOtpDTO;
-use App\Interfaces\EmailOtpServiceInterface;
-use App\Interfaces\UserRepositoryInterface;
+use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

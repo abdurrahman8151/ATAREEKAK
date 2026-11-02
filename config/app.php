@@ -1,5 +1,10 @@
 <?php
 
+use App\Modules\Communication\Providers\CommunicationServiceProvider;
+use App\Modules\Console\Providers\ConsoleServiceProvider;
+use App\Modules\Identity\Providers\IdentityServiceProvider;
+use App\Modules\Money\Providers\MoneyServiceProvider;
+use App\Modules\Ride\Providers\RideServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthServiceProvider;
 use App\Providers\BroadcastServiceProvider;
@@ -84,6 +89,15 @@ return [
         RouteServiceProvider::class,
         BroadcastServiceProvider::class,
         HorizonServiceProvider::class,
+        // Stage 1, phase 1(a): the five bounded contexts register their own container bindings.
+        // The order below is fixed (the modules' own order) and carries no meaning: every port is
+        // bound to an implementation inside its own module, so no binding depends on another
+        // module's. `App\Support\ContainerBindings` keeps the shared kernel's bindings only.
+        CommunicationServiceProvider::class,
+        MoneyServiceProvider::class,
+        RideServiceProvider::class,
+        IdentityServiceProvider::class,
+        ConsoleServiceProvider::class,
     ])->toArray(),
 
     /*

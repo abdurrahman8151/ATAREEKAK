@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Interfaces\PhotoRepositoryInterface;
 use App\Models\Photo;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 
 class PhotoRepository implements PhotoRepositoryInterface
 {

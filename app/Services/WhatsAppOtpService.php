@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Domain\ValueObjects\PhoneNumber;
-use App\Interfaces\OtpRepositoryInterface;
 use App\Models\Otp;
+use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use GuzzleHttp\Client;

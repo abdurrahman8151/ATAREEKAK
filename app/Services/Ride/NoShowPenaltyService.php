@@ -3,12 +3,12 @@
 namespace App\Services\Ride;
 
 use App\Enums\BookingStatus;
-use App\Interfaces\NotificationPort;
-use App\Interfaces\Payment\NoShowSettlementInterface;
 use App\Models\Booking;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
+use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Services\Score\ScoreService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

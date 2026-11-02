@@ -3,10 +3,10 @@
 namespace App\Services\Staff;
 
 use App\Enums\StaffRole;
-use App\Interfaces\EmployeeManagementInterface;
-use App\Interfaces\StaffJwtInterface;
 use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Contracts\EmployeeManagementInterface;
+use App\Modules\Identity\Contracts\StaffJwtInterface;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;

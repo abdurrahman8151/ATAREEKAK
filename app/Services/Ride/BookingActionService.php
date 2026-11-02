@@ -2,9 +2,9 @@
 
 namespace App\Services\Ride;
 
-use App\Interfaces\NotificationPort;
 use App\Models\Booking;
 use App\Models\User;
+use App\Modules\Communication\Contracts\NotificationPort;
 use Illuminate\Support\Facades\Log;
 
 /**

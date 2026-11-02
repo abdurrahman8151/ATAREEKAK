@@ -4,8 +4,8 @@ namespace App\Http\Controllers\API;
 
 use App\Domain\ValueObjects\Money;
 use App\Http\Controllers\Controller;
-use App\Interfaces\NotificationPort;
-use App\Interfaces\Payment\PassengerWalletChargerInterface;
+use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
 use App\Services\JwtService;
 use App\Services\Profile\PassengerProfilePanelBuilder;
 use App\Services\Profile\PassengerProfileQueryService;

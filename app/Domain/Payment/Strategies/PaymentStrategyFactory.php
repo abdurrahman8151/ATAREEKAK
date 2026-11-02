@@ -3,10 +3,10 @@
 namespace App\Domain\Payment\Strategies;
 
 use App\Enums\PaymentMethod;
-use App\Interfaces\Payment\BookingChargeInterface;
-use App\Interfaces\Payment\CancellationRefundInterface;
-use App\Interfaces\Payment\PaymentStrategyFactoryInterface;
-use App\Interfaces\Payment\RidePayoutInterface;
+use App\Modules\Money\Contracts\BookingChargeInterface;
+use App\Modules\Money\Contracts\CancellationRefundInterface;
+use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
+use App\Modules\Money\Contracts\RidePayoutInterface;
 use InvalidArgumentException;
 
 /**

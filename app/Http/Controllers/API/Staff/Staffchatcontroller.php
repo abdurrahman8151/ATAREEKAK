@@ -4,8 +4,8 @@ namespace App\Http\Controllers\API\Staff;
 
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
-use App\Interfaces\ChatMessageHandlerInterface;
-use App\Interfaces\ChatRepositoryInterface;
+use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
+use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Services\Staff\EmployeeManagementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

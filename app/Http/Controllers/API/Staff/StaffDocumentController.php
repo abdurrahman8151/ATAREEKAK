@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Interfaces\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;

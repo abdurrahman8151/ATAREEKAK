@@ -3,12 +3,12 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
-use App\Interfaces\Payment\NoShowSettlementInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Support\FeeSplit;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;

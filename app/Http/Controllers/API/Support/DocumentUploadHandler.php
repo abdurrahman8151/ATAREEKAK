@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\API\Support;
 
-use App\Interfaces\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;

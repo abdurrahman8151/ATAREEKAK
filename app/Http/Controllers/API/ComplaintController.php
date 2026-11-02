@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Interfaces\NotificationPort;
+use App\Modules\Communication\Contracts\NotificationPort;
 use App\Services\Complaint\ComplaintService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

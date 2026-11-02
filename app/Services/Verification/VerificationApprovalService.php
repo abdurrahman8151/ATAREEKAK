@@ -5,9 +5,9 @@ namespace App\Services\Verification;
 use App\DTOs\Verification\ApprovedVerification;
 use App\Events\UserVerified;
 use App\Exceptions\Domain\DuplicateNationalIdException;
-use App\Interfaces\VerificationApprovalInterface;
-use App\Interfaces\VerificationRepositoryInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\VerificationApprovalInterface;
+use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
 
 /**
  * L4 (modular-monolith slice 3): the one place that approves a user's identity verification.

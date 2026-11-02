@@ -2,8 +2,8 @@
 
 namespace App\Services\Auth;
 
-use App\Interfaces\UserRepositoryInterface;
 use App\Models\User;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use Illuminate\Support\Str;
 
 /**

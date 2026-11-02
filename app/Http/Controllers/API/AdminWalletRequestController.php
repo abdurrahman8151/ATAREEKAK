@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Interfaces\NotificationPort;
-use App\Interfaces\Payment\CashRideFeeServiceInterface;
-use App\Interfaces\Payment\LedgerServiceInterface;
+use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
+use App\Modules\Money\Contracts\LedgerServiceInterface;
 use App\Services\Admin\AdminWalletRequestService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;

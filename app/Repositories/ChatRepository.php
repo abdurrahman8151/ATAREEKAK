@@ -2,10 +2,10 @@
 
 namespace App\Repositories;
 
-use App\Interfaces\ChatRepositoryInterface;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

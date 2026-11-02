@@ -7,7 +7,7 @@ use App\DTOs\Auth\SendEmailOtpDTO;
 use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WalletTransactionResource;
-use App\Interfaces\EmailOtpServiceInterface;
+use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
 use App\Services\Wallet\WalletProvisioningService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

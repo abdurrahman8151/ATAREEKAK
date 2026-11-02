@@ -3,12 +3,12 @@
 namespace App\Services\Payment;
 
 use App\Domain\ValueObjects\Money;
-use App\Interfaces\Payment\BookingChargeInterface;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\BookingChargeInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;

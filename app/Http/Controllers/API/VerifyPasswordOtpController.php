@@ -4,8 +4,8 @@ namespace App\Http\Controllers\API;
 
 use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Http\Controllers\Controller;
-use App\Interfaces\EmailOtpServiceInterface;
-use App\Interfaces\UserRepositoryInterface;
+use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
+use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
