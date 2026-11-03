@@ -73,7 +73,13 @@ class DeadArtifactBatchTest extends TestCase
 
     public function test_k6_scripts_have_no_stray_leading_or_trailing_spaces(): void
     {
-        foreach (glob(base_path('k6-load/*.js')) as $path) {
+        $scripts = glob(base_path('k6-load/*.js')) ?: [];
+
+        // Floor: 15 k6 scripts measured 2026-11-03. An empty glob would make the whitespace
+        // rule pass over nothing at all.
+        $this->assertGreaterThanOrEqual(12, count($scripts), 'The k6 sweep globbed only '.count($scripts).' scripts.');
+
+        foreach ($scripts as $path) {
             $name = basename($path);
             $this->assertSame(
                 $name,

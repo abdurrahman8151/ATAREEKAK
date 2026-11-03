@@ -205,6 +205,25 @@ class RV16EnumerationUniformityTest extends TestCase
             glob(app_path('Http/Controllers/API/*Controller.php')) ?: [],
             glob(app_path('Modules/*/Http/Controllers/*Controller.php')) ?: []
         );
+
+        // Floor, and a named check rather than only a number: the four endpoints this rule exists
+        // for must still be among the files the globs reach. Measured 2026-11-03: 38 files
+        // (the kernel glob is empty - every controller now lives in a module - so the module
+        // glob is what carries the sweep), and all four in-scope controllers are in it.
+        $this->assertGreaterThanOrEqual(
+            35,
+            count($controllerGlobs),
+            'The enumeration sweep reached only '.count($controllerGlobs).' controller files.'
+        );
+
+        $inScope = ['ForgotPasswordController', 'VerifyPasswordOtpController', 'ResetPasswordController', 'EmailVerificationController'];
+        $seen = array_map(static fn (string $file): string => basename($file, '.php'), $controllerGlobs);
+        $this->assertSame(
+            [],
+            array_values(array_diff($inScope, $seen)),
+            'These controllers are no longer reached by the sweep, so their rule is retired: '.implode(', ', array_diff($inScope, $seen))
+        );
+
         foreach ($controllerGlobs as $file) {
             $src = (string) file_get_contents($file);
             // Only the four in scope; admin/staff 404s are lookups behind auth, not enumeration.

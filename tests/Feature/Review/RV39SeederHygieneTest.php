@@ -298,7 +298,12 @@ class RV39SeederHygieneTest extends TestCase
         $namespace = trim($prefix, '\\');
 
         $failures = [];
-        foreach (glob(database_path('seeders').'/*.php') ?: [] as $file) {
+        $seeders = glob(database_path('seeders').'/*.php') ?: [];
+
+        // Floor: 12 seeder files measured 2026-11-03.
+        $this->assertGreaterThanOrEqual(10, count($seeders), 'The seeder-name sweep globbed only '.count($seeders).' files.');
+
+        foreach ($seeders as $file) {
             $src = (string) file_get_contents($file);
             $expected = basename($file, '.php');
 
@@ -412,6 +417,7 @@ class RV39SeederHygieneTest extends TestCase
         $values = LedgerType::values();
         $offenders = [];
 
+        $scanned = 0;
         $files = [];
         foreach (['app', 'database/seeders'] as $dir) {
             $rii = new \RecursiveIteratorIterator(
@@ -419,12 +425,17 @@ class RV39SeederHygieneTest extends TestCase
             );
             foreach ($rii as $f) {
                 if ($f->isFile() && $f->getExtension() === 'php'
+                    && $scanned++ >= 0
                     && str_contains((string) file_get_contents($f->getPathname()), 'WalletTransaction::create(')) {
                     $files[] = $f->getPathname();
                 }
             }
         }
-        $this->assertNotEmpty($files, 'the scan must find the real ledger writers');
+        // Floor: 353 app files + 12 seeders are walked (measured 2026-11-03), and 12 files
+        // actually write wallet_transactions rows. A scan that finds none of them would make
+        // the vocabulary rule vacuous.
+        $this->assertGreaterThanOrEqual(353, $scanned, 'The ledger-writer sweep only read '.$scanned.' PHP files.');
+        $this->assertGreaterThanOrEqual(10, count($files), 'The ledger-writer sweep found only '.count($files).' writers.');
 
         foreach ($files as $file) {
             $src = (string) file_get_contents($file);

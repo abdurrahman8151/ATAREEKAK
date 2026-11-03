@@ -44,6 +44,7 @@ class DeletedArtifactsBatchTest extends TestCase
     public function test_no_route_or_alias_still_references_the_otp_middleware(): void
     {
         $needle = 'VerifyOtpMiddleware';
+        $scanned = 0;
 
         foreach (['app', 'routes', 'bootstrap', 'config'] as $tree) {
             $it = new \RecursiveIteratorIterator(
@@ -53,6 +54,8 @@ class DeletedArtifactsBatchTest extends TestCase
                 if ($f->getExtension() !== 'php') {
                     continue;
                 }
+
+                $scanned++;
                 $this->assertStringNotContainsString(
                     $needle,
                     (string) file_get_contents($f->getPathname()),
@@ -60,6 +63,10 @@ class DeletedArtifactsBatchTest extends TestCase
                 );
             }
         }
+
+        // Floor: four trees, 384 PHP files (measured 2026-11-03). A walk that finds no file
+        // cannot find a stale reference either, so the absence of hits must be earned.
+        $this->assertGreaterThanOrEqual(370, $scanned, 'The deleted-stub sweep read only '.$scanned.' PHP files.');
 
         $this->assertTrue(true);
     }

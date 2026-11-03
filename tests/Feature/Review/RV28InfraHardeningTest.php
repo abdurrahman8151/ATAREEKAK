@@ -27,10 +27,14 @@ use Tests\TestCase;
  */
 class RV28InfraHardeningTest extends TestCase
 {
+    /** Measured 2026-11-03: 353 PHP files under app/. Floor 340. */
+    private const MIN_SCANNED_FILES = 340;
+
     /** @test */
     public function there_are_no_env_reads_outside_the_config_directory(): void
     {
         $offenders = [];
+        $scanned = 0;
         $appDir = app_path();
         $rii = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($appDir, \FilesystemIterator::SKIP_DOTS)
@@ -39,6 +43,8 @@ class RV28InfraHardeningTest extends TestCase
             if ($file->getExtension() !== 'php') {
                 continue;
             }
+
+            $scanned++;
             $src = (string) file_get_contents($file->getPathname());
             // Match env( / getenv( as an actual CALL, ignoring occurrences inside comments
             // and inside a string literal like config('...env(...)') — a conservative scan:
@@ -54,6 +60,13 @@ class RV28InfraHardeningTest extends TestCase
                 }
             }
         }
+
+        // Floor: an empty tree is not evidence that env() is unread outside config/.
+        $this->assertGreaterThanOrEqual(
+            self::MIN_SCANNED_FILES,
+            $scanned,
+            'The env() sweep only read '.$scanned.' PHP files under app/.'
+        );
 
         $this->assertSame([], $offenders,
             "RV-28: env()/getenv() must be read via config/, never directly in the app tree.\n"

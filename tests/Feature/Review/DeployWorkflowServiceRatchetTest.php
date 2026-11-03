@@ -42,9 +42,17 @@ class DeployWorkflowServiceRatchetTest extends TestCase
      */
     private function workflows(): array
     {
-        $files = glob($this->root().'/.github/workflows/*.yml') ?: [];
+        $files = array_values(array_filter(glob($this->root().'/.github/workflows/*.yml') ?: [], 'is_file'));
 
-        return array_values(array_filter($files, 'is_file'));
+        // Floor: the ratchet exists to check workflow service references; a glob that stops
+        // matching would make every workflow vacuously clean. Measured 2026-11-03: 6 files.
+        $this->assertGreaterThanOrEqual(
+            5,
+            count($files),
+            'The deploy ratchet read only '.count($files).' workflow files.'
+        );
+
+        return $files;
     }
 
     /**

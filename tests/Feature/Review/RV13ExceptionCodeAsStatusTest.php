@@ -39,6 +39,9 @@ class RV13ExceptionCodeAsStatusTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Measured 2026-11-03: 39 controller files (1 kernel + 38 module). Floor 35. */
+    private const MIN_CONTROLLER_FILES = 35;
+
     // -- The ratchet -----------------------------------------------------------------
 
     /** @test */
@@ -281,6 +284,15 @@ class RV13ExceptionCodeAsStatusTest extends TestCase
         foreach ($roots as $root) {
             $files = array_merge($files, $this->phpFilesIn($root));
         }
+
+        // Floor: a sweep that reads an empty controller tree reports "clean" forever, so the
+        // scan must still see the kernel tree and the modules. Measured 39, floor 35.
+        $this->assertGreaterThanOrEqual(
+            self::MIN_CONTROLLER_FILES,
+            count($files),
+            'The controller sweep reached only '.count($files).' files. Reading nothing must not '
+            .'look like reading no violations.'
+        );
 
         return $files;
     }

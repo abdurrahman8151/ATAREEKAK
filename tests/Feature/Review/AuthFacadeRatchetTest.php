@@ -52,6 +52,7 @@ class AuthFacadeRatchetTest extends TestCase
     public function controllers_and_services_take_the_user_from_the_request_not_the_auth_helper(): void
     {
         $violations = [];
+        $scanned = 0;
 
         foreach (self::SCOPED_DIRS as $dir) {
             $base = base_path($dir);
@@ -68,6 +69,8 @@ class AuthFacadeRatchetTest extends TestCase
                     continue;
                 }
 
+                $scanned++;
+
                 $relative = str_replace(
                     ['/', '\\'],
                     '/',
@@ -83,6 +86,14 @@ class AuthFacadeRatchetTest extends TestCase
                 }
             }
         }
+
+        // Floor: the ratchet polices app/Http (29 PHP files) and app/Services (1). Reading
+        // nothing must not look like finding nothing. Measured 2026-11-03: 30 files.
+        $this->assertGreaterThanOrEqual(
+            28,
+            $scanned,
+            'The auth-facade sweep only read '.$scanned.' PHP files across its scoped directories.'
+        );
 
         $this->assertSame(
             [],

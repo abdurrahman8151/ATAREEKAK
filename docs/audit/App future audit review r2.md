@@ -16527,4 +16527,82 @@ reference comments above, `config/l5-swagger.php` (one dead comment line), and t
 OK (16:34 of runtime, finished 05:13), on `127.0.0.1:3399/t3_batch`. 3046 + the four new tests (two in `DanglingImportTest`, two in
 `ProviderWiringTest`). Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
+Nothing pushed; branch `Agentic` only.---
+
+### 250. Stage 1.5 item 2 - the vacuity sweep: every scanner now proves it read something
+
+A ratchet of the form "no file in this tree does X" passes for two very different reasons: the tree is
+clean, or the tree was never read. Stage 1 moved 202 files into modules, which is exactly the change
+that turns the second reason into the common one - a sweep still pointed at the old directory finds
+nothing and reports success. The owner asked for the full list, a floor on each, and a proof that each
+floor is load-bearing.
+
+**Method.** For every test under `tests/` that scans a directory or namespace and asserts a ceiling,
+`== 0`, or "no hits", a floor was added at the point where the file list exists: an
+`assertGreaterThanOrEqual(N, count(...))` where N is the measured count on 2026-11-03. Then each floor
+was proved in a scratch run: the scan root was temporarily replaced with an empty directory, the test
+was run, and it had to go red. Every mutation was applied to a copy and restored in the same command; no
+commented-out switch, no env flag, nothing left in the tree.
+
+**The full list (23 scanners).**
+
+| # | Test | What it scans | Assertion shape | Floor added | Empty-path run |
+|---|---|---|---|---|---|
+| 1 | `AppFuture/BoundaryDependencyTest` | 353 app files | 9 layer ceilings + baseline | already 340 (stage 1) | **RED** |
+| 2 | `AppFuture/CrossContextBoundaryTest` | 353 app files | 20 pair baselines | already 340 (stage 1) | **RED** |
+| 3 | `AppFuture/ModuleBoundaryTest` | 353 app files, 5 modules | rules A-E, ceiling 5 | already 353 + per-module | **RED** |
+| 4 | `AppFuture/DanglingImportTest` | 776 files, 6 trees | dangling == 0 | already 750 files / 2000 tokens (item 1) | **RED** |
+| 5 | `Review/RV13ExceptionCodeAsStatusTest` | 39 controller files | offenders == 0 | **35** | **RED** (both roots; see below) |
+| 6 | `Review/ExceptionMessageLeakRatchetTest` | 39 controller files | ceiling + `logged > 0` | **35** | **RED** |
+| 7 | `Review/T48CommentEncodingTest` | 353 app files | ceiling | **340** | **RED** |
+| 8 | `Review/RV28InfraHardeningTest` | 353 app files | offenders == 0 | **340** | **RED** |
+| 9 | `Review/RV29UserMassAssignmentRatchetTest` | 353 app files | offenders == 0 | **340** | **RED** |
+| 10 | `Review/RV16EnumerationUniformityTest` | 38 controller files | offenders == 0 | **35** + the 4 named controllers | **RED** |
+| 11 | `Review/RV30DataModelHygieneTest` | 85 migrations | mismatches == 0 | **80** | **RED** |
+| 12 | `Review/RV38LazyArmingMechanismTest` | 26 model files | every model uses the trait | **24** (was only `notEmpty`) | **RED** |
+| 13 | `Review/RV39SeederHygieneTest` (ledger writers) | 365 files, 2 trees | offenders == 0 | **353 scanned** + **10 writers** (was only `notEmpty`) | **RED** |
+| 14 | `Review/RV39SeederHygieneTest` (seeder names) | 12 seeders | failures == 0 | **10** | (same file, same floor pass) |
+| 15 | `Review/NoDuplicatedFixtureHelpersTest` | 296 test files | offenders == 0 | **280** | **RED** |
+| 16 | `Review/TestDeterminismRatchetTest` | 296 test files | offenders == 0 | **280** | **RED** |
+| 17 | `Review/AuthFacadeRatchetTest` | 30 files in 2 dirs | violations == 0 | **28** | **RED** |
+| 18 | `Review/DeployWorkflowServiceRatchetTest` | 6 workflow files | service refs resolve | **5** | **RED** |
+| 19 | `AppFuture/TlsAndOctaneHygieneTest` | 353 app files | offenders == 0 | **340** | **RED** |
+| 20 | `T3Batch/SilentCatchBatchTest` | 30 files in 3 trees | offenders == 0 | **28** | **RED** |
+| 21 | `T3Batch/DeletedArtifactsBatchTest` | 384 files in 4 trees | no hit per file | **370** | **RED** |
+| 22 | `T4Batch/DeadArtifactBatchTest` | 15 k6 scripts | filenames clean | **12** | **RED** |
+| 23 | `Snapshots/StateSnapshotCoverageTest` | 11 snapshot modules | orphans == 0 | **10** | **RED** |
+| 24 | `Snapshots/SnapshotEmptinessTest` | 170 corpus JSON files | failures == 0 | **160** | **RED** |
+
+(The table runs to 24 rows because `RV39SeederHygieneTest` has two independent sweeps with separate
+floors; 23 distinct test files.)
+
+**Out of scope, deliberately.** `Review/CiMySqlDriverTest::test_file_exists()` walks `tests/` but it is
+an existence lookup for a named class, not a ratchet: it asserts "found", which fails closed on an empty
+tree. `tests/Support/Snapshots/SnapshotManifest.php` walks the corpus but is the freeze test's own
+manifest builder - the freeze test asserts the byte-for-byte equality of 213 files, which cannot pass on
+an empty tree.
+
+**Two findings the sweep itself produced.**
+
+1. **`RV16`'s kernel half was already dead.** Its glob was
+   `glob(app_path('Http/Controllers/API/*Controller.php'))` - and there are **zero** PHP files at that
+   depth: every controller now lives either in a module (`Modules/*/Http/Controllers/`) or in a
+   subdirectory of the kernel tree. The module glob carries all 38 files, so the rule still works, but
+   half of its stated scope was reading nothing. The floor is on the union (35), and the test now also
+   names the four endpoints it exists for (`ForgotPasswordController`, `VerifyPasswordOtpController`,
+   `ResetPasswordController`, `EmailVerificationController`) and fails if any of them drops out of the
+   sweep - a floor that is about the rule's purpose rather than only about a count.
+2. **A one-sided floor is not a floor.** The first empty-path run of `RV13` stayed **green** when I
+   emptied only the kernel root, because the module root still delivered 38 files - which is correct
+   behaviour of the floor, and a reminder that the proof has to empty *every* root the sweep reads. The
+   test was re-proved with both roots emptied and went red. The same shape applies to
+   `ExceptionMessageLeakRatchetTest`, which shares the two-root pattern.
+
+**Commit.** `Stage 1.5 item 2` - this commit. Files changed: 19 test files (floors + the two RV16
+named-controller checks), no application code. Ratchet numbers before: 4 scanners floored (the three
+stage-1 boundary ratchets and `DanglingImportTest`), 19 unfloored; after: **all 23 floored**.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3050, Assertions: 13149, Skipped: 2` - OK (15:59 of runtime, finished 16:31),
+on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
 Nothing pushed; branch `Agentic` only.

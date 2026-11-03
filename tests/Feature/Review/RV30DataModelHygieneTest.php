@@ -58,7 +58,16 @@ class RV30DataModelHygieneTest extends TestCase
     public function no_migration_drops_a_table_its_own_up_did_not_create(): void
     {
         $mismatches = [];
-        foreach (glob(base_path('database/migrations/*.php')) ?: [] as $file) {
+        $migrations = glob(base_path('database/migrations/*.php')) ?: [];
+
+        // Floor: a glob that stops matching would make "no mismatch" meaningless.
+        $this->assertGreaterThanOrEqual(
+            80,
+            count($migrations),
+            'The migration sweep globbed only '.count($migrations).' files.'
+        );
+
+        foreach ($migrations as $file) {
             $src = (string) file_get_contents($file);
 
             preg_match_all("/Schema::create\(\s*'([^']+)'/", $src, $c);

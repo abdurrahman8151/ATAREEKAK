@@ -205,6 +205,9 @@ class NoDuplicatedFixtureHelpersTest extends TestCase
         $this->assertTrue(trait_exists(ActsAsStaff::class), 'ActsAsStaff must exist');
     }
 
+    /** Measured 2026-11-03: 296 PHP files under tests/. Floor 280. */
+    private const MIN_TEST_FILES = 280;
+
     /**
      * @return array<int, string>
      */
@@ -222,6 +225,13 @@ class NoDuplicatedFixtureHelpersTest extends TestCase
         }
 
         sort($files);
+
+        // Floor: a helper that reads no test files finds no duplicated helper in them.
+        $this->assertGreaterThanOrEqual(
+            self::MIN_TEST_FILES,
+            count($files),
+            'The test-tree sweep only read '.count($files).' PHP files.'
+        );
 
         return $files;
     }

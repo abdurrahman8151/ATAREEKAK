@@ -511,6 +511,9 @@ class TestDeterminismRatchetTest extends TestCase
         return (string) preg_replace('/<<<[A-Z]+.*?^[A-Z]+;/ms', '', $withoutStrings);
     }
 
+    /** Measured 2026-11-03: 296 PHP files under tests/. Floor 280. */
+    private const MIN_TEST_FILES = 280;
+
     /**
      * @return array<int, string>
      */
@@ -528,6 +531,13 @@ class TestDeterminismRatchetTest extends TestCase
         }
 
         sort($files);
+
+        // Floor: the determinism sweep must still be reading the test tree it polices.
+        $this->assertGreaterThanOrEqual(
+            self::MIN_TEST_FILES,
+            count($files),
+            'The determinism sweep only read '.count($files).' PHP files under tests/.'
+        );
 
         return $files;
     }

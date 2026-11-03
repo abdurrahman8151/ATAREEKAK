@@ -143,8 +143,13 @@ final class StateSnapshotCoverageTest extends TestCase
     private function caseDefinitions(): array
     {
         $definitions = [];
+        $modules = glob(__DIR__.'/*SnapshotTest.php') ?: [];
 
-        foreach (glob(__DIR__.'/*SnapshotTest.php') ?: [] as $file) {
+        // Floor: 11 snapshot modules measured 2026-11-03. Reading no module would make the
+        // orphan check pass on an empty definition set.
+        $this->assertGreaterThanOrEqual(10, count($modules), 'The state-coverage sweep found only '.count($modules).' snapshot modules.');
+
+        foreach ($modules as $file) {
             $class = __NAMESPACE__.'\\'.basename($file, '.php');
 
             if (! is_subclass_of($class, ApiSnapshotTestCase::class)) {

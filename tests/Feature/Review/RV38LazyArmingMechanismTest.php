@@ -54,7 +54,16 @@ class RV38LazyArmingMechanismTest extends TestCase
     {
         // If a new model omits the trait, the guard silently stays inert for it. Pin the cohort.
         $models = [];
-        foreach (glob(app_path('Models/*.php')) ?: [] as $file) {
+        $modelFiles = glob(app_path('Models/*.php')) ?: [];
+
+        // Floor: the cohort is pinned, not just non-empty. Measured 2026-11-03: 26 model files.
+        $this->assertGreaterThanOrEqual(
+            24,
+            count($modelFiles),
+            'The lazy-loading sweep globbed only '.count($modelFiles).' model files.'
+        );
+
+        foreach ($modelFiles as $file) {
             $name = basename($file, '.php');
             if (! preg_match('/^class\s+'.preg_quote($name, '/').'\s+extends/m', (string) file_get_contents($file))) {
                 continue;

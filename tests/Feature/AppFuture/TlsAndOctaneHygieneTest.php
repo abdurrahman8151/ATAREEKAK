@@ -47,6 +47,14 @@ class TlsAndOctaneHygieneTest extends TestCase
             $out[$f->getPathname()] = $clean;
         }
 
+        // Floor: the same rule that makes the sweep meaningful - it must have read the tree.
+        // Measured 2026-11-03: 353 PHP files under app/.
+        $this->assertGreaterThanOrEqual(
+            340,
+            count($out),
+            'The TLS/Octane sweep only read '.count($out).' PHP files under app/.'
+        );
+
         return $out;
     }
 

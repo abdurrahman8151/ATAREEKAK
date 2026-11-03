@@ -296,6 +296,10 @@ class SnapshotEmptinessTest extends TestCase
 
         sort($cases);
 
+        // Floor: the corpus root holds 170 JSON files (measured 2026-11-03). Walking an empty corpus
+        // would report "every list is populated" about nothing.
+        $this->assertGreaterThanOrEqual(160, count($cases), 'The emptiness sweep found only '.count($cases).' snapshot files.');
+
         return $cases;
     }
 

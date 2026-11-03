@@ -30,6 +30,7 @@ class SilentCatchBatchTest extends TestCase
     public function test_no_undocumented_empty_catch_blocks_remain_in_application_code(): void
     {
         $offenders = [];
+        $scanned = 0;
 
         foreach (['app/Http', 'app/Services', 'app/Providers'] as $tree) {
             $it = new \RecursiveIteratorIterator(
@@ -39,12 +40,18 @@ class SilentCatchBatchTest extends TestCase
                 if ($f->getExtension() !== 'php') {
                     continue;
                 }
+
+                $scanned++;
                 $src = file_get_contents($f->getPathname());
                 foreach ($this->emptyCatchBodies($src) as $line) {
                     $offenders[] = substr($f->getPathname(), strlen(base_path('/') ?: base_path())).':'.$line;
                 }
             }
         }
+
+        // Floor: the three trees it walks hold 30 PHP files (measured 2026-11-03). A walk that
+        // reads none of them reports "no undocumented empty catch", which is true and useless.
+        $this->assertGreaterThanOrEqual(28, $scanned, 'The silent-catch sweep read only '.$scanned.' PHP files.');
 
         $this->assertSame(
             [],

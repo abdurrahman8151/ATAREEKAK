@@ -34,6 +34,9 @@ class ExceptionMessageLeakRatchetTest extends TestCase
     /** 2026-10-04: 47 -> 42 (Chat) -> 21 (specific catches excluded) -> 15 (four controllers) -> 0 (RideController swept). ZERO. Kept as a permanent gate. */
     private const BASELINE = 0;
 
+    /** Measured 2026-11-03: 39 controller files (1 kernel + 38 module). Floor 35. */
+    private const MIN_CONTROLLER_FILES = 35;
+
     /**
      * Every controller file this ratchet must read: the kernel's `app/Http/Controllers` plus each
      * module's `Http/Controllers` (stage 1 phase 2). It is the same set of files as before the moves
@@ -73,7 +76,16 @@ class ExceptionMessageLeakRatchetTest extends TestCase
     {
         $found = [];
 
-        foreach (self::controllerFiles() as $path) {
+        $controllers = self::controllerFiles();
+
+        // Floor: reading no controller can never be evidence of no leak.
+        $this->assertGreaterThanOrEqual(
+            self::MIN_CONTROLLER_FILES,
+            count($controllers),
+            'The leak ratchet swept only '.count($controllers).' controller files, below the floor.'
+        );
+
+        foreach ($controllers as $path) {
             $lines = file($path, FILE_IGNORE_NEW_LINES);
             $hits = [];
 

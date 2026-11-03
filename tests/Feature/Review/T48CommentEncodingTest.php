@@ -30,6 +30,9 @@ use Tests\TestCase;
  */
 class T48CommentEncodingTest extends TestCase
 {
+    /** Measured 2026-11-03: 353 PHP files under app/. Floor 340. */
+    private const MIN_SCANNED_FILES = 340;
+
     /** 2026-10-08: 226 runs across 9 files repaired in T4-8. Zero. Kept as a permanent gate. */
     private const BASELINE = 0;
 
@@ -154,6 +157,7 @@ class T48CommentEncodingTest extends TestCase
     private function findings(): array
     {
         $found = [];
+        $scanned = 0;
         $files = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator(app_path(), \FilesystemIterator::SKIP_DOTS)
         );
@@ -162,6 +166,8 @@ class T48CommentEncodingTest extends TestCase
             if ($file->getExtension() !== 'php') {
                 continue;
             }
+
+            $scanned++;
             $path = $file->getPathname();
             $source = file_get_contents($path);
             if ($source === false || ! preg_match('/[\x80-\xFF]/', $source)) {
@@ -179,6 +185,13 @@ class T48CommentEncodingTest extends TestCase
         }
 
         ksort($found);
+
+        // Floor: the walk must still cover the app tree, or "0 mojibake" only means "0 files".
+        $this->assertGreaterThanOrEqual(
+            self::MIN_SCANNED_FILES,
+            $scanned,
+            'The comment-encoding sweep only read '.$scanned.' PHP files under app/.'
+        );
 
         return $found;
     }

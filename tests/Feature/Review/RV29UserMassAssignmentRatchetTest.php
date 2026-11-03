@@ -46,6 +46,9 @@ class RV29UserMassAssignmentRatchetTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Measured 2026-11-03: 353 PHP files under app/. Floor 340. */
+    private const MIN_SCANNED_FILES = 340;
+
     /** Privileged User columns that must never come from mass-assigned external input. */
     private const PRIVILEGED = [
         'status', 'token_version', 'is_verified_passenger', 'is_verified_driver',
@@ -64,6 +67,13 @@ class RV29UserMassAssignmentRatchetTest extends TestCase
                 $files[] = $f->getPathname();
             }
         }
+
+        // Floor: an empty walk reports "no mass assignment offenders" for every tree it never read.
+        $this->assertGreaterThanOrEqual(
+            self::MIN_SCANNED_FILES,
+            count($files),
+            'The mass-assignment sweep only read '.count($files).' PHP files under app/.'
+        );
 
         return $files;
     }
