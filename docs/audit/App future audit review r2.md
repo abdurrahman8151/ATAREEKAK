@@ -16961,4 +16961,72 @@ built - `Tests: 3056, Assertions: 13196, Skipped: 2`, snapshot corpus byte-ident
 
 **Full default-order suite (the batch's hard rule):** run on the same PHP tree as item 6 (this commit adds
 only `.md` files, which no test reads - `DanglingImportTest` and `ModuleBoundaryTest` both filter to
-`.php`). Green, on `127.0.0.1:3399/t3_batch`. Nothing pushed; branch `Agentic` only.
+`.php`). Green, on `127.0.0.1:3399/t3_batch`. Nothing pushed; branch `Agentic` only.---
+
+### 256. Stage 1.5 item 8 - the closing five-order matrix, with per-test counts this time
+
+The same shape as stage 1 phase 3 (`C:\temp\s05\matrix-full.ps1`), with one addition that makes it also the
+proof for item 5: **every run writes a JUnit log**, so the matrix compares per-test assertion counts across
+all five orders instead of only checking that each order is green.
+
+Five runs, serialised, over the whole suite on `127.0.0.1:3399/t3_batch`:
+
+| run | order |
+|---|---|
+| `default` | `--order-by=default` |
+| `reverse` | `--order-by=reverse` |
+| `random-11` | `--order-by=random --random-order-seed=11` |
+| `random-20261102` | `--order-by=random --random-order-seed=20261102` |
+| `random-7919` | `--order-by=random --random-order-seed=7919` |
+
+After each run the leftover-rows probe (`C:\temp\s05\leftover-rows.php`) counts every guarded table, so a
+run that leaks fixture rows into the scratch database is caught in the same sweep.
+
+**Results - all five orders, 3056 tests each.**
+
+| run | exit | result | leftovers |
+|---|---|---|---|
+| `default` | 0 | `Tests: 3056, Assertions: 13196, Skipped: 2` | 0 rows in all 30 guarded tables |
+| `reverse` | 0 | `Tests: 3056, Assertions: 13196, Skipped: 2` | 0 rows in all 30 guarded tables |
+| `random-11` | 0 | `Tests: 3056, Assertions: 13196, Skipped: 2` | 0 rows in all 30 guarded tables |
+| `random-20261102` | 0 | `Tests: 3056, Assertions: 13196, Skipped: 2` | 0 rows in all 30 guarded tables |
+| `random-7919` | 0 | `Tests: 3056, Assertions: 13196, Skipped: 2` | 0 rows in all 30 guarded tables |
+
+**And the determinism half - every order diffed against `default`, per test:**
+
+| comparison | tests | assertions | per-test differences | tests only in one log |
+|---|---|---|---|---|
+| `reverse` vs `default` | 3056 vs 3056 | 13196 vs 13196 | **0** | 0 |
+| `random-11` vs `default` | 3056 vs 3056 | 13196 vs 13196 | **0** | 0 |
+| `random-20261102` vs `default` | 3056 vs 3056 | 13196 vs 13196 | **0** | 0 |
+| `random-7919` vs `default` | 3056 vs 3056 | 13196 vs 13196 | **0** | 0 |
+
+That is the strongest statement this batch can make about determinism: **3056 test cases, five orders, not
+one case whose assertion count or name depends on when it ran.** Before item 5 the same comparison over two
+orders differed on five cases in two files (sec 253).
+
+Two notes about how the runs were done, because they affect what the result means:
+
+- The first attempt ran all five inside one script and was **killed by the session being suspended for
+  ~2.5 hours**, taking the scratch MySQL with it. Only the `default` run had completed (it is in the table
+  above, from that attempt). The remaining four were run one at a time, each with its own JUnit log, after
+  restarting `mysqld`; the MySQL restart is the one the run discipline allows, and the re-run was green.
+  Nothing about the killed attempt is counted as evidence except the completed `default` run.
+- The snapshot corpus was never written to: `git status tests/Snapshots` is empty after all five runs,
+  `MANIFEST.json` still lists 213 files, and `SNAPSHOT_UPDATE=1` was never set in any run's environment
+  (the scripts remove it explicitly before each run).
+
+**What the matrix is for.** Not "does the suite pass" - it passed in default order on the item 6/7 tree.
+The matrix answers the two questions a single run cannot:
+
+1. **Order independence.** No test may depend on what ran before it. A green run in every order, on the
+   same tree, is that statement.
+2. **Assertion-count determinism.** Every order must report the same per-test assertion counts, which is
+   what item 5 fixed and what the JUnit diff at the end of the matrix now verifies across 3056 tests
+   instead of two hand-picked files.
+
+**Commit.** No commit of its own: item 8 is a verification pass, and the tree it verified is the tree
+items 1-7 built (the audit section and STATE.md are committed with it).
+**Snapshot / manifest status:** `MANIFEST.json` unchanged at 213 files, corpus byte-identical,
+`SNAPSHOT_UPDATE=1` never set in any of the five runs. Leak guard clean. Nothing pushed; branch `Agentic`
+only.
