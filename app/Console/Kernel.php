@@ -134,10 +134,10 @@ class Kernel extends ConsoleKernel
      *
      * $this->load() auto-discovers every class inside Commands/ that extends
      * Command, so you do NOT need to manually list individual commands here.
-     * This includes CleanupExpiredOtps, BackfillBookingMoneySnapshot, etc. — they are all
+     * This includes CleanupExpiredOtps, BackfillBookingMoneySnapshot, etc. - they are all
      * picked up automatically the moment the file exists in the directory.
      *
-     * Testing/ is loaded separately and ONLY outside production. It holds the
+     * Testing/ is loaded separately, and only when the environment is `local` or `testing`
      * state-fabricating tools (Testfullrideflow, Testridecompletionflow,
      * Testridegatedinteractioncommand, TestNotificationCommand, Getloadtesttokens),
      * which must stay runnable locally and in the test suite but must not be

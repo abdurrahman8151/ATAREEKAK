@@ -16856,4 +16856,56 @@ moved and one new check added). Test totals: 3055 -> **3056** (the new scan-floo
 **Full default-order suite (the batch's hard rule):** `Tests: 3056, Assertions: 13196, Skipped: 2` - OK (21:05 of runtime),
 on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
+Nothing pushed; branch `Agentic` only.---
+
+### 254. Stage 1.5 item 6 - cleanup: two files that stay, four docblocks that moved
+
+**The two code dumps: not deleted, because they are not tracked.** The instruction was conditional - "if
+`all_code.txt` and `tests_code.txt` are tracked and nothing references them, delete them". Checked:
+
+```
+git ls-files --error-unmatch all_code.txt tests_code.txt
+  error: pathspec 'all_code.txt' did not match any file(s) known to git
+  error: pathspec 'tests_code.txt' did not match any file(s) known to git
+```
+
+Both are untracked, both are in `.gitignore` (lines 49-50) and both are in `.dockerignore` (lines 31-32) -
+i.e. the repository already decided they are local scratch, and the only references to them anywhere are
+those two ignore files plus two audit notes that mention them as "never opened". They are 2.8 MB and 1 MB
+of August-2026 code dumps belonging to the owner; deleting untracked owner files is not this batch's call.
+**Not deleted, condition false.** If they should go, it is a one-line owner decision, not a refactor.
+
+**Four stale docblocks, refreshed.** The four the batch named (`ModuleBoundaryTest`, the Money Contracts,
+`ScoreSnapshot`, `ConsoleServiceProvider`) were already corrected in items 1, 3 and 4, and re-checking the
+tree found no `App\Services\` FQCN left anywhere and no `app/Interfaces` reference that is not either
+history or the ratchet that keeps the directory empty. Four more were stale in smaller ways:
+
+| File | What was wrong | Now |
+|---|---|---|
+| `app/Console/Kernel.php` | "Testing/ is loaded separately and ONLY outside production" - it is loaded in two environments, not "everything but production" | "Testing/ is loaded separately, and only when the environment is `local` or `testing`", with the dev tools still named below it |
+| `tests/Feature/AppFuture/ModuleBoundaryTest.php` | rule C's docblock said "the entrypoint exemption is a named list", which stopped being true when the list emptied and the directory exemption appeared | describes the empty per-file list and the one directory exemption, in the same words as ADR 0005 |
+| `app/Modules/Identity/Contracts/UserRepositoryInterface.php` | the move note was duplicated verbatim (`// app/Interfaces/UserRepositoryInterface.php` twice) | one line: moved in stage 1 phase 1(b), the port lives in Identity's Contracts, `app/Interfaces` is empty by ratchet |
+| `app/Modules/Money/Contracts/PaymentStrategyFactoryInterface.php` | "one-way dependency: RIDE -> app/Interfaces -> app/Services/Payment" - both paths are dead | "RIDE -> this interface -> the Money module's strategy classes", which is the dependency that exists |
+
+The Kernel line that the terminal rendered as `â€”` turned out to be a legitimate em-dash, not mojibake
+(`T48CommentEncodingTest` was green on it); it was normalised to a plain hyphen while the paragraph was
+being edited, and the substantive change on that line is the environment wording, not the dash.
+
+**`FileUploadService`: stays in the kernel at `app/Services/File/`.** It serves exactly two modules -
+Communication's `ChatMessageHandler` and Identity's `ProfileUpdateService` - and encodes no domain rule.
+Moving it into either module would make the other import that module's implementation (a boundary break);
+publishing a port for it would give a module a transport concern it does not own, and a
+`FileStorageInterface` would have one implementation and no second consumer (`Storage::fake()` already
+covers tests). Moving it to `app/Support/File/` was the other option the batch allowed; rejected as a
+rename with no behavioural gain that churns three call sites and the ratchet floors and leaves
+`app/Services` an empty directory pretending to be a statement. The reasoning is written into
+`docs/ARCHITECTURE.md` §2 (item 7) so it is not just an audit note.
+
+**Commit.** `Stage 1.5 item 6` - this commit. Files changed: 4 docblock-only files, no code, no test
+assertion. Test totals unchanged (3056). Nothing deleted, nothing moved.
+
+**Full default-order suite (the batch's hard rule):** run together with item 7 (docs-only) - the PHP tree
+is identical to the tree that was run, and the run is green. `Tests: 3056, Assertions: 13196, Skipped: 2`
+on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
 Nothing pushed; branch `Agentic` only.

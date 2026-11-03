@@ -292,9 +292,11 @@ class ModuleBoundaryTest extends TestCase
     }
 
     /**
-     * C. The entrypoint exemption is a named list, checked against what the tree actually does. It
-     * counts IMPLEMENTATION references only: a Contracts reference is the sanctioned edge that rule B
-     * already allows, so counting it here would nag about the boundary working as designed.
+     * C. The entrypoint exemption is measured against what the tree actually does, and it counts
+     * IMPLEMENTATION references only: a Contracts reference is the sanctioned edge that rule B already
+     * allows, so counting it here would nag about the boundary working as designed. The per-file list is
+     * empty (stage 1.5 item 3 ported its six production entrypoints), and one directory is exempt
+     * wholesale (`Console/Testing/`, ADR 0005).
      */
     public function test_entrypoints_that_name_module_code_are_exactly_the_named_exemption(): void
     {
