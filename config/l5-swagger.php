@@ -162,7 +162,6 @@ return [
              * @see scan
              */
             'processors' => [
-                // new \App\SwaggerProcessors\SchemaQueryParameter(),
             ],
 
             /**

@@ -29,7 +29,7 @@ use Illuminate\Support\ServiceProvider;
  * `App\Support\ContainerBindings`. Lifetimes are unchanged (`singleton` stays `singleton`, `bind`
  * stays `bind`), and each port still resolves to the same singleton as before.
  *
- * The payment STRATEGIES are registered here even though they live in `App\Domain\Payment`: the
+ * The payment STRATEGIES are registered here even though they live in `App\Modules\Money\Domain\Strategies`: the
  * strategies are the money context's own domain code (batch 233 put the money domain inside the
  * money context), and the factory that picks between them is bound to its port immediately after.
  */

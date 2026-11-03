@@ -12,7 +12,7 @@ use Tests\TestCase;
  *
  * `BoundaryDependencyTest` polices LAYERS (Domain must not name Services, controllers
  * must not name Models, ...). It says nothing about the five BOUNDED CONTEXTS inside
- * those layers, so a Ride service could still reach straight into `App\Services\Wallet`
+ * those layers, so a Ride service could still reach straight into `App\Modules\Money\Services`
  * and the suite stayed green. This file is the rule for that:
  *
  *   RIDE     app/Modules/Ride/{Services,Domain,Repositories,Http} (stage 1: the old
@@ -40,7 +40,7 @@ use Tests\TestCase;
  *
  * An EDGE is one concrete cross-context import, i.e. one (source file, target class) pair
  * where the class is declared in the other context and is NOT reached through an
- * `App\Interfaces` port. The shared kernel and the ports are how a context is supposed to
+ * `app/Interfaces` port. The shared kernel and the ports are how a context is supposed to
  * talk to another one; naming the other context's concrete class is the violation.
  *
  * Each ordered pair has its own ratchet and its own BASELINE, measured on 2026-10-29

@@ -16,7 +16,7 @@ use App\Modules\Money\Domain\Strategies\PaymentStrategy;
  * `App\Modules\Money\Domain\Strategies\PaymentStrategy`, and naming that in the shared kernel would
  * make the kernel depend on the MONEY context. An interface method may omit the return type and
  * the implementation may narrow it (PHP return-type covariance), so this stays a one-way
- * dependency: RIDE -> App\Interfaces -> App\Services\Payment. Callers receive the identical
+ * dependency: RIDE -> app/Interfaces -> app/Services/Payment. Callers receive the identical
  * strategy object the factory returned before.
  */
 interface PaymentStrategyFactoryInterface

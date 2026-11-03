@@ -27,7 +27,7 @@ use Illuminate\Support\ServiceProvider;
  * `App\Support\ContainerBindings`. Lifetimes unchanged.
  *
  * `EmployeeAuthService` and `StaffJwtService` are NOT here even though they live in
- * `App\Services\Staff`: batch 233's context map puts the staff AUTHENTICATION path in the identity
+ * `app/Modules/Identity/Services`: batch 233's context map puts the staff AUTHENTICATION path in the identity
  * context and the staff BUSINESS surface (employee management, moderation, complaints, support
  * routing) in this one, and the port placement in phase 1(b) follows that map.
  */

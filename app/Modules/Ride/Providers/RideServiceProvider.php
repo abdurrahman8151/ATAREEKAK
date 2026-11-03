@@ -7,6 +7,7 @@ use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
+use App\Modules\Ride\Domain\ScorePolicyFactory;
 use App\Modules\Ride\Repositories\RideRepository;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
 use App\Modules\Ride\Services\BookingService;
@@ -18,7 +19,6 @@ use App\Modules\Ride\Services\RouteCalculationService;
 use App\Modules\Ride\Services\ScoreLedger;
 use App\Modules\Ride\Services\ScoreService;
 use App\Modules\Ride\Services\UserRideStatsService;
-use App\Services\Score\ScorePolicyFactory;
 use Illuminate\Support\ServiceProvider;
 
 /**

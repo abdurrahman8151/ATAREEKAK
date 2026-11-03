@@ -4,7 +4,7 @@ namespace App\Modules\Identity\Contracts;
 
 /**
  * Port over token revocation (batch 227). Implemented by `App\Modules\Identity\Services\JwtService`, which
- * `PasswordResetRepository` used to type-hint directly - the one `App\Services` reference that kept
+ * `PasswordResetRepository` used to type-hint directly - the one `app/Services` reference that kept
  * `repos_to_services` above zero.
  */
 interface TokenRevokerInterface

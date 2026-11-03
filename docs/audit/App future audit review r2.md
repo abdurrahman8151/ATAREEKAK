@@ -16438,4 +16438,93 @@ green set. What the batch deliberately did *not* do, and why, is in the allowlis
 JWT decode/cleanup entrypoints and four no-show/confirm entrypoints name module implementations because
 no port exposes what they call. Converting them is an auth and domain-API decision, not a file move, and
 the only files that would have needed a *new* port to avoid the list were resolved that way instead
-(`PushNotifierInterface`, `EmployeeAuthInterface`, and the one `ScoreServiceInterface` method).
+(`PushNotifierInterface`, `EmployeeAuthInterface`, and the one `ScoreServiceInterface` method).---
+
+### 249. Stage 1.5 item 1 - the dangling import that a path-based move could not see, and two ratchets for the class of bug
+
+**The bug.** `RideServiceProvider` imported `App\Services\Score\ScorePolicyFactory` and registered
+`$this->app->singleton(ScorePolicyFactory::class)`. That class does not exist - the score policy factory
+is `App\Modules\Ride\Domain\ScorePolicyFactory`. Stage 1 moved the file with `git mv` and rewrote the
+imports it found by path; the provider had been *created* in phase 1 by hand, so its `use` line named a
+namespace that only existed before the move. The container therefore held a registration for a string
+that can never resolve. Nothing failed, because nothing in the suite happens to resolve that binding:
+`ScoreLedger` builds the factory itself (RV-11's change), so the broken binding sat there silently.
+
+That is the general hazard of every move in stage 1: the compiler never sees a class name that is only
+ever used as a string or in a dead binding, and `git mv` cannot tell a stale reference from a live one.
+
+**The fix.** `use App\Modules\Ride\Domain\ScorePolicyFactory;`, registration unchanged. Verified two
+ways: the name resolves through the autoloader, and `ProviderWiringTest` now makes the binding and
+asserts it returns an instance of that class.
+
+**The ratchets.** Two new tests in `tests/Feature/AppFuture`:
+
+`DanglingImportTest` scans `app/`, `tests/`, `routes/`, `config/`, `database/` and `scripts/` and
+checks every `App\...` token against the autoloader - the same autoloader the container uses.
+
+| Number | Value |
+|---|---|
+| files scanned | 776 |
+| `App\` tokens checked | 2337 |
+| dangling tokens before the fix | 11 (1 live import + 10 stale reference comments) |
+| dangling tokens after | **0** (baseline) |
+| scanned-file floor | 750 |
+| token floor | 2000 |
+
+Two rules keep it from crying wolf: a token that is a **declared namespace** in the scanned tree, or a
+token that is a **prefix** of one (the character after it is a backslash, `<`, `.` or a backtick) is
+prose, not a class name. Without them the scan reports `App\Console\Commands` - the `namespace` line of
+every command - as missing. A third test proves the checker can see a bad name at all: it feeds it a
+source string with two invented classes and one real one, and requires the two to be reported and the
+real one not to be. Without that, "0 dangling" could equally mean "the tokenizer is broken".
+
+`ProviderWiringTest` reads the five module providers plus `app\Support\ContainerBindings.php` and, for
+each registration, asserts the names exist, the abstract is bound, it resolves through the container,
+it is an instance of the concrete it was bound to, and a `singleton` really is shared:
+
+| Provider | Registrations |
+|---|---|
+| Communication | 10 |
+| Money | 18 |
+| Ride | 15 |
+| Identity | 18 |
+| Console | 15 |
+| `ContainerBindings` | 1 |
+| **total** | **77** (floor 70) |
+
+This is the test that would have caught the bug in phase 1: it resolves all 77 bindings, including the
+one that was broken before this commit. Its own parser is proved by a fixture that mixes a no-concrete
+and an abstract/concrete registration.
+
+**What the new ratchet found besides the import** - ten stale reference comments, all re-pointed (they
+are references, not history, so leaving them would have meant shipping a name that resolves nowhere):
+
+| File | Was | Now |
+|---|---|---|
+| `app/DTOs/Score/ScoreSnapshot.php` | `App\Domain\Score\Policies` | `app/Modules/Ride/Domain/Policies` |
+| `app/Modules/Money/Services/PassengerWalletCharger.php` | `App\Services\Profile`, `App\Services\Payment` | `app/Modules/Identity/Services`, `app/Modules/Money/Services` |
+| `app/Modules/Money/Contracts/PaymentStrategyFactoryInterface.php` | `RIDE -> App\Interfaces -> App\Services\Payment` | `RIDE -> app/Interfaces -> app/Services/Payment` |
+| `app/Modules/Money/Contracts/PassengerWalletChargerInterface.php` | `App\Services\Profile`, `App\Services\Payment` | `app/Modules/Identity/Services`, `app/Modules/Money/Services` |
+| `app/Modules/Money/Providers/MoneyServiceProvider.php` | `App\Domain\Payment` | `app/Modules/Money/Domain/Strategies` |
+| `app/Modules/Console/Providers/ConsoleServiceProvider.php` | `App\Services\Staff` | `app/Modules/Identity/Services` |
+| `app/Modules/Identity/Contracts/TokenRevokerInterface.php` | `App\Services` | `app/Services` |
+| `tests/Feature/AppFuture/BoundaryDependencyTest.php` | `App\Services` x4 | `app/Services` |
+| `tests/Feature/AppFuture/CrossContextBoundaryTest.php` | `App\Services\Wallet`, `App\Interfaces` | `app/Modules/Money/Services`, `app/Interfaces` |
+| `config/l5-swagger.php` | a commented-out `// new \App\SwaggerProcessors\SchemaQueryParameter(),` example | deleted (dead vendor template text) |
+
+Note what happened to two of them: writing the *live* module namespace into a comment in a kernel file
+(`app/DTOs/Score/ScoreSnapshot.php`) and into the Money module naming Identity's implementation
+(`PassengerWalletCharger*`) turned `ModuleBoundaryTest` red - the boundary ratchet reads docblocks too.
+Those four items were rewritten as **path** form (`app/Modules/...`), which is what the prose meant
+anyway: a historical note about where a file used to live. The two ratchets therefore constrain each
+other in a useful way: `DanglingImportTest` forbids a name that resolves nowhere, `ModuleBoundaryTest`
+forbids a resolvable name that crosses a boundary, and the honest way to write history is the path.
+
+**Commit.** `Stage 1.5 item 1` - this commit. Files changed: `RideServiceProvider` (the fix), the nine
+reference comments above, `config/l5-swagger.php` (one dead comment line), and the two new tests.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3050, Assertions: 13086, Skipped: 2` -
+OK (16:34 of runtime, finished 05:13), on `127.0.0.1:3399/t3_batch`. 3046 + the four new tests (two in `DanglingImportTest`, two in
+`ProviderWiringTest`). Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
+Nothing pushed; branch `Agentic` only.

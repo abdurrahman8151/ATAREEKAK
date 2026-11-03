@@ -17,7 +17,7 @@ use Tests\TestCase;
  * progress must be *claimed*, never accidental.
  *
  * The edges (see docs/audit/ARCHITECTURE_MAP.md for the why):
- *   R1 Domain -> App\Services      grandfathered 2 (payment strategies reach into
+ *   R1 Domain -> app/Services      grandfathered 2 (payment strategies reach into
  *                                  WalletTransactionService; AF-6 removes them)
  *   R2 Repositories -> Services    grandfathered 2 (PasswordReset->JwtService,
  *                                  RideRepository->Geocoding)
@@ -40,13 +40,13 @@ use Tests\TestCase;
 class BoundaryDependencyTest extends TestCase
 {
     private const BASELINES = [
-        // Batch 227 item 3: no file under app/Domain names App\Services any more. The two
+        // Batch 227 item 3: no file under app/Domain names app/Services any more. The two
         // strategies take ports from app/Interfaces/Payment (implemented by the same services
         // and bound to them in ContainerBindings::registerBoundaryPorts()).
         'domain_to_services' => 0,
         // Batch 227 item 3: PasswordResetRepository takes TokenRevokerInterface and
         // RideRepository takes the two Geocoding ports, all bound to the same singletons, so no
-        // repository names App\Services.
+        // repository names app/Services.
         'repos_to_services' => 0,
         'request_below_http' => 0,
         // Batch 227 item 3: AdminAuthService::adminConfigFor() takes the employee the middleware
@@ -131,7 +131,7 @@ class BoundaryDependencyTest extends TestCase
         // Score policies (and their interface) take App\DTOs\Score\ScoreSnapshot instead of a
         // UserScore row, built once in ScoreLedger::apply() via ScoreSnapshot::fromUserScore();
         // the three Payment strategies lost their Booking/Ride/User type-hints and their three
-        // model imports (their App\Services imports are the separate domain_to_services item).
+        // model imports (their app/Services imports are the separate domain_to_services item).
         'domain_to_models' => 0,
         'domain_to_http' => 0,
     ];

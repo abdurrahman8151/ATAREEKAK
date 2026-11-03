@@ -10,8 +10,8 @@ use Illuminate\Http\JsonResponse;
  * Port over the admin passenger-wallet charge mechanics (batch 233).
  *
  * IDENTITY's passenger profile controller performs the admin "charge wallet" action; the mechanics
- * are a MONEY operation. This class used to live in `App\Services\Profile` (IDENTITY) and reach into
- * `App\Modules\Money\Services\LedgerService`; step (c) moved it to `App\Services\Payment` and put this port
+ * are a MONEY operation. This class used to live in `app/Modules/Identity/Services` (IDENTITY) and reach into
+ * `App\Modules\Money\Services\LedgerService`; step (c) moved it to `App\Modules\Money\Services` and put this port
  * in front of it, so the move does not simply turn one IDENTITY -> MONEY edge into another.
  *
  * Implemented by `App\Modules\Money\Services\PassengerWalletCharger`; bound to the same auto-resolved

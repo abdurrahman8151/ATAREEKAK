@@ -24,7 +24,7 @@ use Illuminate\Support\Str;
  * class instead, which is also where the LedgerService is now constructor-injected, replacing the
  * one app(LedgerService::class) call that used to sit inside injectExternalCapital().
  *
- * Batch 233 step (c): moved from `App\Services\Profile` (IDENTITY) to `App\Services\Payment`
+ * Batch 233 step (c): moved from `app/Modules/Identity/Services` (IDENTITY) to `App\Modules\Money\Services`
  * (MONEY), because the whole class is a money operation. It now implements
  * `PassengerWalletChargerInterface` for its IDENTITY caller and reaches the ledger through
  * `LedgerServiceInterface`. Both bindings resolve to the same singletons as before, and no body
