@@ -4,6 +4,7 @@ namespace App\Modules\Ride\Providers;
 
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
+use App\Modules\Ride\Contracts\NoShowReportInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
@@ -12,6 +13,7 @@ use App\Modules\Ride\Repositories\RideRepository;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
 use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\GeocodingService;
+use App\Modules\Ride\Services\Noshowservice;
 use App\Modules\Ride\Services\RideSearchService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RideValidationService;
@@ -63,5 +65,6 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(ScoreServiceInterface::class, ScoreService::class);
         $this->app->bind(UserRideStatsInterface::class, UserRideStatsService::class);
         $this->app->bind(RideRepositoryInterface::class, RideRepository::class);
+        $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

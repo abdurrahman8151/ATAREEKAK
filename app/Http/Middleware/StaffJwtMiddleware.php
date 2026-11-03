@@ -3,8 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\Employee;
-use App\Modules\Console\Services\EmployeeManagementService;
-use App\Modules\Identity\Services\StaffJwtService;
+use App\Modules\Console\Contracts\EmployeeManagementInterface;
+use App\Modules\Identity\Contracts\StaffTokenVerifierInterface;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -31,8 +31,8 @@ use Symfony\Component\HttpFoundation\Response;
 final class StaffJwtMiddleware
 {
     public function __construct(
-        private readonly StaffJwtService $staffJwtService,
-        private readonly EmployeeManagementService $managementService,
+        private readonly StaffTokenVerifierInterface $staffJwtService,
+        private readonly EmployeeManagementInterface $managementService,
     ) {}
 
     /**

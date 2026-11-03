@@ -4,8 +4,8 @@ namespace App\Http\Middleware\Support;
 
 use App\Enums\AccountStatus;
 use App\Models\User;
-use App\Modules\Console\Services\BanService;
-use App\Modules\Identity\Services\JwtService;
+use App\Modules\Console\Contracts\BanLifterInterface;
+use App\Modules\Identity\Contracts\UserTokenVerifierInterface;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class JwtAuthHandler
 {
-    public function __construct(protected JwtService $jwtService, protected BanService $banService) {}
+    public function __construct(protected UserTokenVerifierInterface $jwtService, protected BanLifterInterface $banService) {}
 
     public function handle(Request $request, Closure $next): Response
     {

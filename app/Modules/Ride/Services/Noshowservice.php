@@ -9,6 +9,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Money\Contracts\NoShowSettlementInterface;
+use App\Modules\Ride\Contracts\NoShowReportInterface;
 
 /**
  * PLACE IN: app/Services/Ride/NoshowService.php
@@ -39,7 +40,7 @@ use App\Modules\Money\Contracts\NoShowSettlementInterface;
  *
  * ══════════════════════════════════════════════════════════════════════════════
  */
-final class Noshowservice
+final class Noshowservice implements NoShowReportInterface
 {
     private readonly NoShowReportService $reports;
 

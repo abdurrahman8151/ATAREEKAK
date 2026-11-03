@@ -16605,4 +16605,93 @@ stage-1 boundary ratchets and `DanglingImportTest`), 19 unfloored; after: **all 
 **Full default-order suite (the batch's hard rule):** `Tests: 3050, Assertions: 13149, Skipped: 2` - OK (15:59 of runtime, finished 16:31),
 on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
+Nothing pushed; branch `Agentic` only.---
+
+### 251. Stage 1.5 item 3 - the entrypoint allowlist names zero production files
+
+**Before.** `ENTRYPOINT_ALLOWLIST` held twelve files: six production entrypoints and six dev-only tools.
+The production six were not there because anyone thought implementation names were fine in an
+entrypoint; they were there because the surface each one needed was published by no port:
+
+| File | What it reached for | Why no port existed |
+|---|---|---|
+| `Console/Commands/CleanupExpiredStaffTokens` | `StaffJwtService::cleanupExpiredTokens()` | cleanup was never on `StaffJwtInterface` |
+| `Console/Commands/CleanupExpiredTokens` | `JwtService::cleanupExpiredTokens()` | cleanup was never on `TokenRevokerInterface` |
+| `Console/Commands/ResolveExpiredNoshowReports` | `Noshowservice::resolveExpiredReports()` | the Ride no-show surface had no port at all |
+| `Console/Commands/RotateAdminPasswordCommand` | `StaffJwtService::revokeAllTokens()` | `TokenRevokerInterface` existed but only `JwtService` implemented it |
+| `Http/Middleware/StaffJwtMiddleware` | `StaffJwtService::decodeToken()/validateTokenVersion()`, `EmployeeManagementService` | decode-and-rehydrate was deliberately not published (audit sec 244) |
+| `Http/Middleware/Support/JwtAuthHandler` | `JwtService::decodeToken()/findUserCached()/validateTokenVersion()`, `BanService::liftExpiredBan()` | same, plus the ban surface had no port |
+
+**After.** Six ports were added in the owning module's `Contracts`, each bound in that module's
+provider to the same singleton the concrete already was - no lifetime changed, no constructor of any
+service changed, no method signature changed:
+
+| New port (owning module) | Methods | Bound to |
+|---|---|---|
+| `Identity/Contracts/UserTokenCleanupInterface` | `cleanupExpiredTokens(): int` | `JwtService` (singleton) |
+| `Identity/Contracts/StaffTokenCleanupInterface` | `cleanupExpiredTokens(): int` | `StaffJwtService` (singleton) |
+| `Identity/Contracts/UserTokenVerifierInterface` | `decodeToken()`, `findUserCached()`, `validateTokenVersion()` | `JwtService` (singleton) |
+| `Identity/Contracts/StaffTokenVerifierInterface` | `decodeToken()`, `validateTokenVersion()` | `StaffJwtService` (singleton) |
+| `Console/Contracts/BanLifterInterface` | `liftExpiredBan(): bool` | `BanService` |
+| `Ride/Contracts/NoShowReportInterface` | `resolveExpiredReports(): int` | `Noshowservice` (singleton) |
+
+`StaffJwtService` also declares `TokenRevokerInterface` now (it already had the matching
+`revokeAllTokens(int): void`), so the rotation command depends on the port that already existed rather
+than on a new one. `StaffJwtMiddleware` takes `EmployeeManagementInterface` for its second dependency -
+the port `EmployeeManagementService` already had.
+
+The user/staff split is deliberate and is the one design judgement in this item: a cleanup or
+verification port that covered both would have to be generic over the subject type, and the two token
+families (separate secrets, separate tables, separate `ver` claims) are exactly the kind of thing that
+must not be blurred behind one interface to make a list shorter.
+
+**Why this is behaviour-preserving.** The middleware and commands receive a different *type name* and
+the identical *object*: every binding points at the same singleton the container was already resolving,
+and every port method is a pass-through to the method that was being called before. No auth rule, claim
+check, ban check, token secret, sweep filter or HTTP response was touched. The six entrypoints' tests
+(`tests/Feature/Console`, `tests/Feature/Auth`, `tests/Feature/Staff`, `tests/Unit/Middleware`, the
+admin attribution tests) were run before the commit: **469 tests, 1067 assertions, OK**.
+
+**The dev-only six.** The other six entries were not converted, because converting them would mean
+publishing the no-show penalty surface, `BookingService` and the chat bridge as ports purely so that
+state-fabricating tools could call them - an API decision for a later batch, not a mechanical move (sec
+244 parked it). They are now covered by **one** directory-level exemption:
+
+```php
+private const ENTRYPOINT_DIRECTORY_EXEMPTIONS = [
+    'Console/Testing/' => 'dev-only tools, loaded only when the environment is local or testing',
+];
+```
+
+The reason is a property of the registration, not of any command: `App\Console\Kernel::commands()`
+loads `__DIR__.'/Testing'` only inside `if ($this->app->environment(['local', 'testing']))`, so on a
+production box those classes are never registered and nothing - route, command or queue payload - can
+reach them. Naming that as one prefix means a seventh dev tool does not need the allowlist edited.
+
+**The new test, and what it does not prove.** `tests/Feature/AppFuture/DevCommandRegistrationTest`
+pins the exemption from both sides: the guard must exist, must test exactly `local` and `testing`, must
+be the only environment guard in the file, and must be the single load of that directory; and the five
+dev commands must actually be registered in the testing environment (a guard that silently stopped
+loading the directory would make the exemption pointless rather than safe), with a floor of 8 files
+(6 commands + 2 `Support` classes) so the exemption cannot cover an empty directory. It does **not**
+boot a second application with `APP_ENV=production`: re-bootstrapping the console kernel inside a test
+re-runs `routes/console.php` and re-registers commands, which is a fragile thing to assert with. The
+guard's shape is asserted instead, and this limitation is stated here rather than glossed over.
+
+`ModuleBoundaryTest` rule C now reports the measured implementation-naming entrypoints against an empty
+list, and asserts the directory exemption covers at least 6 files (non-vacuity, empty-path-proved the
+same way as item 2). Its stale class docblock - which still described the phase-1 exemption as "one
+artisan command" and the kernel Contracts number as 87 - was corrected in the same commit, since this
+item is what made both untrue.
+
+**Commit.** `Stage 1.5 item 3` - this commit. Files changed: **6 new ports**, 4 services gaining
+`implements`, 3 providers gaining 6 bindings and 2 imports, the 6 entrypoints, `ModuleBoundaryTest`
+(empty allowlist + directory exemption + non-vacuity floor + docblock), and 1 new test file. Ratchet
+numbers: `ENTRYPOINT_ALLOWLIST` **12 files -> 0 files**; directory exemptions 0 -> 1 (8 files);
+`KERNEL_CONTRACTS_CEILING` unchanged at 5 (the two middleware are entrypoints and were never counted
+by rule D).
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3052, Assertions: 13285, Skipped: 2` -
+OK, on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
 Nothing pushed; branch `Agentic` only.

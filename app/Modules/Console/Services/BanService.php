@@ -4,6 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Enums\AccountStatus;
 use App\Models\User;
+use App\Modules\Console\Contracts\BanLifterInterface;
 use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,7 @@ use Illuminate\Support\Facades\Log;
  * The auto-lift is the only path whose cache-busting becomes complete, and that is a fix, not a
  * regression — an expired ban should stop counting as a ban everywhere at once.
  */
-class BanService
+class BanService implements BanLifterInterface
 {
     public function __construct(private readonly TokenRevokerInterface $jwt) {}
 

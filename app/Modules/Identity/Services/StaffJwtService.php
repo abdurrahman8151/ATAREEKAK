@@ -5,6 +5,9 @@ namespace App\Modules\Identity\Services;
 use App\Models\Employee;
 use App\Models\StaffRefreshToken;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
+use App\Modules\Identity\Contracts\StaffTokenCleanupInterface;
+use App\Modules\Identity\Contracts\StaffTokenVerifierInterface;
+use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use Carbon\Carbon;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
@@ -13,7 +16,7 @@ use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-final class StaffJwtService implements StaffJwtInterface
+final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInterface, StaffTokenVerifierInterface, TokenRevokerInterface
 {
     private const ALGORITHM = 'HS256';
 

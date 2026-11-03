@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Modules\Identity\Services\StaffJwtService;
+use App\Modules\Identity\Contracts\StaffTokenCleanupInterface;
 use Illuminate\Console\Command;
 
 class CleanupExpiredStaffTokens extends Command
@@ -11,7 +11,7 @@ class CleanupExpiredStaffTokens extends Command
 
     protected $description = 'Clean up expired and revoked staff refresh tokens';
 
-    public function __construct(private readonly StaffJwtService $jwtService)
+    public function __construct(private readonly StaffTokenCleanupInterface $jwtService)
     {
         parent::__construct();
     }

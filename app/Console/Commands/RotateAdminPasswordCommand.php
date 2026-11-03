@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Employee;
-use App\Modules\Identity\Services\StaffJwtService;
+use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 
@@ -33,7 +33,7 @@ class RotateAdminPasswordCommand extends Command
     protected $description = 'Rotate the password of a restricted admin account and invalidate all sessions.';
 
     public function __construct(
-        private readonly StaffJwtService $jwtService,
+        private readonly TokenRevokerInterface $jwtService,
     ) {
         parent::__construct();
     }

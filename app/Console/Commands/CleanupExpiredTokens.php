@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Modules\Identity\Services\JwtService;
+use App\Modules\Identity\Contracts\UserTokenCleanupInterface;
 use Illuminate\Console\Command;
 
 class CleanupExpiredTokens extends Command
@@ -21,12 +21,12 @@ class CleanupExpiredTokens extends Command
      */
     protected $description = 'Clean up expired and revoked refresh tokens';
 
-    protected JwtService $jwtService;
+    protected UserTokenCleanupInterface $jwtService;
 
     /**
      * Create a new command instance.
      */
-    public function __construct(JwtService $jwtService)
+    public function __construct(UserTokenCleanupInterface $jwtService)
     {
         parent::__construct();
         $this->jwtService = $jwtService;

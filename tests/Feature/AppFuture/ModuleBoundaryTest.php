@@ -22,21 +22,23 @@ use Tests\TestCase;
  *   B. KERNEL FILES (anything else in app/) may name module `Contracts` - that is what ports are
  *      for - but may NOT name module implementation. Baseline: HARD 0.
  *
- *   C. ENTRYPOINTS (artisan commands, HTTP middleware, providers, `Support/ContainerBindings`) are
- *      the wiring layer and are allowed to name module code; because that is a real exemption it is
- *      spelled out in ENTRYPOINT_ALLOWLIST, at its MEASURED count (one artisan command today -
- *      phase 1(b)'s port move needed no exemption for the container catalogue, which now registers
- *      shared kernel bindings only). An entrypoint that starts naming module code must be added here
- *      deliberately, in a commit that says so.
+ *   C. KERNEL FILES that name module IMPLEMENTATION code (anything outside `Contracts`) are a real
+ *      exemption, so they are counted and listed explicitly - never silently absorbed. As of stage
+ *      1.5 item 3 that list is EMPTY: the six production entrypoints that used to name
+ *      implementation classes (four artisan commands and the two JWT middleware) now type-hint
+ *      ports, and `ENTRYPOINT_ALLOWLIST` is `[]`. One directory is exempt wholesale instead -
+ *      `Console/Testing/`, the dev-only tools that `App\Console\Kernel::commands()` loads only when
+ *      the environment is `local` or `testing`, pinned by `DevCommandRegistrationTest`. An
+ *      entrypoint that starts naming module implementation must be listed here deliberately, or
+ *      converted to a port, in a commit that says which and why.
  *
  *   D. The kernel's use of module Contracts is a transitional number, not a target: in stage 1
- *      phase 1 it is 87 files, because the ports moved to their modules while their current
- *      callers are still kernel files (controllers, services, repositories). Phase 2 moves those
+ *      phase 1 it was 87 files, because the ports moved to their modules while their current
+ *      callers were still kernel files (controllers, services, repositories). Phase 2 moved those
  *      callers into their own modules, where naming another module's Contracts is the sanctioned
- *      edge, so the number falls toward the handful of kernel files that legitimately remain (the
+ *      edge, and the number is now the handful of kernel files that legitimately remain (the
  *      queued Jobs, the verified-user listener, the user observer, the OTP commander). It is a
- *      CEILING: it may only be lowered, and each module commit lowers it to the newly measured
- *      number.
+ *      CEILING: it may only be lowered, and each commit that lowers it records the new number.
  *
  *   E. Every scan asserts a file floor, so a move that quietly empties a module (or the whole scan)
  *      cannot make this test pass vacuously. Matching is substring on 'App\Modules\' - deliberately
@@ -74,42 +76,43 @@ class ModuleBoundaryTest extends TestCase
     private const KERNEL_CONTRACTS_CEILING = 5;
 
     /**
-     * Entrypoints that name module IMPLEMENTATION code, at their measured reference count. Measured
-     * 2026-11-02.
+     * Entrypoints that name module IMPLEMENTATION code. Measured 2026-11-02, emptied 2026-11-03.
      *
-     * After the Communication move this list was empty: the three console files touching that module
-     * all go through its Contracts. The Ride move put four artisan commands on it, and that is the
-     * exemption working as designed rather than a relaxed rule - the no-show report/penalty surface
-     * and `passengerConfirmCompletion` have no port, and inventing one for them is a domain-API
-     * decision about the most money-adjacent code in the repo, not something a file move should
-     * decide. `Noshowservice` (3 files: `ResolveExpiredNoshowReports`, `Testing/Testfullrideflow`,
-     * `Testing/Support/FullRideFlowScenarios`) and `BookingService` (1 file:
-     * `Testing/Testridecompletionflow`).
+     * History, because the empty list is the point: after the Communication move this list was
+     * already empty (the console files touching that module all went through its Contracts). The
+     * Ride and Identity moves then put twelve files on it - four artisan commands, the two JWT
+     * middleware, and the six dev-only tools under `app/Console/Testing` - because the surfaces they
+     * called (`Noshowservice::resolveExpiredReports`, `JwtService::decodeToken`/`findUserCached`,
+     * `StaffJwtService::cleanupExpiredTokens`/`revokeAllTokens`, `BanService::liftExpiredBan`) were
+     * named by no port. Stage 1.5 item 3 added a port per surface - six new interfaces in the owning
+     * modules' Contracts, each bound to the same singleton the concrete was - and all six production
+     * entrypoints now type-hint a port, so this list is empty again.
      *
-     * The Identity move added eight more, all of them for the same reason: they call
-     * `JwtService::decodeToken()`, `JwtService::findUserCached()` and
-     * `StaffJwtService/JwtService::cleanupExpiredTokens()`, and neither `TokenRevokerInterface` nor
-     * `StaffJwtInterface` exposes those. Two of the eight are the JWT middleware
-     * (`Http/Middleware/Support/JwtAuthHandler.php`, `Http/Middleware/StaffJwtMiddleware.php`) - the
-     * owner's layout keeps middleware in the kernel, so they are entrypoints here, not boundary
-     * breaks. Widening the auth ports to cover decode-and-rehydrate is an auth-design decision for a
-     * later batch; listing them keeps the surface visible and countable instead of hidden.
+     * The six dev-only tools did not get ports, and should not: they are not production entrypoints
+     * and the exemption that covers them is the directory one below.
      *
-     * The list is shrink-only: each entry disappears when its file is converted to a port.
+     * The list is shrink-only, and it is at zero: an entry may only be added together with a port
+     * that removes it.
      */
-    private const ENTRYPOINT_ALLOWLIST = [
-        'Console/Commands/CleanupExpiredStaffTokens.php' => 1,
-        'Console/Commands/CleanupExpiredTokens.php' => 1,
-        'Console/Commands/ResolveExpiredNoshowReports.php' => 1,
-        'Console/Commands/RotateAdminPasswordCommand.php' => 1,
-        'Console/Testing/Getloadtesttokens.php' => 1,
-        'Console/Testing/Support/FullRideFlowScenarios.php' => 1,
-        'Console/Testing/Support/RideGatedInteractionScenarios.php' => 1,
-        'Console/Testing/Testfullrideflow.php' => 1,
-        'Console/Testing/Testridecompletionflow.php' => 1,
-        'Console/Testing/Testridegatedinteractioncommand.php' => 1,
-        'Http/Middleware/StaffJwtMiddleware.php' => 2,
-        'Http/Middleware/Support/JwtAuthHandler.php' => 2,
+    private const ENTRYPOINT_ALLOWLIST = [];
+
+    /**
+     * The one directory-level exemption (stage 1.5 item 3). `Console/Testing/` holds the
+     * state-fabricating tools - `Testfullrideflow`, `Testridecompletionflow`,
+     * `Testridegatedinteractioncommand`, `TestNotificationCommand`, `Getloadtesttokens` and the
+     * `Support/` scenario classes. They name module implementation code freely, and that is correct:
+     * they are not production entrypoints at all. `App\Console\Kernel::commands()` loads the
+     * directory only inside `if ($this->app->environment(['local', 'testing']))`, so on a production
+     * box the classes are never registered and no route, command or queue payload can reach them.
+     * `DevCommandRegistrationTest` pins that guard, so this exemption cannot quietly become a
+     * production hole.
+     *
+     * One exemption for the directory rather than six file entries: what is being exempted is a
+     * property of how the directory is registered, not of any individual command, and a per-file list
+     * would have to grow every time a dev tool is added without anything actually changing.
+     */
+    private const ENTRYPOINT_DIRECTORY_EXEMPTIONS = [
+        'Console/Testing/' => 'dev-only tools, loaded only when the environment is local or testing',
     ];
 
     /** @var array{files: array<string, string>, refs: array<string, array<int, string>>}|null */
@@ -161,6 +164,21 @@ class ModuleBoundaryTest extends TestCase
     private static function isContracts(string $reference): bool
     {
         return str_contains($reference.'\\', '\\Contracts\\');
+    }
+
+    /**
+     * True when the path sits under a directory that is exempt wholesale, with the reason recorded
+     * next to the prefix so the exemption and its justification cannot drift apart.
+     */
+    private static function isDirectoryExempt(string $relativePath): bool
+    {
+        foreach (self::ENTRYPOINT_DIRECTORY_EXEMPTIONS as $prefix => $reason) {
+            if (str_starts_with($relativePath, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function isEntrypoint(string $relativePath): bool
@@ -284,7 +302,7 @@ class ModuleBoundaryTest extends TestCase
         $measured = [];
 
         foreach ($scan['files'] as $relative => $module) {
-            if ($module !== '' || ! self::isEntrypoint($relative)) {
+            if ($module !== '' || ! self::isEntrypoint($relative) || self::isDirectoryExempt($relative)) {
                 continue;
             }
             $implementations = array_filter($scan['refs'][$relative], static fn ($r) => ! self::isContracts($r));
@@ -292,6 +310,15 @@ class ModuleBoundaryTest extends TestCase
                 $measured[$relative] = count($implementations);
             }
         }
+
+        // Non-vacuity: the directory exemption must actually cover the dev-only tools it names.
+        // Measured 2026-11-03: 8 files under app/Console/Testing (6 commands, 2 Support classes).
+        $exempted = array_filter(array_keys($scan['files']), [self::class, 'isDirectoryExempt']);
+        $this->assertGreaterThanOrEqual(
+            6,
+            count($exempted),
+            'The Console/Testing directory exemption covered only '.count($exempted).' files.'
+        );
 
         $this->assertSame(
             self::ENTRYPOINT_ALLOWLIST,
