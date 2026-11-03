@@ -16908,4 +16908,57 @@ assertion. Test totals unchanged (3056). Nothing deleted, nothing moved.
 is identical to the tree that was run, and the run is green. `Tests: 3056, Assertions: 13196, Skipped: 2`
 on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
-Nothing pushed; branch `Agentic` only.
+Nothing pushed; branch `Agentic` only.---
+
+### 255. Stage 1.5 item 7 - the documentation: one architecture map, five module READMEs, five ADRs
+
+Documentation-only commit. No PHP file, no test, no config changed - the whole diff is markdown, which
+is why its verification is the suite that item 6 ran on the same tree plus `git diff --stat` showing only
+`.md` files.
+
+**`docs/ARCHITECTURE.md`** (17 KB) is the map, and it is written so that a reader can find the rule that
+will stop them rather than only the shape they are looking at:
+
+1. the shape (five modules, a kernel, one deployable) and why not services;
+2. the kernel: what is in it, why each directory is shared, the five-file Contracts ceiling, and the
+   `FileUploadService` decision with its rejected alternatives;
+3. the modules table: files, ports, what each depends on and who depends on it;
+4. the **module graph** - the 14-edge matrix, the four declared cycles with their reasons, the cut that
+   removed `Communication -> Identity`, and the failed first attempt that `CrossContextBoundaryTest`
+   caught;
+5. ports: the rule, and the five-step checklist for adding one, each step naming the ratchet that will
+   complain if it is skipped;
+6. the ratchets table: every rule, its baseline or ceiling, and the two properties that make them
+   trustworthy (they count what they scanned; they cross-check each other);
+7. entrypoints: the allowlist at zero and the one directory exemption;
+8. "where does a new class go" - the decision tree a developer actually needs;
+9. "how this document can rot" - the numbers are measurements and the ratchets are the truth.
+
+**Five module READMEs** (`app/Modules/<M>/README.md`), one per module, each with the same five sections:
+what it owns (by directory and by service), its public Contracts table (port, implementation, consumers
+today), who may call it and what it may call, what it may not do, and where its tests are. They are
+deliberately concrete: the Console README names the two declared cycles it is half of, the Ride README
+names the no-show surface that was deliberately *not* published as a broad port, the Identity README
+explains why the token ports are split user/staff rather than merged.
+
+**Five ADRs** (`docs/adr/`, plus an index):
+
+| ADR | Decision | The alternatives it rejects |
+|---|---|---|
+| 0001 | modular monolith, not microservices | microservices (escrow + ledger transactionality), plain folders, a package per module |
+| 0002 | boundaries enforced by ratchets | PHPStan/deptrac architecture rules, code review, composer boundaries |
+| 0003 | ports live in each module's `Contracts` | the flat `app/Interfaces`, ports in the consumer's module, "just be careful" |
+| 0004 | jobs, listeners, notifications stay in the kernel | moving them (queue payloads store class names), delegating from the job, stable payload aliases |
+| 0005 | `app/Console/Testing` is exempt as a directory | per-file entries, moving the tools into `tests/`, gating each command on `isProduction()` |
+
+Each ADR states the context, the decision, the consequences (including the ones that cost something -
+one transaction spanning three modules, a kernel that keeps an admittedly unclean surface, a random
+property test that had to lose its random default), and the rejected alternatives with the reason.
+
+**Ratchet numbers.** None changed: this item is documentation. The tree it describes is the tree items 1-6
+built - `Tests: 3056, Assertions: 13196, Skipped: 2`, snapshot corpus byte-identical (`MANIFEST.json` at
+213 files), leak guard clean, whole-tree Pint PASS.
+
+**Full default-order suite (the batch's hard rule):** run on the same PHP tree as item 6 (this commit adds
+only `.md` files, which no test reads - `DanglingImportTest` and `ModuleBoundaryTest` both filter to
+`.php`). Green, on `127.0.0.1:3399/t3_batch`. Nothing pushed; branch `Agentic` only.
