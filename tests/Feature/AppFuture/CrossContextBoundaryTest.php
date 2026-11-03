@@ -494,6 +494,45 @@ class CrossContextBoundaryTest extends TestCase
     }
 
     /**
+     * The scan-level floors, in their own (non-provider) test so they cost exactly one assertion set
+     * no matter which order the pair baselines run in. Stage 1.5 item 5.
+     */
+    public function test_the_scan_walks_the_whole_tree_and_indexes_its_classes(): void
+    {
+        $files = $this->appFiles();
+        [$classContext] = $this->declaredClasses();
+
+        // Stage 1: a scan that no longer walks the tree would report zero edges for every pair and
+        // pass vacuously. app/ holds 359 PHP files today.
+        $this->assertGreaterThanOrEqual(
+            340,
+            count($files),
+            'The cross-context scan only saw '.count($files).' app/ files; the point of the scanner is to walk all of them.'
+        );
+
+        $this->assertGreaterThanOrEqual(
+            300,
+            count($classContext),
+            'The class index the scan resolves names against has only '.count($classContext).' entries.'
+        );
+
+        // Every declared context must still own files, or a whole row of baselines is asserting nothing.
+        $present = [];
+        foreach (array_keys($files) as $relative) {
+            $context = $this->contextOf($relative);
+            $present[$context] = ($present[$context] ?? 0) + 1;
+        }
+
+        foreach (self::CONTEXTS as $context) {
+            $this->assertGreaterThanOrEqual(
+                1,
+                $present[$context] ?? 0,
+                'The '.$context.' context owns no files in app/, so its baselines are vacuous.'
+            );
+        }
+    }
+
+    /**
      * @return array<string, array<string, string[]>> FROM => TO => "file :: FQCN"
      */
     private function scan(): array
@@ -504,14 +543,10 @@ class CrossContextBoundaryTest extends TestCase
 
         [$classContext, $shortIndex] = $this->declaredClasses();
 
-        // Stage 1: a scan that no longer walks the tree would report zero edges for every pair and
-        // pass vacuously. app/ holds 352 PHP files today and the moves only reshuffle them.
-        $this->assertGreaterThanOrEqual(
-            340,
-            count($this->appFiles()),
-            'The cross-context scan only saw '.count($this->appFiles()).' app/ files; the point of '
-            .'the scanner is to walk all of them.'
-        );
+        // NOTE (stage 1.5 item 5): no assertions in here. `scan()` is memoised for the twenty pair
+        // baselines, so an assertion inside it is attributed to whichever data set happens to run first,
+        // which made the per-test assertion counts differ between orders. The scan-level floors live in
+        // `test_the_scan_walks_the_whole_tree_and_indexes_its_classes()` instead.
 
         $matrix = [];
         foreach (self::CONTEXTS as $from) {

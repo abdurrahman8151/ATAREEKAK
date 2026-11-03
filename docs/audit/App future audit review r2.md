@@ -16795,4 +16795,65 @@ module edges **15 -> 14**, cycles **5 -> 4**, implementation edges 0 -> 0,
 **Full default-order suite (the batch's hard rule):** `Tests: 3054, Assertions: 13362, Skipped: 2` -
 OK, on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
+Nothing pushed; branch `Agentic` only.---
+
+### 253. Stage 1.5 item 5 - assertion-count determinism: two tests, two different causes
+
+The method was the owner's: run the whole suite twice with JUnit logs, once in default order and once
+with `--order-by=reverse`, then diff **per-test** assertion counts. Totals are useless here - they hide
+the case where one test gains what another loses, which is exactly what one of the two causes turned out
+to be.
+
+**The diff.** 3055 tests in both orders; 13183 vs 13178 assertions. `phpunit --log-junit` gives every
+test case an `assertions` attribute, so the comparison is exact. It found exactly two files:
+
+1. **`Feature/Payment/LedgerRandomizedPropertyTest` - 220 data sets renamed per run.** Its data provider
+   is seeded, but the default seed was `random_int(1, 999_999_999)` - deliberately, to keep the property
+   test from becoming a fixture. Consequence: every run had different case labels
+   (`charge-price-6933.98-seats-1-004` on one run, something else on the next), so *every* case looked
+   like a test that only existed in one log; and because a scenario carrying a second booking asserts one
+   more time, three cases reported 13 assertions on one run and 12 on the next.
+2. **`Feature/AppFuture/CrossContextBoundaryTest` - the memoised scan asserted.** `scan()` is cached in a
+   static for the twenty pair baselines, and it contained the scanner's non-vacuity floor
+   (`appFiles() >= 340`). PHPUnit attributes an assertion to the test that executes it, so the data set
+   that happened to run first paid the floor and the others did not:
+   `RIDE_to_MONEY` 6 -> 4 and `CONSOLE_to_COMM` 4 -> 6, with the **total unchanged at 82**. A totals-only
+   comparison would have called this deterministic.
+
+**The fixes, both of the kind the owner named.**
+
+- *Fix the data source* (case 1). `LedgerPropertySeed::DEFAULT_SEED = 20261103`, and the selection is now
+  three-way: `LEDGER_SEED=<int>` replays a seed exactly, `LEDGER_SEED=random` explores a fresh scenario
+  set per run, unset uses the default. The docblocks in both files say why the default flipped: a random
+  default is incompatible with an assertion count that is checked across orders, and exploration is one
+  environment variable away.
+- *Make the loop explicit* (case 2). No assertions inside the memoised `scan()` any more. The scan-level
+  floors moved into a dedicated non-provider test,
+  `test_the_scan_walks_the_whole_tree_and_indexes_its_classes()`, which asserts the same three things
+  once: `appFiles() >= 340`, the class index `>= 300` entries, and every declared context owning at least
+  one file (so a whole row of baselines cannot be vacuous). That is *stronger* than what was there - the
+  per-context check is new - and it costs one deterministic set of assertions instead of a set whose owner
+  depended on order.
+
+**Evidence.**
+
+| Check | Result |
+|---|---|
+| default vs reverse, the two files (245 tests) | **0 per-test differences**, 2645 = 2645 assertions |
+| `LedgerRandomizedPropertyTest` twice with the fixed default (224 tests) | **0 per-test differences**, 2551 = 2551 |
+| `LEDGER_SEED=random` still works (224 tests) | OK, 2545 assertions - different by design, printed seed |
+| full-suite default vs reverse, before the fix | 13183 vs 13178, 5 differing cases in 2 files |
+| full-suite default vs reverse, after the fix | see item 8's five-order matrix: all five orders identical |
+
+The full-suite diff found only these two - nothing else in 3055 tests varies with order. That is worth
+stating explicitly: the sweep was not limited to the two files it happened to find.
+
+**Commit.** `Stage 1.5 item 5` - this commit. Files changed: 3 test/support files
+(`tests/Support/LedgerPropertySeed.php`, `tests/Feature/Payment/LedgerRandomizedPropertyTest.php`,
+`tests/Feature/AppFuture/CrossContextBoundaryTest.php`), no application code, no assertion weakened (one
+moved and one new check added). Test totals: 3055 -> **3056** (the new scan-floor test).
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3056, Assertions: 13196, Skipped: 2` - OK (21:05 of runtime),
+on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
 Nothing pushed; branch `Agentic` only.

@@ -10,12 +10,16 @@ use Random\Randomizer;
  *
  * WHY A SEED AT ALL
  *
- * A property test that picks fresh amounts on every run finds bugs a fixed fixture cannot, and it is
- * worthless the moment it fails: nobody can reproduce the amounts that broke it. Every scenario is
- * therefore generated from ONE integer seed for the whole run. The seed is printed before the first
- * case and carried in every assertion message, so a red run is reproduced exactly with:
+ * A property test that picks fresh amounts finds bugs a fixed fixture cannot, and it is worthless the
+ * moment it fails: nobody can reproduce the amounts that broke it. Every scenario is therefore
+ * generated from ONE integer seed for the whole run. The seed is printed before the first case and
+ * carried in every assertion message, so a run is reproduced exactly with:
  *
  *     $env:LEDGER_SEED=<the printed seed>; php vendor/bin/phpunit tests/Feature/Payment
+ *
+ * The seed is FIXED by default (DEFAULT_SEED above) so that a plain run is reproducible and its
+ * assertion counts are stable; `LEDGER_SEED=random` explores a fresh scenario set, and the printed
+ * seed makes that run reproducible too.
  *
  * Nothing here touches the database; it is pure generation, so the size and determinism of the
  * scenario set can be asserted without a connection.
@@ -27,6 +31,14 @@ final class LedgerPropertySeed
 
     /** How many randomized cases each movement contributes. 4 x 55 = 220, over the 200 required. */
     public const CASES_PER_MOVEMENT = 55;
+
+    /**
+     * The seed used when `LEDGER_SEED` is not set. Stage 1.5 item 5 made this fixed: a random default
+     * gave every run different case labels AND different assertion counts (scenarios with a second
+     * booking assert one more time), which broke the assertion-count determinism the five-order
+     * suite matrix is checked against. Exploration is one env var away - see bootstrap().
+     */
+    public const DEFAULT_SEED = 20_261_103;
 
     private static ?int $seed = null;
 
@@ -63,10 +75,17 @@ final class LedgerPropertySeed
             return;
         }
 
+        // Three ways in, in this order:
+        //   LEDGER_SEED=<int>   replay exactly that seed (what every failure message tells you to do)
+        //   LEDGER_SEED=random  fresh seed for this run - the property test's exploration mode
+        //   unset               DEFAULT_SEED, so a plain full-suite run is byte-comparable across
+        //                       orders and across runs
         $fromEnvironment = getenv('LEDGER_SEED');
-        self::$seed = ($fromEnvironment !== false && ctype_digit((string) $fromEnvironment))
-            ? (int) $fromEnvironment
-            : random_int(1, 999_999_999);
+        self::$seed = match (true) {
+            $fromEnvironment !== false && ctype_digit((string) $fromEnvironment) => (int) $fromEnvironment,
+            $fromEnvironment === 'random' => random_int(1, 999_999_999),
+            default => self::DEFAULT_SEED,
+        };
 
         self::$scenarios = self::generate((int) self::$seed);
 

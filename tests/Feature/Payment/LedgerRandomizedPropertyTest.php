@@ -38,8 +38,12 @@ use Tests\TestCase;
  *
  *     $env:LEDGER_SEED=<printed seed>; php vendor/bin/phpunit tests/Feature/Payment
  *
- * Without `LEDGER_SEED` the seed is random per run on purpose: a fixed default would slowly become
- * just another fixture nobody re-examines.
+ * Stage 1.5 item 5 changed the default from "random per run" to a fixed seed. A random default gave
+ * every run a different set of case labels and a different assertion count - scenarios with a second
+ * booking assert once more than those without - so the same suite reported 13 assertions for one case
+ * on one run and 12 on the next, and no five-order comparison could be trusted. A fixed default is
+ * the price of that determinism; `LEDGER_SEED=random` restores the exploration, and the printed seed
+ * keeps a random run reproducible.
  */
 final class LedgerRandomizedPropertyTest extends TestCase
 {
