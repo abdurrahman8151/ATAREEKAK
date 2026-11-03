@@ -2,7 +2,6 @@
 
 namespace App\Modules\Communication\Providers;
 
-use App\Mail\OtpMailer;
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Modules\Communication\Contracts\NotificationPort;
@@ -13,7 +12,6 @@ use App\Modules\Communication\Services\FcmSenderService;
 use App\Modules\Communication\Services\NotificationService;
 use App\Modules\Communication\Services\PushNotificationService;
 use App\Modules\Communication\Services\PushTokenManager;
-use App\Modules\Identity\Contracts\OtpMailInterface;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -50,9 +48,11 @@ final class CommunicationServiceProvider extends ServiceProvider
         $this->app->bind(PushNotifierInterface::class, PushNotificationService::class);
         $this->app->bind(ChatMessageHandlerInterface::class, ChatMessageHandler::class);
         $this->app->bind(ChatRepositoryInterface::class, ChatRepository::class);
-        // The kernel OTP mailer, bound here rather than in the Identity provider: mail delivery is
-        // this context's transport (the boundary map puts the kernel `Mail/` directory with
-        // Communication), so the wiring never has to reach across a context to name it.
-        $this->app->bind(OtpMailInterface::class, OtpMailer::class);
+        // NOTE (stage 1.5 item 4): the OTP mailer binding used to live here, because mail delivery
+        // is this context's transport. It was also the only reason this provider imported anything
+        // from `Modules/Identity`, i.e. it created the Communication -> Identity edge and with it a
+        // cycle. The port is Identity's and the implementation is the kernel's mailer, so the binding
+        // now lives in the kernel catalogue `App\Support\ContainerBindings`. Same binding, same
+        // `bind()` lifetime, and neither module provider names the other's Contracts for it.
     }
 }

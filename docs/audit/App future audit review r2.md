@@ -16694,4 +16694,105 @@ by rule D).
 **Full default-order suite (the batch's hard rule):** `Tests: 3052, Assertions: 13285, Skipped: 2` -
 OK, on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
 `SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
+Nothing pushed; branch `Agentic` only.---
+
+### 252. Stage 1.5 item 4 - the module graph as data: one cycle cut, four declared
+
+**The matrix.** Every module-to-module edge that exists today, counted from code only - comments and
+docblocks are stripped before matching, because this repository keeps its history in docblocks and a
+note about an old namespace must not read as a live edge. Port counts are distinct Contracts names per
+pair; implementation edges are **0** everywhere (that is `ModuleBoundaryTest` rule A's job, and
+`ModuleGraphTest` asserts it again on this graph).
+
+| from \ to | Communication | Money | Ride | Identity | Console |
+|---|---|---|---|---|---|
+| **Communication** | - | - | - | **0 (was 1)** | 2 |
+| **Money** | 1 | - | - | 1 | - |
+| **Ride** | 1 | 5 | - | 1 | - |
+| **Identity** | 1 | 1 | 2 | - | 1 |
+| **Console** | 3 | 3 | 2 | 6 | - |
+
+14 directed edges, 208 module PHP files scanned, ~43 files carrying at least one cross-module
+Contracts reference.
+
+**The four cycles, with the specific files and ports.**
+
+| Cycle | This direction | That direction |
+|---|---|---|
+| Communication <-> Console | `Communication/Http/Controllers/ContactController.php` -> `Console/Contracts/{EmployeeManagementInterface, SupportAgentRoutingInterface}` | 7 Console files -> `Communication/Contracts/NotificationPort`; `StaffChatController` -> `{ChatMessageHandlerInterface, ChatRepositoryInterface}` |
+| Communication <-> Identity | `Communication/Providers/CommunicationServiceProvider.php` -> `Identity/Contracts/OtpMailInterface` | `Identity/{PassengerProfileController, Services/VerificationSubmissionService}` -> `Communication/Contracts/NotificationPort` |
+| Money <-> Identity | `Money/Http/Controllers/WalletController.php` -> `Identity/Contracts/EmailOtpServiceInterface` | `Identity/Http/Controllers/PassengerProfileController.php` -> `Money/Contracts/PassengerWalletChargerInterface` |
+| Ride <-> Identity | `Ride/Services/RideValidationService.php` -> `Identity/Contracts/DocumentVerificationInterface` | `Identity/Http/Controllers/ProfileController.php` -> `Ride/Contracts/{ScoreServiceInterface, UserRideStatsInterface}` |
+
+(The owner's list also named `Communication<->Console`, `Communication<->Identity`, `Money<->Identity`
+and `Ride<->Identity`; the fifth pair in the graph, `Console <-> Identity`, was already declared in the
+stage 1 map and is listed with the rest.)
+
+**The cut: Communication <-> Identity is gone.** Communication -> Identity was exactly one line in the
+whole module tree - the `OtpMailInterface` binding in `CommunicationServiceProvider`, placed there by
+stage 1 with the reasoning that mail delivery is Communication's transport (the boundary map puts the
+kernel `Mail/` directory in the Communication context). But `OtpMailInterface` is **Identity's** port,
+so binding it from Communication meant one module naming another module's Contracts: an edge, and -
+since Identity already notifies through Communication's `NotificationPort` - a cycle.
+
+Two homes were tried, and the first one is worth recording because a ratchet caught it:
+
+1. **Identity's own provider.** Move the binding there and Identity names the kernel class
+   `App\Mail\OtpMailer` - which rule A of `ModuleBoundaryTest` allows (a module may name the kernel).
+   `ModuleGraphTest` then measured Communication -> Identity as 0 and the cycle as gone. But
+   `CrossContextBoundaryTest` failed it: in the *context* map the kernel `Mail/` directory belongs to
+   the Communication context, so this was a new `IDENTITY_to_COMM` edge against a baseline of 0. The
+   fix for that would have been to raise a baseline, which this batch forbids, so the attempt was
+   rolled into the next one.
+2. **The kernel catalogue** (`App\Support\ContainerBindings`), and this is where it stayed. The
+   implementation is a kernel class and the port is a module port; the kernel is explicitly allowed to
+   name module Contracts, so the kernel is the natural place to wire a kernel class to one. A new
+   `registerKernelPortImplementations()` holds it, `bind()` not `singleton()` (exactly the lifetime it
+   had), and neither module provider names the other's Contracts for it. `CrossContextBoundaryTest`
+   stays at 0 for `IDENTITY_to_COMM` because the kernel is not a context, `ModuleBoundaryTest` rule D
+   does not move because `ContainerBindings` is an entrypoint and names Contracts only, and
+   `ModuleGraphTest` measures Communication -> Identity as **0**.
+
+The other four cycles are **declared uncut**, with the reason recorded next to each in
+`ModuleGraphTest::UNCUT_CYCLES`:
+
+- **Communication <-> Console** - `ContactController` (`POST /api/contact`) needs to know which support
+  agent is least loaded and to have that agent's shadow user, **to build its response**. An event
+  cannot return the agent, and a kernel listener would be a sixth kernel file naming module Contracts -
+  the ceiling is 5 and it is shrink-only. Rejected alternatives: move the controller into Console
+  (hands a passenger-facing endpoint to the back-office module), or move the two port declarations into
+  Communication (launders Console's ownership of employees and support routing).
+- **Console <-> Identity** - Console authenticates staff through Identity's `EmployeeAuthInterface` and
+  `StaffJwtInterface`; Identity reaches back for `EmployeeRepositoryInterface` because batch 233's
+  context map puts staff **authentication** in Identity while employee **records** stay in Console.
+  Cutting it means moving one of those two things, i.e. contradicting the map.
+- **Identity <-> Money** - an OTP-verified withdrawal (Money -> Identity) versus a wallet top-up
+  (Identity -> Money). Both need a return value, so no event can carry them; cutting either means
+  moving an HTTP endpoint between modules, which is endpoint ownership, not a port move.
+- **Identity <-> Ride** - driver-document verification (Ride -> Identity) versus ride stats and score
+  on the profile page (Identity -> Ride). Same shape as Identity <-> Money.
+
+**The ratchet.** `tests/Feature/AppFuture/ModuleGraphTest.php` (3 tests) pins the whole thing:
+
+1. the measured directed edge set **and its per-edge port counts** must equal the declared table
+   (shrink-only), with floors on scanned files (>= 200), edges (>= 14) and cross-module files (>= 30);
+2. every cross-module reference must be a Contracts reference (implementation edges must stay 0);
+3. the cycle surface must equal the declared one: the mutual pairs are declared with their reasons, the
+  16 longer loops are listed as derived data, and every longer loop must contain a declared mutual pair
+   as adjacent modules - so a loop that is a *new* design decision rather than a consequence of the
+   declared pairs fails the test with its own name in the message.
+
+Written the same way as item 2's scanners: comments stripped, floors on what was scanned, and proved
+load-bearing by pointing the scan at an empty directory in a scratch run - it went **red**, and the
+patch was restored in the same command.
+
+**Commit.** `Stage 1.5 item 4` - this commit. Files changed: `CommunicationServiceProvider` (binding and
+import removed, note rewritten), `IdentityServiceProvider` (docblock rewritten), `ContainerBindings`
+(the moved binding, a new private method, class docblock), and 1 new test file. Ratchet numbers:
+module edges **15 -> 14**, cycles **5 -> 4**, implementation edges 0 -> 0,
+`KERNEL_CONTRACTS_CEILING` unchanged at 5, `CrossContextBoundaryTest` all pairs still 0.
+
+**Full default-order suite (the batch's hard rule):** `Tests: 3054, Assertions: 13362, Skipped: 2` -
+OK, on `127.0.0.1:3399/t3_batch`. Snapshot corpus byte-identical (`MANIFEST.json` still 213 files,
+`SNAPSHOT_UPDATE=1` never used), leak guard clean inside the run, whole-tree Pint PASS.
 Nothing pushed; branch `Agentic` only.

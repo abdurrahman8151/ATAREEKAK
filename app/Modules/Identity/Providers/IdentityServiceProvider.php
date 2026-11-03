@@ -5,6 +5,7 @@ namespace App\Modules\Identity\Providers;
 use App\Modules\Identity\Contracts\DocumentVerificationInterface;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
 use App\Modules\Identity\Contracts\EmployeeAuthInterface;
+use App\Modules\Identity\Contracts\OtpMailInterface;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
@@ -41,10 +42,13 @@ use Illuminate\Support\ServiceProvider;
  *
  * Phase 2 moved the implementations into this module (`JwtService`, `StaffJwtService`,
  * `EmployeeAuthService`, the OTP services, the verification services), so the only implementation
- * this provider still reaches outside `Modules/Identity` is the kernel mailer: `OtpMailInterface` is
- * implemented by `App\Mail\OtpMailer`, and its binding lives in the Communication provider (mail
- * delivery is that context's transport, and the kernel `Mail/` directory belongs to the
- * communication context in the boundary map), so this provider never names it. The staff door
+ * that serves this module from outside `Modules/Identity` is the kernel mailer: `OtpMailInterface`
+ * is implemented by `App\Mail\OtpMailer`. Its binding used to live in the Communication provider
+ * (mail delivery is that context's transport), which made Communication import this module's
+ * Contracts - an edge, and with this module's own `NotificationPort` use, a cycle. Stage 1.5 item 4
+ * moved the binding to the kernel catalogue `App\Support\ContainerBindings`: the kernel owns the
+ * mailer it implements, binding a kernel class to a module port is the kernel's own wiring, and
+ * binding it THERE leaves both module providers free of each other's Contracts. The staff door
  * reaches this module through `EmployeeAuthInterface` and `StaffJwtInterface`, never a class.
  */
 final class IdentityServiceProvider extends ServiceProvider
