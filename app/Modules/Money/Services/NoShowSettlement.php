@@ -43,15 +43,20 @@ class NoShowSettlement implements NoShowSettlementInterface
 
         $txId = 'PASS_NOSHOW_'.time().'_'.Str::random(6);
 
-        $this->recordEscrowOutTransaction($booking, $syCashWallet, $total, $syCashPrev, $txId, $escrowOutKey);
+        // Stage 2 B2: keep the rows so each leg can name its own side.
+        $syCashTransaction = $this->recordEscrowOutTransaction($booking, $syCashWallet, $total, $syCashPrev, $txId, $escrowOutKey);
 
-        $this->recordPassengerNoShowShares(
+        $shareTransactions = $this->recordPassengerNoShowShares(
             $booking, $ride, $driverWallet, $primaryWallet,
             $driverShare, $primaryShare, $driverPrev, $primaryPrev, $txId
         );
 
         $this->postPassengerNoShowLegs(
-            $booking, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare
+            $booking, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare, [
+                $syCashWallet->id => $syCashTransaction,
+                $driverWallet->id => $shareTransactions[$driverWallet->id] ?? null,
+                $primaryWallet->id => $shareTransactions[$primaryWallet->id] ?? null,
+            ]
         );
 
         Log::info('Passenger no-show settled', [
@@ -79,12 +84,13 @@ class NoShowSettlement implements NoShowSettlementInterface
 
         $txId = 'DRIVER_NOSHOW_'.time().'_'.Str::random(6);
 
-        $this->recordDriverNoShowRefundRows(
+        // Stage 2 B2: keep the rows so each leg can name its own side.
+        $refundTransactions = $this->recordDriverNoShowRefundRows(
             $booking, $ride, $passenger, $syCashWallet, $passengerWallet,
             $refundAmount, $syCashPrev, $passengerPrev, $txId, $escrowOutKey
         );
 
-        $this->postDriverNoShowRefundLegs($booking, $syCashWallet, $passengerWallet, $refundAmount);
+        $this->postDriverNoShowRefundLegs($booking, $syCashWallet, $passengerWallet, $refundAmount, $refundTransactions);
 
         Log::info('Driver no-show refund processed', [
             'booking_id' => $booking->id,
@@ -198,8 +204,8 @@ class NoShowSettlement implements NoShowSettlementInterface
         $syCashPrev,
         string $txId,
         string $escrowOutKey
-    ): void {
-        WalletTransaction::create([
+    ): WalletTransaction {
+        return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'passenger_no_show_settlement',
@@ -225,8 +231,8 @@ class NoShowSettlement implements NoShowSettlementInterface
         $driverPrev,
         $primaryPrev,
         string $txId
-    ): void {
-        WalletTransaction::create([
+    ): array {
+        $driverTransaction = WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
             'user_id' => $ride->driver_id,
             'type' => 'passenger_no_show_earning',
@@ -239,7 +245,7 @@ class NoShowSettlement implements NoShowSettlementInterface
             'reference' => "booking:{$booking->id}",
         ]);
 
-        WalletTransaction::create([
+        $primaryTransaction = WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
             'user_id' => null,
             'type' => 'platform_fee',
@@ -251,6 +257,11 @@ class NoShowSettlement implements NoShowSettlementInterface
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
         ]);
+
+        return [
+            $driverWallet->id => $driverTransaction,
+            $primaryWallet->id => $primaryTransaction,
+        ];
     }
 
     /** The SyCash escrow debit row plus the full refund row back to the passenger. */
@@ -265,8 +276,8 @@ class NoShowSettlement implements NoShowSettlementInterface
         $passengerPrev,
         string $txId,
         string $escrowOutKey
-    ): void {
-        WalletTransaction::create([
+    ): array {
+        $syCashTransaction = WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'driver_no_show_refund',
@@ -302,13 +313,14 @@ class NoShowSettlement implements NoShowSettlementInterface
         Wallet $primaryWallet,
         $total,
         $driverShare,
-        $primaryShare
+        $primaryShare,
+        array $transactions = []
     ): void {
         // ── Decision un3: double-entry legs (same 95/5 shape as ride completion) ─
         $this->ledger->postTransfer([
-            ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: no-show escrow released"],
-            ['wallet_id' => $driverWallet->id, 'amount' => $driverShare, 'description' => "booking #{$booking->id}: driver share 95%"],
-            ['wallet_id' => $primaryWallet->id, 'amount' => $primaryShare, 'description' => "booking #{$booking->id}: platform fee 5%"],
+            ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: no-show escrow released", 'wallet_transaction_id' => $transactions[$syCashWallet->id]->id ?? null],
+            ['wallet_id' => $driverWallet->id, 'amount' => $driverShare, 'description' => "booking #{$booking->id}: driver share 95%", 'wallet_transaction_id' => $transactions[$driverWallet->id]->id ?? null],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $primaryShare, 'description' => "booking #{$booking->id}: platform fee 5%", 'wallet_transaction_id' => $transactions[$primaryWallet->id]->id ?? null],
         ]);
     }
 
@@ -317,12 +329,13 @@ class NoShowSettlement implements NoShowSettlementInterface
         Booking $booking,
         Wallet $syCashWallet,
         Wallet $passengerWallet,
-        $refundAmount
+        $refundAmount,
+        array $transactions = []
     ): void {
         // ── Decision un3: double-entry legs (SyCash → passenger, 100%) ───────────
         $this->ledger->postTransfer([
-            ['wallet_id' => $syCashWallet->id, 'amount' => -$refundAmount, 'description' => "booking #{$booking->id}: driver no-show refund out"],
-            ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger"],
+            ['wallet_id' => $syCashWallet->id, 'amount' => -$refundAmount, 'description' => "booking #{$booking->id}: driver no-show refund out", 'wallet_transaction_id' => $transactions[$syCashWallet->id]->id ?? null],
+            ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger", 'wallet_transaction_id' => $transactions[$passengerWallet->id]->id ?? null],
         ]);
     }
 }

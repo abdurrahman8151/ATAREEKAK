@@ -17370,3 +17370,30 @@ tests in `tests/Feature/Payment`, which assert the invariants rather than a stat
 **Remaining B2.** `CancellationLedgerWriter` (3 sites), `NoShowSettlement` (2),
 `CashRideCreationFeeCharger`, `CashRideDebtClearanceService`, `CashRideFeeRefundService`, and the target side
 of `PassengerWalletCharger::injectExternalCapital`; then the randomized linkage property.
+---
+
+### 262. Stage 2 Phase B2 (fourth slice) - the no-show paths link their legs, and a coverage gap that matters
+
+**The change.** Both no-show flows in `NoShowSettlement` now link their legs to the rows they already
+write. Passenger no-show: `recordEscrowOutTransaction()` returns its `WalletTransaction` and
+`recordPassengerNoShowShares()` returns both rows keyed by wallet id; `processPassengerNoShow()` passes one
+map into `postPassengerNoShowLegs()`. Driver no-show refund: `recordDriverNoShowRefundRows()` returns both
+rows; `processDriverNoShowRefund()` passes them into `postDriverNoShowRefundLegs()`. Both leg posters gained
+`array $transactions = []` with per-leg `?? null`.
+
+**A coverage gap worth recording.** After the change, `SNAPSHOT_UPDATE=1 phpunit tests/Feature/Snapshots`
+produced **zero** modified files and the update pass was itself green: no snapshot case reaches either
+no-show settlement path, so the corpus does not witness this slice at all. Two consequences, both useful:
+(a) the evidence for this slice is the dedicated ledger tests in `tests/Feature/Payment` (286 tests, 2739
+assertions, OK) rather than any state file - the earlier slices were visible in the corpus, these are not;
+(b) the corpus count therefore stays 473 linked / 130 null, and that is the correct outcome, not a failure to
+link. It also means the no-show paths carry no state-snapshot regression net, which is worth knowing
+independently of this task.
+
+**Verification.** `tests/Feature/Payment` + `tests/Feature/Bookings`: OK, 286 tests, 2739 assertions. Then
+`tests/Feature/Snapshots` + `tests/Feature/Payment` + `tests/Feature/AppFuture`: **OK, 517 tests, 5238
+assertions**, with the manifest byte-identical (nothing to refresh). `php -l` clean, Pint PASS.
+
+**Remaining B2.** `CancellationLedgerWriter` (3 sites), `CashRideCreationFeeCharger`,
+`CashRideDebtClearanceService`, `CashRideFeeRefundService`, and the target side of
+`PassengerWalletCharger::injectExternalCapital`; then the randomized linkage property.
