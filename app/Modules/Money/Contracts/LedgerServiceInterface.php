@@ -17,6 +17,11 @@ use App\Models\WalletTransaction;
 interface LedgerServiceInterface
 {
     /**
+     * Stage 2 B2: each side names the single-sided row that recorded ITS wallet's movement, so the two
+     * legs of one external transfer can point at two different rows (they are two different wallets).
+     * Both are optional; a null link is the pre-B2 shape and stays valid for rows written before this
+     * change.
+     *
      * @return LedgerEntry[] the debit leg and the credit leg, in that order
      */
     public function postExternalTransfer(
@@ -24,7 +29,8 @@ interface LedgerServiceInterface
         Wallet $target,
         float $amount,
         bool $inbound,
-        ?WalletTransaction $transaction = null,
+        ?WalletTransaction $externalTransaction = null,
+        ?WalletTransaction $targetTransaction = null,
         ?string $description = null,
     ): array;
 }

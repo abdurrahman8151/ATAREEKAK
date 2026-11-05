@@ -85,7 +85,7 @@ final class PassengerWalletCharger implements PassengerWalletChargerInterface
         $external->balance -= $amount;
         $external->save();
 
-        WalletTransaction::create([
+        $externalTransaction = WalletTransaction::create([
             'wallet_id' => $external->id,
             'user_id' => null,
             'type' => 'external_inbound',
@@ -103,6 +103,7 @@ final class PassengerWalletCharger implements PassengerWalletChargerInterface
             $wallet,
             (float) $amount,
             inbound: true,
+            externalTransaction: $externalTransaction,
             description: "admin charge to user #{$user->id}",
         );
     }

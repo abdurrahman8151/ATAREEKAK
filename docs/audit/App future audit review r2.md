@@ -17240,3 +17240,74 @@ full default-order suite for Phase B is run once at the end of the phase.
 **Not parked, because it is the phase's stated work:** the four response files and seven budget entries
 change a response payload and a query count. The owner authorised exactly this regeneration ("exactly the
 4 ride-list response snapshots and their budget entries").
+---
+
+### 259. Stage 2 Phase B2 (first slice) - a ledger leg can name the row that recorded its own movement
+
+**The finding.** `ledger_entries.wallet_transaction_id` existed, was indexed, was read by
+`LedgerService::imbalanceFor()`, and was **null in every row the application ever wrote**: 601 legs across
+the 40 state snapshots, zero links. `postTransfer()` accepted one `?WalletTransaction $transaction` and
+applied it to every leg, so a two-leg transfer could only ever name one side - and
+`postExternalTransfer()` did not accept one at all. The ledger could prove a movement balanced, but not
+which single-sided row explained which leg.
+
+**The change (first slice).**
+
+1. `LedgerService::postTransfer()` now accepts a per-leg `wallet_transaction_id`, falling back to the
+   call-level transaction when a leg omits it. Backwards compatible in both directions: no leg key means
+   exactly the previous behaviour, and the parameter is still optional. That is what makes the remaining
+   money paths a mechanical edit each, rather than one large rewrite.
+2. `LedgerServiceInterface::postExternalTransfer()` takes `externalTransaction:` and `targetTransaction:`
+   instead of one `transaction:`, because the two legs are two different wallets and one row cannot
+   describe both. Both are optional and nullable, so a caller that has only one side still works.
+3. The three external-capital paths now pass what they already had:
+   - `AdminWalletCharger` (admin credit): both sides (it already received the target row as `$transaction`
+     and discarded the external row it created);
+   - `AdminWalletRequestController` (wallet-request approve): both sides - `recordWalletMovement()` now
+     returns the row it writes instead of dropping it, and `settleExternalCapital()` receives it;
+   - `PassengerWalletCharger` (passenger charge): the external row only (the target row is written by its
+     caller, so it is threaded in the next slice - see the parked item below).
+
+**The Console/module-boundary detail, worth recording.** `AdminWalletRequestController` cannot import
+`App\Models\WalletTransaction`: `BoundaryDependencyTest` rule `controllers_to_models` is a **0 baseline** and
+it caught the first attempt - including a docblock that merely *mentioned* the FQCN, because the rule scans
+tokens. The parameter is therefore untyped, with a comment saying why; the value only travels from the
+Console service straight back into the Money port, which owns the type.
+
+**Measured result.** 126 legs now carry a link, 477 remain null (from 0 / 601). The links that appeared are
+the external-capital debit legs - and because the snapshot corpus's shared seed funds every wallet through
+`injectExternalCapital()`, that one change shows up in **all 40** state files: 40 regenerated, 0 response
+snapshots touched, 0 query budgets changed.
+
+**Regeneration (authorised by the phase).** `SNAPSHOT_UPDATE=1 php vendor/bin/phpunit tests/Feature/Snapshots`
+rewrote exactly those 40 state files plus `MANIFEST.json` (refreshed with
+`php scripts/refresh-snapshot-manifest.php` - this is the B3 step the owner wanted in the same commit). No
+other snapshot file changed, which is also evidence the corpus writer is deterministic: a file whose rows did
+not change came back byte-identical.
+
+**Verification.** `tests/Feature/Snapshots`, `tests/Feature/Admin`, `tests/Feature/Wallet`,
+`tests/Feature/Payment`, `tests/Unit/Services/Admin`, `tests/Unit/Services/Payment`, `tests/Feature/Review`,
+`tests/Feature/AppFuture`: **OK, 1515 tests, 8339 assertions, 2 skipped**. One earlier run of the same
+selection was red with 41 failures - 40 state snapshots plus the `controllers_to_models` boundary rule - and
+both causes are the intended change and the fix recorded above.
+
+**Parked, with the reason (this is the remaining half of B2, not a decision for the owner).** The
+Money-internal paths still post legs without a link, because each needs the transactions threaded through
+its own private helpers rather than being available at the call site:
+`BookingCharge::postChargeLegs` (booking charge - the reference path, two rows already exist),
+`CancellationLedgerWriter` (3 sites: driver cancellation, staff cancellation fan-out, time-based
+cancellation), `NoShowSettlement` (2 sites), `RidePayout` (2 sites: payout, completion), `CashRideCreationFeeCharger`,
+`CashRideDebtClearanceService`, `CashRideFeeRefundService`, and the target side of
+`PassengerWalletCharger::injectExternalCapital`. The randomized-property extension
+("every new leg links to a transaction of the same wallet and amount") is parked **with** them, because it
+cannot pass honestly until they are done: 477 legs would fail it today. Doing it in that order keeps the
+property meaningful instead of normalising a half-linked ledger. Next step is recorded in STATE.md.
+
+**One unverified observation, parked rather than fixed.** `PassengerProfileController::chargeWallet()` calls
+`recordAdminChargeTransaction()` and then `injectExternalCapital()`, and `recordAdminChargeTransaction()`
+*calls `injectExternalCapital()` itself* (line 375). If both run for one charge, the external account is
+debited and the inbound legs posted twice for a single passenger credit. I did **not** confirm the money
+effect from the state snapshots (the pairs there are consistent with one posting per movement), so this is a
+suspicion with a code path, not a finding. **Question:** is the inner call intended (and the outer one
+dead), or is this a double-posting bug that should be its own money task before the ledger properties are
+tightened?

@@ -213,8 +213,8 @@ final class AdminWalletRequestController extends Controller
         $wallet->balance = $movement['new_balance'];
         $wallet->save();
 
-        $this->recordWalletMovement($walletRequest, $wallet, $movement);
-        $this->settleExternalCapital($walletRequest, $wallet, $movement['transaction_amount']);
+        $targetTransaction = $this->recordWalletMovement($walletRequest, $wallet, $movement);
+        $this->settleExternalCapital($walletRequest, $wallet, $movement['transaction_amount'], $targetTransaction);
         $this->markRequestApproved($walletRequest, $request);
 
         Log::info('Wallet request approved', [
@@ -269,13 +269,15 @@ final class AdminWalletRequestController extends Controller
     }
 
     /**
-     * The approved request's own wallet_transactions row.
+     * Stage 2 B2: returns the row it wrote, so the ledger legs can name it. Deliberately left untyped:
+     * the CONSOLE module does not import kernel models, and the value is only handed straight back to
+     * the MONEY port, which owns the type.
      *
      * @param  array{previous_balance: float, new_balance: float, type: string, transaction_amount: float, description: string}  $movement
      */
-    private function recordWalletMovement($walletRequest, $wallet, array $movement): void
+    private function recordWalletMovement($walletRequest, $wallet, array $movement)
     {
-        $this->walletRequests->createTransaction([
+        return $this->walletRequests->createTransaction([
             'wallet_id' => $wallet->id,
             'user_id' => $walletRequest->user_id,
             'type' => $movement['type'],
@@ -300,7 +302,7 @@ final class AdminWalletRequestController extends Controller
     /**
      * Mirror the movement against the External Capital account and close it on the ledger.
      */
-    private function settleExternalCapital($walletRequest, $wallet, float $transactionAmount): void
+    private function settleExternalCapital($walletRequest, $wallet, float $transactionAmount, $targetTransaction): void
     {
         // ── Decision un3 (owner choice (a)): external flow ──────────────────────
         // A top-up is money ARRIVING from outside; a withdrawal is money LEAVING to outside.
@@ -322,7 +324,7 @@ final class AdminWalletRequestController extends Controller
         $external->balance += $externalDelta;
         $external->save();
 
-        $this->walletRequests->createTransaction([
+        $externalTransaction = $this->walletRequests->createTransaction([
             'wallet_id' => $external->id,
             'user_id' => null,
             'type' => $transactionAmount > 0 ? 'external_inbound' : 'external_outbound',
@@ -341,6 +343,8 @@ final class AdminWalletRequestController extends Controller
             $wallet,
             abs((float) $transactionAmount),
             inbound: $transactionAmount > 0,
+            externalTransaction: $externalTransaction,
+            targetTransaction: $targetTransaction,
             description: "wallet request #{$walletRequest->id}",
         );
     }

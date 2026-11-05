@@ -46,7 +46,7 @@
             "amount": "-20000.00",
             "id": "<id:40>",
             "wallet_id": "<id:3>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:19>"
         },
         {
             "amount": "20000.00",
@@ -58,7 +58,7 @@
             "amount": "-35000.00",
             "id": "<id:42>",
             "wallet_id": "<id:3>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:21>"
         },
         {
             "amount": "35000.00",
@@ -70,7 +70,7 @@
             "amount": "-12500.00",
             "id": "<id:44>",
             "wallet_id": "<id:3>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:23>"
         },
         {
             "amount": "12500.00",

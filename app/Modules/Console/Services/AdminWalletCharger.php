@@ -142,7 +142,7 @@ class AdminWalletCharger
         $external->balance -= $amount->amount();   // money leaves the outside account
         $external->save();
 
-        WalletTransaction::create([
+        $externalTransaction = WalletTransaction::create([
             'wallet_id' => $external->id,
             'user_id' => null,
             'type' => 'external_inbound',
@@ -159,7 +159,8 @@ class AdminWalletCharger
             $wallet,
             (float) $amount->amount(),
             inbound: true,
-            transaction: $transaction,
+            externalTransaction: $externalTransaction,
+            targetTransaction: $transaction,
             description: "admin credit to wallet #{$wallet->id}",
         );
     }

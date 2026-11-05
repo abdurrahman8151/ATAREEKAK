@@ -32,8 +32,11 @@ class LedgerService implements LedgerServiceInterface
     /**
      * Record a transfer as balanced ledger legs.
      *
-     * @param  array<int, array{wallet_id: int, amount: float, description?: string|null}>  $legs
-     *                                                                                             Signed amounts. A debit is negative; a credit is positive.
+     * @param  array<int, array{wallet_id: int, amount: float, description?: string|null, wallet_transaction_id?: int|null}>  $legs
+     *                                                                                                                               Signed amounts. A debit is negative; a credit is positive.
+     *                                                                                                                               `wallet_transaction_id` links ONE leg to the single-sided
+     *                                                                                                                               row that records the same wallet's movement; it falls
+     *                                                                                                                               back to `$transaction` when omitted.
      * @param  WalletTransaction|null  $transaction  the single-sided row, when one exists
      * @return LedgerEntry[] the written legs
      *
@@ -82,7 +85,11 @@ class LedgerService implements LedgerServiceInterface
             foreach ($legs as $leg) {
                 $entry = LedgerEntry::create([
                     'wallet_id' => $leg['wallet_id'],
-                    'wallet_transaction_id' => $transaction?->id,
+                    // Stage 2 B2: a leg may name the single-sided row that recorded ITS wallet's
+                    // movement; the call-level transaction is the fallback for the common case where
+                    // one row covers the whole transfer. The link is what lets the ledger explain a
+                    // movement row by row instead of only in aggregate.
+                    'wallet_transaction_id' => $leg['wallet_transaction_id'] ?? $transaction?->id,
                     // Same normalisation as the balance check above, and for the same reason: what is
                     // stored is what was checked. Rounding to 2dp happens once, in `Money::from()`.
                     'amount' => Money::from((float) $leg['amount'])->amount(),
@@ -147,7 +154,8 @@ class LedgerService implements LedgerServiceInterface
         Wallet $target,
         float $amount,
         bool $inbound,
-        ?WalletTransaction $transaction = null,
+        ?WalletTransaction $externalTransaction = null,
+        ?WalletTransaction $targetTransaction = null,
         ?string $description = null,
     ): array {
         // `R2 sec 117`: signed `Money` replaces the raw unary minus, so the two legs cannot disagree
@@ -161,18 +169,22 @@ class LedgerService implements LedgerServiceInterface
 
         $direction = $inbound ? 'inbound' : 'outbound';
 
+        // Stage 2 B2: the two sides are two different wallets, so each side names the row that
+        // recorded ITS side's movement. One transaction cannot describe both.
         return $this->postTransfer([
             [
                 'wallet_id' => $external->id,
                 'amount' => $externalLeg->amount(),
                 'description' => $description ? "{$direction} external: {$description}" : "{$direction} external",
+                'wallet_transaction_id' => $externalTransaction?->id,
             ],
             [
                 'wallet_id' => $target->id,
                 'amount' => $targetLeg->amount(),
                 'description' => $description ? "{$direction} wallet: {$description}" : "{$direction} wallet",
+                'wallet_transaction_id' => $targetTransaction?->id,
             ],
-        ], $transaction);
+        ]);
     }
 
     /**
