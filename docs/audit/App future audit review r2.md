@@ -17341,4 +17341,32 @@ tests. `php -l` clean, Pint PASS on the file.
 **Remaining B2 (unchanged from sec 259).** `CancellationLedgerWriter` (3 sites), `NoShowSettlement` (2),
 `RidePayout` (2), `CashRideCreationFeeCharger`, `CashRideDebtClearanceService`, `CashRideFeeRefundService`,
 and the target side of `PassengerWalletCharger::injectExternalCapital`. Then the randomized-property
-extension, which can only pass once those are done.
+extension, which can only pass once those are done.---
+
+### 261. Stage 2 Phase B2 (third slice) - the payout paths link their legs
+
+**The change.** `RidePayout` writes three single-sided rows per release (SyCash escrow out, driver 95%,
+platform 5%) and posts three legs. Both release flows now keep the rows and name each leg's own side:
+
+- whole-set completion: `recordEscrowReleasedRow`, `recordDriverShare`, `recordPlatformShare` return their
+  `WalletTransaction`; `releaseEarningsToDriver()` passes a wallet-id-keyed map into
+  `postCompletionTransfer()`;
+- per-passenger release: `recordEscrowReleaseRow`, `recordDriverEarningRow`, `recordPlatformFeeRow` return
+  theirs; `releaseEscrowToDriver()` passes the map into `postPerPassengerTransfer()`.
+
+`recordDriverShare` and `recordPlatformShare` are public, so the return type `void` -> `WalletTransaction`
+is backwards compatible for any caller that ignores the value. No amount, balance, posting key, lock order or
+leg arithmetic changed - the same rows and the same legs, one column richer, and each leg's `?? null` keeps
+the helpers callable without the map.
+
+**Measured.** Corpus 470 -> **473 linked** (130 null). Only one state snapshot moved, because the snapshot
+corpus exercises the completion paths in few cases; these paths are covered instead by the dedicated ledger
+tests in `tests/Feature/Payment`, which assert the invariants rather than a state file.
+
+**Verification.** `tests/Feature/Payment` + `tests/Feature/Bookings` + `tests/Feature/Rides`: OK, 382 tests,
+2968 assertions. After regeneration, `tests/Feature/Snapshots` + `tests/Feature/Payment` +
+`tests/Feature/AppFuture`: **OK, 517 tests, 5238 assertions**. `php -l` clean, Pint PASS.
+
+**Remaining B2.** `CancellationLedgerWriter` (3 sites), `NoShowSettlement` (2),
+`CashRideCreationFeeCharger`, `CashRideDebtClearanceService`, `CashRideFeeRefundService`, and the target side
+of `PassengerWalletCharger::injectExternalCapital`; then the randomized linkage property.

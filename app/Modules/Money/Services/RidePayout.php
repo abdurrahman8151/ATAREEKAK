@@ -58,14 +58,19 @@ class RidePayout implements RidePayoutInterface
 
         $txId = 'COMPLETE_'.time().'_'.Str::random(6);
 
-        $this->recordEscrowReleasedRow($ride, $syCashWallet, (float) $prev['sycash'], $total, $escrowOutKey, $txId);
+        // Stage 2 B2: each row is kept so the legs below can name the side they belong to.
+        $syCashTransaction = $this->recordEscrowReleasedRow($ride, $syCashWallet, (float) $prev['sycash'], $total, $escrowOutKey, $txId);
 
         // Driver receives 95% and the platform 5%: one row each, written in helpers.
-        $this->recordDriverShare($ride, $driverShare, $driverWallet, (float) $prev['driver'], $txId);
+        $driverTransaction = $this->recordDriverShare($ride, $driverShare, $driverWallet, (float) $prev['driver'], $txId);
 
-        $this->recordPlatformShare($ride, $primaryShare, $primaryWallet, (float) $prev['primary'], $txId);
+        $primaryTransaction = $this->recordPlatformShare($ride, $primaryShare, $primaryWallet, (float) $prev['primary'], $txId);
 
-        $this->postCompletionTransfer($ride, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare);
+        $this->postCompletionTransfer($ride, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare, [
+            $syCashWallet->id => $syCashTransaction,
+            $driverWallet->id => $driverTransaction,
+            $primaryWallet->id => $primaryTransaction,
+        ]);
 
         Log::info('Ride earnings released', [
             'ride_id' => $ride->id,
@@ -123,10 +128,10 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** SyCash debit row for a whole-set completion release: the escrow that left SyCash. */
-    private function recordEscrowReleasedRow(Ride $ride, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId): void
+    private function recordEscrowReleasedRow(Ride $ride, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId): WalletTransaction
     {
         // SyCash debit
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'escrow_released',
@@ -152,31 +157,34 @@ class RidePayout implements RidePayoutInterface
      * The sum is checked by `postTransfer`, so if the 95/5 arithmetic ever drifts from `$total`
      * the transfer is REFUSED rather than silently creating or destroying money.
      */
-    private function postCompletionTransfer(Ride $ride, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare): void
+    private function postCompletionTransfer(Ride $ride, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
     {
         $this->ledger->postTransfer([
             [
                 'wallet_id' => $syCashWallet->id,
                 'amount' => -$total,
                 'description' => "ride #{$ride->id}: escrow released",
+                'wallet_transaction_id' => $transactions[$syCashWallet->id]->id ?? null,
             ],
             [
                 'wallet_id' => $driverWallet->id,
                 'amount' => $driverShare,
                 'description' => "ride #{$ride->id}: driver share 95%",
+                'wallet_transaction_id' => $transactions[$driverWallet->id]->id ?? null,
             ],
             [
                 'wallet_id' => $primaryWallet->id,
                 'amount' => $primaryShare,
                 'description' => "ride #{$ride->id}: platform fee 5%",
+                'wallet_transaction_id' => $transactions[$primaryWallet->id]->id ?? null,
             ],
         ]);
     }
 
     /** Driver share of a completed ride (95%): the earnings row. */
-    public function recordDriverShare(Ride $ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): void
+    public function recordDriverShare(Ride $ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
             'user_id' => $ride->driver_id,
             'type' => 'ride_earnings',
@@ -191,9 +199,9 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Platform share of a completed ride (5%): the platform fee row. */
-    public function recordPlatformShare(Ride $ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): void
+    public function recordPlatformShare(Ride $ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
             'user_id' => null,
             'type' => 'platform_fee',
@@ -249,15 +257,19 @@ class RidePayout implements RidePayoutInterface
         $txRef = "booking:{$booking->id}";
 
         // ── 1. SyCash debit (escrow released) ────────────────────────────────────
-        $this->recordEscrowReleaseRow($booking, $syCashWallet, $prev['sycash'], $total, $escrowOutKey, $txId, $txRef);
+        $syCashTransaction = $this->recordEscrowReleaseRow($booking, $syCashWallet, $prev['sycash'], $total, $escrowOutKey, $txId, $txRef);
 
         // ── 2. Driver credit (95%) ────────────────────────────────────────────────
-        $this->recordDriverEarningRow($booking, $driver, $driverWallet, $prev['driver'], $driverShare, $txId, $txRef);
+        $driverTransaction = $this->recordDriverEarningRow($booking, $driver, $driverWallet, $prev['driver'], $driverShare, $txId, $txRef);
 
         // ── 3. Primary Admin credit (5%) ──────────────────────────────────────────
-        $this->recordPlatformFeeRow($booking, $primaryWallet, $prev['primary'], $primaryShare, $txId, $txRef);
+        $primaryTransaction = $this->recordPlatformFeeRow($booking, $primaryWallet, $prev['primary'], $primaryShare, $txId, $txRef);
 
-        $this->postPerPassengerTransfer($booking, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare);
+        $this->postPerPassengerTransfer($booking, $syCashWallet, $driverWallet, $primaryWallet, $total, $driverShare, $primaryShare, [
+            $syCashWallet->id => $syCashTransaction,
+            $driverWallet->id => $driverTransaction,
+            $primaryWallet->id => $primaryTransaction,
+        ]);
 
         Log::info('Escrow released per passenger confirmation', [
             'booking_id' => $booking->id,
@@ -314,9 +326,9 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the SyCash debit row for that booking. */
-    private function recordEscrowReleaseRow(Booking $booking, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId, string $txRef): void
+    private function recordEscrowReleaseRow(Booking $booking, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId, string $txRef): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'escrow_release',
@@ -332,9 +344,9 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the driver's 95% earnings row for that booking. */
-    private function recordDriverEarningRow(Booking $booking, User $driver, Wallet $driverWallet, float $driverPrev, float $driverShare, string $txId, string $txRef): void
+    private function recordDriverEarningRow(Booking $booking, User $driver, Wallet $driverWallet, float $driverPrev, float $driverShare, string $txId, string $txRef): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
             'user_id' => $driver->id,
             'type' => 'ride_earning',
@@ -349,9 +361,9 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the platform's 5% fee row for that booking. */
-    private function recordPlatformFeeRow(Booking $booking, Wallet $primaryWallet, float $primaryPrev, float $primaryShare, string $txId, string $txRef): void
+    private function recordPlatformFeeRow(Booking $booking, Wallet $primaryWallet, float $primaryPrev, float $primaryShare, string $txId, string $txRef): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
             'user_id' => null,
             'type' => 'platform_fee',
@@ -373,12 +385,12 @@ class RidePayout implements RidePayoutInterface
      * becomes checkable: if the two shares ever stop summing to `$total`, the legs do not
      * balance and the transfer is refused instead of quietly creating or destroying money.
      */
-    private function postPerPassengerTransfer(Booking $booking, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare): void
+    private function postPerPassengerTransfer(Booking $booking, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
     {
         $this->ledger->postTransfer([
-            ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: escrow released"],
-            ['wallet_id' => $driverWallet->id, 'amount' => $driverShare, 'description' => "booking #{$booking->id}: driver share 95%"],
-            ['wallet_id' => $primaryWallet->id, 'amount' => $primaryShare, 'description' => "booking #{$booking->id}: platform fee 5%"],
+            ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: escrow released", 'wallet_transaction_id' => $transactions[$syCashWallet->id]->id ?? null],
+            ['wallet_id' => $driverWallet->id, 'amount' => $driverShare, 'description' => "booking #{$booking->id}: driver share 95%", 'wallet_transaction_id' => $transactions[$driverWallet->id]->id ?? null],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $primaryShare, 'description' => "booking #{$booking->id}: platform fee 5%", 'wallet_transaction_id' => $transactions[$primaryWallet->id]->id ?? null],
         ]);
     }
 

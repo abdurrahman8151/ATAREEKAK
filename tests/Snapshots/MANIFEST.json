@@ -187,7 +187,7 @@
         "state/bookings/cancel-seats.json": "c1c76cf02904d2d2e2989bb7e57ae4346e534b7c3f4b31348ad261f86ad7a58c",
         "state/bookings/cancel-someone-elses-booking.json": "7d2d90c439224dcbdc7d30829dd6233ca5bf973e34f5b10227917b05c9b6a5ef",
         "state/bookings/cancel.json": "718ccfe8e4c56b5d25c8d1440a8d3465a74ba7e2e93bd4baa730f991ac9885e9",
-        "state/bookings/passenger-confirm.json": "38cba5e342de9c23e6a6eb4ed9c020f4934a55d1a2965339b9efbe073784797b",
+        "state/bookings/passenger-confirm.json": "de4fc6b40f41f99e396c2967036854f4892201c9e006c94154e9f4e4e1d55592",
         "state/bookings/passenger-no-show.json": "7d2d90c439224dcbdc7d30829dd6233ca5bf973e34f5b10227917b05c9b6a5ef",
         "state/bookings/reject.json": "1f5f998aa1d3f3c4750bb323769e553aabb3ee755c40e3484e054ad760739774",
         "state/rides/book-more-seats-than-the-ride-has.json": "1e401701ea862befc214363a2335b04906c2f8e634a55db77ee6f7f815da6640",
