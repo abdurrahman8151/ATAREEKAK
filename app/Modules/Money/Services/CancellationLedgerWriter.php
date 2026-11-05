@@ -31,12 +31,12 @@ class CancellationLedgerWriter
         $totalRefund,
         string $escrowOutKey,
         string $txId
-    ): void {
+    ): WalletTransaction {
         $syCashPrev = $syCashWallet->balance;
         $syCashWallet->balance -= $totalRefund;
         $syCashWallet->save();
 
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'driver_cancellation_refunds',
@@ -52,7 +52,7 @@ class CancellationLedgerWriter
     }
 
     /** One passenger's full refund for a driver cancellation: credit the wallet and write the refund row. */
-    public function refundPassengerForDriverCancellation(Ride $ride, Booking $booking, string $txId): void
+    public function refundPassengerForDriverCancellation(Ride $ride, Booking $booking, string $txId): WalletTransaction
     {
         $refundAmount = $booking->seats * $ride->price_per_seat;
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
@@ -61,7 +61,7 @@ class CancellationLedgerWriter
         $passengerWallet->balance += $refundAmount;
         $passengerWallet->save();
 
-        WalletTransaction::create([
+        $refundTransaction = WalletTransaction::create([
             'wallet_id' => $passengerWallet->id,
             'user_id' => $booking->user_id,
             'type' => 'driver_cancellation_refund',
@@ -79,6 +79,8 @@ class CancellationLedgerWriter
             'passenger_id' => $booking->user_id,
             'amount' => $refundAmount,
         ]);
+
+        return $refundTransaction;
     }
 
     /** The refund fan-out as ONE transfer with N+1 legs, posted after the per-passenger loop. */
@@ -86,7 +88,9 @@ class CancellationLedgerWriter
         Ride $ride,
         Collection $bookings,
         Wallet $syCashWallet,
-        $totalRefund
+        $totalRefund,
+        ?WalletTransaction $syCashTransaction = null,
+        array $refundTransactions = []
     ): void {
         // ── Decision un3: double-entry legs for the whole refund ───────────────
         // One transfer, N+1 legs - NOT one transfer per passenger. `postTransfer` checks the fan-out
@@ -100,6 +104,7 @@ class CancellationLedgerWriter
                 'wallet_id' => $syCashWallet->id,
                 'amount' => -$totalRefund,
                 'description' => "ride #{$ride->id}: driver cancellation refund out",
+                'wallet_transaction_id' => $syCashTransaction?->id,
             ]];
 
             foreach ($bookings as $booking) {
@@ -107,6 +112,7 @@ class CancellationLedgerWriter
                     'wallet_id' => $this->access->lockWalletByUserId($booking->user_id)->id,
                     'amount' => (float) $booking->seats * (float) $ride->price_per_seat,
                     'description' => "ride #{$ride->id}: refund to booking #{$booking->id}",
+                    'wallet_transaction_id' => ($refundTransactions[$booking->id] ?? null)?->id,
                 ];
             }
 
@@ -115,7 +121,7 @@ class CancellationLedgerWriter
     }
 
     /** One passenger's full refund for a staff cancellation: credit the wallet and write the refund row. */
-    public function refundPassengerForStaffCancellation(Ride $ride, Booking $booking, string $txId): void
+    public function refundPassengerForStaffCancellation(Ride $ride, Booking $booking, string $txId): WalletTransaction
     {
         $refundAmount = (float) $booking->amount_paid;
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
@@ -124,7 +130,7 @@ class CancellationLedgerWriter
         $passengerWallet->balance += $refundAmount;
         $passengerWallet->save();
 
-        WalletTransaction::create([
+        $refundTransaction = WalletTransaction::create([
             'wallet_id' => $passengerWallet->id,
             'user_id' => $booking->user_id,
             'type' => 'staff_cancellation_refund',
@@ -144,6 +150,8 @@ class CancellationLedgerWriter
             'amount' => $refundAmount,
             'source' => 'booking.amount_paid snapshot',
         ]);
+
+        return $refundTransaction;
     }
 
     /** The single SyCash debit row covering every passenger refund of a staff cancellation. */
@@ -153,12 +161,12 @@ class CancellationLedgerWriter
         $totalRefund,
         string $escrowOutKey,
         string $txId
-    ): void {
+    ): WalletTransaction {
         $syCashPrev = $syCashWallet->balance;
         $syCashWallet->balance -= $totalRefund;
         $syCashWallet->save();
 
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'staff_cancellation_refunds',
@@ -178,7 +186,9 @@ class CancellationLedgerWriter
         Ride $ride,
         Collection $refundable,
         Wallet $syCashWallet,
-        $totalRefund
+        $totalRefund,
+        ?WalletTransaction $syCashTransaction = null,
+        array $refundTransactions = []
     ): void {
         // ── Decision un3: double-entry legs for the whole refund ───────────────
         // N passengers, so N+1 legs: SyCash gives once, each passenger receives. The sum is checked,
@@ -190,6 +200,7 @@ class CancellationLedgerWriter
                 'wallet_id' => $syCashWallet->id,
                 'amount' => -$totalRefund,
                 'description' => "ride #{$ride->id}: staff cancellation refund out",
+                'wallet_transaction_id' => $syCashTransaction?->id,
             ]];
 
             foreach ($refundable as $booking) {
@@ -197,6 +208,7 @@ class CancellationLedgerWriter
                     'wallet_id' => $this->access->lockWalletByUserId($booking->user_id)->id,
                     'amount' => (float) $booking->amount_paid,
                     'description' => "ride #{$ride->id}: refund to booking #{$booking->id}",
+                    'wallet_transaction_id' => ($refundTransactions[$booking->id] ?? null)?->id,
                 ];
             }
 
@@ -205,10 +217,10 @@ class CancellationLedgerWriter
     }
 
     /** Passenger side of a time-based cancellation: a refund row, or an audit row when the refund is zero. */
-    public function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId): void
+    public function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId): WalletTransaction
     {
         if ($refundAmount > 0) {
-            WalletTransaction::create([
+            return WalletTransaction::create([
                 'wallet_id' => $passengerWallet->id,
                 'user_id' => $booking->user_id,
                 'type' => 'time_based_refund',
@@ -222,7 +234,7 @@ class CancellationLedgerWriter
             ]);
         } else {
             // Audit trail for zero-refund so passenger sees it in history
-            WalletTransaction::create([
+            return WalletTransaction::create([
                 'wallet_id' => $passengerWallet->id,
                 'user_id' => $booking->user_id,
                 'type' => 'cancellation_no_refund',
@@ -238,10 +250,10 @@ class CancellationLedgerWriter
     }
 
     /** Driver side of a time-based cancellation: the compensation row, when the driver is owed anything. */
-    public function recordDriverCompensation(Ride $ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): void
+    public function recordDriverCompensation(Ride $ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): ?WalletTransaction
     {
         if ($driverAmount > 0) {
-            WalletTransaction::create([
+            return WalletTransaction::create([
                 'wallet_id' => $driverWallet->id,
                 'user_id' => $ride->driver_id,
                 'type' => 'cancellation_fee_earnings',
@@ -254,6 +266,8 @@ class CancellationLedgerWriter
                 'reference' => "booking:{$booking->id}",
             ]);
         }
+
+        return null;
     }
 
     /**
@@ -298,8 +312,8 @@ class CancellationLedgerWriter
         $syCashPrev,
         string $escrowOutKey,
         string $txId
-    ): void {
-        WalletTransaction::create([
+    ): WalletTransaction {
+        return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'cancellation_processing',
@@ -328,20 +342,23 @@ class CancellationLedgerWriter
         Wallet $driverWallet,
         $totalPaid,
         $refundAmount,
-        $driverAmount
+        $driverAmount,
+        ?WalletTransaction $syCashTransaction = null,
+        ?WalletTransaction $passengerTransaction = null,
+        ?WalletTransaction $driverTransaction = null
     ): void {
         // ── Decision un3: double-entry legs (SyCash → passenger + driver) ────────
         // Three parties, one event. Only legs are built if the amounts are non-zero, so a transfer
         // that (correctly) owes nothing to one side does not post a 0.00 leg - a zero leg is noise,
         // and `postTransfer` would still balance it, which would be misleading rather than wrong.
-        $legs = [['wallet_id' => $syCashWallet->id, 'amount' => -$totalPaid, 'description' => "booking #{$booking->id}: cancellation out"]];
+        $legs = [['wallet_id' => $syCashWallet->id, 'amount' => -$totalPaid, 'description' => "booking #{$booking->id}: cancellation out", 'wallet_transaction_id' => $syCashTransaction?->id]];
 
         if ($refundAmount > 0) {
-            $legs[] = ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger"];
+            $legs[] = ['wallet_id' => $passengerWallet->id, 'amount' => $refundAmount, 'description' => "booking #{$booking->id}: refund to passenger", 'wallet_transaction_id' => $passengerTransaction?->id];
         }
 
         if ($driverAmount > 0) {
-            $legs[] = ['wallet_id' => $driverWallet->id, 'amount' => $driverAmount, 'description' => "booking #{$booking->id}: driver compensation"];
+            $legs[] = ['wallet_id' => $driverWallet->id, 'amount' => $driverAmount, 'description' => "booking #{$booking->id}: driver compensation", 'wallet_transaction_id' => $driverTransaction?->id];
         }
 
         $this->ledger->postTransfer($legs);

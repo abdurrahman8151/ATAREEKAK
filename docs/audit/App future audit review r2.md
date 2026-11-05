@@ -17397,3 +17397,43 @@ assertions**, with the manifest byte-identical (nothing to refresh). `php -l` cl
 **Remaining B2.** `CancellationLedgerWriter` (3 sites), `CashRideCreationFeeCharger`,
 `CashRideDebtClearanceService`, `CashRideFeeRefundService`, and the target side of
 `PassengerWalletCharger::injectExternalCapital`; then the randomized linkage property.
+---
+
+### 263. Stage 2 Phase B2 (fifth slice) - the cancellation paths link their legs
+
+**The change.** All three cancellation money paths now link their legs, and the two fan-out paths (driver
+cancellation, staff cancellation) thread a per-booking map because each passenger's refund is its own row:
+
+- driver cancellation: `recordDriverCancellationEscrowRow()` and `refundPassengerForDriverCancellation()`
+  return their rows; `CancellationRefund::refundPassengersForDriverCancellation()` collects them keyed by
+  booking id and passes `$syCashTransaction` + the map into `postDriverCancellationRefundLegs()`;
+- staff cancellation: the same shape, through `refundPassengersForStaffCancellation()` (which returns its
+  summary array unchanged) and `postStaffCancellationRefundLegs()`. The public delegating wrapper
+  `CancellationRefund::refundPassengerForStaffCancellation()` now returns the row instead of `void`, which is
+  backwards compatible for callers that ignore it;
+- time-based cancellation: `recordTimeBasedCancellationEscrowRow()`, `recordPassengerRefund()` and
+  `recordDriverCompensation()` return their rows and `postTimeBasedCancellationLegs()` takes three optional
+  transactions, one per party. `recordDriverCompensation()` returns `?WalletTransaction` because it
+  legitimately writes nothing when the driver is owed nothing, and its leg is only built in that same
+  non-zero case.
+
+**A PHP detail worth recording, because this phase keeps adding return types.** The first run was red with
+three errors: `recordDriverCompensation(): Return value must be of type ?App\Models\WalletTransaction, none
+returned`. Reaching the end of a function that declares a return type is a `TypeError` - it is *not* an
+implicit `null`, even for a nullable type. The fix is the explicit `return null;` after the `if`. Every other
+row-writer in this slice returns on all paths, so this was the only instance; it is recorded because the
+symptom (a 500 on partial-seat cancellation, logged as `Partial seat cancellation failed`) looks like a
+cancellation bug rather than a missing return.
+
+**Measured.** Corpus 473 -> **481 linked** (122 null); 4 state files regenerated plus `MANIFEST.json`. The
+cancellation paths are only lightly represented in the corpus, so the count moves little even though every
+cancellation leg now links.
+
+**Verification.** `tests/Feature/Payment` + `Bookings` + `Wallet` + `Rides`: **OK, 416 tests, 3024
+assertions** (the same selection was 416/3 errors/2 failures before the `return null` fix, and the two
+`Rides` failures were its downstream effect). Then `Snapshots` + `Payment` + `AppFuture`: **OK, 517 tests,
+5238 assertions**. `php -l` clean; Pint reformatted `CancellationRefund.php` (fully-qualified docblock types,
+unary spacing) - formatting only, re-run after.
+
+**Remaining B2.** `CashRideCreationFeeCharger`, `CashRideDebtClearanceService`, `CashRideFeeRefundService`
+and the target side of `PassengerWalletCharger::injectExternalCapital`; then the randomized linkage property.

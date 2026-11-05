@@ -5,6 +5,7 @@ namespace App\Modules\Money\Services;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\Wallet;
+use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -46,13 +47,16 @@ class CancellationRefund implements CancellationRefundInterface
 
         $txId = 'DRIVER_CANCEL_'.time().'_'.Str::random(6);
 
-        $this->writer->recordDriverCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
+        // Stage 2 B2: keep every row so each leg can name its own side.
+        $syCashTransaction = $this->writer->recordDriverCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
+
+        $refundTransactions = [];
 
         foreach ($bookings as $booking) {
-            $this->writer->refundPassengerForDriverCancellation($ride, $booking, $txId);
+            $refundTransactions[$booking->id] = $this->writer->refundPassengerForDriverCancellation($ride, $booking, $txId);
         }
 
-        $this->writer->postDriverCancellationRefundLegs($ride, $bookings, $syCashWallet, $totalRefund);
+        $this->writer->postDriverCancellationRefundLegs($ride, $bookings, $syCashWallet, $totalRefund, $syCashTransaction, $refundTransactions);
     }
 
     /**
@@ -100,13 +104,16 @@ class CancellationRefund implements CancellationRefundInterface
 
         $txId = 'STAFF_CANCEL_'.time().'_'.Str::random(6);
 
-        $this->writer->recordStaffCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
+        // Stage 2 B2: keep every row so each leg can name its own side.
+        $syCashTransaction = $this->writer->recordStaffCancellationEscrowRow($ride, $syCashWallet, $totalRefund, $escrowOutKey, $txId);
+
+        $refundTransactions = [];
 
         foreach ($refundable as $booking) {
-            $this->refundPassengerForStaffCancellation($ride, $booking, $txId);
+            $refundTransactions[$booking->id] = $this->refundPassengerForStaffCancellation($ride, $booking, $txId);
         }
 
-        $this->writer->postStaffCancellationRefundLegs($ride, $refundable, $syCashWallet, $totalRefund);
+        $this->writer->postStaffCancellationRefundLegs($ride, $refundable, $syCashWallet, $totalRefund, $syCashTransaction, $refundTransactions);
 
         return [
             'refunded' => $totalRefund,
@@ -116,10 +123,14 @@ class CancellationRefund implements CancellationRefundInterface
         ];
     }
 
-    /** One passenger's full refund for a staff cancellation: credit the wallet and write the refund row. */
-    public function refundPassengerForStaffCancellation(Ride $ride, Booking $booking, string $txId): void
+    /**
+     * One passenger's full refund for a staff cancellation: credit the wallet and write the refund row.
+     *
+     * @return WalletTransaction the row this refund wrote (stage 2 B2)
+     */
+    public function refundPassengerForStaffCancellation(Ride $ride, Booking $booking, string $txId)
     {
-        $this->writer->refundPassengerForStaffCancellation($ride, $booking, $txId);
+        return $this->writer->refundPassengerForStaffCancellation($ride, $booking, $txId);
     }
 
     /**
@@ -188,18 +199,20 @@ class CancellationRefund implements CancellationRefundInterface
 
         $txId = 'TIME_CANCEL_'.time().'_'.Str::random(6);
 
-        $this->writer->recordTimeBasedCancellationEscrowRow(
+        // Stage 2 B2: keep every row so each leg can name its own side.
+        $syCashTransaction = $this->writer->recordTimeBasedCancellationEscrowRow(
             $booking, $syCashWallet, $totalPaid, $refundAmount, $driverAmount, $syCashPrev, $escrowOutKey, $txId
         );
 
         // Passenger refund (or an audit row for a zero refund)
-        $this->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
+        $passengerTransaction = $this->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
 
         // Driver compensation
-        $this->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
+        $driverTransaction = $this->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
 
         $this->writer->postTimeBasedCancellationLegs(
-            $booking, $syCashWallet, $passengerWallet, $driverWallet, $totalPaid, $refundAmount, $driverAmount
+            $booking, $syCashWallet, $passengerWallet, $driverWallet, $totalPaid, $refundAmount, $driverAmount,
+            $syCashTransaction, $passengerTransaction, $driverTransaction
         );
 
         Log::info('Time-based cancellation processed', [
@@ -212,16 +225,24 @@ class CancellationRefund implements CancellationRefundInterface
         ]);
     }
 
-    /** Passenger side of a time-based cancellation: a refund row, or an audit row when the refund is zero. */
-    public function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId): void
+    /**
+     * Passenger side of a time-based cancellation: a refund row, or an audit row when the refund is zero.
+     *
+     * @return WalletTransaction the row this policy wrote (stage 2 B2)
+     */
+    public function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId)
     {
-        $this->writer->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
+        return $this->writer->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
     }
 
-    /** Driver side of a time-based cancellation: the compensation row, when the driver is owed anything. */
-    public function recordDriverCompensation(Ride $ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): void
+    /**
+     * Driver side of a time-based cancellation: the compensation row, when the driver is owed anything.
+     *
+     * @return WalletTransaction|null
+     */
+    public function recordDriverCompensation(Ride $ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId)
     {
-        $this->writer->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
+        return $this->writer->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
     }
 
     /**

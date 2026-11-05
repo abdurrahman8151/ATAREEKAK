@@ -152,13 +152,13 @@
             "amount": "-50000.00",
             "id": "<id:61>",
             "wallet_id": "<id:2>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:42>"
         },
         {
             "amount": "50000.00",
             "id": "<id:62>",
             "wallet_id": "<id:6>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:44>"
         }
     ],
     "rides": [
