@@ -30,8 +30,8 @@ use Tests\TestCase;
  */
 class RV42aSuspendedMeansBannedTest extends TestCase
 {
-    use RefreshDatabase;
     use ActsAsStaff;
+    use RefreshDatabase;
 
     /**
      * A plain logged-out account - exactly what every self-registration produces.

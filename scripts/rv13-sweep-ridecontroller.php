@@ -19,7 +19,6 @@
  *
  * Usage: php scripts/rv13-sweep-ridecontroller.php <path-to-RideController.php>
  */
-
 $path = $argv[1] ?? null;
 
 if (! $path || ! is_file($path)) {
@@ -95,16 +94,16 @@ for ($i = 0; $i < count($lines); $i++) {
     }
 
     // Rule 2 first: is there app wording to preserve?
-    $prefixPattern = "/'message' => '([^']+): '\." . preg_quote($GM, '/') . '/';
+    $prefixPattern = "/'message' => '([^']+): '\.".preg_quote($GM, '/').'/';
     if (preg_match($prefixPattern, $line, $m) === 1) {
-        $needle = "'" . $m[1] . ": '." . $GM;
-        $lines[$i] = str_replace($needle, "'" . $m[1] . ".'", $line);
+        $needle = "'".$m[1].": '.".$GM;
+        $lines[$i] = str_replace($needle, "'".$m[1].".'", $line);
         $changed++;
 
         // Rule 3: a bare 'message' => $e->getMessage() has no wording to keep.
-    } elseif (str_contains($line, "'message' => " . $GM)) {
+    } elseif (str_contains($line, "'message' => ".$GM)) {
         $lines[$i] = str_replace(
-            "'message' => " . $GM,
+            "'message' => ".$GM,
             "'message' => 'The request could not be completed. Please try again.'",
             $line
         );
