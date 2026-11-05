@@ -28,9 +28,12 @@ use Tests\TestCase as BaseTestCase;
  * test does NOT decide whether any row is transposed; that is RV-25.
  *
  * Both paths are exercised via the project's own RideBuilder:
- *   - create()          → raw DB::table insert, geometry only, scalars NULL → the FALLBACK path
- *                         (also exactly how the seeders/factory/artisan flows write, which
- *                          bypass the mutator, and how legacy rows look before the backfill)
+ *   - create()          → production-shaped row: raw DB::table insert with the scalar columns
+ *                         populated from the fixture's coordinates → the FAST path (stage 2 B1)
+ *   - create() + withoutScalarCoordinates()
+ *                       → geometry only, scalars NULL → the FALLBACK path (also exactly how the
+ *                         seeders/factory/artisan flows write, and how legacy rows look before
+ *                         the backfill)
  *   - viaModelMutators()→ Eloquent model write path → mutator populates scalars → FAST path
  */
 class RV24RideCoordinateReadTest extends BaseTestCase
@@ -58,8 +61,8 @@ class RV24RideCoordinateReadTest extends BaseTestCase
     /** @test */
     public function the_fast_path_and_the_geometry_fallback_return_identical_coordinates(): void
     {
-        // A raw-insert ride: geometry present, scalars NULL → accessor uses the fallback.
-        $raw = RideBuilder::for()->create();
+        // A geometry-only ride: scalars NULL → accessor uses the fallback.
+        $raw = RideBuilder::for()->withoutScalarCoordinates()->create();
         $this->assertNull($raw->getAttributes()['pickup_lat'] ?? null,
             'precondition: a raw RideBuilder insert has no scalar lat (it is the fallback case)');
 

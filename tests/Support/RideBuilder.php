@@ -31,6 +31,30 @@ final class RideBuilder
 
     private string $destinationWkt = 'POINT(36.2021 37.1343)';
 
+    /**
+     * Stage 2 B1: the SCALAR coordinate columns, which production always has and this fixture did not.
+     *
+     * `rides` carries both the geometry columns and `pickup_lat`/`pickup_lng`/`destination_lat`/
+     * `destination_lng` (added by 2025_05_22_224859 and backfilled from the geometry by
+     * 2026_10_05_000001). `Ride::getPickupLocationAttribute()` reads the scalars first and falls back
+     * to a PER-ROW `SELECT ST_AsText(pickup_location) ... WHERE id = ?` when they are null - so every
+     * fixture inserted by this builder carried nulls and every ride response paid a query per ride.
+     * Writing the scalars makes the fixture row production-shaped and the fallback disappears.
+     *
+     * They are the LATITUDE and LONGITUDE of the points, in that order, independent of the axis order
+     * the WKT happens to use - `geometryOrder()` must not change them, and does not.
+     */
+    private float $pickupLat = 33.5138;
+
+    private float $pickupLng = 36.2765;
+
+    private float $destinationLat = 36.2021;
+
+    private float $destinationLng = 37.1343;
+
+    /** Stage 2 B1: opt out of the scalar columns to get the legacy geometry-only row shape. */
+    private bool $withScalarCoordinates = true;
+
     private int $srid = 4326;
 
     private array $attributes = [];
@@ -81,6 +105,21 @@ final class RideBuilder
     public function withAttributes(array $attributes): self
     {
         $this->attributes = array_merge($this->attributes, $attributes);
+
+        return $this;
+    }
+
+    /**
+     * Write the geometry only, leaving pickup_lat/pickup_lng/destination_lat/destination_lng NULL.
+     *
+     * Stage 2 B1: this is the pre-backfill row shape - how the seeders, the factory and any raw
+     * INSERT still write it - and it is the only shape that exercises the per-row geometry fallback
+     * in `Ride::getPickupLocationAttribute()`. The default is now production-shaped; a test that is
+     * specifically about the fallback asks for this explicitly.
+     */
+    public function withoutScalarCoordinates(): self
+    {
+        $this->withScalarCoordinates = false;
 
         return $this;
     }
@@ -136,6 +175,16 @@ final class RideBuilder
             'created_at' => now(),
             'updated_at' => now(),
         ], $this->attributes);
+
+        // Stage 2 B1: production-shaped scalars. `??=` so a caller that passed its own via
+        // withAttributes() wins, and the geometry columns below are untouched (the axis-order
+        // question is RV-25's, not this fixture's - see the class docblock).
+        if ($this->withScalarCoordinates) {
+            $values['pickup_lat'] ??= $this->pickupLat;
+            $values['pickup_lng'] ??= $this->pickupLng;
+            $values['destination_lat'] ??= $this->destinationLat;
+            $values['destination_lng'] ??= $this->destinationLng;
+        }
 
         // DB::raw is required: the query builder would otherwise quote the whole
         // expression as a string literal and MySQL would reject it with

@@ -17167,4 +17167,76 @@ log` - this commit. Files changed: 50 (46 `app/` files with 126 replacements, th
 `app/Support/Logging/SafeExceptionLog.php`, the new characterization test, the re-scoped ratchet guard, and
 the audit/STATE record). No application behaviour changed: no response body, status code, query count or
 auth rule moved, and `tests/Snapshots` is untouched. Test totals: 3056 -> **3058** (+ the 2 new
-characterization tests), 13243 assertions. Nothing pushed; branch `Agentic` only.
+characterization tests), 13243 assertions. Nothing pushed; branch `Agentic` only.---
+
+### 258. Stage 2 Phase B1 - the ride fixture writes production-shaped coordinate columns
+
+**The finding.** `rides` carries the geometry columns *and* `pickup_lat` / `pickup_lng` /
+`destination_lat` / `destination_lng` (added by `2025_05_22_224859_add_pickup_lat_lng_to_rides_table`,
+backfilled from the geometry by `2026_10_05_000001_backfill_ride_lat_lng_from_geometry`).
+`Ride::getPickupLocationAttribute()` reads the scalars first and, when they are null, falls back to a
+**per-row** `SELECT ST_AsText(pickup_location) AS wkt FROM rides WHERE id = ?` (the RV-24 fast path).
+
+`tests/Support/RideBuilder.php` - the single place that inserts a ride for tests (RV-34) - wrote the
+geometry only. Every fixture row therefore had null scalars, every ride response paid one query per ride,
+and four committed response snapshots recorded `"pickup_lat": null` / `"pickup_lng": null`: a shape
+production never returns.
+
+**The fix.** `RideBuilder::create()` now also writes the four scalar columns (the fixture's own
+coordinates: pickup 33.5138 / 36.2765, destination 36.2021 / 37.1343). They are written with `??=`, so a
+caller that passes its own via `withAttributes()` still wins, and the geometry insert is untouched: the
+axis-order question belongs to RV-25 and this fixture must not silently normalise it.
+
+One test genuinely needs the old row shape: `RV24RideCoordinateReadTest` pins that, with null scalars, the
+accessor equals a geometry parse. It gets an explicit opt-in rather than an edited assertion -
+`RideBuilder::for()->withoutScalarCoordinates()` - so the assertion text is unchanged and the fallback path
+is still covered on purpose.
+
+**The four regenerated response snapshots** (measured: the failing set was exactly these four, no more and
+no fewer):
+
+| snapshot | what changed |
+|---|---|
+| `api/rides/index.json` | `pickup_lat`/`pickup_lng`/`destination_lat`/`destination_lng`: null → `33.51380000` / `36.27650000` / `36.20210000` / `37.13430000` |
+| `api/rides/search-get.json` | same four columns, same values |
+| `api/rides/search-post.json` | same four columns, same values |
+| `api/rides/cancel.json` | same four columns, same values |
+
+Nothing else in those files moved: `git diff` shows only those lines, and no state snapshot changed (the
+state corpus does not project the scalar columns - verified before the change: zero state files mention
+`pickup_lat`).
+
+**Budgets, re-recorded DOWN** (`tests/Snapshots/query-budgets.json`; the store's `record()` is shrink-only
+even under `SNAPSHOT_UPDATE=1`, so no entry could rise):
+
+| case | before | after | removed |
+|---|---|---|---|
+| `rides/index` | 15 | 5 | 10 |
+| `rides/search-get` | 10 | 4 | 6 |
+| `rides/search-post` | 10 | 4 | 6 |
+| `admin/trips-live` | 16 | 10 | 6 |
+| `rides/cancel` | 45 | 43 | 2 |
+| `rides/show` | 11 | 9 | 2 |
+| `rides/passengers` | 16 | 14 | 2 |
+
+**40 queries removed** from the snapshot corpus, all of them the per-row geometry fallback. This is the
+"down where a per-row query disappears" the phase asked for; the two entries that also dropped outside the
+four ride-list files (`rides/show`, `rides/passengers`) fell for the same reason - they render rides too.
+
+**Commands.** Regeneration used the documented pair, and only these:
+`SNAPSHOT_UPDATE=1 php vendor/bin/phpunit tests/Feature/Snapshots` (rewrites the four files and lowers the
+budgets), then `php scripts/refresh-snapshot-manifest.php` - the freeze test (`SnapshotFreezeTest::
+test_every_committed_snapshot_file_matches_the_manifest_hash`) requires the manifest to follow the corpus,
+so `tests/Snapshots/MANIFEST.json` moves here (5 hashes) rather than in B3, which will refresh it again for
+B2's state snapshots. `SNAPSHOT_UPDATE` was unset in every other run.
+
+**Verification.** `tests/Feature/Snapshots`: OK (186 tests, 2069 assertions). `RV24RideCoordinateReadTest`
++ snapshots together: OK (190 tests, 2081 assertions). `tests/Feature/Rides`, `tests/Feature/Bookings`,
+`tests/Feature/Admin`, `tests/Feature/AppFuture`, `tests/Feature/Review`: 944 tests, the single failure
+being `RV24RideCoordinateReadTest:63` - the pinned "a raw RideBuilder insert has no scalar lat"
+precondition - which the `withoutScalarCoordinates()` opt-in resolves without touching the assertion. The
+full default-order suite for Phase B is run once at the end of the phase.
+
+**Not parked, because it is the phase's stated work:** the four response files and seven budget entries
+change a response payload and a query count. The owner authorised exactly this regeneration ("exactly the
+4 ride-list response snapshots and their budget entries").

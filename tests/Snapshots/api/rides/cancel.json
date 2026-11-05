@@ -11,8 +11,8 @@
             "created_at": "<timestamp>",
             "departure_time": "<timestamp>",
             "destination_address": "Aleppo",
-            "destination_lat": null,
-            "destination_lng": null,
+            "destination_lat": "36.20210000",
+            "destination_lng": "37.13430000",
             "destination_location": {
                 "lat": 36.2021,
                 "lng": 37.1343
@@ -27,8 +27,8 @@
             "passengers_confirmed": 0,
             "payment_method": "e-pay",
             "pickup_address": "Damascus",
-            "pickup_lat": null,
-            "pickup_lng": null,
+            "pickup_lat": "33.51380000",
+            "pickup_lng": "36.27650000",
             "pickup_location": {
                 "lat": 33.5138,
                 "lng": 36.2765
