@@ -4,6 +4,7 @@ namespace App\Modules\Communication\Services;
 
 use App\Models\PushNotificationToken;
 use App\Models\User;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -60,7 +61,7 @@ final class PushTokenManager
                 'is_active' => true,
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to register push token: '.$e->getMessage());
+            Log::error('Failed to register push token: '.SafeExceptionLog::message($e));
 
             return null;
         }

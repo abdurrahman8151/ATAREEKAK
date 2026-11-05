@@ -206,7 +206,28 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
-- **STAGE 1 phase 1: COMPLETE (audit `R2 sec 241`).** Five `<Name>ServiceProvider`s register the 75
+- **STAGE 2 - Phase A (A1) COMPLETE, committed as `Stage 2 Phase A: A1 log hygiene ...` (R2 sec 257).** The resume point this block replaced: Phase A (A1) is implemented
+  and locally verified, not yet committed: `app/Support/Logging/SafeExceptionLog.php` is new and
+  126 `->getMessage()` calls inside `Log::error`/`Log::warning`/`Log::critical` sites across 46 files in
+  `app/` now go through it (QueryException -> `SQLSTATE[<state>]: <driver message>`, everything else
+  unchanged; existing context keys kept; no response, status, query or auth change). Three
+  `"{$e->getMessage()}"` interpolations were rewritten as concatenation (`ProfileController::fetchProfile`,
+  `EmailOtpService::sendOtp/verifyOtp`). New characterization test:
+  `tests/Feature/Review/Stage2A1LogRedactionTest.php` (2 tests / 44 assertions, green) - it forces two real
+  MySQL failures (an INSERT naming a column that does not exist) as the positive control, then drives
+  signup Path B and the real `RideLifecycleHandler`/`RideService` ride path with those same real
+  exceptions and asserts the captured log records carry no bound values. Audit section: **R2 sec 257**.
+  To resume: run the full default-order suite with `--log-junit` (the Phase A gate; the earlier attempt was
+  killed by a session suspension at 9%), append sec 257 with the run's wall time and 15 slowest tests, then
+  commit "Stage 2 Phase A: ...". Nothing has been committed for Stage 2 yet; `phpunit.xml`, `AGENTS.md` and
+  `AGENTS.local.md` must stay out of every commit.
+- **Stage 2 parked, one question each.** (a) `TextMeBotOtpService:112` and `WhatsAppOtpService:117` log the
+  raw phone number in the message and `WhatsAppOtpService:271` logs the whole CallMeBot response body
+  (which can carry the OTP itself). Neither is an exception message, so A1 as specified does not cover
+  them - **question: should A2 mask the phone number and the provider response body, and is that in scope
+  for log hygiene?** (b) `SignupRegistrationHandler` keeps `'email' => $request->email` as a context key
+  (kept per "plus the existing context keys") - **question: should the lookup email move to a hash, or is
+  one email address in the log accepted?**- **STAGE 1 phase 1: COMPLETE (audit `R2 sec 241`).** Five `<Name>ServiceProvider`s register the 75
   bindings that used to be `Support/ContainerBindings` (parity proven identical against HEAD); the 34
   `app/Interfaces` ports `git mv`'d into `Modules/<M>/Contracts` (99 files, 187 references rewritten,
   `app/Interfaces` now empty); `tests/Feature/AppFuture/ModuleBoundaryTest.php` added (rules A and B

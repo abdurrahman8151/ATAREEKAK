@@ -3,6 +3,7 @@
 namespace App\Modules\Ride\Services;
 
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -121,7 +122,7 @@ final class GeocodingService implements GeocodingServiceInterface
         } catch (\Exception $e) {
             Log::error('Geocoding failed', [
                 'address' => $address,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
             throw $e;
         }
@@ -159,7 +160,7 @@ final class GeocodingService implements GeocodingServiceInterface
             Log::warning('Reverse geocoding failed', [
                 'lat' => $lat,
                 'lng' => $lng,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return "الموقع: {$lat}, {$lng}";

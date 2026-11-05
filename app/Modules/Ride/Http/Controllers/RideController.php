@@ -16,6 +16,7 @@ use App\Modules\Ride\Services\BookingActionService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RouteCalculationService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -287,7 +288,7 @@ class RideController extends Controller
             Log::error('Passenger confirmation failed', [
                 'booking_id' => $booking,
                 'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
                 'class' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -329,7 +330,7 @@ class RideController extends Controller
             Log::error('Partial seat cancellation failed', [
                 'booking_id' => $bookingId,
                 'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
                 'class' => get_class($e),
             ]);
 
@@ -352,7 +353,7 @@ class RideController extends Controller
             // RV-13: the exception text goes to the LOG, not to the client - a
             // QueryException carries the SQL and the table names.
             Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 422);

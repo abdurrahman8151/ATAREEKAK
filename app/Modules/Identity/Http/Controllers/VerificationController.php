@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 use App\Modules\Identity\Services\VerificationSubmissionService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -76,7 +77,7 @@ class VerificationController extends Controller
             // and the table names of the verification tables.
             Log::error('Verification: status retrieval failed', [
                 'user_id' => $userId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([

@@ -7,6 +7,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -85,7 +86,7 @@ final class StaffCancellationService
         } catch (\Exception $e) {
             Log::error('Staff trip cancellation failed', [
                 'ride_id' => $rideId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return $this->serverError();
@@ -136,7 +137,7 @@ final class StaffCancellationService
         } catch (\Exception $e) {
             Log::error('Staff booking cancellation failed', [
                 'booking_id' => $bookingId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return $this->serverError();

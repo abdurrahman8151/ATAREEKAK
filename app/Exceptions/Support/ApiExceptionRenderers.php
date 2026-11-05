@@ -3,6 +3,7 @@
 namespace App\Exceptions\Support;
 
 use App\Exceptions\Domain\DomainException;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -141,7 +142,7 @@ class ApiExceptionRenderers
                 Log::warning('Domain rule violation masked for production', [
                     'exception' => $e::class,
                     'code' => $e->errorCode,
-                    'detail' => $e->getMessage(),
+                    'detail' => SafeExceptionLog::message($e),
                     'method' => $request->method(),
                     'path' => $request->path(),
                 ]);

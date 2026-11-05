@@ -6,6 +6,7 @@ use App\Http\Resources\BookingResource;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\RideService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -42,7 +43,7 @@ class RideCancellationHandler
             Log::error('Ride cancellation failed', [
                 'ride_id' => $rideId,
                 'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json(['status' => 'error', 'message' => 'The request could not be completed. Please try again.'], 500);
@@ -68,7 +69,7 @@ class RideCancellationHandler
                     );
                 }
             } catch (\Throwable $e) {
-                Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+                Log::warning('ride event notification failed (non-fatal): '.SafeExceptionLog::message($e));
             }
 
             return response()->json([
@@ -81,7 +82,7 @@ class RideCancellationHandler
             // RV-13: the exception text goes to the LOG, not to the client - a
             // QueryException carries the SQL and the table names.
             Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([

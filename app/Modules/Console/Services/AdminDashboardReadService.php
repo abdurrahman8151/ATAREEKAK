@@ -2,6 +2,7 @@
 
 namespace App\Modules\Console\Services;
 
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -38,7 +39,7 @@ final class AdminDashboardReadService
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Dashboard data failed', ['error' => $e->getMessage()]);
+            Log::error('Dashboard data failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',

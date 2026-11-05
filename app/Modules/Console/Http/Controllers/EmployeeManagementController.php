@@ -5,6 +5,7 @@ namespace App\Modules\Console\Http\Controllers;
 use App\Enums\StaffRole;
 use App\Http\Controllers\Controller;
 use App\Modules\Console\Services\EmployeeManagementService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -50,7 +51,7 @@ final class EmployeeManagementController extends Controller
                 )->values(),
             ]);
         } catch (\Throwable $e) {                         // FIX 4: was \Exception
-            Log::error('Employee list failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+            Log::error('Employee list failed', ['error' => SafeExceptionLog::message($e), 'class' => get_class($e)]);
 
             return $this->serverError();
         }
@@ -101,7 +102,7 @@ final class EmployeeManagementController extends Controller
         } catch (\RuntimeException $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 409);
         } catch (\Throwable $e) {                                 // FIX 4
-            Log::error('Employee creation failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+            Log::error('Employee creation failed', ['error' => SafeExceptionLog::message($e), 'class' => get_class($e)]);
 
             return $this->serverError();
         }
@@ -164,7 +165,7 @@ final class EmployeeManagementController extends Controller
         } catch (\RuntimeException $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 409);
         } catch (\Throwable $e) {                                // FIX 4
-            Log::error('Employee update failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+            Log::error('Employee update failed', ['error' => SafeExceptionLog::message($e), 'class' => get_class($e)]);
 
             return $this->serverError();
         }
@@ -192,7 +193,7 @@ final class EmployeeManagementController extends Controller
         } catch (\DomainException $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 403);
         } catch (\Throwable $e) {                                // FIX 4
-            Log::error('Toggle active failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+            Log::error('Toggle active failed', ['error' => SafeExceptionLog::message($e), 'class' => get_class($e)]);
 
             return $this->serverError();
         }
@@ -229,7 +230,7 @@ final class EmployeeManagementController extends Controller
         } catch (\DomainException $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 403);
         } catch (\Throwable $e) {                               // FIX 4
-            Log::error('Password reset failed', ['error' => $e->getMessage(), 'class' => get_class($e)]);
+            Log::error('Password reset failed', ['error' => SafeExceptionLog::message($e), 'class' => get_class($e)]);
 
             return $this->serverError();
         }

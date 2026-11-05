@@ -8,6 +8,7 @@ use App\Modules\Identity\Contracts\StaffJwtInterface;
 use App\Modules\Identity\Contracts\StaffTokenCleanupInterface;
 use App\Modules\Identity\Contracts\StaffTokenVerifierInterface;
 use App\Modules\Identity\Contracts\TokenRevokerInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Carbon\Carbon;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
@@ -74,11 +75,11 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
 
             return null;
         } catch (SignatureInvalidException $e) {
-            Log::warning('Staff JWT signature invalid', ['error' => $e->getMessage()]);
+            Log::warning('Staff JWT signature invalid', ['error' => SafeExceptionLog::message($e)]);
 
             return null;
         } catch (\Throwable $e) {
-            Log::warning('Staff JWT decode error', ['error' => $e->getMessage()]);
+            Log::warning('Staff JWT decode error', ['error' => SafeExceptionLog::message($e)]);
 
             return null;
         }

@@ -7,6 +7,7 @@ use App\Models\Complaint;
 use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -344,7 +345,7 @@ final class StaffComplaintService
             }
         } catch (\Throwable $e) {
             // T3-13: non-fatal by intent, but it must be visible.
-            Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('staff complaint status notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 
@@ -368,7 +369,7 @@ final class StaffComplaintService
                 );
             }
         } catch (\Throwable $e) {
-            Log::warning('staff complaint status notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('staff complaint status notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 

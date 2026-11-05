@@ -2,6 +2,7 @@
 
 namespace App\Modules\Communication\Services;
 
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Exception\Messaging\InvalidMessage;
 use Kreait\Firebase\Exception\Messaging\NotFound;
@@ -41,7 +42,7 @@ final class FcmSenderService
 
             Log::info('FCM V1 service initialized successfully');
         } catch (\Exception $e) {
-            Log::error('Failed to initialize FCM: '.$e->getMessage());
+            Log::error('Failed to initialize FCM: '.SafeExceptionLog::message($e));
             $this->isConfigured = false;
         }
     }
@@ -98,13 +99,13 @@ final class FcmSenderService
                 $aggregatedResults['failure']++;
                 Log::error('Invalid FCM message', [
                     'token' => substr($token, 0, 20).'...',
-                    'error' => $e->getMessage(),
+                    'error' => SafeExceptionLog::message($e),
                 ]);
             } catch (\Exception $e) {
                 $aggregatedResults['failure']++;
                 Log::error('FCM send failed', [
                     'token' => substr($token, 0, 20).'...',
-                    'error' => $e->getMessage(),
+                    'error' => SafeExceptionLog::message($e),
                 ]);
             }
         }
@@ -143,7 +144,7 @@ final class FcmSenderService
         } catch (\Exception $e) {
             Log::error('FCM topic send failed', [
                 'topic' => $topic,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return false;
@@ -170,7 +171,7 @@ final class FcmSenderService
         } catch (\Exception $e) {
             Log::error('Failed to subscribe to topic', [
                 'topic' => $topic,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return false;
@@ -197,7 +198,7 @@ final class FcmSenderService
         } catch (\Exception $e) {
             Log::error('Failed to unsubscribe from topic', [
                 'topic' => $topic,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return false;
@@ -263,7 +264,7 @@ final class FcmSenderService
         } catch (\Exception $e) {
             Log::warning('Token validation failed', [
                 'token' => substr($token, 0, 20).'...',
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return false;

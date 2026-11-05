@@ -4,6 +4,7 @@ namespace App\Modules\Identity\Http\Handlers;
 
 use App\Exceptions\Domain\DomainException;
 use App\Modules\Identity\Services\ProfileInteractionService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -66,7 +67,7 @@ final class ProfileInteractionHandler
             // response()->json($body, 23000) is not a valid response).
             Log::error('Profile: add comment failed', [
                 'user_id' => $actorId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -129,7 +130,7 @@ final class ProfileInteractionHandler
             // response()->json($body, 23000) is not a valid response).
             Log::error('Profile: rating stats failed', [
                 'user_id' => $actorId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             // Batch 231: the deliberate duplicate-rating refusal no longer reaches here - it is a typed

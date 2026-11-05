@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\UserVerified;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -47,7 +48,7 @@ class SendUserVerifiedNotification implements ShouldQueue
             );
         } catch (Throwable $e) {
             // Non-fatal: verification succeeded; only the courtesy notice failed.
-            Log::warning('verification-approved notification failed: '.$e->getMessage());
+            Log::warning('verification-approved notification failed: '.SafeExceptionLog::message($e));
         }
     }
 }

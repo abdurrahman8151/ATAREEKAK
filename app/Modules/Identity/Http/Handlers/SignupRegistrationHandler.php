@@ -5,6 +5,7 @@ namespace App\Modules\Identity\Http\Handlers;
 use App\DTOs\Auth\SendEmailOtpDTO;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
 use App\Modules\Identity\Contracts\UserRepositoryInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +56,7 @@ class SignupRegistrationHandler
         } catch (\Throwable $e) {
             Log::error('Signup: DB lookup failed', [
                 'email' => $request->email,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
                 'class' => get_class($e),
             ]);
 
@@ -132,7 +133,7 @@ class SignupRegistrationHandler
             Log::error('Signup: resend OTP failed (Path A)', [
                 'user_id' => $existingUser->id,
                 'email' => $existingUser->email,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
                 'class' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -172,7 +173,7 @@ class SignupRegistrationHandler
             DB::rollBack();
             Log::error('Registration failed (Path B)', [
                 'email' => $request->email,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
                 'class' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),

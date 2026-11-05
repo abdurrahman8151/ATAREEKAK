@@ -11,6 +11,7 @@ use App\Modules\Identity\Services\ProfileInteractionService;
 use App\Modules\Identity\Services\ProfileUpdateService;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -94,7 +95,7 @@ class ProfileController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error("Profile fetch error: {$e->getMessage()}");
+            Log::error('Profile fetch error: '.SafeExceptionLog::message($e));
 
             return response()->json([
                 'success' => false,
@@ -158,7 +159,7 @@ class ProfileController extends Controller
             // at this point we genuinely do not know why it failed.
             Log::error('Profile: update failed', [
                 'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([

@@ -7,6 +7,7 @@ use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Console\Services\AdminWalletRequestService;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Contracts\LedgerServiceInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -116,7 +117,7 @@ final class AdminWalletRequestController extends Controller
         } catch (\DomainException $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            Log::error('Wallet request approval failed', ['id' => $id, 'error' => $e->getMessage()]);
+            Log::error('Wallet request approval failed', ['id' => $id, 'error' => SafeExceptionLog::message($e)]);
 
             return $this->serverError();
         }
@@ -170,7 +171,7 @@ final class AdminWalletRequestController extends Controller
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'Request not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Wallet request rejection failed', ['id' => $id, 'error' => $e->getMessage()]);
+            Log::error('Wallet request rejection failed', ['id' => $id, 'error' => SafeExceptionLog::message($e)]);
 
             return $this->serverError();
         }
@@ -378,7 +379,7 @@ final class AdminWalletRequestController extends Controller
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('wallet-request decision notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('wallet-request decision notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 
@@ -429,7 +430,7 @@ final class AdminWalletRequestController extends Controller
         } catch (\Throwable $e) {
             Log::error('Auto debt clear failed after wallet charge', [
                 'wallet_request_id' => $walletRequest->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
         }
     }
@@ -453,7 +454,7 @@ final class AdminWalletRequestController extends Controller
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('wallet-request decision notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('wallet-request decision notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 

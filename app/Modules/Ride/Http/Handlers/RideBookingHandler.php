@@ -6,6 +6,7 @@ use App\DTOs\Ride\BookRideDTO;
 use App\Http\Requests\BookRideRequest;
 use App\Http\Resources\BookingResource;
 use App\Modules\Ride\Services\BookingService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
@@ -47,7 +48,7 @@ class RideBookingHandler
             // RV-13 STILL HOLDS: everything else, and above all QueryException with its SQL and
             // table names, falls through to the generic branch below and never reaches the client.
             Log::error('RideController: request refused', [
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -59,7 +60,7 @@ class RideBookingHandler
             // RV-13: the exception text goes to the LOG, not to the client - a
             // QueryException carries the SQL and the table names.
             Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([

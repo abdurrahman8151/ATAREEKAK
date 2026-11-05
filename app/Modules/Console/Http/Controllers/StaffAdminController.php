@@ -10,6 +10,7 @@ use App\Modules\Console\Services\StaffComplaintService;
 use App\Modules\Console\Services\StaffVerificationQueueService;
 use App\Modules\Identity\Contracts\VerificationApprovalInterface;
 use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,7 +64,7 @@ final class StaffAdminController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('StaffAdmin: pendingVerifications failed', ['error' => $e->getMessage()]);
+            Log::error('StaffAdmin: pendingVerifications failed', ['error' => SafeExceptionLog::message($e)]);
 
             return $this->serverError();
         }
@@ -132,7 +133,7 @@ final class StaffAdminController extends Controller
         } catch (\Exception $e) {
             Log::error('StaffAdmin: approveVerification failed', [
                 'user_id' => $userId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             // RV-13: message to the log, not the client (already logged just above).
@@ -184,7 +185,7 @@ final class StaffAdminController extends Controller
         } catch (\Exception $e) {
             Log::error('StaffAdmin: rejectVerification failed', [
                 'user_id' => $userId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return $this->serverError();
@@ -241,7 +242,7 @@ final class StaffAdminController extends Controller
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('user verification decision notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('user verification decision notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 
@@ -331,7 +332,7 @@ final class StaffAdminController extends Controller
         } catch (\Exception $e) {
             Log::error('StaffAdmin: resolveEscalated failed', [
                 'complaint_id' => $complaintId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return $this->serverError();

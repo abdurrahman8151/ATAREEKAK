@@ -6,6 +6,7 @@ use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Modules\Communication\Services\ChatMessageHandler;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -48,7 +49,7 @@ class ChatController extends Controller
             // shape of the database. The client gets a stable, actionable sentence instead.
             Log::error('Chat: fetch conversations failed', [
                 'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -111,7 +112,7 @@ class ChatController extends Controller
             // RV-13: message to the log, not the client (see the note on fetchConversations).
             Log::error('Chat: create conversation failed', [
                 'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -155,7 +156,7 @@ class ChatController extends Controller
             Log::error('Chat: fetch messages failed', [
                 'user_id' => $request->user()?->id,
                 'conversation_id' => $conversationId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -200,7 +201,7 @@ class ChatController extends Controller
             // RV-13: this one IS a broad catch, so its message is whatever went wrong internally.
             Log::error('Chat: send message failed', [
                 'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -237,7 +238,7 @@ class ChatController extends Controller
             Log::error('Chat: delete message failed', [
                 'user_id' => $request->user()?->id,
                 'message_id' => $messageId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([

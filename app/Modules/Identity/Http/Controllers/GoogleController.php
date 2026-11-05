@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use App\Modules\Identity\Services\GoogleUserResolver;
 use App\Modules\Identity\Services\JwtService; // Ensure this is imported
+use App\Support\Logging\SafeExceptionLog;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\RequestException;
@@ -204,7 +205,7 @@ class GoogleController extends Controller
         // mismatch) or the victim's genuine CSRF token (if their session was lost);
         // logging the value can leak it. The exception message + this flag answer the
         // operational question ("did Google send a state at all?") without a secret.
-        Log::warning('Google OAuth Callback Invalid State: '.$e->getMessage(), [
+        Log::warning('Google OAuth Callback Invalid State: '.SafeExceptionLog::message($e), [
             'exception' => get_class($e),
             'state_present' => $request->has('state'),
         ]);
@@ -218,7 +219,7 @@ class GoogleController extends Controller
     private function clientErrorResponse(ClientException $e): JsonResponse
     {
         $responseBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : 'No response body';
-        Log::error('Google OAuth Callback Guzzle Client Error: '.$e->getMessage(), [
+        Log::error('Google OAuth Callback Guzzle Client Error: '.SafeExceptionLog::message($e), [
             'exception' => $e,
             'response_body' => $responseBody,
         ]);
@@ -235,7 +236,7 @@ class GoogleController extends Controller
      */
     private function requestErrorResponse(RequestException $e): JsonResponse
     {
-        Log::error('Google OAuth Callback Guzzle Request (cURL) Error: '.$e->getMessage(), [
+        Log::error('Google OAuth Callback Guzzle Request (cURL) Error: '.SafeExceptionLog::message($e), [
             'exception' => $e,
             'handler_context' => method_exists($e, 'getHandlerContext') ? $e->getHandlerContext() : 'N/A',
         ]);
@@ -252,7 +253,7 @@ class GoogleController extends Controller
      */
     private function generalErrorResponse(\Exception $e): JsonResponse
     {
-        Log::error('Google OAuth Callback General Error: '.$e->getMessage(), [
+        Log::error('Google OAuth Callback General Error: '.SafeExceptionLog::message($e), [
             'exception' => $e,
             'trace' => $e->getTraceAsString(),
         ]);

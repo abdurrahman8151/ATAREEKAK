@@ -207,6 +207,22 @@ class ExceptionMessageLeakRatchetTest extends TestCase
     public function server_side_logging_of_exception_messages_is_not_counted(): void
     {
         // Proves the ratchet is aimed at the right thing rather than banning getMessage() outright.
+        //
+        // RE-SCOPED in stage 2 A1 (R2 sec 257). This guard used to require at least one live
+        // `Log::error(...$e->getMessage())` in the controllers, on the reasoning that a count of zero
+        // means the scan has gone blind. A1 then made the count zero on purpose - every such site in
+        // app/ now formats through App\Support\Logging\SafeExceptionLog::message(), so a QueryException
+        // can no longer write its SQL and its bound values into the log - and a guard that demands a
+        // live leak would demand the very thing A1 removed. The same intent is now proven on a sample
+        // (the matcher still recognises the shape it is meant to ignore) and the live count is asserted
+        // to be exactly 0, which is the stronger statement.
+        $sample = "Log::error('x', ['error' => \$e->getMessage()]);";
+        $this->assertSame(
+            1,
+            preg_match_all('/Log::(error|warning)\([^;]*getMessage\(\)/', $sample),
+            'The matcher must still recognise server-side logging of an exception message.'
+        );
+
         $logged = 0;
 
         foreach (self::controllerFiles() as $path) {
@@ -214,9 +230,10 @@ class ExceptionMessageLeakRatchetTest extends TestCase
             $logged += preg_match_all('/Log::(error|warning)\([^;]*getMessage\(\)/', (string) $raw);
         }
 
-        $this->assertGreaterThan(0, $logged,
-            'The controllers log exception messages server-side. If this is ever zero, the ratchet is '
-            .'over-broad and should be re-scoped before it blocks legitimate logging.');
+        $this->assertSame(0, $logged,
+            'Stage 2 A1 removed the last controller that logged $e->getMessage() directly. A new one '
+            .'would put the SQL and its bound values back into the log: use '
+            .'App\Support\Logging\SafeExceptionLog::message(\$e) instead.');
     }
 
     /**

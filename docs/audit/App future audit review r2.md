@@ -17029,4 +17029,142 @@ The matrix answers the two questions a single run cannot:
 items 1-7 built (the audit section and STATE.md are committed with it).
 **Snapshot / manifest status:** `MANIFEST.json` unchanged at 213 files, corpus byte-identical,
 `SNAPSHOT_UPDATE=1` never set in any of the five runs. Leak guard clean. Nothing pushed; branch `Agentic`
-only.
+only.---
+
+### 257. Stage 2 Phase A (A1) - a failed INSERT stops writing its bound values to the log
+
+**The finding, and the shape of it.** Laravel builds a `QueryException` message as the driver's text
+*plus* the connection, the full statement and every bound value:
+
+```
+SQLSTATE[42S22]: Column not found: 1054 Unknown column 'x' in 'field list'
+(Connection: mysql, SQL: insert into `users` (`first_name`, `email`, `password`, `address`)
+ values (LeakProbeFirst, leak.probe@example.test, $2y$10$LeakProbeHash..., LeakProbeAddress))
+```
+
+So a single `Log::error('Registration failed (Path B)', ['error' => $e->getMessage()])` writes the bcrypt
+hash, the name, the email and the address into `storage/logs/laravel.log` - the owner's test log showed
+exactly that, for signup and for ride creation (phone, addresses, notes). The same pattern existed
+wherever a catch block wraps anything that can reach the database, and in a Laravel application that is
+almost everywhere: an INSERT, an UPDATE, `DB::transaction`, an Eloquent `->save()`.
+
+**The sweep.** `app/` has 153 `Log::error` / `Log::warning` / `Log::critical` sites; **126 of them logged
+`->getMessage()`**. All 126 now go through one formatter, `App\Support\Logging\SafeExceptionLog::message()`
+(new, `app/Support/Logging/`, 46 files changed):
+
+- a `QueryException` becomes `SQLSTATE[<state>]: <driver message>` - the SQLSTATE from `errorInfo[0]`, the
+  driver's own text from `errorInfo[2]` (falling back to `getPrevious()->getMessage()`), and nothing else:
+  no statement, no bindings, no `(Connection: ..., SQL: ...)` suffix;
+- **anything else is returned unchanged**, which is what makes the sweep mechanical rather than 126
+  judgement calls about whether a given catch can see a QueryException. A `ValidationException` still logs
+  the text it logged before, byte for byte;
+- the existing context keys are untouched, so every log line still says what it said plus the safe error
+  text. No response body, status code, query or auth rule is affected - nothing here reads or writes
+  anything but the log.
+
+Three call sites used `"{$e->getMessage()}"` interpolation (`ProfileController::fetchProfile`,
+`EmailOtpService::sendOtp/verifyOtp`) and were rewritten as concatenation: a function call is not valid in
+simple interpolation, and the mechanical pass would otherwise have left a literal `{SafeExceptionLog::...}`
+in the message.
+
+**The characterization test** (`tests/Feature/Review/Stage2A1LogRedactionTest.php`, 2 tests, 44
+assertions) does both halves, because a test that only mocks the exception proves nothing about the real
+one:
+
+1. it **causes real MySQL failures** - an INSERT naming a column that does not exist, with the marker
+   values as genuine bindings - and asserts the caught `QueryException`'s message really does contain each
+   marker (the positive control: without it, "the log is clean" could just mean "the fixture carried
+   nothing");
+2. it feeds those same two real exceptions through the two production paths that used to log them. Signup
+   Path B runs with a repository that throws the real exception; ride creation runs the **real**
+   `RideLifecycleHandler` and the real `RideService` (`RideService` is final, so it cannot be mocked - the
+   throw happens inside the production call stack from a `DB::listen` callback armed after the request is
+   built), and the test asserts the captured log record contains none of the bound values, still carries
+   the SQLSTATE, no longer carries `SQL: insert`, and still carries the driver's own words (the offending
+   column name) so the line remains useful.
+
+The signup email is asserted separately and deliberately: `'email' => $request->email` is an existing
+context key of that log line and A1 keeps the existing keys. The hash, the name and the address arrived
+only through the exception message - those are the leak, and they are gone.
+
+**Parked (out of A1's stated scope, one question each, recorded in STATE.md).**
+
+1. `TextMeBotOtpService` line 112 and `WhatsAppOtpService` line 117 log the raw phone number in the
+   message (`"Failed to send OTP to $validatedPhone"`), and `WhatsAppOtpService` line 271 logs the whole
+   CallMeBot response body. Neither is an exception message, so A1 as specified does not cover them - but
+   the second can carry the OTP itself. **Question:** should A2 mask the phone number and the provider
+   response body, and is that in scope for log hygiene?
+2. `SignupRegistrationHandler` itself keeps `'email' => $request->email` (kept, per "plus the existing
+   context keys"). **Question:** should the lookup email move to a hash, or is a single email address in
+   the log accepted?
+
+**No existing assertion pinned the old text.** Checked with `git grep` for the four named messages
+(`Registration failed (Path B)`, `Ride creation failed`, `resend OTP failed`, `Signup: DB lookup failed`)
+across `tests/`: zero hits, so nothing had to be parked for a pinned assertion.
+
+**One ratchet guard had to be re-scoped, and it is not a pinned log text.** The first default-order suite
+came back with exactly one failure:
+
+```
+Tests\Feature\Review\ExceptionMessageLeakRatchetTest::server_side_logging_of_exception_messages_is_not_counted
+Failed asserting that 0 is greater than 0.
+```
+
+That guard counts `Log::(error|warning)\([^;]*getMessage\(\)` in the controllers and required the count to be
+**greater than zero**, on the reasoning that zero means the scan has gone blind - its own message says "if
+this is ever zero, the ratchet is over-broad and should be re-scoped before it blocks legitimate logging".
+A1 drove that count to zero on purpose, so the guard as written demanded a live leak: the one thing the
+phase removes. It is re-scoped rather than deleted or parked, and the re-scope strengthens it:
+
+- the matcher is proven on a sample string (it still recognises `Log::error('x', ['error' =>
+  $e->getMessage()]);`), so the "aimed at the right thing" property is still proven;
+- the live count is now asserted to be **exactly 0**, with a message telling the next author to use
+  `SafeExceptionLog::message($e)`.
+
+Two other assertions in that same file (`no_controller_may_add_a_new_raw_exception_message_leak`,
+`no_controller_returns_a_raw_exception_message_to_a_client`) are untouched and still green: they scan for
+exception messages in **client responses**, which A1 never touched. The file's own `MIN_SCANNED_FILES`
+floor (stage 1.5 item 2) is untouched, so the scan still proves it walked the controller tree.
+
+**Full default-order suite (the batch's hard rule), first run with `--log-junit` as the owner asked.**
+`Tests: 3058, Assertions: 13243, Skipped: 2` - OK. **Wall clock 34:22** (summed test time 34:18), against
+the owner's 31:48 and the ~17 min norm. Snapshots byte-identical, leak guard clean inside the run,
+whole-tree Pint PASS (791 files).
+
+The 15 slowest tests, and what they say about the 34 minutes:
+
+| # | s | assertions | test |
+|---|---|---|---|
+| 1 | 18.719 | 1 | `Tests\Unit\Broadcasting\NotificationChannelTest::test_channel_class_exists` |
+| 2 | 6.418 | 5 | `RV39SeederHygieneTest::test_wallet_phone_numberspaces_do_not_collide_between_the_two_seeders` |
+| 3 | 6.236 | 7 | `RV39SeederHygieneTest::test_driver_and_passenger_seeders_create_ten_wallets_each_with_distinct_phones` |
+| 4 | 5.682 | 6 | `StaffSnapshotTest::staff/escalated-complaints` |
+| 5 | 5.645 | 6 | `EmployeesSnapshotTest::employees/reset-password` |
+| 6 | 5.619 | 6 | `AdminSnapshotTest::admin/drivers-top` |
+| 7 | 5.575 | 6 | `AdminSnapshotTest::admin/driver-profile` |
+| 8 | 5.557 | 6 | `AdminSnapshotTest::admin/dashboard-stats` |
+| 9 | 5.537 | 6 | `StaffSnapshotTest::staff/escalated-resolve` |
+| 10 | 5.442 | 6 | `AdminSnapshotTest::admin/dashboard-recent` |
+| 11 | 5.430 | 6 | `AdminSnapshotTest::admin/drivers-activity` |
+| 12 | 5.375 | 6 | `StaffSnapshotTest::staff/me` |
+| 13 | 5.365 | 6 | `StaffSnapshotTest::staff/users` |
+| 14 | 5.280 | 6 | `StaffSnapshotTest::staff/chat-messages` |
+| 15 | 5.268 | 6 | `EmployeesSnapshotTest::employees/update` |
+
+**There is no single culprit.** The fifteen slowest tests together are ~92 s of a 34-minute suite - 4.5% -
+and fourteen of the fifteen are route-snapshot cases costing 5.3-6.4 s each. The cost is distributed
+across the whole snapshot corpus (every case boots the application, migrates, seeds and re-runs a route)
+and across the suite's per-test overhead: 3058 tests in 2057 s is ~0.67 s each. The one outlier,
+`NotificationChannelTest::test_channel_class_exists`, is 18.7 s for a single assertion - it is 0.9% of the
+run, worth a look on its own but not the cause. Two facts for the owner: (a) this same suite ran in ~21-24
+minutes earlier today on the same machine (stage 1.5's five-order matrix: 19:19-19:43 per order), so the
+34 minutes is not explained by the two tests Phase A adds - the floor is the machine and the scratch
+database, not one test; (b) if the 17-minute norm matters, the lever is the ~200 route-snapshot cases at
+~5.5 s each, not a test to optimise individually.
+
+**Commit.** `Stage 2 Phase A: A1 log hygiene - a failed INSERT no longer writes its bound values to the
+log` - this commit. Files changed: 50 (46 `app/` files with 126 replacements, the new
+`app/Support/Logging/SafeExceptionLog.php`, the new characterization test, the re-scoped ratchet guard, and
+the audit/STATE record). No application behaviour changed: no response body, status code, query count or
+auth rule moved, and `tests/Snapshots` is untouched. Test totals: 3056 -> **3058** (+ the 2 new
+characterization tests), 13243 assertions. Nothing pushed; branch `Agentic` only.

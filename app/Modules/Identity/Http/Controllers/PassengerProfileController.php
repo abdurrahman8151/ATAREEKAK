@@ -9,6 +9,7 @@ use App\Modules\Identity\Services\JwtService;
 use App\Modules\Identity\Services\PassengerProfilePanelBuilder;
 use App\Modules\Identity\Services\PassengerProfileQueryService;
 use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -96,7 +97,7 @@ final class PassengerProfileController extends Controller
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('PassengerProfile: fullProfile failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+            Log::error('PassengerProfile: fullProfile failed', ['user_id' => $userId, 'error' => SafeExceptionLog::message($e)]);
 
             return $this->serverError();
         }
@@ -337,7 +338,7 @@ final class PassengerProfileController extends Controller
         } catch (\Exception $e) {
             Log::error('PassengerProfile: chargeWallet failed', [
                 'user_id' => $userId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return $this->serverError();
@@ -390,7 +391,7 @@ final class PassengerProfileController extends Controller
             );
         } catch (\Throwable $e) {
             // T3-13: non-fatal by intent, but it must be visible.
-            Log::warning('wallet charge notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('wallet charge notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 

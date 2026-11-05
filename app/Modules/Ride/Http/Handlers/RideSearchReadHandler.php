@@ -6,6 +6,7 @@ use App\Http\Resources\RideResource;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RouteCalculationService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,7 +64,7 @@ class RideSearchReadHandler
         } catch (\InvalidArgumentException $e) {
             return $this->respondSearchRefusalOrFail($e, $request);
         } catch (\Throwable $e) {
-            Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
+            Log::error('Ride search failed', ['error' => SafeExceptionLog::message($e), 'params' => $request->all()]);
 
             return response()->json([
                 'success' => false,
@@ -104,7 +105,7 @@ class RideSearchReadHandler
             return response()->json(['success' => false, 'message' => $message], 422);
         }
 
-        Log::error('Ride search failed', ['error' => $e->getMessage(), 'params' => $request->all()]);
+        Log::error('Ride search failed', ['error' => SafeExceptionLog::message($e), 'params' => $request->all()]);
 
         return response()->json(['success' => false, 'message' => 'Search failed.'], 500);
     }
@@ -130,7 +131,7 @@ class RideSearchReadHandler
             // RV-13: the exception text goes to the LOG, not to the client - a
             // QueryException carries the SQL and the table names.
             Log::error('RideController: request failed', [
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -332,7 +333,7 @@ class RideSearchReadHandler
 
         } catch (\Throwable $e) {
             Log::error('Route options failed', [
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
                 'request' => $request->all(),
             ]);
 

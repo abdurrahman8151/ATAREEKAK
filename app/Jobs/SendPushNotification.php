@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\User;
 use App\Modules\Communication\Contracts\PushNotifierInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -34,7 +35,7 @@ class SendPushNotification implements ShouldQueue
                 Log::info("Push notification sent to user {$this->userId}");
             }
         } catch (\Exception $e) {
-            Log::error('Failed to send push notification: '.$e->getMessage());
+            Log::error('Failed to send push notification: '.SafeExceptionLog::message($e));
             throw $e;
         }
     }

@@ -5,6 +5,7 @@ namespace App\Modules\Identity\Services;
 use App\Domain\ValueObjects\PhoneNumber;
 use App\Models\Otp;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Support\Logging\SafeExceptionLog;
 use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
@@ -77,7 +78,7 @@ class WhatsAppOtpService
 
             return $this->dispatchViaProvider($validatedPhone, $otpCode, $otp);
         } catch (\Exception $e) {
-            Log::error('OTP send error: '.$e->getMessage());
+            Log::error('OTP send error: '.SafeExceptionLog::message($e));
 
             return ['success' => false, 'message' => 'Failed to send OTP. Please try again.'];
         }
@@ -169,7 +170,7 @@ class WhatsAppOtpService
                 ],
             ];
         } catch (\Exception $e) {
-            Log::error('OTP verification error: '.$e->getMessage());
+            Log::error('OTP verification error: '.SafeExceptionLog::message($e));
 
             return ['success' => false, 'message' => 'OTP verification failed'];
         }
@@ -231,7 +232,7 @@ class WhatsAppOtpService
                 'attempts' => 0,
             ]);
         } catch (\Exception $e) {
-            Log::warning('Failed to create bypass OTP record: '.$e->getMessage());
+            Log::warning('Failed to create bypass OTP record: '.SafeExceptionLog::message($e));
         }
     }
 
@@ -272,7 +273,7 @@ class WhatsAppOtpService
 
             return false;
         } catch (RequestException $e) {
-            Log::error('CallMeBot API error: '.$e->getMessage());
+            Log::error('CallMeBot API error: '.SafeExceptionLog::message($e));
 
             return false;
         }

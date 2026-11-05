@@ -5,6 +5,7 @@ namespace App\Modules\Identity\Services;
 use App\Domain\ValueObjects\PhoneNumber;
 use App\Models\Otp;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Support\Logging\SafeExceptionLog;
 use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
@@ -66,7 +67,7 @@ class TextMeBotOtpService
             return $this->unconfiguredResponse($validatedPhone, $otpCode, $otp);
 
         } catch (\Exception $e) {
-            Log::error('TextMeBot OTP send error: '.$e->getMessage());
+            Log::error('TextMeBot OTP send error: '.SafeExceptionLog::message($e));
 
             return [
                 'success' => false,
@@ -193,7 +194,7 @@ class TextMeBotOtpService
             ];
 
         } catch (\Exception $e) {
-            Log::error('OTP verification error: '.$e->getMessage());
+            Log::error('OTP verification error: '.SafeExceptionLog::message($e));
 
             return [
                 'success' => false,
@@ -236,7 +237,7 @@ class TextMeBotOtpService
             return false;
 
         } catch (RequestException $e) {
-            Log::error('TextMeBot API error: '.$e->getMessage());
+            Log::error('TextMeBot API error: '.SafeExceptionLog::message($e));
 
             return false;
         }

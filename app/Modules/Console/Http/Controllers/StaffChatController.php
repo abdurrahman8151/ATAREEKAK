@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Modules\Console\Services\EmployeeManagementService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -296,7 +297,7 @@ final class StaffChatController extends Controller
 
     private function serverError(\Exception $e): JsonResponse
     {
-        Log::error('StaffChatController error: '.$e->getMessage(), [
+        Log::error('StaffChatController error: '.SafeExceptionLog::message($e), [
             'file' => $e->getFile(),
             'line' => $e->getLine(),
         ]);

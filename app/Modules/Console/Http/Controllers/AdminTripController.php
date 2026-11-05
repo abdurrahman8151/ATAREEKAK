@@ -4,9 +4,10 @@ namespace App\Modules\Console\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Console\Services\AdminTripService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;      // ← added
+use Illuminate\Http\Request;      // ← added
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
@@ -100,7 +101,7 @@ final class AdminTripController extends Controller
                 'counts' => $this->tripService->getStatusCounts(),
             ]);
         } catch (\Exception $e) {
-            Log::error('Admin trip list failed', ['error' => $e->getMessage()]);
+            Log::error('Admin trip list failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -137,7 +138,7 @@ final class AdminTripController extends Controller
                 'total' => count($trips),
             ]);
         } catch (\Exception $e) {
-            Log::error('Admin live trips failed', ['error' => $e->getMessage()]);
+            Log::error('Admin live trips failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -189,7 +190,7 @@ final class AdminTripController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Popular routes failed', ['error' => $e->getMessage()]);
+            Log::error('Popular routes failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -240,7 +241,7 @@ final class AdminTripController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Top drivers failed', ['error' => $e->getMessage()]);
+            Log::error('Top drivers failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',

@@ -13,6 +13,7 @@ use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RouteCalculationService;
 use App\Modules\Ride\Services\ScoreService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,7 +61,7 @@ class RideLifecycleHandler
             // this controller. RV-13 holds: anything else stays generic below.
             Log::error('Ride creation refused', [
                 'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -71,7 +72,7 @@ class RideLifecycleHandler
         } catch (\Throwable $e) {
             Log::error('Ride creation failed', [
                 'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
                 'class' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -184,7 +185,7 @@ class RideLifecycleHandler
     {
         Log::error('Create ride with route failed', [
             'user_id' => $userId,
-            'error' => $e->getMessage(),
+            'error' => SafeExceptionLog::message($e),
             'class' => get_class($e),
         ]);
 
@@ -229,7 +230,7 @@ class RideLifecycleHandler
         } catch (\Throwable $e) {
             Log::error('Failed to fetch driver rides', [
                 'driver_id' => $request->user()->id,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([

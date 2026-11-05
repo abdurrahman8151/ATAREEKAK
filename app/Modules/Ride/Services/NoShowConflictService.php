@@ -10,6 +10,7 @@ use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -141,7 +142,7 @@ final class NoShowConflictService
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            Log::warning('no-show notification dispatch failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 

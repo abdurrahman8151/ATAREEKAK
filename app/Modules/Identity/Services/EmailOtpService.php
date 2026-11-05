@@ -8,6 +8,7 @@ use App\Models\Otp;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
 use App\Modules\Identity\Contracts\OtpMailInterface;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Support\Logging\SafeExceptionLog;
 use App\Support\OtpDisclosure;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -80,7 +81,7 @@ final class EmailOtpService implements EmailOtpServiceInterface
             ];
 
         } catch (\Exception $e) {
-            Log::error("EmailOtpService::sendOtp failed: {$e->getMessage()}");
+            Log::error('EmailOtpService::sendOtp failed: '.SafeExceptionLog::message($e));
 
             return [
                 'success' => false,
@@ -128,7 +129,7 @@ final class EmailOtpService implements EmailOtpServiceInterface
             ];
 
         } catch (\Exception $e) {
-            Log::error("EmailOtpService::verifyOtp failed: {$e->getMessage()}");
+            Log::error('EmailOtpService::verifyOtp failed: '.SafeExceptionLog::message($e));
 
             return ['success' => false, 'message' => 'Verification failed.'];
         }

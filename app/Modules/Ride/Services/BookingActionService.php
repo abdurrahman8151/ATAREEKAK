@@ -5,6 +5,7 @@ namespace App\Modules\Ride\Services;
 use App\Models\Booking;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -115,7 +116,7 @@ final class BookingActionService
             );
         } catch (\Throwable $e) {
             // T3-13: non-fatal by intent, but it must be visible.
-            Log::warning('ride confirmation notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('ride confirmation notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 
@@ -136,7 +137,7 @@ final class BookingActionService
                 );
             }
         } catch (\Throwable $e) {
-            Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('ride event notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 
@@ -157,7 +158,7 @@ final class BookingActionService
                 );
             }
         } catch (\Throwable $e) {
-            Log::warning('ride event notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('ride event notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 }

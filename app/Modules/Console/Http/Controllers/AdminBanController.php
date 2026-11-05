@@ -5,8 +5,9 @@ namespace App\Modules\Console\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Console\Services\BanService;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Http\JsonResponse;      // ← added
+use App\Support\Logging\SafeExceptionLog;
+use Illuminate\Database\Eloquent\ModelNotFoundException;      // ← added
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -103,7 +104,7 @@ final class AdminBanController extends Controller
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Ban failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+            Log::error('Ban failed', ['user_id' => $userId, 'error' => SafeExceptionLog::message($e)]);
 
             return $this->serverError();
         }
@@ -156,7 +157,7 @@ final class AdminBanController extends Controller
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Unban failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+            Log::error('Unban failed', ['user_id' => $userId, 'error' => SafeExceptionLog::message($e)]);
 
             return $this->serverError();
         }
@@ -246,7 +247,7 @@ final class AdminBanController extends Controller
             );
         } catch (\Throwable $e) {
             // T3-13: non-fatal by intent, but it must be visible.
-            Log::warning('ban notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('ban notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 
@@ -267,7 +268,7 @@ final class AdminBanController extends Controller
             );
         } catch (\Throwable $e) {
             // T3-13: non-fatal by intent, but it must be visible.
-            Log::warning('unban notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('unban notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 

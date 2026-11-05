@@ -5,6 +5,7 @@ namespace App\Modules\Console\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Console\Services\ComplaintService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -49,7 +50,7 @@ final class ComplaintController extends Controller
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('complaint acknowledgement notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('complaint acknowledgement notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
 
         return response()->json([

@@ -4,7 +4,8 @@ namespace App\Modules\Console\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Console\Services\AdminDriverService;
-use Illuminate\Database\Eloquent\ModelNotFoundException;      // ← added
+use App\Support\Logging\SafeExceptionLog;      // ← added
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -74,7 +75,7 @@ final class AdminDriverController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Driver dashboard failed', ['error' => $e->getMessage()]);
+            Log::error('Driver dashboard failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -106,7 +107,7 @@ final class AdminDriverController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Driver stats failed', ['error' => $e->getMessage()]);
+            Log::error('Driver stats failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -174,7 +175,7 @@ final class AdminDriverController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Driver index failed', ['error' => $e->getMessage()]);
+            Log::error('Driver index failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -223,7 +224,7 @@ final class AdminDriverController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Driver activity feed failed', ['error' => $e->getMessage()]);
+            Log::error('Driver activity feed failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -265,7 +266,7 @@ final class AdminDriverController extends Controller
         } catch (\Exception $e) {
             Log::error('Driver profile failed', [
                 'driver_id' => $driverId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -298,7 +299,7 @@ final class AdminDriverController extends Controller
         } catch (\Exception $e) {
             Log::error('Driver dashboard failed', [
                 'driver_id' => $driverId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([
@@ -343,7 +344,7 @@ final class AdminDriverController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Verification efficiency failed', ['error' => $e->getMessage()]);
+            Log::error('Verification efficiency failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',

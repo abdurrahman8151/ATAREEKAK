@@ -12,6 +12,7 @@ use App\Modules\Console\Services\AdminReportService;
 use App\Modules\Console\Services\AdminVerificationQueueService;      // ← added
 use App\Modules\Console\Services\AdminWalletService;
 use App\Modules\Identity\Contracts\VerificationApprovalInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -270,7 +271,7 @@ final class AdminDashboardController extends Controller
                 'message' => 'No wallet found for this phone number',
             ], 404);
         } catch (\Exception $e) {
-            Log::error('Admin wallet charge failed', ['error' => $e->getMessage()]);
+            Log::error('Admin wallet charge failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -347,7 +348,7 @@ final class AdminDashboardController extends Controller
                 'report_data' => $report,
             ]);
         } catch (\Exception $e) {
-            Log::error('Report generation failed', ['error' => $e->getMessage()]);
+            Log::error('Report generation failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -396,7 +397,7 @@ final class AdminDashboardController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('PDF export failed', ['error' => $e->getMessage()]);
+            Log::error('PDF export failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',
@@ -459,7 +460,7 @@ final class AdminDashboardController extends Controller
             // RV-13: message to the log, not the client.
             Log::error('AdminDashboard: verification decision failed', [
                 'user_id' => $userId,
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return response()->json([

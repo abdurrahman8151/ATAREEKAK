@@ -3,6 +3,7 @@
 namespace App\Modules\Ride\Services;
 
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -50,7 +51,7 @@ final class RouteCalculationService implements RouteCalculationServiceInterface
                 return $this->fetchRoute($origin, $destination);
             } catch (\Exception $e) {
                 Log::warning('Route calculation failed, using fallback', [
-                    'error' => $e->getMessage(),
+                    'error' => SafeExceptionLog::message($e),
                 ]);
 
                 return $this->calculateFallbackRoute($origin, $destination);
@@ -73,7 +74,7 @@ final class RouteCalculationService implements RouteCalculationServiceInterface
                 return $this->fetchAlternatives($origin, $destination, $maxAlternatives);
             } catch (\Exception $e) {
                 Log::warning('Alternative routes failed, using fallback', [
-                    'error' => $e->getMessage(),
+                    'error' => SafeExceptionLog::message($e),
                 ]);
 
                 return [$this->calculateFallbackRoute($origin, $destination)];

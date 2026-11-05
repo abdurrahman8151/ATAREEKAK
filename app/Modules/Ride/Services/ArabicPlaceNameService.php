@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ride\Services;
 
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -130,7 +131,7 @@ final class ArabicPlaceNameService
             return [];
         } catch (\Exception $e) {
             Log::error('Arabic autocomplete failed', [
-                'error' => $e->getMessage(),
+                'error' => SafeExceptionLog::message($e),
             ]);
 
             return [];

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -227,7 +228,7 @@ class WalletRequestService
             // T3-13: was silently swallowed. Non-fatal by intent (a failed
             // acknowledgement must not undo the persisted request), but the
             // failure must be visible to operations.
-            Log::warning('wallet-request acknowledgement notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('wallet-request acknowledgement notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 }

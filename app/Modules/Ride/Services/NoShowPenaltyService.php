@@ -9,6 +9,7 @@ use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Money\Contracts\NoShowSettlementInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -65,7 +66,7 @@ final class NoShowPenaltyService
             } catch (\Throwable $e) {
                 Log::error('Failed to resolve no-show report', [
                     'report_id' => $report->id,
-                    'error' => $e->getMessage(),
+                    'error' => SafeExceptionLog::message($e),
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
                 ]);
@@ -194,7 +195,7 @@ final class NoShowPenaltyService
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            Log::warning('no-show notification dispatch failed (non-fatal): '.SafeExceptionLog::message($e));
         }
 
         // Notify driver: you received your earnings
@@ -210,7 +211,7 @@ final class NoShowPenaltyService
                 'ride'
             );
         } catch (\Throwable $e) {
-            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            Log::warning('no-show notification dispatch failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 
@@ -240,7 +241,7 @@ final class NoShowPenaltyService
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            Log::warning('no-show notification dispatch failed (non-fatal): '.SafeExceptionLog::message($e));
         }
 
         // Notify passenger: refunded (e-pay) or resolved (cash)
@@ -256,7 +257,7 @@ final class NoShowPenaltyService
                 'ride'
             );
         } catch (\Throwable $e) {
-            Log::warning('no-show notification dispatch failed (non-fatal): '.$e->getMessage());
+            Log::warning('no-show notification dispatch failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
 }

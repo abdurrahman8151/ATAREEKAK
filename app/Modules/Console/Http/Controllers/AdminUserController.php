@@ -4,6 +4,7 @@ namespace App\Modules\Console\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Console\Services\AdminUserService;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -79,7 +80,7 @@ final class AdminUserController extends Controller
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
-            Log::error('Admin user index failed', ['error' => $e->getMessage()]);
+            Log::error('Admin user index failed', ['error' => SafeExceptionLog::message($e)]);
 
             return response()->json([
                 'status' => 'error',

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
+use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -327,7 +328,7 @@ final class VerificationSubmissionService
                 'system'
             );
         } catch (\Throwable $e) {
-            Log::warning('verification notification failed (non-fatal): '.$e->getMessage());
+            Log::warning('verification notification failed (non-fatal): '.SafeExceptionLog::message($e));
         }
     }
     // =========================================================================
