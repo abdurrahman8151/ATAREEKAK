@@ -43,12 +43,13 @@ class BookingCharge implements BookingChargeInterface
 
         $txId = 'RB_'.time().'_'.Str::random(8);
 
-        $this->recordChargeTransactions(
+        // Stage 2 B2: the rows are returned keyed by wallet id so the legs can name their own side.
+        $chargeTransactions = $this->recordChargeTransactions(
             $booking, $ride, $passenger, $passengerWallet, $syCashWallet,
             $amount, $passengerPrev, $syCashPrev, $txId, $escrowInKey
         );
 
-        $this->postChargeLegs($booking, $passengerWallet, $syCashWallet, $amount);
+        $this->postChargeLegs($booking, $passengerWallet, $syCashWallet, $amount, $chargeTransactions);
 
         Log::info('Passenger charged — escrow held in SyCash', [
             'booking_id' => $booking->id,
@@ -153,7 +154,14 @@ class BookingCharge implements BookingChargeInterface
         ])->save();
     }
 
-    /** Write the single-sided wallet_transactions rows for this charge. */
+    /**
+     * Write the single-sided wallet_transactions rows for this charge.
+     *
+     * Stage 2 B2: returns them keyed by wallet id, so the double-entry legs can name the row that
+     * recorded THEIR side's movement.
+     *
+     * @return array<int, WalletTransaction>
+     */
     private function recordChargeTransactions(
         Booking $booking,
         Ride $ride,
@@ -165,8 +173,8 @@ class BookingCharge implements BookingChargeInterface
         $syCashPrev,
         string $txId,
         string $escrowInKey
-    ): void {
-        WalletTransaction::create([
+    ): array {
+        $passengerTransaction = WalletTransaction::create([
             'wallet_id' => $passengerWallet->id,
             'user_id' => $passenger->id,
             'type' => 'ride_booking_payment',
@@ -179,7 +187,7 @@ class BookingCharge implements BookingChargeInterface
             'reference' => "booking:{$booking->id}",
         ]);
 
-        WalletTransaction::create([
+        $syCashTransaction = WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
             'user_id' => null,
             'type' => 'escrow_received',
@@ -192,10 +200,19 @@ class BookingCharge implements BookingChargeInterface
             'reference' => "booking:{$booking->id}",
             'posting_key' => $escrowInKey,
         ]);
+
+        return [
+            $passengerWallet->id => $passengerTransaction,
+            $syCashWallet->id => $syCashTransaction,
+        ];
     }
 
-    /** Post the double-entry legs that witness the passenger → SyCash movement. */
-    private function postChargeLegs(Booking $booking, Wallet $passengerWallet, Wallet $syCashWallet, $amount): void
+    /**
+     * Post the double-entry legs that witness the passenger → SyCash movement.
+     *
+     * @param  array<int, WalletTransaction>  $transactions  keyed by wallet id (stage 2 B2)
+     */
+    private function postChargeLegs(Booking $booking, Wallet $passengerWallet, Wallet $syCashWallet, $amount, array $transactions = []): void
     {
         // ── Decision un3: double-entry legs ────────────────────────────────────
         // The two `wallet_transactions` rows above are the SINGLE-SIDED record: one row per wallet
@@ -213,11 +230,13 @@ class BookingCharge implements BookingChargeInterface
                 'wallet_id' => $passengerWallet->id,
                 'amount' => -$amount,
                 'description' => "booking #{$booking->id}: passenger debit",
+                'wallet_transaction_id' => $transactions[$passengerWallet->id]->id ?? null,
             ],
             [
                 'wallet_id' => $syCashWallet->id,
                 'amount' => $amount,
                 'description' => "booking #{$booking->id}: escrow credit",
+                'wallet_transaction_id' => $transactions[$syCashWallet->id]->id ?? null,
             ],
         ]);
     }

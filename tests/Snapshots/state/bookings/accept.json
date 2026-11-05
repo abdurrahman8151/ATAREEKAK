@@ -92,61 +92,61 @@
             "amount": "-5000.00",
             "id": "<id:48>",
             "wallet_id": "<id:6>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:22>"
         },
         {
             "amount": "5000.00",
             "id": "<id:49>",
             "wallet_id": "<id:2>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:24>"
         },
         {
             "amount": "-5000.00",
             "id": "<id:50>",
             "wallet_id": "<id:8>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:26>"
         },
         {
             "amount": "5000.00",
             "id": "<id:51>",
             "wallet_id": "<id:2>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:28>"
         },
         {
             "amount": "-5000.00",
             "id": "<id:52>",
             "wallet_id": "<id:12>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:30>"
         },
         {
             "amount": "5000.00",
             "id": "<id:53>",
             "wallet_id": "<id:2>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:32>"
         },
         {
             "amount": "-5000.00",
             "id": "<id:54>",
             "wallet_id": "<id:8>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:34>"
         },
         {
             "amount": "5000.00",
             "id": "<id:55>",
             "wallet_id": "<id:2>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:36>"
         },
         {
             "amount": "-40000.00",
             "id": "<id:56>",
             "wallet_id": "<id:8>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:38>"
         },
         {
             "amount": "40000.00",
             "id": "<id:57>",
             "wallet_id": "<id:2>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:40>"
         }
     ],
     "rides": [

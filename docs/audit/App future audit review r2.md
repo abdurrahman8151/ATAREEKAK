@@ -17311,3 +17311,34 @@ effect from the state snapshots (the pairs there are consistent with one posting
 suspicion with a code path, not a finding. **Question:** is the inner call intended (and the outer one
 dead), or is this a double-posting bug that should be its own money task before the ledger properties are
 tightened?
+---
+
+### 260. Stage 2 Phase B2 (second slice) - the booking charge links its own two legs
+
+**The change.** `BookingCharge::recordChargeTransactions()` wrote two single-sided rows (the passenger's
+debit and SyCash's escrow credit) and returned nothing, and `postChargeLegs()` posted the two legs with no
+link. It now returns both rows keyed by wallet id and the legs name their own side:
+
+```php
+$chargeTransactions = $this->recordChargeTransactions(...);
+$this->postChargeLegs($booking, $passengerWallet, $syCashWallet, $amount, $chargeTransactions);
+...
+'wallet_transaction_id' => $transactions[$passengerWallet->id]->id ?? null,
+```
+
+The `?? null` keeps the method callable without the map (it is private, so nothing else uses it), and no
+amount, balance, posting key or ordering changes: this is the same two rows and the same two legs, one
+column richer.
+
+**Measured.** The corpus went from **126 linked / 477 null** to **470 linked / 133 null**; 344 legs link
+because a booking charge is the most-travelled money path in the snapshot corpus. 40 state files regenerated
+plus `MANIFEST.json`; no response snapshot and no query budget moved.
+
+**Verification.** `tests/Feature/Snapshots` + `tests/Feature/Payment`: **OK, 461 tests, 4793 assertions**.
+`tests/Feature/Payment`, `tests/Feature/Bookings`, `tests/Feature/Wallet` before the regeneration: OK, 320
+tests. `php -l` clean, Pint PASS on the file.
+
+**Remaining B2 (unchanged from sec 259).** `CancellationLedgerWriter` (3 sites), `NoShowSettlement` (2),
+`RidePayout` (2), `CashRideCreationFeeCharger`, `CashRideDebtClearanceService`, `CashRideFeeRefundService`,
+and the target side of `PassengerWalletCharger::injectExternalCapital`. Then the randomized-property
+extension, which can only pass once those are done.
