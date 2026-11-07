@@ -11,6 +11,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Wallet extends Model
 {
+    /**
+     * Stage 2 C1: explicit, so moving the class into a module namespace can never silently change
+     * which table its rows land in.
+     */
+    protected $table = 'wallets';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;

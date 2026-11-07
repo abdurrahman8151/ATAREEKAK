@@ -125,7 +125,10 @@ class RVWalletRequestEmployeeAttributionTest extends TestCase
             ->assertStatus(200)
             ->assertJsonPath('status', 'success');
 
-        $walletRequest->refresh()->load('processorEmployee');
+        $walletRequest->refresh();
+        // Stage 2 C1: the relation is gone (it would have been a Money -> Console edge). The row is
+        // unchanged, so the employee is read from the id column the relation used.
+        $processor = Employee::findOrFail($walletRequest->processed_by_employee_id);
 
         // The FIX: the decision is attributed to the employee who actually made it.
         $this->assertSame(
@@ -135,8 +138,8 @@ class RVWalletRequestEmployeeAttributionTest extends TestCase
         );
         $this->assertSame(
             $employee->id,
-            $walletRequest->processorEmployee->id,
-            'processorEmployee must resolve to the acting employee'
+            $processor->id,
+            'the recorded employee must match the acting employee'
         );
 
         // THE DEFECT, made visible: the legacy column alone would have named the CUSTOMER.
@@ -190,11 +193,14 @@ class RVWalletRequestEmployeeAttributionTest extends TestCase
             ])
             ->assertStatus(200);
 
-        $walletRequest->refresh()->load('processorEmployee');
+        $walletRequest->refresh();
+        // Stage 2 C1: the relation is gone (it would have been a Money -> Console edge). The row is
+        // unchanged, so the employee is read from the id column the relation used.
+        $processor = Employee::findOrFail($walletRequest->processed_by_employee_id);
 
         $this->assertSame('rejected', $walletRequest->status);
         $this->assertSame($employee->id, $walletRequest->processed_by_employee_id);
-        $this->assertSame($employee->email, $walletRequest->processorEmployee->email);
+        $this->assertSame($employee->email, $processor->email);
     }
 
     /**

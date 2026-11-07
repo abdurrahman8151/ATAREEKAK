@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WalletRequest extends Model
 {
+    /**
+     * Stage 2 C1: explicit, so moving the class into a module namespace can never silently change
+     * which table its rows land in.
+     */
+    protected $table = 'wallet_requests';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
 
@@ -47,19 +53,18 @@ class WalletRequest extends Model
      * `processedBy()` is NOT the employee. It points at `users`, and `StaffJwtMiddleware` resolves
      * it through `EmployeeManagementService::ensureShadowUser()` - a mirror row found or created
      * from the employee's EMAIL. If a real customer holds that email, this is that customer. It is
-     * nullable and null for requests processed before T3-4. Read `processorEmployee()` for who
-     * actually approved or rejected the request.
+     * nullable and null for requests processed before T3-4. `processed_by_employee_id` is the real actor
+     * who approved or rejected the request; look that employee up in Console.
      */
     public function processedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by');
     }
 
-    /** T3-4: the Employee who approved or rejected this request. The real audit actor. */
-    public function processorEmployee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'processed_by_employee_id');
-    }
+    // Stage 2 C1: processorEmployee() was removed. Employee belongs to Console, and this model is
+    // moving into Money, so the relation would have been a new Money -> Console edge (implementation,
+    // not a port). Its only consumer was an attribution test, which now reads the employee row through
+    // the id column directly. The column and the id remain, so nothing about attribution changes.
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

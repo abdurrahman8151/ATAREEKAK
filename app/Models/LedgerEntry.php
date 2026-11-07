@@ -17,6 +17,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class LedgerEntry extends Model
 {
+    /**
+     * Stage 2 C1: explicit, so moving the class into a module namespace can never silently change
+     * which table its rows land in.
+     */
+    protected $table = 'ledger_entries';
+
     use GuardsLazyLoading;
     use HasFactory;
 

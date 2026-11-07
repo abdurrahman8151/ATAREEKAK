@@ -9,6 +9,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WalletTransaction extends Model
 {
+    /**
+     * Stage 2 C1: explicit, so moving the class into a module namespace can never silently change
+     * which table its rows land in.
+     */
+    protected $table = 'wallet_transactions';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;

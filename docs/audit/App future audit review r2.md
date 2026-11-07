@@ -17866,3 +17866,57 @@ recorded with its reason.
 
 **Module 2 is now model-free outside Money.** What remains is purely mechanical: `git mv` the four models into
 `App\Modules\Money\Models` with explicit `$table`, and flip the two readers plus the recorder.
+---
+
+### 275. Stage 2 Phase C1, module 2 (Money), part 2d: the model move was attempted, measured, and reverted - the wall is Console, not Money
+
+The move itself is four `git mv`s. I ran it: the four models into `App\Modules\Money\Models`, explicit
+`$table` (`wallets`, `wallet_requests`, `wallet_transactions`, `ledger_entries`), 108 files' references
+flipped, autoload regenerated. The full suite then failed with 8 tests, 5 of them new, all one cause:
+
+    CONSOLE_to_MONEY                      baseline 0, now non-zero
+    module files reaching another module  Console services importing Money models
+    entrypoints naming module code        two kernel files doing the same
+    every_cross_module_reference_is_contracts
+
+Because Console names **five** Money models from **six** services plus two kernel files:
+
+    Console/Services/AdminWalletRequestService     Wallet, WalletRequest, WalletTransaction
+    Console/Services/AdminWalletService            Wallet, WalletTransaction
+    Console/Services/AdminWalletCharger            Wallet, WalletTransaction
+    Console/Services/AdminReportService            Wallet, WalletTransaction
+    Console/Services/AdminDriverDashboardService   WalletTransaction
+    app/Console/Commands/ReconcileLedgerCommand    Wallet, LedgerEntry
+    app/Console/Testing/Testfullrideflow           Wallet
+
+While those models live in `App\Models` that is kernel-to-kernel and invisible to the ratchets. The moment
+they move, eleven imports become module-to-module *implementation* edges - and `CONSOLE_to_MONEY` is pinned
+at **0** and may never be raised. The module move is therefore not a rename: it is the last step of a port
+extraction that has to exist first.
+
+**Reverted**, because a red tree is not a step. What survives and is verified:
+
+- `WalletRequest::processorEmployee()` is gone. `Employee` belongs to Console, so on the move this relation
+  would have become a `Money -> Console` edge. It had exactly one consumer - `RVWalletRequestEmployeeAttributionTest` -
+  which now reads `Employee::findOrFail($walletRequest->processed_by_employee_id)`. The column, the id and the
+  assertion are unchanged; only the way the test reaches the row changed.
+- The four models carry explicit `protected $table`. Harmless today, and it means the eventual move cannot
+  change which table a row lands in even if someone forgets the step.
+
+**Verification.** AppFuture + Wallet + Review + Snapshots + Admin: **1061 tests, 5207 assertions, exactly the
+3 pre-existing `L16DriverNoShow` failures**; `git status tests/Snapshots` empty; whole-tree Pint clean.
+
+**The precondition for finishing module 2** (this is the work to do next, in this order):
+
+1. `Money\Contracts\WalletRequestAdminPort` - the approve/reject/create-transaction sequence that
+   `AdminWalletRequestService` performs, so Console stops writing Money's tables.
+2. A Money reader for the admin screens: paginated requests with their wallet summary, and the report/dashboard
+   aggregates (`AdminWalletService`, `AdminReportService`, `AdminDriverDashboardService`, `AdminWalletCharger`).
+   `AdminWalletCharger` is Identity-shaped admin charging that belongs in Money behind a port.
+3. `ReconcileLedgerCommand` reads `LedgerEntry`/`Wallet` across the whole ledger - it is a kernel command, so
+   it needs a Money read contract (a reconciliation feed), not the models.
+4. Only then `git mv`, and the flip is mechanical.
+
+That is a real slice of Console's work pulled forward into Money's commit, and it is better named than
+discovered. Nothing was lost: the four `$table` lines and the relation removal are the parts of part 2d that
+did not depend on it.
