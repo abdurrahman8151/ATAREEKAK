@@ -17494,3 +17494,38 @@ every cash-fee leg now links.
 **Verification.** `Payment` + `Admin` + `Wallet` + `Bookings` + `Rides` + `AppFuture`: **OK, 594 tests, 3734
 assertions**. Then `Snapshots` + `Payment` + `AppFuture`: **OK, 517 tests, 5238 assertions**. `php -l` clean
 on all six files; Pint PASS on `app/Modules/Money` (36 files) and the controller.
+---
+
+### 265. Stage 2 Phase B2 (seventh slice) - the seed links too, and the corpus now has exactly one unlinked leg
+
+**The change.** `ApiSnapshotTestCase` seeds three admin charges: it creates the `wallet_transactions` row and
+then calls `injectExternalCapital()` without telling it which row recorded the receiving wallet's movement.
+The seed now keeps that row and passes it, so the seed's inbound legs name their own side like every
+production path does.
+
+**A trap worth recording.** The first attempt wrapped the call as
+`$row = $this->stampRow(WalletTransaction::create([...]), ...)`, and `stampRow(Model $row, Carbon $at): void`
+returns **void**. So `$row` was `null`, the injection silently behaved exactly as before, and the only
+symptom was *the check I was watching*: `SNAPSHOT_UPDATE=1` changed **zero** files and the corpus count did not
+move. Without that observation this would have looked like a successful change. The fix is to capture the row
+from `WalletTransaction::create()` and stamp it separately.
+
+**Measured, and this is the number that closes B2's linkage work.** Corpus went from 482 linked / 121 null to
+**602 linked / 1 null** - 40 state files plus `MANIFEST.json`. Of 603 legs in the corpus, exactly one is
+unlinked, and it is the `+5000` leg on wallet 6 in `admin/passenger-charge-wallet.json`: the target leg of the
+**duplicate injection** measured in sec 264. So B2's linkage is complete for every leg whose movement has a
+row to name; the single exception is not a missing call, it is a money defect. That also sharpens the parked
+dependency: the randomized property would now fail on exactly **one** leg, and that leg disappears only when
+the double injection is fixed.
+
+**Measured reach.** 40 state files changed, which is what a seed-level change should do - the seed funds every
+case's world, so linking it legitimately touches every state snapshot whose ledger contains a seeded charge.
+No response snapshot and no query budget moved.
+
+**Verification.** `Snapshots` + `Payment` + `AppFuture`: **OK, 517 tests, 5238 assertions**. `php -l` clean on
+the test case.
+
+**B2 status.** Every money path in the objective's list now links: booking charge, payout (both flows),
+cancellation refund (driver, staff, time-based), no-show settlement (both), cash creation fee, cash debt
+clearance, cash fee refund, wallet-request approve, admin charge, staff cancellation. One leg remains null,
+because of a parked defect rather than a missing link.

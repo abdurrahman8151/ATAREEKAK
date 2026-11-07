@@ -396,7 +396,7 @@ abstract class ApiSnapshotTestCase extends TestCase
         foreach ([20_000, 35_000, 12_500] as $index => $amount) {
             $credit = $charger->creditWalletBalance($this->passenger, $amount);
 
-            $this->stampRow(WalletTransaction::create([
+            $adminChargeRow = WalletTransaction::create([
                 'wallet_id' => $credit['wallet']->id,
                 'user_id' => $this->platformAdmin->id,
                 'type' => 'admin_charge',
@@ -407,9 +407,12 @@ abstract class ApiSnapshotTestCase extends TestCase
                 'transaction_id' => 'ADM-'.$this->passenger->id.'-'.$index.'-snapshot',
                 'status' => 'completed',
                 'reference' => 'admin_charge:'.$this->passenger->id,
-            ]), now()->subHours(12 - $index));
+            ]);
 
-            $charger->injectExternalCapital($credit['wallet'], $this->passenger, $amount);
+            $this->stampRow($adminChargeRow, now()->subHours(12 - $index));
+
+            // Stage 2 B2: the seed has the row, so the inbound leg can name it.
+            $charger->injectExternalCapital($credit['wallet'], $this->passenger, $amount, $adminChargeRow);
         }
 
         $charger->bustWalletChargeCaches($this->passenger->id);
