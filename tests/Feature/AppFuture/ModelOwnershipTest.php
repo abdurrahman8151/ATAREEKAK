@@ -153,6 +153,90 @@ final class ModelOwnershipTest extends TestCase
     }
 
     /**
+     * Ratchet 2: a module model's relations must point at its own module or at the principal.
+     *
+     * This is the check that the import ratchet cannot make: `WalletRequest::processorEmployee()` declared
+     * `belongsTo(Employee::class)` with **no import**, because both classes lived in `App\Models`. Nothing
+     * text-matched it; it only surfaced when the move would have turned it into a `Money -> Console` edge.
+     * Resolving each `X::class` through the file's own `use` block and namespace is what closes that hole.
+     *
+     * @test
+     */
+    public function a_module_model_only_relates_to_its_own_module_or_the_principal(): void
+    {
+        $scanned = $this->moduleModelRelations();
+        $this->assertGreaterThanOrEqual(
+            6,
+            $scanned['relations'],
+            'Found fewer relations than the Communication models declare - the relation scan is broken.'
+        );
+
+        $violations = $scanned['foreign'];
+        ksort($violations);
+        $this->assertSame(
+            [],
+            $violations,
+            "A module model relates to something it does not own:\n  ".implode("\n  ", array_keys($violations))
+            ."\nUse a Reader contract in the owning module's Contracts instead."
+        );
+    }
+
+    /**
+     * Every relation declared by a module model, resolved to a fully-qualified target class.
+     *
+     * @return array{relations: int, foreign: array<string, true>}
+     */
+    private function moduleModelRelations(): array
+    {
+        $relations = 0;
+        $foreign = [];
+        $relationPattern = '/->(?:belongsTo|hasMany|hasOne|belongsToMany|morphMany|morphTo)\(\s*([A-Za-z0-9_]+)::class/';
+
+        foreach (glob(base_path('app/Modules/*/Models/*.php')) ?: [] as $path) {
+            $source = (string) file_get_contents($path);
+
+            preg_match('/namespace\s+([^;]+);/', $source, $nsMatch);
+            $namespace = trim($nsMatch[1] ?? 'App');
+
+            $imports = [];
+            preg_match_all('/^use\s+([^;]+);/m', $source, $importMatches);
+            foreach ($importMatches[1] as $import) {
+                $import = trim($import);
+                if (str_contains($import, ' as ')) {
+                    [$import] = explode(' as ', $import);
+                    $import = trim($import);
+                }
+                $short = substr($import, (int) strrpos($import, '\\') + 1);
+                $imports[$short] = $import;
+            }
+
+            preg_match_all($relationPattern, $source, $matches);
+
+            foreach ($matches[1] as $short) {
+                $relations++;
+                $target = $imports[$short] ?? $namespace.'\\'.$short;
+
+                if ($target === 'App\Models\User') {
+                    continue;
+                }
+
+                // A model of the same module: App\Modules\<Module>\Models\*
+                // The path is matched separator-agnostically: glob() hands back forward slashes even on
+                // Windows, so comparing against DIRECTORY_SEPARATOR silently reported every sibling.
+                if (preg_match('#^App\\\\Modules\\\\([^\\\\]+)\\\\Models\\\\#', $target, $targetMatch)
+                    && preg_match('#Modules[/\\\\]([^/\\\\]+)[/\\\\]Models#', $path, $selfMatch)
+                    && $targetMatch[1] === $selfMatch[1]) {
+                    continue;
+                }
+
+                $foreign[basename($path).' -> '.$target] = true;
+            }
+        }
+
+        return ['relations' => $relations, 'foreign' => $foreign];
+    }
+
+    /**
      * @param  array<int, string>  $modules
      * @return array<string, true> pair => true
      */

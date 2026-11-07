@@ -17959,3 +17959,35 @@ completeness.
 
 Verification: AppFuture 58 tests / 451 assertions OK; the ratchet alone 2 tests / 6 assertions, and red when
 one line is removed.
+---
+
+### 277. Stage 2 Phase C2, ratchet 2: relations, resolved through the file's own imports
+
+The import ratchet (sec 276) cannot see the failure mode that cost a round: `WalletRequest::processorEmployee()`
+declared `belongsTo(Employee::class)` with **no import**, because both classes lived in `App\Models`. Nothing
+text-matched it. It was invisible until the model move would have turned it into a `Money -> Console` edge.
+
+**What it does now.** Every model under `app/Modules/*/Models/*.php` has its relations parsed
+(`belongsTo`, `hasOne`, `hasMany`, `belongsToMany`, `morphMany`, `morphTo`), and each `X::class` is resolved to
+a fully-qualified target through the file's own `use` block first, its namespace second. A target is allowed
+only if it is `App\Models\User` or a model of the *same* module. Anything else is a violation, reported with
+the declaring file.
+
+**Current state: zero violations, nine relations scanned** - the six Communication models relate to each other
+and to `User`, which is exactly right. The scan is non-vacuous in the direction that matters: it asserts at
+least six relations were found, so a broken glob fails instead of reporting a clean zero against nothing.
+
+**Two bugs in my own check, both caught by the ratchet itself.** First, a leftover `foreach` over what
+`preg_match_all` returns (an int) - a fatal. Second, and more interesting: I compared the file path against
+`DIRECTORY_SEPARATOR`, but `glob()` hands back forward slashes even on Windows, so every sibling relation was
+reported as foreign. Five false violations that looked like real findings. The fix matches the path
+separator-agnostically. A ratchet that cries wolf on its first run would have been deleted by the next person.
+
+**Proved to bite, twice.** An unused `use App\Models\Profile;` is correctly *not* a violation - imports are not
+relations. Adding a real `belongsTo(Profile::class)` to `Message` produced
+`Message.php -> App\Models\Profile` and a failure; restoring the file returned the suite to green.
+
+**Still out of scope** (in the docblock): raw SQL / `DB::table` against another module's tables (needs the
+Phase D table map), kernel models relating *into* a module, and the Console reporting allowlist.
+
+Verification: AppFuture 59 tests / 454 assertions OK; whole-tree Pint 805 files PASS.
