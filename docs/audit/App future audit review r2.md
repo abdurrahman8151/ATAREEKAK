@@ -17638,3 +17638,56 @@ debt. That is what the shrink-only baseline is for: the ownership test is built 
 recorded, the Communication move adds nothing beyond those five, and C2's shrink pass removes them with the
 six call sites migrated to a Communication Reader. Starting the reverse-relation removal *before* the model
 move would mean writing a Reader for a module whose models have not moved yet - i.e. doing the work twice.
+---
+
+### 269. Stage 2 Phase C1, module 1 of 5: Communication moved, and what moving it actually cost
+
+**Moved** (`git mv`, so history follows): six models into `app/Modules/Communication/Models` - Conversation,
+ConversationParticipant, Message, Notification, UserNotification, PushNotificationToken - each with an
+**explicit** `protected $table` stating the name it previously inferred by convention (`conversations`,
+`conversation_participants`, `messages`, `notifications`, `user_notifications`,
+`push_notification_tokens`); and two events into `app/Modules/Communication/Events` - `MessageSent`,
+`NotificationSent` - because they name a Communication model and C1 says events go to their publisher.
+
+**The move forced three things the plan did not list**, each of which the boundary suite caught:
+
+1. `User`'s five reverse relations had 6 call sites, but two were *unused* (`conversations`,
+   `sentMessages`) and the other four were internal accessors plus one controller. So the relations and
+   both unread-count accessors are gone. The API still emits `unread_count` because Communication's
+   `NotificationController` now asks the new `Contracts\UnreadNotificationCounter`
+   (`Services\UnreadNotificationCountReader`) for it - the reader reproduces the old
+   `belongsToMany` + `whereNull('read_at')` join exactly, so the number is unchanged.
+2. The push-token listing endpoint used `$user->pushTokens()`. A controller may not import a model
+   (`controllers_to_models` is 0), so the query moved into `PushNotificationService::activeTokensForUser()`
+   - same rows, same `active()` scope, same JSON.
+3. Console's `StaffChatController` constructed `new MessageSent(...)`. With the event now in Communication
+   that is an illegal Console -> Communication *implementation* edge, so it goes through a new
+   `Contracts\MessageBroadcaster` port (`Services\BroadcastingMessageBroadcaster`), whose parameter is
+   deliberately untyped so the port cannot recreate the edge. This adds a fourth port on the existing
+   Console -> Communication edge: recorded in `ModuleGraphTest::EDGES` with its reason, per that test's own
+   instruction, and the table in its docblock was corrected 3 -> 4.
+
+**Boundary evidence, before/after:** `controllers_to_models` 0 (unchanged), `kernel_use_of_module_contracts`
+5 (unchanged - the `User` contract import I tried first was removed again rather than absorbed),
+`kernel_files_may_not_name_module_implementation` 0, `CONSOLE_to_COMM` 0, `Console -> Communication` 3 -> 4
+(documented), `DanglingImportTest` clean including `routes/channels.php`.
+
+**A ratchet had to grow to stay honest.** `RV38LazyArmingMechanismTest` globbed `app/Models/*.php` and pinned
+`>= 24` model files. After the move it saw 20 and failed - i.e. the sweep would have silently stopped
+covering the moved cohort, the exact failure the trait prevents. It now globs `app/Models/*.php` **and**
+`app/Modules/*/Models/*.php`, derives each FQCN from the file's own `namespace` line, and keeps the same
+floor: 26 files. That is a stronger sweep, not a weaker assertion.
+
+**Deploy notes: drain the queue before deploying.** Two moved classes use `SerializesModels` and can be
+sitting in a serialized queue payload that names their old FQCN: `App\Events\MessageSent` and
+`App\Events\NotificationSent`, now `App\Modules\Communication\Events\...`. A payload enqueued before the
+deploy would fail to unserialize after it.
+
+**Verification.** `php -l` on every changed file; whole-tree Pint clean (795 files). Scoped run over
+Snapshots + Review + Admin + Notifications + Chat + AppFuture: **1052 tests, 5191 assertions, 3 failures**,
+and the 3 are `L16DriverNoShowSettlementCharacterizationTest` - proved **pre-existing** by stashing the whole
+change and re-running that file on HEAD, where it fails identically (3 of 4). `git status tests/Snapshots`
+is empty: Phase C left the frozen corpus byte-identical, as required.
+
+**Genuinely unverified:** the randomized ledger property and the five-order matrix (Phase E) do not cover
+this module yet; and whether any third-party code serialized those two events outside the queue.

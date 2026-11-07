@@ -4,11 +4,11 @@ namespace Tests\Feature\Rides;
 
 use App\Jobs\SendPushNotificationJob;
 use App\Models\Booking;
-use App\Models\Notification;
 use App\Models\Ride;
 use App\Models\User;
-use App\Models\UserNotification;
 use App\Models\Wallet;
+use App\Modules\Communication\Models\Notification;
+use App\Modules\Communication\Models\UserNotification;
 use App\Modules\Money\Services\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;

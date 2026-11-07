@@ -2,9 +2,9 @@
 
 namespace Tests\Unit\Models;
 
-use App\Models\Conversation;
-use App\Models\ConversationParticipant;
 use App\Models\User;
+use App\Modules\Communication\Models\Conversation;
+use App\Modules\Communication\Models\ConversationParticipant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

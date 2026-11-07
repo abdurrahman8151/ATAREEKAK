@@ -66,7 +66,10 @@ class PushNotificationController extends Controller
 
     public function getUserTokens(Request $request): JsonResponse
     {
-        $tokens = $request->user()->pushTokens()->active()->get();
+        // Stage 2 C1: asked through the module's own service instead of a `User` reverse relation, so the
+        // principal no longer owns a relationship to Communication's data and this controller imports no
+        // model (its boundary baseline for models is zero). Same rows, same order, same JSON.
+        $tokens = app(PushNotificationService::class)->activeTokensForUser((int) $request->user()->id);
 
         return response()->json([
             'success' => true,

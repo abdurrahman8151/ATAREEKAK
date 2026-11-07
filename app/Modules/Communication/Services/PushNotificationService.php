@@ -4,6 +4,8 @@ namespace App\Modules\Communication\Services;
 
 use App\Models\User;
 use App\Modules\Communication\Contracts\PushNotifierInterface;
+use App\Modules\Communication\Models\PushNotificationToken;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -27,6 +29,22 @@ final class PushNotificationService implements PushNotifierInterface
         private readonly PushTokenManager $tokenManager,
         private readonly FcmSenderService $fcmSender
     ) {}
+
+    /**
+     * Stage 2 C1: the active token rows for one user, for the API's own listing endpoint.
+     *
+     * That endpoint used to reach them through `$user->pushTokens()`. The authenticated principal no
+     * longer owns a relation to this module's data, so the query lives here: same model, same
+     * `active()` scope, same rows, and the controller stays free of model imports (its boundary
+     * baseline for models is zero).
+     */
+    public function activeTokensForUser(int $userId): Collection
+    {
+        return PushNotificationToken::query()
+            ->where('user_id', $userId)
+            ->active()
+            ->get();
+    }
 
     /**
      * Register a push notification token

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\PushNotificationToken;
 use App\Models\User;
 use App\Modules\Communication\Http\Controllers\PushNotificationController;
+use App\Modules\Communication\Models\PushNotificationToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Concerns\ActsAsStaff;
 use Tests\TestCase;

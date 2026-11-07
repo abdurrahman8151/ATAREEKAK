@@ -2,12 +2,12 @@
 
 namespace App\Modules\Communication\Services;
 
-use App\Events\NotificationSent;
 use App\Jobs\SendPushNotificationJob;
-use App\Models\Notification;
 use App\Models\User;
-use App\Models\UserNotification;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Communication\Events\NotificationSent;
+use App\Modules\Communication\Models\Notification;
+use App\Modules\Communication\Models\UserNotification;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;

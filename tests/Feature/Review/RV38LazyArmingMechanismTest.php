@@ -54,7 +54,14 @@ class RV38LazyArmingMechanismTest extends TestCase
     {
         // If a new model omits the trait, the guard silently stays inert for it. Pin the cohort.
         $models = [];
-        $modelFiles = glob(app_path('Models/*.php')) ?: [];
+        // Stage 2 C1: models now live in app/Models (the principal, plus the ones no module has
+        // claimed yet) AND in app/Modules/<Owner>/Models for every moved model, so the sweep has to
+        // glob both - otherwise it silently stops covering the moved cohort, which is the exact
+        // failure mode the trait exists to prevent.
+        $modelFiles = array_merge(
+            glob(app_path('Models/*.php')) ?: [],
+            glob(app_path('Modules/*/Models/*.php')) ?: []
+        );
 
         // Floor: the cohort is pinned, not just non-empty. Measured 2026-11-03: 26 model files.
         $this->assertGreaterThanOrEqual(
@@ -65,24 +72,29 @@ class RV38LazyArmingMechanismTest extends TestCase
 
         foreach ($modelFiles as $file) {
             $name = basename($file, '.php');
-            if (! preg_match('/^class\s+'.preg_quote($name, '/').'\s+extends/m', (string) file_get_contents($file))) {
+            $source = (string) file_get_contents($file);
+            if (! preg_match('/^class\s+'.preg_quote($name, '/').'\s+extends/m', $source)) {
                 continue;
             }
-            $models[] = $name;
+            // The FQCN comes from the file, not from an assumed App\Models prefix: that is what lets
+            // one sweep cover both the kernel models and the module models.
+            if (! preg_match('/^namespace\s+([^;]+);/m', $source, $namespace)) {
+                continue;
+            }
+            $models[$namespace[1].'\\'.$name] = $name;
         }
-        $this->assertNotEmpty($models, 'expected Eloquent models under app/Models');
+        $this->assertNotEmpty($models, 'expected Eloquent models under app/Models and app/Modules/*/Models');
 
         $usingTrait = [];
-        foreach ($models as $name) {
-            $fqcn = 'App\\Models\\'.$name;
+        foreach (array_keys($models) as $fqcn) {
             if (in_array(GuardsLazyLoading::class, class_uses_recursive($fqcn), true)) {
-                $usingTrait[] = $name;
+                $usingTrait[$fqcn] = true;
             }
         }
 
         $this->assertSame(
             [],
-            array_values(array_diff($models, $usingTrait)),
+            array_values(array_diff(array_keys($models), array_keys($usingTrait))),
             'RV-38: every Eloquent model must `use GuardsLazyLoading` or its lazy guard is inert'
         );
     }

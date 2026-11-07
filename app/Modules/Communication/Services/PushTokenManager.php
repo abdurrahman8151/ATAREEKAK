@@ -2,8 +2,8 @@
 
 namespace App\Modules\Communication\Services;
 
-use App\Models\PushNotificationToken;
 use App\Models\User;
+use App\Modules\Communication\Models\PushNotificationToken;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Log;
 

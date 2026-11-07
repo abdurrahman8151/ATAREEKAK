@@ -3,6 +3,7 @@
 namespace App\Modules\Communication\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Communication\Contracts\UnreadNotificationCounter;
 use App\Modules\Communication\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class NotificationController extends Controller
         return response()->json([
             'success' => true,
             'data' => $notifications,
-            'unread_count' => $request->user()->unread_notifications_count,
+            'unread_count' => app(UnreadNotificationCounter::class)->forUser((int) $request->user()->id),
         ]);
     }
 
@@ -110,7 +111,7 @@ class NotificationController extends Controller
     {
         return response()->json([
             'success' => true,
-            'unread_count' => $request->user()->unread_notifications_count,
+            'unread_count' => app(UnreadNotificationCounter::class)->forUser((int) $request->user()->id),
         ]);
     }
 
@@ -184,7 +185,7 @@ class NotificationController extends Controller
         return response()->json([
             'success' => true,
             'message' => $message,
-            'unread_count' => $request->user()->unread_notifications_count,
+            'unread_count' => app(UnreadNotificationCounter::class)->forUser((int) $request->user()->id),
         ]);
     }
 }

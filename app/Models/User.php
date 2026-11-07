@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Concerns\GuardsLazyLoading;
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Notifications\CustomResetPassword;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -169,40 +168,12 @@ class User extends Authenticatable
         return $this->hasMany(Booking::class);
     }
 
-    public function conversations(): BelongsToMany
-    {
-        return $this->belongsToMany(Conversation::class, 'conversation_participants')
-            ->withPivot(['role', 'joined_at', 'last_read_at'])
-            ->withTimestamps();
-    }
-
-    public function sentMessages(): HasMany
-    {
-        return $this->hasMany(Message::class, 'sender_id');
-    }
-
-    public function notifications(): BelongsToMany
-    {
-        return $this->belongsToMany(Notification::class, 'user_notifications')
-            ->withPivot('read_at')
-            ->withTimestamps();
-    }
-
-    public function userNotifications(): HasMany
-    {
-        return $this->hasMany(UserNotification::class);
-    }
-
-    public function pushTokens(): HasMany
-    {
-        return $this->hasMany(PushNotificationToken::class);
-    }
-
-    public function unreadNotifications()
-    {
-        return $this->userNotifications()->unread()->with('notification');
-    }
-
+    // Stage 2 C1: the five reverse relations to Communication's models (conversations, sentMessages,
+    // notifications, userNotifications, pushTokens) are gone, together with the unread-count accessors
+    // that used them. The authenticated principal does not own another module's data: their three call
+    // sites all lived in Communication's own NotificationController, which now asks this module's
+    // UnreadNotificationCounter directly - so the emitted `unread_count` is unchanged and this file
+    // keeps no edge into the module, neither to a model nor to a contract.
     public function givenRatings(): HasMany
     {
         return $this->hasMany(UserRating::class, 'rater_id');
@@ -219,15 +190,10 @@ class User extends Authenticatable
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────
-    public function getUnreadNotificationCountAttribute()
-    {
-        return $this->userNotifications()->unread()->count();
-    }
-
-    public function getUnreadNotificationsCountAttribute()
-    {
-        return $this->notifications()->whereNull('read_at')->count();
-    }
+    // Stage 2 C1: the two unread-count accessors were removed with the reverse relations. They had three
+    // call sites, all in Communication's own NotificationController, which now asks this module's
+    // UnreadNotificationCounter directly - so the emitted `unread_count` is unchanged and the kernel
+    // keeps no edge into the module, neither to a model nor to a contract.
 
     public function getAverageRatingAttribute()
     {

@@ -2,9 +2,9 @@
 
 namespace Models;
 
-use App\Models\Notification;
 use App\Models\User;
-use App\Models\UserNotification;
+use App\Modules\Communication\Models\Notification;
+use App\Modules\Communication\Models\UserNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

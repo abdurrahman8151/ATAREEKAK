@@ -1,14 +1,17 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Communication\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ConversationParticipant extends Model
 {
+    protected $table = 'conversation_participants';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;

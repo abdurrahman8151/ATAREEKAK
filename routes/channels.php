@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Conversation;
+use App\Modules\Communication\Models\Conversation;
 use Illuminate\Support\Facades\Broadcast;
 
 // Default Laravel channel

@@ -2,9 +2,9 @@
 
 namespace App\Modules\Communication\Http\Controllers;
 
-use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Communication\Events\MessageSent;
 use App\Modules\Communication\Services\ChatMessageHandler;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\Request;

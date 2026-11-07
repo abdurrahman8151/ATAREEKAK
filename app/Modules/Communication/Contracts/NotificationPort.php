@@ -3,7 +3,7 @@
 namespace App\Modules\Communication\Contracts;
 
 use App\Models\User;
-use App\Models\UserNotification;
+use App\Modules\Communication\Models\UserNotification;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**

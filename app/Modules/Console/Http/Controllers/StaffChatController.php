@@ -2,10 +2,10 @@
 
 namespace App\Modules\Console\Http\Controllers;
 
-use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Communication\Contracts\MessageBroadcaster;
 use App\Modules\Console\Services\EmployeeManagementService;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
@@ -192,7 +192,9 @@ final class StaffChatController extends Controller
             );
 
             // Real-time delivery to the user's app via WebSocket
-            broadcast(new MessageSent($message));
+            // Stage 2 C1: the event belongs to Communication, so Console asks through its port instead
+            // of constructing the class (and importing it) itself. Same event, same payload.
+            app(MessageBroadcaster::class)->broadcastMessageSent($message);
 
             return response()->json([
                 'status' => 'success',

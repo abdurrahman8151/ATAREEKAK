@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Snapshots;
 
-use App\Models\Message;
 use App\Models\User;
+use App\Modules\Communication\Models\Message;
 use Illuminate\Support\Facades\DB;
 
 /**

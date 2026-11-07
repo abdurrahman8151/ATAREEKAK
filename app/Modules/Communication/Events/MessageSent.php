@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Events;
+namespace App\Modules\Communication\Events;
 
-use App\Models\Message;
+use App\Modules\Communication\Models\Message;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;

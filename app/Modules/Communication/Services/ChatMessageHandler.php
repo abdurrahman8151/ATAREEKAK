@@ -2,12 +2,12 @@
 
 namespace App\Modules\Communication\Services;
 
-use App\Models\Conversation;
-use App\Models\Message;
 use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Communication\Models\Conversation;
+use App\Modules\Communication\Models\Message;
 use App\Services\File\FileUploadService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;

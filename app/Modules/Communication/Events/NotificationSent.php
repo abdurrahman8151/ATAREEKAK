@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Events;
+namespace App\Modules\Communication\Events;
 
-use App\Models\Notification;
 use App\Models\User;
+use App\Modules\Communication\Models\Notification;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;

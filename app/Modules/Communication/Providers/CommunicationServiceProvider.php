@@ -4,14 +4,18 @@ namespace App\Modules\Communication\Providers;
 
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Communication\Contracts\MessageBroadcaster;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Communication\Contracts\PushNotifierInterface;
+use App\Modules\Communication\Contracts\UnreadNotificationCounter;
 use App\Modules\Communication\Repositories\ChatRepository;
+use App\Modules\Communication\Services\BroadcastingMessageBroadcaster;
 use App\Modules\Communication\Services\ChatMessageHandler;
 use App\Modules\Communication\Services\FcmSenderService;
 use App\Modules\Communication\Services\NotificationService;
 use App\Modules\Communication\Services\PushNotificationService;
 use App\Modules\Communication\Services\PushTokenManager;
+use App\Modules\Communication\Services\UnreadNotificationCountReader;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -48,6 +52,12 @@ final class CommunicationServiceProvider extends ServiceProvider
         $this->app->bind(PushNotifierInterface::class, PushNotificationService::class);
         $this->app->bind(ChatMessageHandlerInterface::class, ChatMessageHandler::class);
         $this->app->bind(ChatRepositoryInterface::class, ChatRepository::class);
+        // Stage 2 C1: how the authenticated principal reads its unread count without owning a relation
+        // to this module's models (`User::unread_notifications_count` emits it as the API's
+        // `unread_count`).
+        $this->app->bind(UnreadNotificationCounter::class, UnreadNotificationCountReader::class);
+        // Stage 2 C1: how another module broadcasts a chat message without naming this event.
+        $this->app->bind(MessageBroadcaster::class, BroadcastingMessageBroadcaster::class);
         // NOTE (stage 1.5 item 4): the OTP mailer binding used to live here, because mail delivery
         // is this context's transport. It was also the only reason this provider imported anything
         // from `Modules/Identity`, i.e. it created the Communication -> Identity edge and with it a

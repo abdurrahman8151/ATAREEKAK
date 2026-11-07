@@ -21,12 +21,12 @@ use Tests\TestCase;
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       1      2        -          1
- *   Console            3       3      2        6          -
+ *   Console            4       3      2        6          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
  *
- *   Communication <-> Console
+ *   Console -> Communication (4 ports as of stage 2 C1; was 3)
  *       Communication's `ContactController` (`POST /api/contact`) puts a passenger into the support
  *       chat, so it needs Console's `SupportAgentRoutingInterface` (which agent is least loaded) and
  *       `EmployeeManagementInterface` (that agent's shadow user) to build its RESPONSE. An event
@@ -35,6 +35,9 @@ use Tests\TestCase;
  *       into Console, which would hand a passenger-facing endpoint to the back-office module; or move
  *       the two port declarations into Communication, which would launder Console's ownership of
  *       employees and support routing.
+ *       Stage 2 C1 added the fourth port, `MessageBroadcaster`: the real-time `MessageSent` event
+ *       names a Communication model, so it moved into Communication with its owner, and Console's
+ *       `StaffChatController` can no longer construct it. Same event, same payload, one import fewer.
  *
  *   Console <-> Identity
  *       Console reaches Identity to authenticate staff (`EmployeeAuthInterface`, `StaffJwtInterface`);
@@ -73,7 +76,7 @@ class ModuleGraphTest extends TestCase
     /** Directed Contracts edges, with the number of distinct ports each one uses. Shrink-only. */
     private const EDGES = [
         'Communication -> Console' => 2,
-        'Console -> Communication' => 3,
+        'Console -> Communication' => 4,
         'Console -> Identity' => 6,
         'Console -> Money' => 3,
         'Console -> Ride' => 2,

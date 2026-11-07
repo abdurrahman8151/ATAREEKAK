@@ -2,9 +2,9 @@
 
 namespace App\Modules\Communication\Contracts;
 
-use App\Models\Conversation;
-use App\Models\Message;
 use App\Models\User;
+use App\Modules\Communication\Models\Conversation;
+use App\Modules\Communication\Models\Message;
 use Illuminate\Database\Eloquent\Collection;
 
 interface ChatRepositoryInterface

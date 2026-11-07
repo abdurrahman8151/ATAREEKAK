@@ -2,9 +2,10 @@
 
 // ============== App/Models/Notification.php ==============
 
-namespace App\Models;
+namespace App\Modules\Communication\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Notification extends Model
 {
+    protected $table = 'notifications';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;

@@ -2,8 +2,8 @@
 
 namespace App\Modules\Communication\Contracts;
 
-use App\Models\Message;
 use App\Models\User;
+use App\Modules\Communication\Models\Message;
 
 /**
  * Port over the chat message pipeline (batch 233).
