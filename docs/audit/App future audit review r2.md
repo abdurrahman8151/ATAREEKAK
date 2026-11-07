@@ -17607,3 +17607,34 @@ a time with their call sites migrated to Readers, and move a module's models in 
 relations disappear - so the tree never contains a cross-module relation that the new test would reject.
 Parked for the owner only if a call site cannot be expressed as a Reader: none found yet, but the call sites
 have not been enumerated, which is the next measurement.
+---
+
+### 268. Stage 2 Phase C1 - the reverse-relation call sites, counted (and the order it settles)
+
+Following sec 267's open question, every call site of the eight `User` reverse relations was counted
+(`->name` occurrences in `app/` and `tests/`):
+
+| relation | app | tests | verdict |
+|---|---|---|---|
+| `conversations` | 0 | 0 | dead - removable with no call-site work |
+| `sentMessages` | 0 | 0 | dead - removable with no call-site work |
+| `notifications` | 3 | 0 | small |
+| `userNotifications` | 2 | 1 | small |
+| `pushTokens` | 1 | 0 | trivial |
+| `rides` | 2 | 2 | small (Ride module) |
+| `bookings` | 16 | 0 | medium (Ride module) |
+| `wallet` | 33 | 88 | heavy (Money module) |
+
+**What this settles.** The Communication relations - the ones that made sec 267 doubt the required order -
+total **six call sites**, two of the five relations are entirely unused, and none sit in tests beyond one. So
+Communication remains the correct first module, exactly as the phase specifies; the coupling is real but
+small. The genuinely expensive work is concentrated in Money (`wallet`, 121 sites) and Ride (`bookings` 16,
+`rides` 4), which are modules 2 and 3 in the required order - so difficulty rises in the order the phase
+already chose, and the last two modules (Identity, Console) will start from a mostly-clean tree.
+
+**Consequence for how C1 lands.** `App\Models\User` must keep its five Communication relations until C2
+replaces them, so the Communication move needs five cross-module imports in `User` as *recorded, shrinking*
+debt. That is what the shrink-only baseline is for: the ownership test is built first with today's violations
+recorded, the Communication move adds nothing beyond those five, and C2's shrink pass removes them with the
+six call sites migrated to a Communication Reader. Starting the reverse-relation removal *before* the model
+move would mean writing a Reader for a module whose models have not moved yet - i.e. doing the work twice.
