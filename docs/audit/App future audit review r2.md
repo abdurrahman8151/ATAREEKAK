@@ -17920,3 +17920,42 @@ extraction that has to exist first.
 That is a real slice of Console's work pulled forward into Money's commit, and it is better named than
 discovered. Nothing was lost: the four `$table` lines and the relation removal are the parts of part 2d that
 did not depend on it.
+---
+
+### 276. Stage 2 Phase C2, ratchet 1: the ownership rule becomes executable, at 35 violations
+
+C2 asks for a `ModelOwnershipTest` that is shrink-only and non-vacuous. It now exists and it is the first
+executable statement of the ownership rule - before this, "a module may only name models it owns" was prose in
+an audit file, which is why module 2's model move could be planned for two commits before anyone counted the
+consumers.
+
+**What it measures.** Every PHP file under `app/Modules/<Module>/`, scanned for `App\Models\<Model>`; the pair
+`(module, model)` is the unit. `App\Models\User` is allowed - it is the authenticated principal - and
+`Concerns` is not a model. A pair is a violation today because every model still lives in the kernel, so
+"owned" means `App\Modules\<Self>\Models\*` and nothing else yet.
+
+**Why pairs, not occurrences.** Ten Console services touching `Wallet` is one architectural fact, not ten.
+Counting pairs means moving a query between two services in the same module does not churn the baseline, while
+a genuinely new dependency always registers.
+
+**The baseline: 35 pairs.** Console 13, Ride 6, Identity 11, Money 6, Communication 1 - listed in the test with
+the table each model owns, so the list is also a rough map of who reads whose data.
+
+**Non-vacuity, proved rather than asserted.** The sweep fails if it finds fewer than five module directories or
+no model imports at all, and the baseline fails if empty. I also proved it bites: deleting one baseline line made
+the suite fail with `A module started naming a model it does not own: Communication -> Profile`, and restoring
+the line made it pass. A test that only ever passes is decoration.
+
+**Shrink-only, in the style the query budgets use.** A pair that disappears is printed to stderr as
+"baseline can shrink - remove: ..." instead of failing, so a legitimate improvement is never blocked by a stale
+line, and the list cannot quietly rot until someone re-derives it.
+
+**Explicitly out of scope for this first version**: relations declared without an import (`Employee::class`
+from a same-namespace model - that only appears once models move between namespaces, and it is exactly how
+`WalletRequest::processorEmployee` hid), `DB::table()`/raw SQL against another module's tables (needs the
+table-to-owner map Phase D writes), and the Console reporting allowlist. Those are the next three ratchets,
+each added in the commit that creates the need for it. The docblock says so, so nobody mistakes coverage for
+completeness.
+
+Verification: AppFuture 58 tests / 451 assertions OK; the ratchet alone 2 tests / 6 assertions, and red when
+one line is removed.

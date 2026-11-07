@@ -1,0 +1,185 @@
+<?php
+
+namespace Tests\Feature\AppFuture;
+
+use Tests\TestCase;
+
+/**
+ * Stage 2 C2: the data-ownership ratchet.
+ *
+ * WHAT IT ASSERTS
+ *
+ * A module may name models it owns (`App\Modules\<Self>\Models\*`) and the authenticated principal
+ * (`App\Models\User`). It may not name any other model. Today every model still lives in `App\Models`,
+ * so "owns" is aspirational: the pairs below are the violations that exist, and the list may only
+ * SHRINK. A new pair fails the build; the fix is a Reader contract in the owning module, not a new
+ * line in this file.
+ *
+ * WHY A COUNT OF PAIRS AND NOT OF OCCURRENCES
+ *
+ * A pair is (module, foreign model). Ten services in Console touching `Wallet` is one architectural
+ * fact, not ten. Counting pairs means moving a query from one service to another inside the same
+ * module does not churn the baseline, while a genuinely new dependency always shows up.
+ *
+ * NON-VACUOUS BY CONSTRUCTION
+ *
+ * The sweep asserts it actually found modules and files before comparing anything, and the baseline
+ * asserts it is not empty. A broken glob or a moved directory fails loudly instead of reporting zero
+ * violations against zero files.
+ *
+ * SCOPE - what this first version does NOT cover yet, deliberately:
+ *
+ *  - relations declared without an import (`Employee::class` from a same-namespace model), because
+ *    that only appears once models start moving between namespaces;
+ *  - `DB::table()` / raw SQL against another module's tables - that needs the table-to-owner map
+ *    Phase D writes;
+ *  - the Console reporting allowlist.
+ *
+ * Those are the next three ratchets, added in the commits that create the need for them.
+ */
+final class ModelOwnershipTest extends TestCase
+{
+    /** Models that belong to the kernel rather than a module. Only `User` is allowed as a type. */
+    private const PRINCIPAL = 'User';
+
+    /**
+     * The violations that exist today: (module -> foreign kernel model) => the tables the model owns.
+     * Shrink-only. Never add a line; remove one when the module stops naming that model.
+     *
+     * @var array<string, string>
+     */
+    private const KERNEL_MODEL_IMPORTS = [
+        'Communication -> Profile' => 'profiles',
+        'Console -> Booking' => 'bookings',
+        'Console -> Complaint' => 'complaints',
+        'Console -> ComplaintAttachment' => 'complaint_attachments',
+        'Console -> Employee' => 'employees',
+        'Console -> Photo' => 'photos',
+        'Console -> Profile' => 'profiles',
+        'Console -> ProfileComment' => 'profile_comments',
+        'Console -> Ride' => 'rides',
+        'Console -> UserRating' => 'user_ratings',
+        'Console -> Wallet' => 'wallets',
+        'Console -> WalletRequest' => 'wallet_requests',
+        'Console -> WalletTransaction' => 'wallet_transactions',
+        'Identity -> Booking' => 'bookings',
+        'Identity -> Complaint' => 'complaints',
+        'Identity -> Employee' => 'employees',
+        'Identity -> Otp' => 'otps',
+        'Identity -> Photo' => 'photos',
+        'Identity -> Profile' => 'profiles',
+        'Identity -> ProfileComment' => 'profile_comments',
+        'Identity -> RefreshToken' => 'refresh_tokens',
+        'Identity -> StaffRefreshToken' => 'staff_refresh_tokens',
+        'Identity -> UserRating' => 'user_ratings',
+        'Money -> Booking' => 'bookings',
+        'Money -> LedgerEntry' => 'ledger_entries',
+        'Money -> Ride' => 'rides',
+        'Money -> Wallet' => 'wallets',
+        'Money -> WalletRequest' => 'wallet_requests',
+        'Money -> WalletTransaction' => 'wallet_transactions',
+        'Ride -> Booking' => 'bookings',
+        'Ride -> Complaint' => 'complaints',
+        'Ride -> NoshowReport' => 'noshow_reports',
+        'Ride -> Ride' => 'rides',
+        'Ride -> ScoreTransaction' => 'score_transactions',
+        'Ride -> UserScore' => 'user_scores',
+    ];
+
+    /** @test */
+    public function a_module_may_only_name_models_it_owns(): void
+    {
+        $modules = $this->moduleDirectories();
+        $this->assertGreaterThanOrEqual(
+            5,
+            count($modules),
+            'The module sweep found fewer modules than exist - the scan is broken, not the codebase.'
+        );
+
+        $found = $this->foreignModelPairs($modules);
+        $this->assertNotEmpty($found, 'The scan found no model imports at all - it is not looking where modules are.');
+
+        $declared = self::KERNEL_MODEL_IMPORTS;
+        $this->assertNotEmpty($declared, 'A empty baseline would make this ratchet vacuous.');
+
+        $new = array_values(array_diff(array_keys($found), array_keys($declared)));
+        sort($new);
+        $this->assertSame(
+            [],
+            $new,
+            "A module started naming a model it does not own:\n  ".implode("\n  ", $new)
+            ."\nAdd a Reader contract in the owning module's Contracts instead of a line here."
+        );
+    }
+
+    /**
+     * Shrink-only, reported rather than enforced the way the query budgets are: when a pair disappears,
+     * this prints it so the baseline can be lowered in the commit that removed it. It never fails, so a
+     * legitimate improvement is never blocked by a stale line.
+     *
+     * @test
+     */
+    public function the_baseline_is_shrink_only_and_reports_what_can_be_removed(): void
+    {
+        $found = array_keys($this->foreignModelPairs($this->moduleDirectories()));
+        $gone = array_values(array_diff(array_keys(self::KERNEL_MODEL_IMPORTS), $found));
+
+        if ($gone !== []) {
+            sort($gone);
+            fwrite(STDERR, "\n  [model-ownership] baseline can shrink - remove: ".implode(', ', $gone)."\n");
+        }
+
+        // Nothing to enforce: the assertion above already fails on a NEW pair. This test exists to make
+        // the stale entries visible instead of letting the list rot until someone re-derives it.
+        $this->assertTrue(true);
+    }
+
+    /** @return array<int, string> */
+    private function moduleDirectories(): array
+    {
+        $base = base_path('app/Modules');
+        if (! is_dir($base)) {
+            return [];
+        }
+
+        $modules = [];
+        foreach (scandir($base) ?: [] as $entry) {
+            if ($entry !== '.' && $entry !== '..' && is_dir($base.'/'.$entry)) {
+                $modules[] = $entry;
+            }
+        }
+
+        return $modules;
+    }
+
+    /**
+     * @param  array<int, string>  $modules
+     * @return array<string, true> pair => true
+     */
+    private function foreignModelPairs(array $modules): array
+    {
+        $pairs = [];
+        $pattern = '/App\\\\Models\\\\([A-Za-z0-9_]+)/';
+
+        foreach ($modules as $module) {
+            $root = base_path('app/Modules/'.$module);
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root));
+            foreach ($iterator as $file) {
+                if (! $file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                preg_match_all($pattern, (string) file_get_contents($file->getPathname()), $matches);
+                foreach (array_unique($matches[1]) as $model) {
+                    if ($model === self::PRINCIPAL || $model === 'Concerns') {
+                        continue;
+                    }
+
+                    $pairs[$module.' -> '.$model] = true;
+                }
+            }
+        }
+
+        return $pairs;
+    }
+}
