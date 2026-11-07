@@ -17751,3 +17751,40 @@ Identity's 7 relation reads to `WalletDirectory` and its two `WalletTransaction`
 Money so Identity stops formatting another module's model); drop `with('wallet')` from the two query methods
 and `User::wallet()`; then move the four models. The budgets in the frozen corpus are the referee: if the
 panel gains a query, the swap is wrong.
+---
+
+### 272. Stage 2 Phase C1, module 2 (Money), part 2a: the charge rows move into Money, and the snapshots prove nothing changed
+
+**Moved**: the admin "wallet charges" row builder. It existed twice in Identity - 
+`PassengerProfileQueryService::adminChargesFor()` (paginated, for the standalone endpoint) and
+`PassengerProfilePanelBuilder::buildWalletCharges()` (last 20, for the profile bundle) - both querying
+Money's `WalletTransaction` and both formatting through `PassengerProfilePanelBuilder::formatWalletCharge()`.
+
+It now lives in Money as `Contracts\WalletChargeHistory` + `Services\WalletChargeHistoryReader`, with two
+methods (`recentForWallet`, `paginateForWallet`) and the same query inside (same eager loads on
+`user`/`user.profile`, same `type = admin_charge` filter, same `orderByDesc('created_at')`). The 12-key row
+body moved verbatim rather than being rewritten, which is why `formatWalletCharge()` is deleted instead of
+adapted: its output is now produced where the table is owned.
+
+**Why this had to precede the model move.** Identity named `App\Models\WalletTransaction` directly in two
+services. While that class lives in `App\Models` the boundary tests tolerate it; once it moves into the Money
+namespace those two lines become `Identity -> Money` *implementation* edges, and the graph test says a new
+port on an existing edge must be argued for rather than absorbed. So the port lands first, the edges stay
+declared, and the model move becomes mechanical.
+
+**Declared consequences.** `Identity -> Money` is now 2 ports, not 1 - recorded in
+`ModuleGraphTest::EDGES` with the reason, and its docblock table row corrected (Money column 1 -> 2, after I
+first bumped the Communication column by mistake and caught it). The controller's
+`->map(fn ($tx) => $this->panels->formatWalletCharge($tx))` is gone because the collection already holds
+formatted rows.
+
+**Verification - the strong kind.** `tests/Feature/AppFuture` + the **whole** `tests/Feature/Snapshots`
+suite: **242 tests, 2514 assertions, OK**, and `git status tests/Snapshots` is **empty**. That is the proof
+that matters for this phase: the admin passenger profile JSON is byte-identical to the frozen corpus, and the
+shrink-only query budgets still hold - the charge rows did not become an extra query or an N+1. Whole-tree
+Pint clean, `php -l` on every touched file, autoload regenerated.
+
+**Still open in module 2** (part 2b/2c): Identity's `createTransaction()` still writes Money's model (the
+site of the parked double-injection defect), and 20 `$user->wallet` reads remain - 13 inside Money, 7 in
+Identity. Those, `User::wallet()`, and the four model moves are the next commit; the write path needs a port
+that does not change money semantics, which is why it is not being rushed in alongside a read swap.

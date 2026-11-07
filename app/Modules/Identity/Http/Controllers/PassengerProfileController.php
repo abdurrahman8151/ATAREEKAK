@@ -257,9 +257,9 @@ final class PassengerProfileController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data' => $paginator->getCollection()
-                ->map(fn ($tx) => $this->panels->formatWalletCharge($tx))
-                ->values(),
+            // Stage 2 C1: the collection already holds Money's formatted rows (WalletChargeHistory),
+            // so the map through formatWalletCharge() is gone - same keys, same order, same JSON.
+            'data' => $paginator->getCollection()->values(),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),

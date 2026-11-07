@@ -10,8 +10,7 @@ use App\Models\Complaint;
 use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserRating;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\WalletChargeHistory;
 
 /**
  * The five panels of the admin passenger profile page - stats, monthly trips, recent trips,
@@ -26,6 +25,15 @@ use App\Models\WalletTransaction;
  */
 final class PassengerProfilePanelBuilder
 {
+    /**
+     * Stage 2 C1: the wallet-charge rows are Money's, so they arrive already formatted from Money's
+     * `WalletChargeHistory` port instead of being built here from `WalletTransaction` (a model this
+     * module will not be allowed to name once it moves into the Money namespace).
+     */
+    public function __construct(
+        private readonly WalletChargeHistory $chargeHistory,
+    ) {}
+
     public function buildStats(User $user): array
     {
         $userId = $user->id;
@@ -163,18 +171,10 @@ final class PassengerProfilePanelBuilder
             return [];
         }
 
-        return WalletTransaction::with([
-            'user:id,first_name,last_name',
-            'user.profile:user_id,profile_photo',
-        ])
-            ->where('wallet_id', $user->wallet->id)
-            ->where('type', 'admin_charge')
-            ->orderByDesc('created_at')
-            ->limit(20)
-            ->get()
-            ->map(fn ($tx) => $this->formatWalletCharge($tx))
-            ->values()
-            ->all();
+        // Rows come from Money already in the shape this panel used to build itself: id,
+        // transaction_id, amount, previous_balance, new_balance, status, notes, date, created_at,
+        // processed_by_id, processed_by_name, processed_by_photo.
+        return $this->chargeHistory->recentForWallet($user->wallet->id, 20);
     }
 
     public function formatUser(User $user): array
@@ -231,30 +231,6 @@ final class PassengerProfilePanelBuilder
             'created_at' => $c->created_at->toDateString(),
             'assigned_to' => $c->assignedAgent
                 ? trim("{$c->assignedAgent->first_name} {$c->assignedAgent->last_name}")
-                : null,
-        ];
-    }
-
-    public function formatWalletCharge(WalletTransaction $tx): array
-    {
-        $admin = $tx->user;
-
-        return [
-            'id' => $tx->id,
-            'transaction_id' => $tx->transaction_id,
-            'amount' => (float) $tx->amount,
-            'previous_balance' => (float) $tx->previous_balance,
-            'new_balance' => (float) $tx->new_balance,
-            'status' => $tx->status,
-            'notes' => $tx->description,
-            'date' => $tx->created_at->toDateString(),
-            'created_at' => $tx->created_at->toIso8601String(),
-            'processed_by_id' => $admin?->id,
-            'processed_by_name' => $admin
-                ? trim("{$admin->first_name} {$admin->last_name}")
-                : null,
-            'processed_by_photo' => $admin?->profile?->profile_photo
-                ? asset('storage/'.$admin->profile->profile_photo)
                 : null,
         ];
     }

@@ -10,6 +10,7 @@ use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
 use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
+use App\Modules\Money\Contracts\WalletChargeHistory;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Money\Domain\Strategies\CashPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
@@ -22,6 +23,7 @@ use App\Modules\Money\Services\NoShowSettlement;
 use App\Modules\Money\Services\PassengerWalletCharger;
 use App\Modules\Money\Services\RidePayout;
 use App\Modules\Money\Services\WalletAccess;
+use App\Modules\Money\Services\WalletChargeHistoryReader;
 use App\Modules\Money\Services\WalletDirectoryReader;
 use App\Modules\Money\Services\WalletRequestService;
 use Illuminate\Support\ServiceProvider;
@@ -47,6 +49,7 @@ final class MoneyServiceProvider extends ServiceProvider
         $this->app->singleton(WalletAccess::class);
         // Stage 2 C1: the read door other modules use instead of `$user->wallet`.
         $this->app->bind(WalletDirectory::class, WalletDirectoryReader::class);
+        $this->app->bind(WalletChargeHistory::class, WalletChargeHistoryReader::class);
         $this->app->singleton(EPayPaymentStrategy::class);
         $this->app->singleton(CashPaymentStrategy::class);
         $this->app->singleton(PaymentStrategyFactory::class);

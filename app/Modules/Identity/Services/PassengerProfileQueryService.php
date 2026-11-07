@@ -5,6 +5,7 @@ namespace App\Modules\Identity\Services;
 use App\Models\Complaint;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\WalletChargeHistory;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -18,6 +19,14 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
  */
 final class PassengerProfileQueryService
 {
+    /**
+     * Stage 2 C1: the admin wallet-charge rows are Money's, so they are read through its port
+     * instead of this service paging Money's model itself.
+     */
+    public function __construct(
+        private readonly WalletChargeHistory $chargeHistory,
+    ) {}
+
     /** The full-profile bundle: profile, wallet and photos in one query. */
     public function profileBundle(int $userId): User
     {
@@ -62,14 +71,7 @@ final class PassengerProfileQueryService
      */
     public function adminChargesFor(int $walletId, int $perPage, int $page): LengthAwarePaginator
     {
-        return WalletTransaction::with([
-            'user:id,first_name,last_name',
-            'user.profile:user_id,profile_photo',
-        ])
-            ->where('wallet_id', $walletId)
-            ->where('type', 'admin_charge')
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'page', $page);
+        return $this->chargeHistory->paginateForWallet($walletId, $perPage, $page);
     }
 
     /**

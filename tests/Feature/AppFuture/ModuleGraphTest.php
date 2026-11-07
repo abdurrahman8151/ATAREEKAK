@@ -20,7 +20,7 @@ use Tests\TestCase;
  *   Communication      -       -      -        -          2
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
- *   Identity           1       1      2        -          1
+ *   Identity           1       2      2        -          1
  *   Console            4       3      2        6          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
@@ -52,6 +52,11 @@ use Tests\TestCase;
  *       `PassengerWalletChargerInterface`. Both directions need a return value, so no event can carry
  *       them, and cutting either means moving an HTTP endpoint between modules - endpoint ownership,
  *       not a port move.
+ *       Stage 2 C1 added the second Identity -> Money port, `WalletChargeHistory`: the admin
+ *       passenger profile's wallet-charge rows used to be built in Identity from Money's
+ *       `WalletTransaction` model, which stops being legal once that model moves into the Money
+ *       namespace. The rows are produced by Money now, in the same 12-key shape, and the frozen
+ *       response snapshots prove the JSON did not change.
  *
  *   Identity <-> Ride
  *       `RideValidationService` (Ride) checks a driver's documents through Identity's
@@ -82,7 +87,7 @@ class ModuleGraphTest extends TestCase
         'Console -> Ride' => 2,
         'Identity -> Communication' => 1,
         'Identity -> Console' => 1,
-        'Identity -> Money' => 1,
+        'Identity -> Money' => 2,
         'Identity -> Ride' => 2,
         'Money -> Communication' => 1,
         'Money -> Identity' => 1,
