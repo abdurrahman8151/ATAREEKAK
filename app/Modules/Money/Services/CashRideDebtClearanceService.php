@@ -57,9 +57,10 @@ final class CashRideDebtClearanceService
         $lockedWallet->save();
         $primaryWallet->save();
 
-        $this->recordDebtClearedTransactions($lockedWallet, $primaryWallet, $driver, $debt, $prevBalance, $prevDebt, $primaryPrev, $txId);
+        // Stage 2 B2: keep both rows so each leg can name its own side.
+        $transactions = $this->recordDebtClearedTransactions($lockedWallet, $primaryWallet, $driver, $debt, $prevBalance, $prevDebt, $primaryPrev, $txId);
 
-        $this->postDebtClearLegs($lockedWallet, $primaryWallet, $driver, $debt);
+        $this->postDebtClearLegs($lockedWallet, $primaryWallet, $driver, $debt, $transactions);
 
         Log::info('Cash ride debt auto-cleared after top-up', [
             'driver_id' => $driver->id,
@@ -92,9 +93,9 @@ final class CashRideDebtClearanceService
     }
 
     /** Both legs of the debt settlement: driver wallet debit and platform credit. */
-    private function recordDebtClearedTransactions(Wallet $lockedWallet, Wallet $primaryWallet, User $driver, float $debt, float $prevBalance, float $prevDebt, float $primaryPrev, string $txId): void
+    private function recordDebtClearedTransactions(Wallet $lockedWallet, Wallet $primaryWallet, User $driver, float $debt, float $prevBalance, float $prevDebt, float $primaryPrev, string $txId): array
     {
-        WalletTransaction::create([
+        $clearedTransaction = WalletTransaction::create([
             'wallet_id' => $lockedWallet->id,
             'user_id' => $driver->id,
             'type' => 'cash_ride_debt_cleared',
@@ -107,7 +108,7 @@ final class CashRideDebtClearanceService
             'reference' => "wallet:{$lockedWallet->id}",
         ]);
 
-        WalletTransaction::create([
+        $receivedTransaction = WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
             'user_id' => null,
             'type' => 'cash_ride_debt_received',
@@ -119,17 +120,22 @@ final class CashRideDebtClearanceService
             'status' => 'completed',
             'reference' => "wallet:{$lockedWallet->id}",
         ]);
+
+        return [
+            $lockedWallet->id => $clearedTransaction,
+            $primaryWallet->id => $receivedTransaction,
+        ];
     }
 
-    private function postDebtClearLegs(Wallet $lockedWallet, Wallet $primaryWallet, User $driver, float $debt): void
+    private function postDebtClearLegs(Wallet $lockedWallet, Wallet $primaryWallet, User $driver, float $debt, array $transactions = []): void
     {
         // ── Decision un3: double-entry legs (driver → platform) ──────────────────
         // This is where the DEFERRED fee from `chargeCashRideCreationFee` finally becomes a real
         // movement: the driver topped up, so the debt is collected now. The deferred branch posted no
         // legs because nothing moved then; this is the leg pair for that obligation being settled.
         $this->ledgerService->postTransfer([
-            ['wallet_id' => $lockedWallet->id, 'amount' => -$debt, 'description' => "driver #{$driver->id}: deferred fee debt cleared"],
-            ['wallet_id' => $primaryWallet->id, 'amount' => $debt, 'description' => "driver #{$driver->id}: deferred fee received"],
+            ['wallet_id' => $lockedWallet->id, 'amount' => -$debt, 'description' => "driver #{$driver->id}: deferred fee debt cleared", 'wallet_transaction_id' => $transactions[$lockedWallet->id]->id ?? null],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $debt, 'description' => "driver #{$driver->id}: deferred fee received", 'wallet_transaction_id' => $transactions[$primaryWallet->id]->id ?? null],
         ]);
     }
 }

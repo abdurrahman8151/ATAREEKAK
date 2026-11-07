@@ -136,7 +136,7 @@
             "amount": "5000.00",
             "id": "<id:56>",
             "wallet_id": "<id:6>",
-            "wallet_transaction_id": null
+            "wallet_transaction_id": "<id:38>"
         },
         {
             "amount": "-5000.00",

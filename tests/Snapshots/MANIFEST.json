@@ -176,7 +176,7 @@
         "query-budgets.json": "d7314e2be5065782849279a5ee0ce3edb94142f24360e4fcde2013e3e31ec607",
         "route-inventory.json": "5cbf3c5a810e0fe968b50f5410bb9e6ffe1fe72c3878e95f0ff5058df67b8912",
         "state/admin/passenger-charge-a-negative-amount.json": "1e401701ea862befc214363a2335b04906c2f8e634a55db77ee6f7f815da6640",
-        "state/admin/passenger-charge-wallet.json": "c92337d536573e405a7a3486f5d2b1e0526e57d4d3d75e2aa278572c3cae3bf1",
+        "state/admin/passenger-charge-wallet.json": "f20bd8836c1726a725fb49a998cbb0174114f2b6d359b2f210b0e7d550a0a81d",
         "state/admin/wallet-charge-a-negative-amount.json": "1e401701ea862befc214363a2335b04906c2f8e634a55db77ee6f7f815da6640",
         "state/admin/wallet-charge.json": "00e15b6f5111bf1e5c8784cd31fe6e6ed65ab2bab316603a12663c1f6f62879d",
         "state/admin/wallet-requests-approve.json": "90f9cc1e5279b168f68c2a1035bedd27e9415220caebe6d7411338d4ef400020",

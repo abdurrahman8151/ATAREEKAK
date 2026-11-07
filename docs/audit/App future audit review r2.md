@@ -17437,3 +17437,60 @@ unary spacing) - formatting only, re-run after.
 
 **Remaining B2.** `CashRideCreationFeeCharger`, `CashRideDebtClearanceService`, `CashRideFeeRefundService`
 and the target side of `PassengerWalletCharger::injectExternalCapital`; then the randomized linkage property.
+---
+
+### 264. Stage 2 Phase B2 (sixth slice) - the cash-fee paths link, and a measured double injection in the admin charge
+
+**The change.** `CashRideCreationFeeCharger` (immediate branch), `CashRideDebtClearanceService` and
+`CashRideFeeRefundService` now link their legs: each row-writer returns its `WalletTransaction` (or a
+wallet-id-keyed map where it writes two), and `postFeeTransfer`, `postDebitClearLegs`, `postRefundLegs` take
+optional per-leg transactions. `CashRideCreationFeeCharger::chargeDeferredFee` and
+`CashRideFeeRefundService::cancelDeferredDebt`/`recordNoRefund` write zero-amount audit rows and post **no**
+legs at all, so there is nothing to link there - the deferred fee becomes a real movement later, and
+`CashRideDebtClearanceService::postDebitClearLegs` (the collection of that debt) is linked instead.
+
+`PassengerWalletCharger::injectExternalCapital()` gained an untyped `$targetTransaction = null` (interface
+updated too) so the inbound leg can name the receiving wallet's row. The token is untyped on purpose: the
+caller is an Identity controller and `BoundaryDependencyTest` rule `controllers_to_models` is a 0 baseline.
+Existing three-argument callers - including `tests/Feature/Snapshots/ApiSnapshotTestCase.php:412` - keep
+working.
+
+**FINDING (measured, money - PARKED, not fixed).** The admin charge double-injects into External Capital.
+`PassengerProfileController::chargeWallet()` calls `$this->recordAdminChargeTransaction(...)` (line 310),
+which **itself** calls `injectExternalCapital()` (line 375), and then calls `injectExternalCapital()` again
+directly (line 316). The state snapshot for the route proves the money effect - the last 5000 charge of
+`admin/passenger-charge-wallet.json`:
+
+| row | amount | previous -> new |
+|---|---|---|
+| `admin_charge` | +5000 | 1062500 -> 1067500 |
+| `external_inbound` | -5000 | -67500 -> -72500 |
+| `external_inbound` | -5000 | -72500 -> -77500 |
+
+One `admin_charge` credit, **two** External Capital debits. So for every admin charge the External Capital
+wallet loses twice the amount while the passenger gains it once, and the ledger carries two
+external->wallet transfers for one movement. Both rows have `posting_key = null`, so nothing rejects the
+second. This is a balance/ledger defect, not a display issue - but it changes money semantics, so per the
+standing rule it is parked rather than fixed. **Question:** is the inner call (line 375) the intended one and
+the outer (line 316) vestigial, or should the pair be collapsed into one injection? Note the second leg's
+`transaction_id` is `EXT-ADM-{user}-{uuid}`, so the two rows are distinct rather than colliding.
+
+**Why this also parks the randomized property.** The planned invariant ("every ledger leg written during a
+movement links to a transaction of the same wallet and amount") would now *fail* on exactly this case: the
+duplicate transfer's target leg has no row to link to. So the property cannot be landed green until both
+(a) the remaining unlinked paths are linked - 121 legs still null - and (b) this double injection is
+resolved. The two parked items are therefore one dependency, not two.
+
+**Consequence for the freeze, worth flagging now.** This slice links the *inner* injection's target leg, so
+the corpus now records the duplicate as expected state (`admin/passenger-charge-wallet.json`). A future fix
+to the double injection will change that file, and after B3 the freeze rule forbids `SNAPSHOT_UPDATE=1`. That
+fix will therefore need one explicit snapshot-regeneration exception. The code comment at the link site says
+so, so it is not lost.
+
+**Measured.** Corpus 481 -> **482 linked** (121 null); one state file regenerated plus `MANIFEST.json`. Only
+the passenger-profile charge route exercises these paths, which is why the corpus moves by one even though
+every cash-fee leg now links.
+
+**Verification.** `Payment` + `Admin` + `Wallet` + `Bookings` + `Rides` + `AppFuture`: **OK, 594 tests, 3734
+assertions**. Then `Snapshots` + `Payment` + `AppFuture`: **OK, 517 tests, 5238 assertions**. `php -l` clean
+on all six files; Pint PASS on `app/Modules/Money` (36 files) and the controller.

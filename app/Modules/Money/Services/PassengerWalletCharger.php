@@ -66,7 +66,7 @@ final class PassengerWalletCharger implements PassengerWalletChargerInterface
      * Record the inbound leg against the External Capital system wallet and post the
      * matching ledger transfer.
      */
-    public function injectExternalCapital($wallet, User $user, float $amount): void
+    public function injectExternalCapital($wallet, User $user, float $amount, $targetTransaction = null): void
     {
         $external = Wallet::where('phone_number', config('admin.external.phone'))
             ->where('kind', 'system')
@@ -104,6 +104,7 @@ final class PassengerWalletCharger implements PassengerWalletChargerInterface
             (float) $amount,
             inbound: true,
             externalTransaction: $externalTransaction,
+            targetTransaction: $targetTransaction,
             description: "admin charge to user #{$user->id}",
         );
     }

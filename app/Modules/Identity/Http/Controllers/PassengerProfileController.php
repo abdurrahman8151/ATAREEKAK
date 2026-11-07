@@ -353,7 +353,7 @@ final class PassengerProfileController extends Controller
      */
     private function recordAdminChargeTransaction(array $credit, $user, float $amount, Request $request): void
     {
-        $this->profileQueries->createTransaction([
+        $adminChargeTransaction = $this->profileQueries->createTransaction([
             'wallet_id' => $credit['wallet']->id,
             'user_id' => $request->user()?->id,  // the admin
             'type' => 'admin_charge',
@@ -372,7 +372,10 @@ final class PassengerProfileController extends Controller
             'reference' => 'admin_charge:'.$user->id,
         ]);
 
-        $this->walletCharger->injectExternalCapital($credit['wallet'], $user, $amount);
+        // Stage 2 B2: hand this row to the injection so the inbound leg can name it. NOTE: `chargeWallet()`
+        // calls `injectExternalCapital()` directly as well, so one admin charge currently injects twice;
+        // linking only this call makes any duplicate transfer visible as an unlinked twin (parked, sec 264).
+        $this->walletCharger->injectExternalCapital($credit['wallet'], $user, $amount, $adminChargeTransaction);
     }
 
     /** Tell the passenger the administration topped up their wallet (non-fatal on failure). */

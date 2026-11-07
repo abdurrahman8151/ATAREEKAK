@@ -241,7 +241,8 @@ final class CashRideFeeRefundService
         $driverWallet->save();
         $primaryWallet->save();
 
-        WalletTransaction::create([
+        // Stage 2 B2: keep both rows so each leg can name its own side.
+        $refundTransaction = WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
             'user_id' => $driver->id,
             'type' => 'cash_ride_fee_refund',
@@ -256,9 +257,9 @@ final class CashRideFeeRefundService
             'posting_key' => $refundKey,
         ]);
 
-        $this->recordPrimaryRefundTransaction($ride, $driver, $primaryWallet, $refundAmount, $platformKeeps, $primaryPrev, $txId);
+        $issuedTransaction = $this->recordPrimaryRefundTransaction($ride, $driver, $primaryWallet, $refundAmount, $platformKeeps, $primaryPrev, $txId);
 
-        $this->postRefundLegs($ride, $primaryWallet, $driverWallet, $refundAmount);
+        $this->postRefundLegs($ride, $primaryWallet, $driverWallet, $refundAmount, $issuedTransaction, $refundTransaction);
 
         Log::info('Cash ride creation fee refunded', [
             'ride_id' => $ride->id,
@@ -288,9 +289,9 @@ final class CashRideFeeRefundService
     }
 
     /** Platform-side leg of the refund: the matching wallet transaction (no posting key). */
-    private function recordPrimaryRefundTransaction(Ride $ride, User $driver, Wallet $primaryWallet, float $refundAmount, float $platformKeeps, float $primaryPrev, string $txId): void
+    private function recordPrimaryRefundTransaction(Ride $ride, User $driver, Wallet $primaryWallet, float $refundAmount, float $platformKeeps, float $primaryPrev, string $txId): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
             'user_id' => null,
             'type' => 'cash_ride_fee_refund_issued',
@@ -305,15 +306,15 @@ final class CashRideFeeRefundService
         ]);
     }
 
-    private function postRefundLegs(Ride $ride, Wallet $primaryWallet, Wallet $driverWallet, float $refundAmount): void
+    private function postRefundLegs(Ride $ride, Wallet $primaryWallet, Wallet $driverWallet, float $refundAmount, ?WalletTransaction $issuedTransaction = null, ?WalletTransaction $refundTransaction = null): void
     {
         // ── Decision un3: double-entry legs (platform → driver, partial) ────────
         // A PARTIAL refund: only `$refundAmount` moves back to the driver; the platform keeps
         // `$platformKeeps`. The legs cover what actually moved, not the original fee - which is why
         // the sum is the refund and not the fee.
         $this->ledgerService->postTransfer([
-            ['wallet_id' => $primaryWallet->id, 'amount' => -$refundAmount, 'description' => "ride #{$ride->id}: fee refund issued"],
-            ['wallet_id' => $driverWallet->id, 'amount' => $refundAmount, 'description' => "ride #{$ride->id}: fee refund to driver"],
+            ['wallet_id' => $primaryWallet->id, 'amount' => -$refundAmount, 'description' => "ride #{$ride->id}: fee refund issued", 'wallet_transaction_id' => $issuedTransaction?->id],
+            ['wallet_id' => $driverWallet->id, 'amount' => $refundAmount, 'description' => "ride #{$ride->id}: fee refund to driver", 'wallet_transaction_id' => $refundTransaction?->id],
         ]);
     }
 }

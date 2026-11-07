@@ -99,11 +99,12 @@ class CashRideCreationFeeCharger
 
         $prev = $this->applyImmediateFeeCharge($driverWallet, $primaryWallet, $feeAmount);
 
-        $this->recordFeeChargedRow($ride, $driver, $driverWallet, $prev['driver'], $feeAmount, $txId, $chargeKey);
+        // Stage 2 B2: keep both rows so each leg can name its own side.
+        $chargedTransaction = $this->recordFeeChargedRow($ride, $driver, $driverWallet, $prev['driver'], $feeAmount, $txId, $chargeKey);
 
-        $this->recordFeeReceivedRow($ride, $driver, $primaryWallet, $prev['primary'], $feeAmount, $txId);
+        $receivedTransaction = $this->recordFeeReceivedRow($ride, $driver, $primaryWallet, $prev['primary'], $feeAmount, $txId);
 
-        $this->postFeeTransfer($ride, $driverWallet, $primaryWallet, $feeAmount);
+        $this->postFeeTransfer($ride, $driverWallet, $primaryWallet, $feeAmount, $chargedTransaction, $receivedTransaction);
 
         Log::info('Cash ride fee charged immediately', [
             'ride_id' => $ride->id,
@@ -134,9 +135,9 @@ class CashRideCreationFeeCharger
     }
 
     /** The driver's debit row for the immediately charged creation fee. */
-    private function recordFeeChargedRow(Ride $ride, User $driver, Wallet $driverWallet, float $driverPrev, float $feeAmount, string $txId, string $chargeKey): void
+    private function recordFeeChargedRow(Ride $ride, User $driver, Wallet $driverWallet, float $driverPrev, float $feeAmount, string $txId, string $chargeKey): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
             'user_id' => $driver->id,
             'type' => 'cash_ride_creation_fee',
@@ -153,9 +154,9 @@ class CashRideCreationFeeCharger
     }
 
     /** The primary admin's credit row for the immediately charged creation fee. */
-    private function recordFeeReceivedRow(Ride $ride, User $driver, Wallet $primaryWallet, float $primaryPrev, float $feeAmount, string $txId): void
+    private function recordFeeReceivedRow(Ride $ride, User $driver, Wallet $primaryWallet, float $primaryPrev, float $feeAmount, string $txId): WalletTransaction
     {
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
             'user_id' => null,
             'type' => 'cash_ride_creation_fee_received',
@@ -178,11 +179,11 @@ class CashRideCreationFeeCharger
      * Debt is an obligation, and it becomes a real movement when it is later charged or cleared -
      * which those methods record.
      */
-    private function postFeeTransfer(Ride $ride, Wallet $driverWallet, Wallet $primaryWallet, float $feeAmount): void
+    private function postFeeTransfer(Ride $ride, Wallet $driverWallet, Wallet $primaryWallet, float $feeAmount, ?WalletTransaction $chargedTransaction = null, ?WalletTransaction $receivedTransaction = null): void
     {
         $this->ledgerService->postTransfer([
-            ['wallet_id' => $driverWallet->id, 'amount' => -$feeAmount, 'description' => "ride #{$ride->id}: cash creation fee"],
-            ['wallet_id' => $primaryWallet->id, 'amount' => $feeAmount, 'description' => "ride #{$ride->id}: fee received by platform"],
+            ['wallet_id' => $driverWallet->id, 'amount' => -$feeAmount, 'description' => "ride #{$ride->id}: cash creation fee", 'wallet_transaction_id' => $chargedTransaction?->id],
+            ['wallet_id' => $primaryWallet->id, 'amount' => $feeAmount, 'description' => "ride #{$ride->id}: fee received by platform", 'wallet_transaction_id' => $receivedTransaction?->id],
         ]);
     }
 }
