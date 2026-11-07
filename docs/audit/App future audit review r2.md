@@ -17691,3 +17691,28 @@ is empty: Phase C left the frozen corpus byte-identical, as required.
 
 **Genuinely unverified:** the randomized ledger property and the five-order matrix (Phase E) do not cover
 this module yet; and whether any third-party code serialized those two events outside the queue.
+---
+
+### 270. Stage 2 Phase C1, module 2 reconnaissance: the wallet relation is 30 sites, not 121
+
+The earlier "33 app + 88 test" figure for `->wallet` was a false alarm from a loose pattern: it counted
+`$wallet->wallet_number`, `$this->walletService`, `$this->walletRequests`, and - in tests - 79 occurrences of
+the test class's own `$this->wallet` helper. Measured with `->wallet\b(?!\()` and grouped by receiver:
+
+| receiver | app | note |
+|---|---|---|
+| `$user->wallet` | 22 | WalletController 8, PassengerWalletCharger, WalletRequestService 3, PassengerProfileController 4, PassengerProfilePanelBuilder 3, CashRideFeeService (`$driver->wallet`) |
+| `$r->wallet` / `$walletRequest->wallet` | 8 | Console's `AdminWalletRequestController` - this is `WalletRequest`'s own relation, same module, stays |
+| tests | ~5 | everything else was the `$this->wallet` helper |
+
+So the User `wallet` relation has roughly **25 real call sites**, 22 of them naming `Money`'s own model from
+inside `Money` (`WalletController`, `PassengerWalletCharger`, `WalletRequestService`) where a module-local
+query is fine and only `User`'s relation has to disappear; the cross-module ones are Identity's
+`PassengerProfileController` (4) and `PassengerProfilePanelBuilder` (3) plus `CashRideFeeService`.
+That is the shape a Reader is for: `Money\Contracts\WalletDirectory` returning a `WalletSummary` with
+`id`/`walletNumber`/`balance`/`cashRideDebt`, batched by ids where a list is needed.
+
+**Still unknown, and required before the Money commit:** whether any of those Identity/Console sites mutates
+the wallet (`$user->wallet->refresh()`, `lockWalletOrFail`) - those cannot go through a read-only summary and
+need a decision (a narrow write port, or keep the mutation inside Money and return the result). That question
+is the real cost of module 2, not the call-site count.
