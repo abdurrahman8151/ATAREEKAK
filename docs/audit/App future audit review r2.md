@@ -17569,3 +17569,41 @@ comment - "either 422 (validation) or 500 (exception) - both mean failure" - so 
 **Question: replace the rule with `not_in:`/an explicit equality check so the endpoint answers 422?** It is a
 one-line fix but it changes a status code from 500 to 422, so it is parked rather than slipped into a
 refactoring commit.
+---
+
+### 267. Stage 2 Phase C1 reconnaissance - the User reverse relations are a hard prerequisite, not a detail
+
+No code was moved in this section. It records what the first module move actually requires, because the
+answer changes the order of work.
+
+**Measured blast radius for the Communication module** (the first in the required order), counting explicit
+`App\Models\X` references: Conversation 3 app / 1 test, ConversationParticipant 0 / 1, Message 5 / 2,
+Notification 2 / 3, UserNotification 2 / 3, PushNotificationToken 1 / 1. Small enough to look mechanical.
+
+**The blocker.** `app/Models/User.php` holds the reverse relations that C2 requires *removed*:
+
+- line 174 `belongsToMany(Conversation::class, 'conversation_participants')`
+- line 181 `hasMany(Message::class, 'sender_id')` (sentMessages)
+- line 186 `belongsToMany(Notification::class, 'user_notifications')`
+- line 193 `hasMany(UserNotification::class)`
+- line 198 `hasMany(PushNotificationToken::class)`
+
+These are unqualified references that resolve inside `App\Models`, so the moment those five models leave that
+namespace, `User` either needs five cross-module imports - exactly what C2 forbids and what the ownership test
+will flag - or the relations must be gone first. So moving Communication is not a file move with a use-line
+sweep: it is a relation removal with call-site migration, i.e. C2 work, arriving before the C1 commit that the
+plan assumed would come first.
+
+**Also noted while reading:** none of the six models declares `protected $table`, and all six currently rely on
+Eloquent's convention. Moving them to a namespaced directory changes the table Eloquent infers
+(`app/Modules/Communication/Models/Conversation` would still guess `conversations`, so behaviour would hold by
+luck), but the phase rule requires an **explicit** `protected $table` on every moved model - so each of the
+six gains one, with the value it resolves to today: `conversations`, `conversation_participants`, `messages`,
+`notifications`, `user_notifications`, `push_notification_tokens`.
+
+**Consequence for sequencing.** The defensible order is: build `ModelOwnershipTest` first with a shrink-only
+baseline that records today's violations (C2's instrument), remove the `User` reverse relations one module at
+a time with their call sites migrated to Readers, and move a module's models in the same commit as its
+relations disappear - so the tree never contains a cross-module relation that the new test would reject.
+Parked for the owner only if a call site cannot be expressed as a Reader: none found yet, but the call sites
+have not been enumerated, which is the next measurement.
