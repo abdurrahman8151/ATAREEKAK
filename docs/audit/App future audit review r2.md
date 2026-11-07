@@ -17823,3 +17823,46 @@ a hard constraint worth stating before anyone starts it: **every replacement mus
 number of queries**, because the budgets are frozen and `$user->wallet` is a cached relation - so a call must
 be hoisted into a local, and a builder that needs the wallet must receive it from its caller rather than
 looking it up again. A helper `Wallet::forUser()` returning one row per call is the right primitive.
+---
+
+### 274. Stage 2 Phase C1, module 2 (Money), part 2c: the principal stops owning a wallet, and the 21 relation reads become queries
+
+`User::wallet()` is gone. Every read that went through it is now an explicit query, and the callers that
+cannot name a model ask Money's port instead.
+
+**Inside Money** (13 reads): a new `Wallet::forUser(int $userId, bool $fromWritePdo = false): ?self` does the
+one lookup. `WalletController` had 5 reads plus a `loadMissing('wallet')` - it may not import a model (the
+`controllers_to_models` baseline is 0), so it takes `WalletDirectory` and `WalletTransactionFeed` instead;
+the transaction feed needed its own service because it pages through a *relation* (`$wallet->transactions()`)
+that a `WalletSummary` cannot express. `WalletRequestService` reads once and hands the wallet into its
+transaction closure; its locked read became a plain `Wallet::query()->where('user_id', ...)->lockForUpdate()`,
+same lock, same query. `PassengerWalletCharger` keeps two queries - the directory read then
+`lockForUpdate()->findOrFail()` - because the lock is on that row and collapsing it would change what is
+locked. `CashRideFeeService` drops its `loadMissing` (a query *fewer*, which the shrink-only budget accepts).
+
+**In Identity** (7 reads): the two `withWallet*` helpers no longer eager-load, and the panel builder takes the
+summary from its caller. `fullProfile()` fetches it once and passes it to both `buildStats` and
+`buildWalletCharges` - that matters, because two independent lookups would have been a query the frozen
+budget would reject. `chargeWallet()` reads it after the money movement to report the new balance, which is
+the same single query `$user->wallet->refresh()` was.
+
+**The bug this exposed.** `WalletSummary` had `float $balance`, which turned the column's `1500.00` into
+`1500`, and the `wallet/balance` snapshot caught it immediately - the DTO now passes the money columns
+through as `mixed`, untyped, and its docblock says why. Same class of bug as the `wallet_number` /
+`walletNumber` mismatch that made `/api/wallet/balance` a 500 for a few minutes: a DTO renames what it
+models, and every reader has to follow.
+
+**Pinned tests that had to follow the code** (adapted, not weakened): `RV28` asserted `useWritePdo` in
+`WalletController`; the requirement now lives in `Wallet::forUser`, so the assertion points there. `RV13`
+deleted a wallet through the relation; it now deletes the row where the row lives. `L16` read
+`$passenger->wallet->fresh()`; it calls `Wallet::forUser(...)->fresh()`.
+
+**Verification.** 1061 tests across Wallet/Review/Snapshots/AppFuture/Admin: **5207 assertions, and exactly
+the 3 pre-existing `L16DriverNoShow` failures** - the accepted red set, unchanged. `wallet/balance`,
+`wallet/transactions`, `wallet/initiate`, `wallet/create-direct`, `create-direct-already-has-a-wallet` and
+`admin/passenger-charge-wallet` all pass byte-identical, and `git status tests/Snapshots` is empty. Whole-tree
+Pint: 804 files, PASS. `Identity -> Money` is 4 declared ports (added `WalletDirectory` to the controller),
+recorded with its reason.
+
+**Module 2 is now model-free outside Money.** What remains is purely mechanical: `git mv` the four models into
+`App\Modules\Money\Models` with explicit `$table`, and flip the two readers plus the recorder.

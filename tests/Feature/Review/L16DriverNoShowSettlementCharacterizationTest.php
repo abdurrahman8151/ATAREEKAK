@@ -127,14 +127,14 @@ class L16DriverNoShowSettlementCharacterizationTest extends TestCase
     {
         [$ride, $booking] = $this->escrowedBooking(2);
         $fare = (float) $booking->seats * (float) $ride->price_per_seat;
-        $passengerBefore = (float) $this->passenger->wallet->fresh()->balance;
+        $passengerBefore = (float) Wallet::forUser((int) $this->passenger->id)->fresh()->balance;
         $this->expiredReportAgainstDriver($ride, $booking);
 
         app(Noshowservice::class)->resolveExpiredReports();
 
         $this->assertEquals(
             $passengerBefore + $fare,
-            (float) $this->passenger->wallet->fresh()->balance,
+            (float) Wallet::forUser((int) $this->passenger->id)->fresh()->balance,
             'the passenger must get back seats x price_per_seat'
         );
         // The refund is a double-entry pair: one debit from SyCash and one credit to the passenger.
@@ -146,14 +146,14 @@ class L16DriverNoShowSettlementCharacterizationTest extends TestCase
     public function test_a_driver_no_show_writes_no_driver_payout(): void
     {
         [$ride, $booking] = $this->escrowedBooking(1);
-        $driverBefore = (float) $this->driver->wallet->fresh()->balance;
+        $driverBefore = (float) Wallet::forUser((int) $this->driver->id)->fresh()->balance;
         $this->expiredReportAgainstDriver($ride, $booking);
 
         app(Noshowservice::class)->resolveExpiredReports();
 
         $this->assertEquals(
             $driverBefore,
-            (float) $this->driver->wallet->fresh()->balance,
+            (float) Wallet::forUser((int) $this->driver->id)->fresh()->balance,
             'a driver who failed to show must receive nothing from the escrow'
         );
     }

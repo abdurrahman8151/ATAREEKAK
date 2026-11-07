@@ -81,7 +81,11 @@ class RV28InfraHardeningTest extends TestCase
         $sites = [
             'app/Modules/Identity/Repositories/UserRepository.php' => 'findByEmail (login/auth lookup)',
             'app/Modules/Identity/Services/JwtService.php' => 'findUserCached (cache-miss rehydrate)',
-            'app/Modules/Money/Http/Controllers/WalletController.php' => 'getBalance (money read)',
+            // Stage 2 C1: the balance read left the controller (a controller may no longer name a
+            // model) and now lives in Money's own accessor, which is where the write-PDO requirement
+            // has to be asserted. Same requirement, new home - the assertion follows the code rather
+            // than being dropped.
+            'app/Models/Wallet.php' => 'Wallet::forUser (money read, getBalance)',
         ];
 
         foreach ($sites as $file => $what) {

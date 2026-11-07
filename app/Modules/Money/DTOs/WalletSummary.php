@@ -19,7 +19,14 @@ final class WalletSummary
         public readonly int $id,
         public readonly int $userId,
         public readonly string $walletNumber,
-        public readonly float $balance,
-        public readonly float $cashRideDebt,
+        /**
+         * NOT cast to float on purpose. The model hands back its own attribute value (a decimal
+         * string), and callers put it straight into JSON and into formatted strings; casting here
+         * changed `"1500.00"` into `1500` and broke the byte-identical `wallet/balance` snapshot.
+         * The type stays `mixed` so the DTO passes through exactly what the column held.
+         */
+        public readonly mixed $balance,
+        /** Same reasoning as `$balance`: passed through, never re-typed. */
+        public readonly mixed $cashRideDebt,
     ) {}
 }

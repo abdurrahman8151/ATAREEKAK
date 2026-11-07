@@ -17,11 +17,9 @@ use App\Modules\Money\DTOs\WalletSummary;
  */
 final class WalletDirectoryReader implements WalletDirectory
 {
-    public function forUser(int $userId): ?WalletSummary
+    public function forUser(int $userId, bool $fromWritePdo = false): ?WalletSummary
     {
-        $wallet = Wallet::query()
-            ->where('user_id', $userId)
-            ->first();
+        $wallet = Wallet::forUser($userId, $fromWritePdo);
 
         return $wallet === null ? null : $this->toSummary($wallet);
     }
@@ -45,8 +43,8 @@ final class WalletDirectoryReader implements WalletDirectory
             id: (int) $wallet->id,
             userId: (int) $wallet->user_id,
             walletNumber: (string) $wallet->wallet_number,
-            balance: (float) $wallet->balance,
-            cashRideDebt: (float) $wallet->cash_ride_debt,
+            balance: $wallet->balance,
+            cashRideDebt: $wallet->cash_ride_debt,
         );
     }
 }

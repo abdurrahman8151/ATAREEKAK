@@ -135,8 +135,7 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
         // RV-37 / un9: explicit load instead of a lazy read. Same single query, but it states
         // the dependency and survives the armed lazy-loading guard (this runs on every cash-ride
         // creation, so the query happened anyway).
-        $driver->loadMissing('wallet');
-        $wallet = $driver->wallet;
+        $wallet = Wallet::forUser((int) $driver->id);
 
         if (! $wallet) {
             return $this->cashRideDenied($feeAmount, 'You must create a wallet before creating a cash ride.');

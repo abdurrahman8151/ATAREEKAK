@@ -15,8 +15,13 @@ use App\Modules\Money\DTOs\WalletSummary;
  */
 interface WalletDirectory
 {
-    /** The wallet of one user, or null when they have none. One query. */
-    public function forUser(int $userId): ?WalletSummary;
+    /**
+     * The wallet of one user, or null when they have none. One query.
+     *
+     * $fromWritePdo exists for the balance read, which must reflect the authoritative ledger rather
+     * than a lagging replica (RV-28). It used to be spelled \->load(['wallet' => ...useWritePdo()]).
+     */
+    public function forUser(int $userId, bool $fromWritePdo = false): ?WalletSummary;
 
     /**
      * Summaries for many users, keyed by user id. One query for the whole set, which is why callers

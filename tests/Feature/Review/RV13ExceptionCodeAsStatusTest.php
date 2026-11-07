@@ -99,8 +99,10 @@ class RV13ExceptionCodeAsStatusTest extends TestCase
     public function a_missing_wallet_is_still_422(): void
     {
         $user = User::factory()->create();
-        $user->wallet()->delete();
-        $user->unsetRelation('wallet');
+        // Stage 2 C1: the principal no longer owns a `wallet` relation to delete through, so the
+        // wallet row is removed where it lives. The assertion (a missing wallet is still 422) and
+        // the code path it exercises are unchanged.
+        Wallet::forUser((int) $user->id)?->delete();
 
         try {
             app(WalletRequestService::class)->requestCharge($user->fresh(), 100.0);

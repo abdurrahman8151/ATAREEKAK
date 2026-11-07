@@ -52,7 +52,9 @@ final class PassengerWalletCharger implements PassengerWalletChargerInterface
      */
     public function creditWalletBalance(User $user, float $amount): array
     {
-        $wallet = Wallet::lockForUpdate()->findOrFail($user->wallet->id);
+        // Stage 2 C1: same two queries as the relation read plus the locked findOrFail, no relation.
+        $walletId = Wallet::forUser((int) $user->id)?->id;
+        $wallet = Wallet::lockForUpdate()->findOrFail($walletId);
 
         $previousBalance = (float) $wallet->balance;
         $newBalance = $previousBalance + $amount;

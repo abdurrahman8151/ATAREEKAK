@@ -8,7 +8,9 @@ use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WalletTransactionResource;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
+use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Money\Services\WalletProvisioningService;
+use App\Modules\Money\Services\WalletTransactionFeed;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -20,6 +22,8 @@ class WalletController extends Controller
     public function __construct(
         private readonly EmailOtpServiceInterface $emailOtpService,
         private readonly WalletProvisioningService $walletProvisioning,
+        private readonly WalletDirectory $wallets,
+        private readonly WalletTransactionFeed $transactionFeed,
     ) {}
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -34,12 +38,11 @@ class WalletController extends Controller
     {
         // the authenticated user, hydrated once by the JWT middleware
         $user = $request->user();
-        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
-        // hydration, which does not eager-load relations. Every $user->wallet read below
-        // would be a lazy load (one query each) - load it once, explicitly.
-        $user->loadMissing('wallet');
+        // Stage 2 C1 (was RV-37 / un9): the authenticated principal no longer owns a wallet relation,
+        // so it is read once, explicitly, through Money's own model - same one query as the eager load.
+        $wallet = $this->wallets->forUser((int) $user->id);
 
-        if ($user->wallet) {
+        if ($wallet) {
             return $this->walletAlreadyExistsResponse();
         }
 
@@ -79,12 +82,11 @@ class WalletController extends Controller
 
         // the authenticated user, hydrated once by the JWT middleware
         $user = $request->user();
-        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
-        // hydration, which does not eager-load relations. Every $user->wallet read below
-        // would be a lazy load (one query each) - load it once, explicitly.
-        $user->loadMissing('wallet');
+        // Stage 2 C1 (was RV-37 / un9): the authenticated principal no longer owns a wallet relation,
+        // so it is read once, explicitly, through Money's own model - same one query as the eager load.
+        $wallet = $this->wallets->forUser((int) $user->id);
 
-        if ($user->wallet) {
+        if ($wallet) {
             return $this->walletAlreadyExistsResponse();
         }
 
@@ -117,9 +119,11 @@ class WalletController extends Controller
         // resolved; `wallet` is loaded on the primary so a read right after a payment/charge
         // can never show a stale figure. Decision-free: it can only make the reported balance
         // more correct, never less.
-        $user = $request->user()->load(['wallet' => fn ($q) => $q->useWritePdo()]);
+        $user = $request->user();
+        // Stage 2 C1: the balance read stays on the write PDO, just without the relation.
+        $wallet = $this->wallets->forUser((int) $user->id, true);
 
-        if (! $user->wallet) {
+        if (! $wallet) {
             return response()->json([
                 'success' => false,
                 'message' => 'No wallet found for this account.',
@@ -128,8 +132,8 @@ class WalletController extends Controller
 
         return response()->json([
             'success' => true,
-            'wallet_number' => $user->wallet->wallet_number,
-            'balance' => $user->wallet->balance,
+            'wallet_number' => $wallet->walletNumber,
+            'balance' => $wallet->balance,
         ]);
     }
 
@@ -311,12 +315,11 @@ class WalletController extends Controller
     public function createDirect(Request $request): JsonResponse
     {
         $user = $request->user();
-        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
-        // hydration, which does not eager-load relations. Every $user->wallet read below
-        // would be a lazy load (one query each) - load it once, explicitly.
-        $user->loadMissing('wallet');
+        // Stage 2 C1 (was RV-37 / un9): the authenticated principal no longer owns a wallet relation,
+        // so it is read once, explicitly, through Money's own model - same one query as the eager load.
+        $wallet = $this->wallets->forUser((int) $user->id);
 
-        if ($user->wallet) {
+        if ($wallet) {
             return response()->json([
                 'success' => false,
                 'message' => 'You already have a wallet.',
@@ -351,11 +354,9 @@ class WalletController extends Controller
     public function transactions(Request $request)
     {
         $user = $request->user();
-        // RV-37 / un9: the authenticated user comes from JwtAuthMiddleware's cached
-        // hydration, which does not eager-load relations. Every $user->wallet read below
-        // would be a lazy load (one query each) - load it once, explicitly.
-        $user->loadMissing('wallet');
-        $wallet = $user->wallet;
+        // Stage 2 C1 (was RV-37 / un9): the authenticated principal no longer owns a wallet relation,
+        // so it is read once, explicitly, through Money's own model - same one query as the eager load.
+        $wallet = $this->wallets->forUser((int) $user->id);
 
         if (! $wallet) {
             return response()->json([
@@ -372,12 +373,13 @@ class WalletController extends Controller
 
         $perPage = min((int) ($request->per_page ?? 15), 100);
 
-        $transactions = $wallet->transactions()
-            ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('created_at', '>=', $request->from))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('created_at', '<=', $request->to))
-            ->latest()
-            ->paginate($perPage);
+        // Stage 2 C1: the wallet's transaction feed is Money's, so it is paged by Money's own
+        // service rather than through a relation this controller may no longer name.
+        $transactions = $this->transactionFeed->paginateForWallet(
+            $wallet->id,
+            $request->only(['type', 'from', 'to']),
+            $perPage
+        );
 
         return WalletTransactionResource::collection($transactions)
             ->additional([

@@ -11,6 +11,7 @@ use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserRating;
 use App\Modules\Money\Contracts\WalletChargeHistory;
+use App\Modules\Money\Contracts\WalletDirectory;
 
 /**
  * The five panels of the admin passenger profile page - stats, monthly trips, recent trips,
@@ -32,9 +33,10 @@ final class PassengerProfilePanelBuilder
      */
     public function __construct(
         private readonly WalletChargeHistory $chargeHistory,
+        private readonly WalletDirectory $wallets,
     ) {}
 
-    public function buildStats(User $user): array
+    public function buildStats(User $user, $wallet = null): array
     {
         $userId = $user->id;
 
@@ -50,7 +52,9 @@ final class PassengerProfilePanelBuilder
 
         $avgRating = UserRating::where('rated_user_id', $userId)->avg('rating') ?? 0.0;
 
-        $walletBalance = $user->wallet?->balance ?? 0.0;
+        // Stage 2 C1: the summary is passed in by the caller so a request never pays two lookups.
+        $wallet ??= $this->wallets->forUser((int) $user->id);
+        $walletBalance = $wallet?->balance ?? 0.0;
 
         return [
             'total_rides' => $totalRides,
@@ -164,17 +168,22 @@ final class PassengerProfilePanelBuilder
      * `/wallet-charges` endpoint passes nothing and keeps its own lookup, so its query count and
      * output are unchanged.
      */
-    public function buildWalletCharges(int $userId, ?User $user = null): array
+    public function buildWalletCharges(int $userId, ?User $user = null, $wallet = null): array
     {
-        $user ??= User::with('wallet')->find($userId);
-        if (! $user?->wallet) {
+        $user ??= User::find($userId);
+        if (! $user) {
+            return [];
+        }
+
+        $wallet ??= $this->wallets->forUser((int) $user->id);
+        if (! $wallet) {
             return [];
         }
 
         // Rows come from Money already in the shape this panel used to build itself: id,
         // transaction_id, amount, previous_balance, new_balance, status, notes, date, created_at,
         // processed_by_id, processed_by_name, processed_by_photo.
-        return $this->chargeHistory->recentForWallet($user->wallet->id, 20);
+        return $this->chargeHistory->recentForWallet($wallet->id, 20);
     }
 
     public function formatUser(User $user): array

@@ -9,6 +9,7 @@ use App\Modules\Identity\Services\JwtService;
 use App\Modules\Identity\Services\PassengerProfilePanelBuilder;
 use App\Modules\Identity\Services\PassengerProfileQueryService;
 use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
+use App\Modules\Money\Contracts\WalletDirectory;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -59,6 +60,7 @@ final class PassengerProfileController extends Controller
         private readonly PassengerProfileQueryService $profileQueries,
         private readonly PassengerWalletChargerInterface $walletCharger,
         private readonly PassengerProfilePanelBuilder $panels,
+        private readonly WalletDirectory $wallets,
     ) {}
 
     // =========================================================================
@@ -79,14 +81,17 @@ final class PassengerProfileController extends Controller
         try {
             $data = Cache::remember("admin.passenger.full-profile.{$userId}", 300, function () use ($userId) {
                 $user = $this->profileQueries->profileBundle($userId);
+                // Stage 2 C1: read the wallet once and hand it to both panels, so the BFF pays the
+                // same one lookup it used to pay for the eager load.
+                $wallet = $this->wallets->forUser($userId);
 
                 return [
                     'user' => $this->panels->formatUser($user),
-                    'stats' => $this->panels->buildStats($user),
+                    'stats' => $this->panels->buildStats($user, $wallet),
                     'monthly_trips' => $this->panels->buildMonthlyTrips($userId),
                     'recent_trips' => $this->panels->buildRecentTrips($userId),
                     'complaints' => $this->panels->buildComplaints($userId),
-                    'wallet_charges' => $this->panels->buildWalletCharges($userId, $user),
+                    'wallet_charges' => $this->panels->buildWalletCharges($userId, $user, $wallet),
                 ];
             });
 
@@ -245,12 +250,13 @@ final class PassengerProfileController extends Controller
     public function walletCharges(int $userId, Request $request): JsonResponse
     {
         $user = $this->profileQueries->withWallet($userId);
-        if (! $user || ! $user->wallet) {
+        $wallet = $user ? $this->wallets->forUser((int) $userId) : null;
+        if (! $user || ! $wallet) {
             return response()->json(['status' => 'success', 'data' => [], 'meta' => []]);
         }
 
         $paginator = $this->profileQueries->adminChargesFor(
-            $user->wallet->id,
+            $wallet->id,
             (int) $request->get('per_page', 15),
             (int) $request->get('page', 1),
         );
@@ -298,8 +304,9 @@ final class PassengerProfileController extends Controller
 
         try {
             $user = $this->profileQueries->withWalletOrFail($userId);
+            $wallet = $this->wallets->forUser((int) $userId);
 
-            if (! $user->wallet) {
+            if (! $wallet) {
                 return $this->walletCharger->noWalletResponse();
             }
 
@@ -330,9 +337,10 @@ final class PassengerProfileController extends Controller
             // Notify the user
             $this->notifyWalletCharged($user, $amount, $request);
 
-            $user->wallet->refresh();
+            // Stage 2 C1: a fresh read replaces the relation's refresh(); same single query.
+            $wallet = $this->wallets->forUser((int) $userId);
 
-            return $this->walletCharger->chargeSuccessResponse($user->wallet);
+            return $this->walletCharger->chargeSuccessResponse($wallet);
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'User not found.'], 404);
         } catch (\Exception $e) {

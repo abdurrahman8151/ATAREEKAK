@@ -40,8 +40,10 @@ final class Stage2WalletDirectoryTest extends TestCase
         $this->assertSame($wallet->id, $summary->id);
         $this->assertSame($user->id, $summary->userId);
         $this->assertSame((string) $wallet->wallet_number, $summary->walletNumber);
-        $this->assertSame(1500.5, $summary->balance);
-        $this->assertSame(250.0, $summary->cashRideDebt);
+        // The money columns are passed through untyped on purpose: casting them here turned the
+        // wallet/balance snapshot's "1500.00" into 1500.5, so the assertion pins the raw value.
+        $this->assertSame('1500.50', $summary->balance);
+        $this->assertSame('250.00', $summary->cashRideDebt);
     }
 
     public function test_it_returns_null_when_the_user_has_no_wallet(): void
@@ -75,8 +77,8 @@ final class Stage2WalletDirectoryTest extends TestCase
             [$users[0]->id, $users[1]->id, $users[2]->id],
             array_keys($summaries)
         );
-        $this->assertSame(100.0, $summaries[$users[0]->id]->balance);
-        $this->assertSame(300.0, $summaries[$users[2]->id]->balance);
+        $this->assertSame('100.00', $summaries[$users[0]->id]->balance);
+        $this->assertSame('300.00', $summaries[$users[2]->id]->balance);
         $this->assertArrayNotHasKey($withoutWallet->id, $summaries);
     }
 

@@ -34,9 +34,9 @@ class WalletRequestService
 
     public function requestCharge(User $user, float $amount, ?string $notes = null): WalletRequest
     {
-        $user->loadMissing('wallet');
+        $wallet = Wallet::forUser((int) $user->id);
 
-        if (! $user->wallet) {
+        if (! $wallet) {
             throw new BusinessRuleViolation(
                 'You do not have a wallet yet. Please create one first.',
                 'WALLET_NOT_FOUND'
@@ -55,10 +55,10 @@ class WalletRequestService
             );
         }
 
-        return DB::transaction(function () use ($user, $amount, $notes) {
+        return DB::transaction(function () use ($user, $wallet, $amount, $notes) {
             $walletRequest = WalletRequest::create([
                 'user_id' => $user->id,
-                'wallet_id' => $user->wallet->id,
+                'wallet_id' => $wallet->id,
                 'type' => 'charge',
                 'amount' => $amount,
                 'status' => 'pending',
@@ -74,9 +74,9 @@ class WalletRequestService
 
     public function requestWithdraw(User $user, float $amount, ?string $notes = null): WalletRequest
     {
-        $user->loadMissing('wallet');
+        $wallet = Wallet::forUser((int) $user->id);
 
-        if (! $user->wallet) {
+        if (! $wallet) {
             throw new BusinessRuleViolation('You do not have a wallet yet.', 'WALLET_NOT_FOUND');
         }
 
@@ -92,7 +92,7 @@ class WalletRequestService
         // comes from locking, not from hoping nobody double-clicks.
         return DB::transaction(function () use ($user, $amount, $notes) {
             /** @var Wallet|null $wallet */
-            $wallet = $user->wallet()->lockForUpdate()->first();
+            $wallet = Wallet::query()->where('user_id', $user->id)->lockForUpdate()->first();
 
             if (! $wallet) {
                 throw new BusinessRuleViolation('You do not have a wallet yet.', 'WALLET_NOT_FOUND');

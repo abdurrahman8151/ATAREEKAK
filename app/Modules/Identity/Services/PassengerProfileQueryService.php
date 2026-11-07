@@ -31,19 +31,19 @@ final class PassengerProfileQueryService
     /** The full-profile bundle: profile, wallet and photos in one query. */
     public function profileBundle(int $userId): User
     {
-        return User::with(['profile', 'wallet', 'photos'])->findOrFail($userId);
+        return User::with(['profile', 'photos'])->findOrFail($userId);
     }
 
     /** The stats bundle. `findOrFail` is kept, so the controller still answers 404. */
     public function withWalletOrFail(int $userId): User
     {
-        return User::with('wallet')->findOrFail($userId);
+        return User::findOrFail($userId);
     }
 
     /** Null when the user does not exist; the wallet may still be missing. */
     public function withWallet(int $userId): ?User
     {
-        return User::with('wallet')->find($userId);
+        return User::find($userId);
     }
 
     /**

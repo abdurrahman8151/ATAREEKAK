@@ -184,10 +184,8 @@ class User extends Authenticatable
         return $this->hasMany(UserRating::class, 'rated_user_id');
     }
 
-    public function wallet(): HasOne
-    {
-        return $this->hasOne(Wallet::class);
-    }
+    // Stage 2 C1: wallet() is gone with the other reverse relations. Money owns wallets, and readers
+    // ask Money\Contracts\WalletDirectory (batched) instead of the principal.
 
     // ── Accessors ────────────────────────────────────────────────────────────
     // Stage 2 C1: the two unread-count accessors were removed with the reverse relations. They had three

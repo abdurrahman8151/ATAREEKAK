@@ -58,6 +58,24 @@ class Wallet extends Model
         return $this->user_id === null;
     }
 
+    /**
+     * Stage 2 C1: the wallet of one user, in one query.
+     *
+     * Replaces `$user->wallet` / `$user->loadMissing('wallet')` at the call sites, because the
+     * authenticated principal no longer owns a relation to Money's data. `$fromWritePdo` exists for
+     * the balance read, which must reflect the authoritative ledger rather than a lagging replica.
+     */
+    public static function forUser(int $userId, bool $fromWritePdo = false): ?self
+    {
+        $query = static::query()->where('user_id', $userId);
+
+        if ($fromWritePdo) {
+            $query->useWritePdo();
+        }
+
+        return $query->first();
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
