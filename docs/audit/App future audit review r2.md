@@ -17716,3 +17716,38 @@ That is the shape a Reader is for: `Money\Contracts\WalletDirectory` returning a
 the wallet (`$user->wallet->refresh()`, `lockWalletOrFail`) - those cannot go through a read-only summary and
 need a decision (a narrow write port, or keep the mutation inside Money and return the result). That question
 is the real cost of module 2, not the call-site count.
+---
+
+### 271. Stage 2 Phase C1, module 2 (Money), part 1: the read door, built and pinned before anything moves
+
+Module 2 cannot start with a file move. Everything Identity knows about a wallet arrives through
+`$user->wallet` (`PassengerProfileQueryService::withWallet/withWalletOrFail`, `PassengerProfileController`
+4 sites, `PassengerProfilePanelBuilder` 3 sites) and through a **direct model import** -
+`PassengerProfilePanelBuilder` and `PassengerProfileQueryService` both do
+`WalletTransaction::with([...])->where('wallet_id', ...)`. Once `Wallet`/`WalletTransaction` leave
+`App\Models`, both are `Identity -> Money` implementation edges, which the boundary rules forbid and the
+baselines may not absorb. So the port has to exist first.
+
+**Added, inert** (nothing calls it yet, no response touched): `DTOs\WalletSummary` (read-only, property
+names kept identical to the wallet columns so the existing response builders read the same names -
+`PassengerWalletCharger::chargeSuccessResponse()` reads exactly `$wallet->balance`),
+`Contracts\WalletDirectory` (`forUser()` and `summariesFor()`), `Services\WalletDirectoryReader`, and the
+binding in `MoneyServiceProvider`.
+
+**Why `summariesFor()` exists.** The naive port would be `forUser()` only, and every caller with a list
+would loop it. The profile panel is exactly such a caller: it renders a balance next to rows that are
+already batched, under a shrink-only query budget. So the contract carries a batched `byIds` form and the
+test pins that it is **one query** for three users, and that `forUser()` is one query - not "some queries".
+That is the objective's "no N+1" made executable rather than aspirational.
+
+**Verification.** `php -l` on all four files; whole-tree Pint clean (799 files); new
+`tests/Feature/Review/Stage2WalletDirectoryTest.php` **4 tests / 14 assertions**, including the two
+query-count assertions; `tests/Feature/AppFuture` + `tests/Unit/Providers` + `tests/Feature/Wallet`
+**132 tests / 557 assertions, OK** - the container change is inert today, as intended.
+
+**What module 2 still needs** (next, in one commit so no violation ever exists in the tree): switch
+Identity's 7 relation reads to `WalletDirectory` and its two `WalletTransaction` imports to a second port
+(`WalletChargeHistory`, returning the same 12-key rows `formatWalletCharge` builds today, computed inside
+Money so Identity stops formatting another module's model); drop `with('wallet')` from the two query methods
+and `User::wallet()`; then move the four models. The budgets in the frozen corpus are the referee: if the
+panel gains a query, the swap is wrong.
