@@ -17991,3 +17991,32 @@ relations. Adding a real `belongsTo(Profile::class)` to `Message` produced
 Phase D table map), kernel models relating *into* a module, and the Console reporting allowlist.
 
 Verification: AppFuture 59 tests / 454 assertions OK; whole-tree Pint 805 files PASS.
+---
+
+### 278. Stage 2 Phase C2, ratchet 3: raw SQL across an ownership boundary, plus the finding it produced
+
+The import and relation ratchets police *model* references. `DB::table('messages')` from inside Console names no
+model at all, so it passes both while being exactly the coupling the rule forbids: a join across an ownership
+boundary that no contract sees and no DTO shapes.
+
+**The rule.** `TABLE_OWNERS` maps a table to the module that has taken it over; a module referencing another
+module's table is a violation. Today the map holds Communication's six (`conversations`,
+`conversation_participants`, `messages`, `notifications`, `user_notifications`, `push_notification_tokens`),
+because those are the only tables a module has actually taken. A table not yet taken over is **not policed** -
+the ratchet describes what is true rather than what is planned, so it can never block the move that creates it.
+The map grows in each module's commit.
+
+**Current state: 0 violations.** The scan is non-vacuous both ways: it fails if the map is empty and if it finds
+no `DB::table` calls at all, so a broken glob cannot masquerade as compliance.
+
+**Proved to bite:** a throwaway `ZzProbeTable` class inside `Console/Services` calling `DB::table('messages')`
+produced `Console -> messages (Communication)` and a failure; deleting the file returned the suite to green.
+
+**The finding it produced, which is why the ratchet was worth building.** Exactly two `DB::table('bookings')`
+calls exist in the modules, both in `Money\Services\WalletAccess` (lines 67 and 75). `bookings` is Ride's table
+in the Phase C map. So when Ride takes it, Money's `WalletAccess` becomes a real cross-module table access with
+no model involved - invisible to every ratchet built so far. It is not a violation today (the table is
+unclaimed) and it is not being changed today; it is now *recorded* rather than waiting to be discovered, and it
+joins the precondition list for the Ride module.
+
+Verification: AppFuture 60 tests / 457 assertions OK; whole-tree Pint 805 files PASS.

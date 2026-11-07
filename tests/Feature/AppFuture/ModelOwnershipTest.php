@@ -43,6 +43,23 @@ final class ModelOwnershipTest extends TestCase
     private const PRINCIPAL = 'User';
 
     /**
+     * Tables a module has already taken ownership of, and the module owning them.
+     *
+     * Grows as Money, Ride, Identity and Console move their models. A table that has not been taken over
+     * is not policed, so this ratchet describes reality instead of blocking the moves that create it.
+     *
+     * @var array<string, string>
+     */
+    private const TABLE_OWNERS = [
+        'conversations' => 'Communication',
+        'conversation_participants' => 'Communication',
+        'messages' => 'Communication',
+        'notifications' => 'Communication',
+        'user_notifications' => 'Communication',
+        'push_notification_tokens' => 'Communication',
+    ];
+
+    /**
      * The violations that exist today: (module -> foreign kernel model) => the tables the model owns.
      * Shrink-only. Never add a line; remove one when the module stops naming that model.
      *
@@ -150,6 +167,77 @@ final class ModelOwnershipTest extends TestCase
         }
 
         return $modules;
+    }
+
+    /**
+     * Ratchet 3: a module may not read or write another module's tables, even through the query builder.
+     *
+     * The import ratchets police *model* references. A raw `DB::table('messages')` from inside Console
+     * names no model at all, so it slips past both of them while being exactly the coupling the ownership
+     * rule forbids - a join across an ownership boundary that no contract can see and no DTO can shape.
+     *
+     * Scope: only tables whose owning module has already taken them over. Today that is Communication's six.
+     * As Money, Ride, Identity and Console take their tables, entries are added to TABLE_OWNERS and the
+     * ratchet starts guarding them too. That keeps the list honest - it states what is true, not what is
+     * planned - and means this test never blocks a move it is not yet describing.
+     *
+     * @test
+     */
+    public function a_module_does_not_reach_into_another_modules_tables(): void
+    {
+        $this->assertNotEmpty(self::TABLE_OWNERS, 'An empty owner map would make this ratchet vacuous.');
+
+        $usages = $this->rawTableUsages();
+        $this->assertNotEmpty($usages, 'The raw-SQL scan found no DB::table calls at all - it is not reading the modules.');
+
+        $violations = [];
+        foreach ($usages as $usage) {
+            $owner = self::TABLE_OWNERS[$usage['table']] ?? null;
+
+            // Only tables that have actually been taken over are policed.
+            if ($owner === null || $owner === $usage['module']) {
+                continue;
+            }
+
+            $violations[$usage['module'].' -> '.$usage['table'].' ('.$owner.')'] = true;
+        }
+
+        ksort($violations);
+        $this->assertSame(
+            [],
+            $violations,
+            "A module reached into another module's table:\n  ".implode("\n  ", array_keys($violations))
+            ."\nAdd a Reader contract in the owning module's Contracts instead of joining across the boundary."
+        );
+    }
+
+    /**
+     * Every `DB::table('<name>')` in a module, with the module that issued it.
+     *
+     * @return array<int, array{module: string, table: string}>
+     */
+    private function rawTableUsages(): array
+    {
+        $usages = [];
+        $pattern = "/DB::table\\(\\s*'([a-z_]+)'/";
+
+        foreach (glob(base_path('app/Modules/*'), GLOB_ONLYDIR) ?: [] as $moduleDir) {
+            $module = basename($moduleDir);
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($moduleDir));
+
+            foreach ($iterator as $file) {
+                if (! $file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                preg_match_all($pattern, (string) file_get_contents($file->getPathname()), $matches);
+                foreach (array_unique($matches[1]) as $table) {
+                    $usages[] = ['module' => $module, 'table' => $table];
+                }
+            }
+        }
+
+        return $usages;
     }
 
     /**
