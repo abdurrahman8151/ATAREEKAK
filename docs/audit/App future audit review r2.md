@@ -18020,3 +18020,29 @@ unclaimed) and it is not being changed today; it is now *recorded* rather than w
 joins the precondition list for the Ride module.
 
 Verification: AppFuture 60 tests / 457 assertions OK; whole-tree Pint 805 files PASS.
+---
+
+### 279. Stage 2 Phase C2, ratchet 4: the Console reporting surface, named file by file
+
+The pair baseline says "Console may read Wallet". It does not say *which files* may - so a new Console service
+could start importing `Wallet` for free, because the pair already existed. That is the loophole this closes.
+
+**`CONSOLE_FOREIGN_MODEL_FILES`: 26 files, each with the models it names.** Console legitimately aggregates
+across contexts for dashboards, reports and staff screens; that is a real need, so the surface is named rather
+than pretended away. Every entry also records which models that file touches, so the list documents the
+reporting surface instead of merely exempting it.
+
+**Two assertions, not one.** A Console file absent from the list that names any foreign model fails - and a file
+*on* the list that grows a model it did not have also fails. The second is the one that would catch a
+`AdminReportService` quietly adding `LedgerEntry`. Stale entries are printed as "allowlist can shrink" rather
+than failing, matching the other three ratchets.
+
+**Proved to bite:** a throwaway `ZzProbeNewReport` in `Console/Services` naming `App\Models\Wallet` produced the
+file path and a failure; deleting it returned the suite to green.
+
+C2's test surface is now complete as specified: imports (35 pairs, shrink-only), relations (0/N), raw tables
+(0/N), Console reporting files (26, shrink-only, per-file and per-model). Everything the objective asked the test
+to police is now executable, and each ratchet was demonstrated failing on a real violation rather than asserted
+to work.
+
+Verification: AppFuture 61 tests / 461 assertions OK; whole-tree Pint 805 files PASS.

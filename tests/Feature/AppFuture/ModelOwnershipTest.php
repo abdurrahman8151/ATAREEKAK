@@ -43,6 +43,45 @@ final class ModelOwnershipTest extends TestCase
     private const PRINCIPAL = 'User';
 
     /**
+     * Ratchet 4: the Console reporting surface, named file by file.
+     *
+     * Console legitimately aggregates across contexts for dashboards and reports. That is a real need, so
+     * those files are named here rather than pretended away - but the list is per FILE, which is stricter
+     * than the pair baseline: a new Console service cannot start reading a foreign model just because some
+     * other service already does. Shrink-only, reported not enforced, like the pair baseline.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const CONSOLE_FOREIGN_MODEL_FILES = [
+        'app/Modules/Console/Contracts/ComplaintRepositoryInterface.php' => ['Complaint'],
+        'app/Modules/Console/Contracts/EmployeeManagementInterface.php' => ['Employee'],
+        'app/Modules/Console/Contracts/EmployeeRepositoryInterface.php' => ['Employee'],
+        'app/Modules/Console/Contracts/SupportAgentRoutingInterface.php' => ['Employee'],
+        'app/Modules/Console/Repositories/ComplaintRepository.php' => ['Complaint'],
+        'app/Modules/Console/Repositories/EmployeeRepository.php' => ['Employee'],
+        'app/Modules/Console/Services/AdminAuthService.php' => ['Employee'],
+        'app/Modules/Console/Services/AdminDashboardActivityService.php' => ['Photo', 'Profile', 'UserRating'],
+        'app/Modules/Console/Services/AdminDriverDashboardService.php' => ['Booking', 'Photo', 'Profile', 'Ride', 'UserRating', 'WalletTransaction'],
+        'app/Modules/Console/Services/AdminDriverPresenter.php' => ['Profile', 'Ride'],
+        'app/Modules/Console/Services/AdminDriverQueryService.php' => ['Booking', 'Profile', 'Ride', 'UserRating'],
+        'app/Modules/Console/Services/AdminDriverService.php' => ['Photo', 'Profile'],
+        'app/Modules/Console/Services/AdminReportService.php' => ['Booking', 'Complaint', 'Profile', 'Ride', 'Wallet', 'WalletTransaction'],
+        'app/Modules/Console/Services/AdminTripService.php' => ['Ride'],
+        'app/Modules/Console/Services/AdminUserService.php' => ['Profile'],
+        'app/Modules/Console/Services/AdminWalletCharger.php' => ['Wallet', 'WalletTransaction'],
+        'app/Modules/Console/Services/AdminWalletRequestService.php' => ['Wallet', 'WalletRequest', 'WalletTransaction'],
+        'app/Modules/Console/Services/AdminWalletService.php' => ['Wallet', 'WalletTransaction'],
+        'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment', 'Employee'],
+        'app/Modules/Console/Services/EmployeeManagementService.php' => ['Employee'],
+        'app/Modules/Console/Services/ReviewModerationService.php' => ['ProfileComment'],
+        'app/Modules/Console/Services/StaffBookingQueryService.php' => ['Booking'],
+        'app/Modules/Console/Services/StaffCancellationService.php' => ['Booking', 'Ride'],
+        'app/Modules/Console/Services/StaffComplaintService.php' => ['Complaint', 'Employee'],
+        'app/Modules/Console/Services/StaffUserProfileService.php' => ['Profile', 'UserRating'],
+        'app/Modules/Console/Services/SupportAgentRoutingService.php' => ['Employee'],
+    ];
+
+    /**
      * Tables a module has already taken ownership of, and the module owning them.
      *
      * Grows as Money, Ride, Identity and Console move their models. A table that has not been taken over
@@ -167,6 +206,86 @@ final class ModelOwnershipTest extends TestCase
         }
 
         return $modules;
+    }
+
+    /**
+     * Ratchet 4: no Console file starts reading a foreign model unless it is on the named list.
+     *
+     * The pair baseline says "Console may read Wallet". This says WHICH files may - so moving a query into
+     * a new service, or a new reporting endpoint quietly importing a model, fails even though the pair
+     * already exists. Every entry also records which models that file touches, so the list documents the
+     * reporting surface instead of just exempting it.
+     *
+     * @test
+     */
+    public function console_only_touches_foreign_models_from_named_files(): void
+    {
+        $this->assertNotEmpty(self::CONSOLE_FOREIGN_MODEL_FILES, 'An empty allowlist would make this ratchet vacuous.');
+
+        $scan = $this->consoleForeignModelFiles();
+        $this->assertNotEmpty($scan, 'The Console scan found no foreign model references - it is not reading the module.');
+
+        $new = array_values(array_diff(array_keys($scan), array_keys(self::CONSOLE_FOREIGN_MODEL_FILES)));
+        sort($new);
+        $this->assertSame(
+            [],
+            $new,
+            "A Console file not on the reporting allowlist names a foreign model:\n  ".implode("\n  ", $new)
+            ."\nAdd a Reader contract in the owning module's Contracts, or justify the file here in the same commit."
+        );
+
+        // Per-file AND per-model: a listed file may not pick up a model it did not have.
+        $growth = [];
+        foreach ($scan as $file => $classes) {
+            $allowed = self::CONSOLE_FOREIGN_MODEL_FILES[$file] ?? [];
+            foreach (array_diff($classes, $allowed) as $class) {
+                $growth[] = $file.' -> '.$class;
+            }
+        }
+        sort($growth);
+        $this->assertSame([], $growth, "A listed Console file grew a new foreign model:\n  ".implode("\n  ", $growth));
+
+        $gone = array_values(array_diff(array_keys(self::CONSOLE_FOREIGN_MODEL_FILES), array_keys($scan)));
+        if ($gone !== []) {
+            fwrite(STDERR, "\n  [model-ownership] Console allowlist can shrink - remove: ".implode(', ', $gone)."\n");
+        }
+    }
+
+    /**
+     * @return array<string, array<int, string>> relative path => foreign models it names
+     */
+    private function consoleForeignModelFiles(): array
+    {
+        $files = [];
+        $root = base_path('app/Modules/Console');
+        if (! is_dir($root)) {
+            return [];
+        }
+
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root));
+        foreach ($iterator as $file) {
+            if (! $file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            preg_match_all('/App\\\\Models\\\\([A-Za-z0-9_]+)/', (string) file_get_contents($file->getPathname()), $matches);
+            $classes = array_values(array_unique(array_filter(
+                $matches[1],
+                fn ($c) => $c !== self::PRINCIPAL && $c !== 'Concerns'
+            )));
+
+            if ($classes === []) {
+                continue;
+            }
+
+            sort($classes);
+            $relative = str_replace('\\', '/', substr($file->getPathname(), strlen(base_path()) + 1));
+            $files[$relative] = $classes;
+        }
+
+        ksort($files);
+
+        return $files;
     }
 
     /**
