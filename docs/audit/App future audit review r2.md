@@ -17529,3 +17529,43 @@ the test case.
 cancellation refund (driver, staff, time-based), no-show settlement (both), cash creation fee, cash debt
 clearance, cash fee refund, wallet-request approve, admin charge, staff cancellation. One leg remains null,
 because of a parked defect rather than a missing link.
+---
+
+### 266. Stage 2 Phase B4 - five contract questions, parked with one question each
+
+Nothing here was changed: each item alters a status code, a response shape or an auth rule, which the phase
+rules park. Each is recorded with the code I verified and exactly one question so the owner can decide.
+
+**1. 403 vs 404 vs 422 semantics.** Across `app/**/Http/Controllers` the three appear 13 / 51 / 77 times. A
+missing resource is a 404 (`findOrFail`), validation is a 422, and "exists but belongs to someone else" is
+**sometimes 403 and sometimes 404**, with no single rule saying which. The choice is a real one: 404 hides
+whether the row exists (no enumeration), 403 tells the owner honestly. **Question: for a resource that exists
+but belongs to another user, should the API answer 403 (explicit) or 404 (hide existence)?** Changing either
+way alters status codes on existing endpoints.
+
+**2. The errors envelope.** Two shapes coexist: `{status: 'error', message: ...}` (129 sites, plus 177
+`message` keys) and a bare `{error: ...}` (6 sites). A client cannot have one parser. **Question: adopt
+`{status, message}` as the single error envelope and convert the six `{error}` endpoints, or keep `{error}`
+deliberately for those six?** Either answer changes a public response shape.
+
+**3. `POST /api/profile` and documents.** `ProfileController` returns a computed `documents` array on read
+(line 448), but the POST endpoint does not accept or replace documents - uploads go through the document
+upload handler (`DocumentUploadHandler:101` stores to `documents` on the public disk). So `documents` is
+read-only on the profile payload, which is not stated anywhere a client would look. **Question: is `documents`
+deliberately read-only on `POST /api/profile` (documents change only through the upload endpoint), or should
+POST accept and replace them?** Accepting them would widen the contract and duplicate the upload rules.
+
+**4. `recent_activities[].date` type.** `AdminReportService::getRecentActivities()` (line 218) builds each
+activity array and emits `date` as a formatted string, unlike the ISO-8601 timestamps used elsewhere in the
+API. **Question: should `date` be ISO-8601 like the rest of the API, or stay human-formatted for the admin
+panel?** Changing it changes a documented-looking field on an admin response.
+
+**5. Self-chat answers 500 instead of 422.** `ChatController` validates
+`'user_id' => '...|different:'.$request->user()->id` (line 68). `different:` compares against **another input
+field**, not a literal value, so with no input named after the id the rule can never fire; the request then
+reaches the insert, the duplicate `(conversation_id, user_id)` row violates the unique index, and the endpoint
+answers **500**. `ChatTest::test_cannot_start_conversation_with_self` (line 34) documents this in its own
+comment - "either 422 (validation) or 500 (exception) - both mean failure" - so a fix would not break it.
+**Question: replace the rule with `not_in:`/an explicit equality check so the endpoint answers 422?** It is a
+one-line fix but it changes a status code from 500 to 422, so it is parked rather than slipped into a
+refactoring commit.
