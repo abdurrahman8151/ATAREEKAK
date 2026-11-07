@@ -4,8 +4,8 @@ namespace App\Modules\Identity\Services;
 
 use App\Models\Complaint;
 use App\Models\User;
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\WalletChargeHistory;
+use App\Modules\Money\Contracts\WalletTransactionRecorder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -25,6 +25,7 @@ final class PassengerProfileQueryService
      */
     public function __construct(
         private readonly WalletChargeHistory $chargeHistory,
+        private readonly WalletTransactionRecorder $transactionRecorder,
     ) {}
 
     /** The full-profile bundle: profile, wallet and photos in one query. */
@@ -77,8 +78,9 @@ final class PassengerProfileQueryService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function createTransaction(array $attributes): WalletTransaction
+    public function createTransaction(array $attributes): mixed
     {
-        return WalletTransaction::create($attributes);
+        // Stage 2 C1: the insert belongs to Money, which owns the table.
+        return $this->transactionRecorder->record($attributes);
     }
 }

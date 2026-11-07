@@ -20,7 +20,7 @@ use Tests\TestCase;
  *   Communication      -       -      -        -          2
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
- *   Identity           1       2      2        -          1
+ *   Identity           1       3      2        -          1
  *   Console            4       3      2        6          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
@@ -87,7 +87,7 @@ class ModuleGraphTest extends TestCase
         'Console -> Ride' => 2,
         'Identity -> Communication' => 1,
         'Identity -> Console' => 1,
-        'Identity -> Money' => 2,
+        'Identity -> Money' => 3,
         'Identity -> Ride' => 2,
         'Money -> Communication' => 1,
         'Money -> Identity' => 1,

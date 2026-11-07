@@ -17788,3 +17788,38 @@ Pint clean, `php -l` on every touched file, autoload regenerated.
 site of the parked double-injection defect), and 20 `$user->wallet` reads remain - 13 inside Money, 7 in
 Identity. Those, `User::wallet()`, and the four model moves are the next commit; the write path needs a port
 that does not change money semantics, which is why it is not being rushed in alongside a read swap.
+---
+
+### 273. Stage 2 Phase C1, module 2 (Money), part 2b: the cross-module write, moved without deciding the parked defect
+
+Identity also **wrote** Money's table: `PassengerProfileQueryService::createTransaction()` called
+`WalletTransaction::create($attributes)` and the admin charge flow consumed the returned row to link the
+ledger leg. That is a cross-module write, illegal once the model moves.
+
+Added `Contracts\WalletTransactionRecorder` (`record(array $attributes): mixed`) and
+`Services\WalletTransactionRecorderService`, which is the previous call, unchanged. `createTransaction()`
+now delegates and returns `mixed`; the row still flows into
+`injectExternalCapital(..., $adminChargeTransaction)` exactly as before, so the ledger linkage B2 built is
+untouched.
+
+**What this port deliberately does NOT do.** The obvious "clean" move would be to have Money own the whole
+admin-charge sequence - create the transaction *and* inject External Capital in one method - which would
+also remove the duplicate injection. That is the parked defect (audit sec 264: one `+5000` credit with two
+`-5000` external debits), and collapsing it changes money semantics, so it stays parked. The port does one
+insert and nothing else, and its docblock says so, so a later reader cannot mistake the restraint for an
+oversight. `mixed` rather than the model type is the same reasoning as the other ports: naming the type
+recreates the import the port removes.
+
+**Verification.** Snapshots + AppFuture + Admin + Review: **1027 tests, 5151 assertions**, the only failures
+being the 3 pre-existing `L16DriverNoShow` ones; `git status tests/Snapshots` empty, so the admin charge
+snapshot (which records the duplicated external debit) is byte-identical - the write path really is
+unchanged. `Identity -> Money` is now 3 declared ports (was 1 before this phase), recorded with the reason in
+`ModuleGraphTest::EDGES` and its docblock table row; AppFuture alone: 56 tests / 445 assertions OK.
+
+**Remaining for module 2** (part 2c): 20 `$user->wallet` reads - 13 inside Money (WalletController 8,
+PassengerWalletCharger 1, WalletRequestService 3, CashRideFeeService 1) and 7 in Identity - then
+`User::wallet()`, `with('wallet')` in the two query methods, and the four model moves. The read migration has
+a hard constraint worth stating before anyone starts it: **every replacement must issue exactly the same
+number of queries**, because the budgets are frozen and `$user->wallet` is a cached relation - so a call must
+be hoisted into a local, and a builder that needs the wallet must receive it from its caller rather than
+looking it up again. A helper `Wallet::forUser()` returning one row per call is the right primitive.
