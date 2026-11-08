@@ -18680,3 +18680,69 @@ clean diff. Every markdown link in the five files was re-resolved after the merg
 **Also corrected:** my sec 294 README text claimed contracts sets that the originals already documented more
 precisely (for example Identity's `## Public Contracts (17)` count). The originals win; my appended sections carry
 only the ownership table and the gaps, which is what was actually missing.
+---
+
+### 296. Stage 2 PHASE E: the five-order full-suite matrix, with a per-test assertion diff and the leftover-rows probe
+
+**The matrix.** Five full runs of the whole suite, each with `--log-junit`, comparing every test by name and by
+its own assertion count. PHPUnit does not report per-test assertion counts in its summary, so the JUnit
+`assertions` attribute is the only place that number exists - and a test that silently starts asserting less is
+exactly the failure a suite this size hides.
+
+| # | Order | Tests | Assertions | Time | Failures | vs default |
+|---|---|---|---|---|---|---|
+| 1 | `default` | 3067 | 13298 | 958.53 s | 3 | - |
+| 2 | `reverse` | 3067 | 13298 | 960.03 s | 3 | 0 missing, 0 extra, **0 assertion diffs** |
+| 3 | `random` (seed 1794106883) | 3067 | 13298 | 951.57 s | 3 | 0 missing, 0 extra, **0 assertion diffs** |
+| 4 | `defects` | 3067 | 13298 | 956.96 s | 3 | 0 missing, 0 extra, **0 assertion diffs** |
+| 5 | `duration` | 3067 | 13298 | 958.49 s | 3 | 0 missing, 0 extra, **0 assertion diffs** |
+
+**Every order produced the same three failures by name** - the pre-existing
+`L16DriverNoShowSettlementCharacterizationTest` trio (`test_a_driver_no_show_marks_the_booking_no_show`,
+`..._refunds_the_passenger_the_full_fare_from_escrow`, `..._is_not_settled_twice`). Identical set in all five, so
+nothing in this phase introduced an order dependency, and no test relies on another having run first.
+
+**The 15 slowest (default order).** The suite is flat: the slowest test is 4.74 s and the rest cluster at
+2.2-2.4 s, all of them snapshot tests replaying a full HTTP request through the kernel.
+
+```
+4.74s  Unit\Broadcasting\NotificationChannelTest::test_channel_class_exists
+3.95s  Review\RV39SeederHygieneTest::..._create_ten_wallets_each_with_distinct_phones
+3.91s  Review\RV39SeederHygieneTest::..._do_not_collide_between_the_two_seeders
+2.43s  Snapshots\StaffSnapshotTest::test_route_snapshot "staff/escalated-resolve"
+2.42s  ... "staff/escalated-complaints"      2.38s  Employees "employees/store"
+2.37s  Employees "employees/reset-password"  2.30s  Auth "auth/admin-login-invalid"
+2.25s  Employees "employees/show"            2.23s  Staff "staff/chat-send"
+2.23s  Employees "employees/toggle-active"   2.23s  Staff "staff/chat-conversations"
+2.21s  Staff "staff/chat-messages"           2.21s  Employees "employees/index"
+2.18s  Employees "employees/update"
+```
+
+Two things worth noting rather than acting on: `NotificationChannelTest::test_channel_class_exists` costs 4.74 s
+and asserts almost nothing (it is named "class exists"), which is the worst ratio in the suite; and the seeder
+hygiene tests each build twenty wallets, which is why they are second. Neither is a defect in this phase, and
+changing either would be a test change outside Stage 2's scope - recorded here so the next person does not
+rediscover them.
+
+**The leftover-rows probe.** Run after the first order and again after the fifth:
+
+```
+users 0 | wallets 0 | wallet_requests 0 | wallet_transactions 0 | ledger_entries 0
+rides 0 | bookings 0 | noshow_reports 0 | conversations 0 | messages 0 | notifications 0
+employees 0 | complaints 0 | otps 0 | profiles 0 | refresh_tokens 0
+PROBE: clean - every checked table is empty
+```
+
+`RefreshDatabase` leaves nothing behind, and it leaves nothing behind *twice* - after 3,067 tests once and after
+15,335 test executions in total. A leak would show as a row surviving a run that ran `migrate:fresh` at its start
+and would make the *next* order's counts differ; the assertion counts above are the evidence that it did not.
+
+**The freeze held.** `git status --short tests/Snapshots` reports **0 changed files** after all five runs. The
+corpus was frozen at B3 and 15,335 executions did not move a byte of it, with `SNAPSHOT_UPDATE=1` never set.
+Whole-tree Pint on the final tree: **821 files PASS**.
+
+**What this does and does not prove.** It proves the suite is order-independent, that no test lost an assertion
+between the first and last execution, and that the database is left clean. It does **not** prove the suite is
+complete - the three pre-existing L16 failures are carried, unchanged, exactly as they were at the start of the
+phase, and a matrix cannot make them pass. They are listed here so the number 3067/13298 is never mistaken for
+"all green".
