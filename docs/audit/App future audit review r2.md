@@ -18392,3 +18392,53 @@ remaining item of that kind.
 Verification: Review + Wallet + Snapshots + Admin **1005 tests / 4762 assertions** with only the three pre-existing
 `L16DriverNoShowSettlementCharacterizationTest` failures; drift-detection + ledger suite 80 tests OK; AppFuture
 61 tests OK; whole-tree Pint **819 files PASS**.
+---
+
+### 289. Stage 2 C1 (Money): the model move attempted and ROLLED BACK - five files block it, and the ratchets named them
+
+**What was attempted.** `git mv` of `Wallet`, `WalletRequest`, `WalletTransaction`, `LedgerEntry` into
+`app/Modules/Money/Models`, namespace rewritten in the four files, and a repo-wide FQCN rewrite of
+`App\Models\{Wallet,WalletRequest,WalletTransaction,LedgerEntry}` -> `App\Modules\Money\Models\*`: **110 files
+changed, 0 leftovers, 11,951 autoload classes** (unchanged count - a move, not an addition). Both models already
+carried the explicit `protected $table`, so the schema was never at risk, and no response shape or query changed.
+
+**Three ratchets refused it, immediately and specifically:**
+
+```
+1) CrossContextBoundaryTest::test_a_cross_context_edge_never_grows_beyond_its_baseline [CONSOLE_to_MONEY]
+2) ModuleBoundaryTest::test_module_files_may_only_reach_other_modules_through_their_contracts
+3) ModuleGraphTest::test_every_cross_module_reference_is_a_contracts_reference
+```
+
+They are right, and the third one states the invariant the whole phase is built on: a module reaches another
+module **only** through that module's Contracts. The move turned four Console services from "kernel files naming a
+foreign kernel model" (a named, shrink-only debt list) into "Console naming Money's model directly" (a hole in
+the wall). The distinction that matters: the first is tracked debt with a shrink budget, the second is the thing
+the phase exists to remove. Extending those three ratchets with an allowlist would not have been a shrink-only
+addition - it would have deleted the assertion that makes C2 mean anything, so the move is ordered *after* the
+ports, not around them.
+
+**The measured blocker list - five files, nothing more:**
+
+| File | Money models named |
+|---|---|
+| `Console/Services/AdminWalletService.php` | `Wallet` |
+| `Console/Services/AdminReportService.php` | `Wallet` (two lookups by phone) |
+| `Console/Services/AdminWalletCharger.php` | `Wallet` |
+| `Console/Services/AdminWalletRequestService.php` | `WalletRequest`, `Wallet` |
+| `Console/Testing/Testfullrideflow.php` (kernel helper) | `Wallet` |
+
+Note what is *not* on it: `AdminWalletRequestController` (472 lines) never names a Money model - it goes through
+`AdminWalletRequestService`. The controller-side port I had queued as "precondition 1" is therefore not what
+stands in the way; **four Console services that look wallets up by phone, plus the kernel testing helper, are.**
+
+**State: VERIFIED ROLLBACK.** `git reset`, originals restored from index, the new `app/Modules/Money/Models`
+directory deleted, the 110 rewritten files restored from index (the owner's `phpunit.xml`, `AGENTS.md` and
+untracked `docker-compose.local.yml` untouched). `git status --short` shows only the owner's three entries;
+autoload regenerated to 11,951 classes; **AppFuture 61 tests / 461 assertions OK**. No commit contains the
+attempted move, and no file outside the reverted set was touched.
+
+**What this buys.** The next attempt starts from a precise list instead of a guess: a `WalletDirectory` reader
+(lookup by phone and by id, returning a `WalletSummary`) retires four of the five in one commit, and the kernel
+testing helper is a test fixture that can take the contract too. Then the `git mv` is genuinely mechanical - and
+provable as such, because these three ratchets already know how to say no.
