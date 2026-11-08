@@ -16,6 +16,7 @@ use App\Modules\Identity\Contracts\StaffTokenVerifierInterface;
 use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
+use App\Modules\Identity\Contracts\UserRatingRecorder;
 use App\Modules\Identity\Contracts\UserRepositoryInterface;
 use App\Modules\Identity\Contracts\UserTokenCleanupInterface;
 use App\Modules\Identity\Contracts\UserTokenVerifierInterface;
@@ -37,6 +38,7 @@ use App\Modules\Identity\Services\StaffJwtService;
 use App\Modules\Identity\Services\TextMeBotOtpService;
 use App\Modules\Identity\Services\UserDirectoryReader;
 use App\Modules\Identity\Services\UserRatingReaderService;
+use App\Modules\Identity\Services\UserRatingRecorderService;
 use App\Modules\Identity\Services\VerificationApprovalService;
 use Illuminate\Support\ServiceProvider;
 
@@ -76,6 +78,7 @@ final class IdentityServiceProvider extends ServiceProvider
         // Stage 2 C3: other modules read `users` through this, never through a query of their own.
         $this->app->bind(UserDirectory::class, UserDirectoryReader::class);
         $this->app->bind(UserRatingReader::class, UserRatingReaderService::class);
+        $this->app->bind(UserRatingRecorder::class, UserRatingRecorderService::class);
         $this->app->bind(ProfileRepositoryInterface::class, ProfileRepository::class);
         $this->app->bind(EmailOtpServiceInterface::class, EmailOtpService::class);
         $this->app->bind(OtpRepositoryInterface::class, OtpRepository::class);

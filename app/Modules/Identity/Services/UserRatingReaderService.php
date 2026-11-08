@@ -27,4 +27,16 @@ final class UserRatingReaderService implements UserRatingReader
 
         return new UserRatingStats(total: $row->total, average: $row->average);
     }
+
+    /**
+     * Verbatim the query the dashboard card ran, including its `whereHas` on the verified-driver flag: the
+     * relation walks two Identity tables, so it belongs inside the module rather than in the caller.
+     */
+    public function averageAcrossVerifiedDrivers(): mixed
+    {
+        return UserRating::whereHas(
+            'ratedUser',
+            fn ($q) => $q->where('is_verified_driver', true)
+        )->avg('rating');
+    }
 }

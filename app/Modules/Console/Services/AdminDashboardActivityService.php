@@ -5,7 +5,7 @@ namespace App\Modules\Console\Services;
 use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\User;
-use App\Models\UserRating;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use Carbon\Carbon;
 
 /**
@@ -71,10 +71,9 @@ final class AdminDashboardActivityService
         // through `User::bannedNow()`.
         $suspendedDrivers = User::bannedNow()->count();
 
-        $avgRating = UserRating::whereHas(
-            'ratedUser',
-            fn ($q) => $q->where('is_verified_driver', true)
-        )->avg('rating');
+        // Stage 2 C1/C2: `user_ratings` is Identity's table; the verified-driver filter walks two of its
+        // tables, so the module implements it and this card only rounds what it returns.
+        $avgRating = app(UserRatingReader::class)->averageAcrossVerifiedDrivers();
 
         return [
             'total_drivers' => $totalDrivers,

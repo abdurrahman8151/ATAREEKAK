@@ -19039,3 +19039,35 @@ Both are the next slice; the class move waits for them.
 `Review` and `Snapshots`: **916 tests / 4918 assertions**, only the three pre-existing `L16` failures, corpus
 byte-identical. Pint `--test` on the module, the Console services and `AppFuture`: **105 files PASS**. Autoload
 11957 -> 11960.
+---
+
+### 303. Stage 2 C1/C2: the verified-driver aggregate and the rating write port - `UserRating`'s last two consumers leave
+
+**What was left after sec 302.** Two consumers were not the per-user aggregate: the dashboard's
+`average_rating` card (`whereHas('ratedUser', ...)` across verified drivers) and `UserObserver`, which **writes**
+a platform base rating when a user is created. With those two still on the model, the class could not move
+without the ratchets forbidding a kernel observer and a Console service naming a moved model.
+
+**Reads.** `UserRatingReader::averageAcrossVerifiedDrivers(): mixed` - the query verbatim, `whereHas` included,
+because the filter walks `user_ratings` to `users` and both tables are Identity's. It returns `mixed` so the card
+keeps its own expression (`$avg ? round((float) $avg, 2) : 0.0`) and the response shape is decided where it was
+decided before.
+
+**Writes.** `Identity\Contracts\UserRatingRecorder::seedPlatformBaseRating(int $userId)`, implemented with the
+same `firstOrCreate` and the same `rater_id => null` spelling of "platform-assigned". `UserObserver` now takes
+the recorder in its constructor and names the port, never the row. `firstOrCreate` was deliberately kept over
+`create`: a replayed event or a seeder run twice must not add a second platform rating.
+
+**The kernel ceiling did not move.** `UserObserver` was already a kernel file naming module contracts (it takes
+`ProfileRepositoryInterface` and `ScoreServiceInterface`), so adding a third contract to the *same file* leaves
+the count of kernel files that name module contracts unchanged - the ceiling of 5 is untouched, and nothing had
+to be raised.
+
+**Verification.** AppFuture ratchets: **61 tests / 461 assertions OK** - no graph edge, no declared count and no
+ceiling changed, because every new reference is a *contract* in the owner's namespace. The wider consumer gate -
+`Admin`, `Console`, `Profile`, `Review`, `Snapshots`, `Auth`, `Otp` - **1138 tests / 5101 assertions**, only the
+three pre-existing `L16` failures, snapshot corpus byte-identical. Pint clean. Autoload 11960 -> 11962.
+
+**Consequence.** `UserRating` now has **no consumer outside Identity** except `app/Console/Testing` (an exempt
+directory), a seeder and a migration. Its class move is the next step, and the only thing still in its way is its
+own `ride()` relation, which points into Ride.

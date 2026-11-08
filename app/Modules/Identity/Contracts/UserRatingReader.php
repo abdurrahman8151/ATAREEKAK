@@ -17,4 +17,13 @@ interface UserRatingReader
      * The rating count and average for one user, as the single aggregate row returns them.
      */
     public function statsFor(int $userId): UserRatingStats;
+
+    /**
+     * The platform-wide average across users who are verified drivers - one number for the dashboard card.
+     *
+     * The verified-driver filter lives in this module because it walks `user_ratings` to `users`, and both
+     * tables are Identity's. Returning the raw `mixed` keeps the caller's existing rounding expression
+     * (`$avg ? round((float) $avg, 2) : 0.0`) in charge of the shape it puts in the response.
+     */
+    public function averageAcrossVerifiedDrivers(): mixed;
 }
