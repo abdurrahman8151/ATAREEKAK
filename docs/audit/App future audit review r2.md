@@ -18746,3 +18746,49 @@ between the first and last execution, and that the database is left clean. It do
 complete - the three pre-existing L16 failures are carried, unchanged, exactly as they were at the start of the
 phase, and a matrix cannot make them pass. They are listed here so the number 3067/13298 is never mistaken for
 "all green".
+---
+
+### 297. Stage 2 C2: `StaffRefreshToken -> Employee` replaced by Console's repository
+
+**The finding.** `App\Models\StaffRefreshToken` declared `employee(): BelongsTo` pointing at `App\Models\Employee`,
+which is Console's table. It had exactly one consumer - `StaffJwtService::refreshAccessToken()`, which eager
+loaded it (`->with('employee')`) and then checked `! $employee->is_active`. One relation, one reader, and the
+read crossed a module boundary to get a single boolean.
+
+**The change.** `StaffJwtService` now injects Console's existing
+`EmployeeRepositoryInterface` and calls `findById((int) $tokenRecord->employee_id)`. The `with('employee')` eager
+load and the relation itself are gone. No new contract was needed: Console's repository already had
+`findById(int): ?Employee`, and Identity already depended on that contract elsewhere (`EmployeeAuthService`).
+
+**Query count is unchanged, and that was the constraint.** Before: the token lookup plus one eager load. After:
+the token lookup plus one `findById`. The snapshot suite (which pins query counts per request) is green, so the
+substitution is invisible to every budget.
+
+**The null path is preserved exactly.** `! $employee || ! $employee->is_active` returns `null` - the same
+expression, now fed by a repository that returns `?Employee` instead of a relation that returns `null` when the
+row is missing. `RV29RefreshReuseDetectionTest` (reuse detection, family revocation, token-version bump) and
+`StaffRefreshTokenHashingTest` (rotation, digest lookup, plaintext refusal) both cover it and are green.
+
+**One test deleted, and the reason matters.** `StaffRefreshTokenTest::test_belongs_to_employee` asserted
+`$token->employee` - the relation this item removes. It is the *subject* that was removed, not an assertion that
+started disagreeing with the code; a test for a relation that C2 requires not to exist cannot be kept, and
+re-pointing it at the repository would be writing a different test under the old name. Deleted under the
+refactoring mode's "deleting code the refactor made dead", and the count moved by exactly that one test.
+
+**Verification.**
+
+- Targeted gate (RV04 token audience, RV29 reuse detection, `tests/Feature/Staff`, `StaffRefreshTokenTest`,
+  `StaffJwtMiddlewareTest`, `CleanupExpiredStaffTokensCommandTest`, `MoneyAndAuthPathBatchTest`, AppFuture):
+  **367 tests / 1145 assertions**, no failures.
+- Area floors for a shared-kernel model plus an Identity service (`Auth`, `Security`, `Otp`, `Console`, `Admin`,
+  `Snapshots`): **477 tests / 2929 assertions, OK** - snapshot corpus byte-identical, budgets unchanged.
+- `php -l` clean on both edited classes; Pint clean on every changed file.
+- Grep proof: no `->employee` relation access, no `->with('employee')`, no `employee(): BelongsTo` survives. The
+  four remaining `->employee()` hits are the `$this->employee()` test *helper*, not the relation.
+
+**What is still coupled, stated plainly.** This removed the *relation*; it did not remove the *type*. Three
+Identity contracts still name `App\Models\Employee` in their signatures (`EmployeeAuthInterface::formatEmployee`,
+`StaffJwtInterface::generateTokenPair`, `StaffTokenVerifierInterface::validateTokenVersion`) because each takes or
+passes the employee row itself, and `EmployeeAuthService` still resolves one through the repository. Replacing
+those needs an `EmployeeSummary` DTO plus a reader the login path returns - a contract change on three ports used
+by Console's controllers, and the next slice of this item rather than a footnote to it.

@@ -69,15 +69,6 @@ class StaffRefreshTokenTest extends TestCase
         $this->assertEquals('boolean', $casts['revoked']);
     }
 
-    // ─── Relationship ─────────────────────────────────────────────────────────────
-
-    public function test_belongs_to_employee(): void
-    {
-        $token = $this->makeToken();
-        $this->assertNotNull($token->employee);
-        $this->assertEquals($this->employee->id, $token->employee->id);
-    }
-
     // ─── isExpired() ──────────────────────────────────────────────────────────────
 
     public function test_is_expired_returns_false_when_token_is_not_expired(): void

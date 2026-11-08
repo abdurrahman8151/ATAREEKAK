@@ -4,6 +4,7 @@ namespace App\Modules\Identity\Services;
 
 use App\Models\Employee;
 use App\Models\StaffRefreshToken;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeTokenVersion;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
 use App\Modules\Identity\Contracts\StaffTokenCleanupInterface;
@@ -26,7 +27,10 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
 
     private const SUB_TYPE = 'employee';
 
-    public function __construct(private readonly EmployeeTokenVersion $tokenVersions) {}
+    public function __construct(
+        private readonly EmployeeTokenVersion $tokenVersions,
+        private readonly EmployeeRepositoryInterface $employees,
+    ) {}
 
     // ── Token generation ──────────────────────────────────────────────────────
 
@@ -107,7 +111,6 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
         // never the value stored, mirroring JwtService::refreshAccessToken()
         // (app/Services/JwtService.php:123).
         $tokenRecord = StaffRefreshToken::where('token', $this->hashToken($refreshToken))
-            ->with('employee')
             ->first();
 
         if (! $tokenRecord) {
@@ -142,7 +145,9 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
             return null;
         }
 
-        $employee = $tokenRecord->employee;
+        // Stage 2 C2: `employees` is Console's table, so the lookup goes through its repository rather
+        // than a relation declared on a token model Identity owns. One query either way.
+        $employee = $this->employees->findById((int) $tokenRecord->employee_id);
 
         if (! $employee || ! $employee->is_active) {
             return null;
