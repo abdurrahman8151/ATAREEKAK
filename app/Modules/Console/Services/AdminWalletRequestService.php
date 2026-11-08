@@ -4,7 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Models\Wallet;
 use App\Models\WalletRequest;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\WalletTransactionRecorder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -77,9 +77,10 @@ final class AdminWalletRequestService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function createTransaction(array $attributes): WalletTransaction
+    public function createTransaction(array $attributes): mixed
     {
-        return WalletTransaction::create($attributes);
+        // Stage 2 C2: Money owns `wallet_transactions`; Console records through its port.
+        return app(WalletTransactionRecorder::class)->record($attributes);
     }
 
     /**

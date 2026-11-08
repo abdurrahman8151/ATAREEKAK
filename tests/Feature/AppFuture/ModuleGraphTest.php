@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       4      2        -          1
- *   Console            4       3      2        6          -
+ *   Console            4       4      2        6          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -83,7 +83,9 @@ class ModuleGraphTest extends TestCase
         'Communication -> Console' => 2,
         'Console -> Communication' => 4,
         'Console -> Identity' => 6,
-        'Console -> Money' => 3,
+        // Stage 2 C2: the admin charge and wallet-request paths record their transaction through
+        // Money's WalletTransactionRecorder port instead of inserting the row themselves.
+        'Console -> Money' => 4,
         'Console -> Ride' => 2,
         'Identity -> Communication' => 1,
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so

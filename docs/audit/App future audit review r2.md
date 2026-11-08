@@ -18208,3 +18208,39 @@ uses, not a new pattern.
 Verification: Rides + Bookings + Unit/Domain + Admin + Review + Snapshots **1200 tests / 5110 assertions** with
 only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures (unchanged red set, same
 names); AppFuture 61 tests OK; whole-tree Pint **811 files PASS**.
+---
+
+### 284. Stage 2 C2: the two remaining Console writes to `wallet_transactions` go through Money's recorder
+
+**The step.** `AdminWalletCharger` (two inserts: the admin charge and the external-capital leg) and
+`AdminWalletRequestService::createTransaction()` inserted `WalletTransaction` rows directly. The port already
+existed - `Money\Contracts\WalletTransactionRecorder::record(array): mixed`, written for the Identity admin
+charge in C1 - so this commit is routing, not new design: four `WalletTransaction::create()` calls become
+`app(WalletTransactionRecorder::class)->record(...)`, and the two type hints that named the model
+(`@return array{0: WalletTransaction, 1: string}` and `postExternalInboundLeg(WalletTransaction $transaction)`)
+become `mixed`, which is what the port's own docblock already says it returns and why.
+
+**Why `app()` and not constructor injection.** `AdminWalletRequestService` has no constructor and
+`AdminWalletCharger`'s is already used; both are built in places that do not go through the container's
+autowiring for this parameter. Resolving the port at the call site keeps every construction site untouched -
+the same choice recorded for `Noshowservice` in audit 283.
+
+**A correction, recorded rather than quietly dropped.** I first deleted `'Console -> WalletTransaction' =>
+'wallet_transactions'` from the baseline, expecting 34 -> 33. The ratchet failed within one run: three other
+Console services still name the model - `AdminWalletService::getWalletTransactions`,
+`AdminDriverDashboardService` (ledger earnings), `AdminReportService` (four escrow/revenue aggregates). The
+entry is restored. The pair survives, and the honest reading is that this commit reduced *six* Console files
+naming `WalletTransaction` to *four*, which no ratchet counts, because the baseline is per pair.
+
+**The Console allowlist is per file, so it did move.** `AdminWalletCharger` now lists `['Wallet']` and
+`AdminWalletRequestService` `['Wallet', 'WalletRequest']` - the per-file ratchet from audit 279 is what makes
+that reduction visible, and it is the reason to prefer it over the pair count alone.
+
+**A tooling bug worth naming.** My first attempt at the graph edit wrote the three-line comment with literal
+`` `n `` sequences instead of newlines, because a PowerShell single-quoted here-string forwards backticks
+untouched and PHP does not treat `` `n `` as an escape. The test caught it as a missing edge, not as a syntax
+error. Repaired with real newlines and the docblock column (`Console` row, Money column 3 -> 4) updated.
+
+Verification: Admin + Wallet + Payment + Review + Snapshots **1280 tests / 7486 assertions** with only the three
+pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures; AppFuture 61 tests OK; whole-tree Pint
+**811 files PASS**.

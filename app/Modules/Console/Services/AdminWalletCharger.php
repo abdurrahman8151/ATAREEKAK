@@ -4,8 +4,8 @@ namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\LedgerServiceInterface;
+use App\Modules\Money\Contracts\WalletTransactionRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -77,7 +77,7 @@ class AdminWalletCharger
      * The admin_credit leg: the target wallet transaction. Returns the transaction plus the id
      * used for the matching external leg.
      *
-     * @return array{0: WalletTransaction, 1: string}
+     * @return array{0: mixed, 1: string}
      */
     private function createAdminCreditTransaction(
         Wallet $wallet,
@@ -88,7 +88,8 @@ class AdminWalletCharger
     ): array {
         $transactionId = strtoupper($adminConfig['type']).'_CHARGE_'.time().'_'.Str::random(8);
 
-        $transaction = WalletTransaction::create([
+        // Stage 2 C2: Money owns `wallet_transactions`; Console records through its port.
+        $transaction = app(WalletTransactionRecorder::class)->record([
             'wallet_id' => $wallet->id,
             'user_id' => $wallet->user_id,   // null for system wallets
             'type' => 'admin_credit',
@@ -111,7 +112,7 @@ class AdminWalletCharger
      */
     private function postExternalInboundLeg(
         Wallet $wallet,
-        WalletTransaction $transaction,
+        mixed $transaction,
         Money $amount,
         array $adminConfig,
         string $transactionId,
@@ -142,7 +143,7 @@ class AdminWalletCharger
         $external->balance -= $amount->amount();   // money leaves the outside account
         $external->save();
 
-        $externalTransaction = WalletTransaction::create([
+        $externalTransaction = app(WalletTransactionRecorder::class)->record([
             'wallet_id' => $external->id,
             'user_id' => null,
             'type' => 'external_inbound',
