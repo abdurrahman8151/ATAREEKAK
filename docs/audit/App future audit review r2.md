@@ -18987,3 +18987,55 @@ clean on the module and the moved models.
 
 **The docs were updated in the same commit**, because they would otherwise have lied: `ARCHITECTURE.md`'s
 ownership map and the Identity README now show these two as moved rather than pending (8 moved rows, 17 pending).
+---
+
+### 302. Stage 2 C1/C2: `UserRatingReader` - three Console services stop querying `user_ratings`
+
+**The finding.** Three Console services ran the *same* query against Identity's table -
+`COUNT(*) as total, ROUND(AVG(rating), 2) as average` for one `rated_user_id` - and one of them
+(`StaffUserProfileService::loadRatingStats`) typed its own return value as `?UserRating`, handing a model out of a
+service. The aggregate is a fact about a user, not a row anyone needs to hold.
+
+**The port.** `Identity\Contracts\UserRatingReader::statsFor(int): UserRatingStats`, implemented by
+`UserRatingReaderService` with the SQL verbatim, bound in `IdentityServiceProvider`. `UserRatingStats` carries
+`total` and `average` as **`mixed`**, for the reason `WalletSummary::balance` does: the driver returns a decimal
+string for `ROUND(AVG(...))` and `null` when nobody has rated, and callers put those straight into responses. The
+property names are the ones the call sites already read, so all three read sites needed **no change at all** - only
+the query behind them moved.
+
+**One difference was deliberate and it is invisible.** `AdminDriverQueryService` used `AVG(rating)` where the other
+two used `ROUND(AVG(rating), 2)`. Unifying on `ROUND` changes the raw value and not the response, because every
+consumer rounds or casts before emitting (`AdminDriverPresenter::driverProfileRating` does `round((float) ..., 2)`,
+`StaffUserProfileService` casts `total`). The snapshot corpus is byte-identical, which is the evidence rather than
+the reasoning.
+
+**The boundary lesson: a port that returns a DTO does not license the caller to name the DTO.** My first version
+imported `UserRatingStats` into `StaffUserProfileService` for a return type. Four ratchets fired, and they were
+right: `CrossContextBoundaryTest` (`CONSOLE_to_IDENTITY` ceiling 0 - "new cross-context import"),
+`ModuleBoundaryTest` ("Console -> Identity\DTOs\UserRatingStats", a module naming another module's
+implementation), and both `ModuleGraphTest` cases ("names DTOs (Console -> Identity)"). Console may reach Identity
+through its **Contracts** only. Fixed by dropping the type hint - the method reads `->total` and `->average` by
+property, which needs no class reference - and the comment in the method now says why, so the next person does not
+re-add the import as a "cleanup".
+
+**The edge was declared, not raised silently.** `Console -> Identity` went from 6 ports to 7 on an **existing**
+edge. `ModuleGraphTest`'s own message says a new port on an old edge "needs its own line here, with the reason, in
+the commit that adds it", so the declared count in `EDGES` and the docblock table row were both updated (6 -> 7)
+rather than the assertion relaxed. No ceiling was raised: the cross-context ceiling is still 0, and it now passes
+because no implementation or DTO is named.
+
+**Not moved yet, with the reason.** `UserRating` itself still lives in `App\Models`, because two consumers are not
+the aggregate read:
+
+- `AdminDashboardActivityService` averages ratings across **verified drivers** via `whereHas('ratedUser', ...)` - a
+  relation walk the reader does not offer, and adding it means deciding whether the port takes a driver filter.
+- `UserObserver` **writes** (`UserRating::firstOrCreate([...])`, a self-rating row for a new user). A write port is
+  a different contract with a different verb, and the kernel observer calling it is an architecture question of its
+  own (the kernel may name module contracts, but who owns the hook is not obvious).
+
+Both are the next slice; the class move waits for them.
+
+**Verification.** `AppFuture`, `Admin`, `Staff`, `Profile`: **428 tests / 1297 assertions OK**. Ratchets with
+`Review` and `Snapshots`: **916 tests / 4918 assertions**, only the three pre-existing `L16` failures, corpus
+byte-identical. Pint `--test` on the module, the Console services and `AppFuture`: **105 files PASS**. Autoload
+11957 -> 11960.

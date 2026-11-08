@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       4      2        -          1
- *   Console            4       9      2        6          -
+ *   Console            4       9      2        7          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -82,7 +82,7 @@ class ModuleGraphTest extends TestCase
     private const EDGES = [
         'Communication -> Console' => 2,
         'Console -> Communication' => 4,
-        'Console -> Identity' => 6,
+        'Console -> Identity' => 7,
         // Stage 2 C2: the admin charge and wallet-request paths record their transaction through
         // Money's WalletTransactionRecorder port instead of inserting the row themselves.
         // Stage 2 C2: the admin driver dashboard's earnings sum is Money's query, run by Money.

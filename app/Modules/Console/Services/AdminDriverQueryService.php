@@ -6,7 +6,7 @@ use App\Models\Booking;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
-use App\Models\UserRating;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -108,9 +108,9 @@ final class AdminDriverQueryService
     {
         $driver = $this->findDriverWithProfileData($driverId);
 
-        $ratingStats = UserRating::where('rated_user_id', $driverId)
-            ->selectRaw('COUNT(*) as total, AVG(rating) as average')
-            ->first();
+        // Stage 2 C1/C2: Identity owns `user_ratings`; the unification on ROUND(..., 2) is invisible
+        // because the presenter rounds and casts before emitting.
+        $ratingStats = app(UserRatingReader::class)->statsFor($driverId);
 
         $completedRides = Ride::where('driver_id', $driverId)
             ->where('status', 'finished')

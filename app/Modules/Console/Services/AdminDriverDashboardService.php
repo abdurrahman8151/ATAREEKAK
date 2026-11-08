@@ -8,7 +8,7 @@ use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
-use App\Models\UserRating;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Money\Contracts\DriverEarningsReader;
 
 /**
@@ -88,9 +88,8 @@ final class AdminDriverDashboardService
 
     private function dashboardRatingStats(int $driverId)
     {
-        return UserRating::where('rated_user_id', $driverId)
-            ->selectRaw('COUNT(*) as total, ROUND(AVG(rating), 2) as average')
-            ->first();
+        // Stage 2 C1/C2: `user_ratings` is Identity's table, read through its contract.
+        return app(UserRatingReader::class)->statsFor($driverId);
     }
 
     private function dashboardRideStats(int $driverId): array

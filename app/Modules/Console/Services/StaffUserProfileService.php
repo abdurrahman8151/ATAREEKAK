@@ -3,7 +3,7 @@
 namespace App\Modules\Console\Services;
 
 use App\Models\Profile;
-use App\Models\UserRating;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -95,11 +95,12 @@ final class StaffUserProfileService
     /**
      * Aggregate rating row for the rated user.
      */
-    private function loadRatingStats(int $userId): ?UserRating
+    private function loadRatingStats(int $userId)
     {
-        return UserRating::where('rated_user_id', $userId)
-            ->selectRaw('COUNT(*) as total, ROUND(AVG(rating), 2) as average')
-            ->first();
+        // Stage 2 C1/C2: Identity returns its own aggregate; this file reads ->total and ->average by
+        // property and deliberately does not name the DTO class, because Console may only reach another
+        // module through its Contracts (naming a DTO trips both the boundary ratchet and the context ceiling).
+        return app(UserRatingReader::class)->statsFor($userId);
     }
 
     /**
