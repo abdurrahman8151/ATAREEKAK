@@ -18877,3 +18877,69 @@ than guessed at. The remaining coupling is exactly two methods in two contracts.
 3989 assertions**, only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures. Pint
 clean on the module and the middleware. The middleware still names `Employee` - for `is_active` and `role`, which
 are the two things it needs and which the employee row legitimately carries in the kernel.
+---
+
+### 300. Stage 2 close-out measurement: the final gate, a deploy-note gap found by checking, and C1 readiness for the three unstarted modules
+
+**The final gate at the closing state.** Default order **3072 tests / 13315 assertions / 954.65 s**, reverse order
+**3072 / 13315 / 1062.53 s**, both with the same three pre-existing `L16DriverNoShowSettlementCharacterizationTest`
+failures and the same two skips, **0 assertion diffs and 0 missing/extra tests** between the two orders. The
+leftover-rows probe is clean, the snapshot corpus reports **0 changed files**, and whole-tree Pint passes. The
+count moved from the Phase E matrix's 3067 because of two later commits: `-1` test deleted with the dead relation
+(sec 297) and `+6` added by the `UserDirectory` contract test (sec 298).
+
+**A gap I found by checking instead of remembering.** The Phase C1 requirement is to list the moved queued
+classes *under the heading* "Deploy notes: drain the queue before deploying". A grep for that phrase across the
+three documents that should carry it returned **one** hit - inside ADR 0009's prose - and a grep for any
+`# Deploy` heading returned **none**. So the hazard existed but was not findable: a deployer reading
+`ARCHITECTURE.md`, the document whose job is the layout, would not have seen it. Closed with a new
+`## 12. Deploy notes: drain the queue before deploying` in `ARCHITECTURE.md` (a table of the two
+`SerializesModels` events, old name to new, why a pre-deploy payload cannot deserialise, what is safe by
+construction, and the note that this recurs for any future queued move) plus the same paragraph in the
+Communication README. The phrase now appears in all three documents, and every markdown link in the changed files
+resolves.
+
+**C1 readiness for Ride, Identity and Console, measured.** Files naming each model (`use` lines) and, as an upper
+bound on the coupling that blocked Money, occurrences that embed a variable of that model into a returned array or
+return it directly:
+
+| Module | Model | `use` lines | embedded / returned |
+|---|---|---|---|
+| Ride | `Ride` | 49 | **133 / 5** |
+| Ride | `Booking` | 43 | **115 / 3** |
+| Ride | `NoshowReport` | 7 | 0 / 0 |
+| Ride | `ScoreTransaction` | 3 | 0 / 0 |
+| Ride | `UserScore` | 6 | 10 / 0 |
+| Identity | `Otp` | 5 | 18 / 0 |
+| Identity | `RefreshToken` | 1 | 2 / 0 |
+| Identity | `StaffRefreshToken` | 1 | 0 / 0 |
+| Identity | `Photo` | 7 | 4 / 0 |
+| Identity | `Profile` | 14 | 44 / 1 |
+| Identity | `ProfileComment` | 3 | 5 / 0 |
+| Identity | `UserRating` | 8 | 0 / 0 |
+| Console | `Complaint` | 10 | 45 / 2 |
+| Console | `ComplaintAttachment` | 1 | 0 / 0 |
+| Console | `Employee` | 17 | 32 / 6 |
+
+The measurement says the three modules are not one job. `Ride` and `Booking` are the worst cases in the codebase
+(133 and 115 embeddings) - they are what the Money attempt failed on, at a smaller scale (Money was 4 models and
+110 rewritten files, and it still hit three ratchets). `StaffRefreshToken`, `NoshowReport`, `ScoreTransaction`,
+`UserRating`, `ComplaintAttachment` have one to eight `use` lines and **zero** embeddings or returns: those are
+movable now, and starting with them means the first successful C1 move in stage 2 is a small one that proves the
+procedure rather than the largest one that can fail.
+
+**Stage 2 status, stated exactly.**
+
+| Phase | State |
+|---|---|
+| A (log hygiene) | done |
+| B (B1-B4) | done; four items parked with one question each |
+| C1 | Communication done; **Money parked** (two owner decisions, secs 291/293); Ride, Identity, Console measured, not started (this section) |
+| C2 | six ratchets green; `WalletRequest::processorEmployee` and `StaffRefreshToken::employee` removed (secs 291, 297); verifier de-modelled (sec 299); two `Employee` signatures remain, parked with the reason (sec 299) |
+| C3 | `UserDirectory` + `UserSummary` land, bound and tested; migration parked with its measurement (sec 298) |
+| D | done (secs 294/295, plus the deploy-notes closure here) |
+| E | done (sec 296) |
+
+**Stage 2 is not complete, and this section does not claim it is.** Three C1 module moves are unstarted (Ride,
+Identity, Console), the C3 migration is unstarted, and four owner decisions are outstanding. What this section
+adds is the measurement that makes the next move a decision instead of an experiment.

@@ -60,3 +60,10 @@ the schema is frozen and each model declares its table explicitly.
 | `Notification` | `notifications` | this module: `App\Modules\Communication\Models` |
 | `UserNotification` | `user_notifications` | this module: `App\Modules\Communication\Models` |
 | `PushNotificationToken` | `push_notification_tokens` | this module: `App\Modules\Communication\Models` |
+
+## Deploy notes: drain the queue before deploying
+
+`MessageSent` and `NotificationSent` both use `SerializesModels`, so a payload queued before they moved
+cannot be deserialised after it. Deploy with the queue empty, or drain it first. See
+[ADR 0009](../../../docs/adr/0009-events-move-with-their-publisher.md) and
+[ARCHITECTURE.md § 12](../../../docs/ARCHITECTURE.md).

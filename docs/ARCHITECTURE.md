@@ -301,3 +301,22 @@ Two rules ride along with that table, and both are ratchet-enforced rather than 
 - **A response does not change.** Every port in this table was moved behind a byte-identical response, proved by
   the snapshot corpus. Where the payload embeds an Eloquent row, the port is not attempted: it is parked with
   that reason (see the audit record for the two endpoints still in that state).
+## 12. Deploy notes: drain the queue before deploying
+
+Stage 2 moved two **queued** classes, and a queued class is the one kind of move a test suite cannot prove safe:
+
+| Old class name | New class name | Why it is a hazard |
+|---|---|---|
+| `App\Events\MessageSent` | `App\Modules\Communication\Events\MessageSent` | uses `SerializesModels` |
+| `App\Events\NotificationSent` | `App\Modules\Communication\Events\NotificationSent` | uses `SerializesModels` |
+
+`SerializesModels` writes the class name into the payload. A job or listener queued *before* the deploy holds the
+old name, and the worker that picks it up *after* the deploy cannot deserialise it - the job fails, and on a
+queue with retries it fails repeatedly. **Deploy with the queue empty, or drain it first.**
+
+Everything else moved in stage 2 is safe by construction: models, contracts, services and readers are resolved
+from the container at runtime, not serialised. Listeners, jobs and notifications deliberately stayed in the
+kernel ([ADR 0004](adr/0004-jobs-listeners-notifications-stay-in-the-kernel.md)); only the events moved
+([ADR 0009](adr/0009-events-move-with-their-publisher.md)).
+
+A future move of any queued class repeats this note. It is a property of the queue, not of these two classes.
