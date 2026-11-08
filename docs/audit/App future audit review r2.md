@@ -18358,3 +18358,37 @@ Verification: Admin + Snapshots + Review + Wallet **1005 tests / 4762 assertions
 pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures - the financial report's figures are
 unchanged; AppFuture 61 tests OK; `Console -> Money` 6 -> 7 declared with its docblock column; whole-tree Pint
 PASS.
+---
+
+### 288. Stage 2 C2: `ledger:reconcile` asks Money instead of reaching into its tables
+
+**The step.** `app/Console/Commands/ReconcileLedgerCommand.php` is a kernel entrypoint, and it read Money's data
+directly: `Wallet::orderBy('id')->get()`, `LedgerEntry::count()`, `LedgerEntry::sum('amount')`, and per wallet
+`$wallet->transactions()->sum('amount')` against `LedgerEntry::where('wallet_id', ...)->sum('amount')`. Those
+reads are now `Money\Contracts\LedgerReconciliation` - `walletCount`, `ledgerEntryCount`, `systemImbalance`,
+`perWalletDrift(float $threshold)` - implemented by `LedgerReconciliationReader` and bound in the Money provider.
+
+**The command keeps exactly what a command should keep.** Presentation and the exit code. `perWalletDrift`
+returns plain values (`id`, `number`, `recorded`, `ledgered`, `drift`), the command formats the same lines it
+always printed, and it still returns `FAILURE` when the system does not balance or any wallet drifts past the
+threshold - the owner's AF-6a decision, untouched.
+
+**Behaviour proven three ways, because "it compiles" proves nothing for a job whose output is an alarm:**
+
+1. `LedgerReconcileDetectsDriftTest` (3 tests that exist precisely to make this command's diagnosis testable)
+   passes - drift is still detected, and still exits non-zero.
+2. `DoubleEntryLedgerTest` passes - conservation is still read the same way.
+3. The command was run for real against the scratch database: `0 wallets | 0 ledger entries | tolerance 0.01
+   SYP`, `System balances: all ledger legs sum to 0.00 SYP.`, `0 of 0 wallets fully explained`, exit 0. An empty
+   database is not an interesting report, but it is the path that proves the port resolves and the command boots
+   without its models - and the drift test supplies the interesting case.
+
+**Why this was a blocker and not a nicety.** `ModuleBoundaryTest::kernel_files_may_not_name_module_implementation`
+must stay at 0 before the Money models can move: a kernel command naming `App\Models\Wallet` would break the moment
+that class leaves `app\Models`. The contract keeps the command on the allowed side of the boundary, and
+`app\Console\Testing\Testfullrideflow.php` - the other kernel file still naming `Wallet` - is recorded as the
+remaining item of that kind.
+
+Verification: Review + Wallet + Snapshots + Admin **1005 tests / 4762 assertions** with only the three pre-existing
+`L16DriverNoShowSettlementCharacterizationTest` failures; drift-detection + ledger suite 80 tests OK; AppFuture
+61 tests OK; whole-tree Pint **819 files PASS**.

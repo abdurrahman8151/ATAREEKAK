@@ -2,10 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\LedgerEntry;
-use App\Models\Wallet;
+use App\Modules\Money\Contracts\LedgerReconciliation;
 use Illuminate\Console\Command;
-use Illuminate\Support\Collection;
 
 /**
  * Decision un3 (owner, 2026-10-02): does the ledger explain the balances?
@@ -44,17 +42,19 @@ class ReconcileLedgerCommand extends Command
     {
         $threshold = (float) $this->option('threshold');
 
-        $wallets = Wallet::orderBy('id')->get();
+        // Stage 2 C2: every read below is Money's; the command renders and sets the exit code.
+        $ledger = app(LedgerReconciliation::class);
+        $walletCount = $ledger->walletCount();
 
-        $this->renderHeader($wallets, $threshold);
+        $this->renderHeader($walletCount, $ledger->ledgerEntryCount(), $threshold);
 
-        if (! $this->systemBalances()) {
+        if (! $this->systemBalances($ledger->systemImbalance())) {
             return self::FAILURE;
         }
 
-        [$explained, $unexplained] = $this->comparePerWallet($wallets, $threshold);
+        [$explained, $unexplained] = $this->comparePerWallet($ledger->perWalletDrift($threshold));
 
-        $this->info(sprintf('  %d of %d wallets fully explained by the ledger.', $explained, $wallets->count()));
+        $this->info(sprintf('  %d of %d wallets fully explained by the ledger.', $explained, $walletCount));
 
         if ($unexplained !== []) {
             $this->reportUnexplained($unexplained);
@@ -66,13 +66,13 @@ class ReconcileLedgerCommand extends Command
         return self::SUCCESS;
     }
 
-    private function renderHeader(Collection $wallets, float $threshold): void
+    private function renderHeader(int $wallets, int $ledgerEntries, float $threshold): void
     {
         $this->info('Ledger reconciliation');
         $this->line(sprintf(
             '  %d wallets | %d ledger entries | tolerance %s SYP',
-            $wallets->count(),
-            LedgerEntry::count(),
+            $wallets,
+            $ledgerEntries,
             number_format($threshold, 2),
         ));
         $this->newLine();
@@ -81,9 +81,8 @@ class ReconcileLedgerCommand extends Command
     /**
      * Conservation first: if the whole system does not balance, no per-wallet reading means much.
      */
-    private function systemBalances(): bool
+    private function systemBalances(float $systemImbalance): bool
     {
-        $systemImbalance = round((float) LedgerEntry::sum('amount'), 2);
 
         if ($systemImbalance !== 0.0) {
             $this->error(sprintf(
@@ -104,30 +103,20 @@ class ReconcileLedgerCommand extends Command
     /**
      * @return array{0: int, 1: list<string>}
      */
-    private function comparePerWallet(Collection $wallets, float $threshold): array
+    private function comparePerWallet(array $drift): array
     {
-        $explained = 0;
+        // Stage 2 C2: Money compared the two sides; the command only formats the lines.
+        [$explained, $rows] = $drift;
         $unexplained = [];
 
-        foreach ($wallets as $wallet) {
-            // What the single-sided table says this wallet moved, versus what the ledger says.
-            $recorded = round((float) $wallet->transactions()->sum('amount'), 2);
-            $ledgered = round((float) LedgerEntry::where('wallet_id', $wallet->id)->sum('amount'), 2);
-            $drift = round($ledgered - $recorded, 2);
-
-            if (abs($drift) <= $threshold) {
-                $explained++;
-
-                continue;
-            }
-
+        foreach ($rows as $row) {
             $unexplained[] = sprintf(
                 '    wallet #%d (%s): wallet_transactions %s, ledger %s, drift %s SYP',
-                $wallet->id,
-                $wallet->wallet_number,
-                number_format($recorded, 2),
-                number_format($ledgered, 2),
-                number_format($drift, 2),
+                $row['id'],
+                $row['number'],
+                number_format($row['recorded'], 2),
+                number_format($row['ledgered'], 2),
+                number_format($row['drift'], 2),
             );
         }
 
