@@ -1,0 +1,62 @@
+<?php
+
+namespace App\Modules\Identity\Services;
+
+use App\Models\User;
+use App\Modules\Identity\Contracts\UserDirectory;
+use App\Modules\Identity\DTOs\UserSummary;
+
+/**
+ * Stage 2 C3: the `users` table is Identity's to read; everyone else asks here.
+ *
+ * One query per call, whatever the number of ids - that is the whole point of the batched method.
+ * The columns are listed explicitly rather than `select('*')` so a later column (a password hash, a
+ * token version) cannot leak into a DTO by accident.
+ */
+final class UserDirectoryReader implements UserDirectory
+{
+    private const COLUMNS = [
+        'id',
+        'first_name',
+        'last_name',
+        'email',
+        'status',
+        'is_verified_passenger',
+        'is_verified_driver',
+    ];
+
+    public function summaryFor(int $userId): ?UserSummary
+    {
+        return $this->summariesFor([$userId])[$userId] ?? null;
+    }
+
+    public function summariesFor(array $userIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $userIds)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $summaries = [];
+
+        foreach (User::query()->whereIn('id', $ids)->get(self::COLUMNS) as $user) {
+            $summaries[(int) $user->id] = $this->toSummary($user);
+        }
+
+        return $summaries;
+    }
+
+    private function toSummary(User $user): UserSummary
+    {
+        return new UserSummary(
+            id: (int) $user->id,
+            firstName: $user->first_name,
+            lastName: $user->last_name,
+            email: $user->email,
+            status: $user->status,
+            isVerifiedPassenger: (bool) $user->is_verified_passenger,
+            isVerifiedDriver: (bool) $user->is_verified_driver,
+        );
+    }
+}

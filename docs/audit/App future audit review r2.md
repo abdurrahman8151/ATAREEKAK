@@ -18792,3 +18792,52 @@ Identity contracts still name `App\Models\Employee` in their signatures (`Employ
 passes the employee row itself, and `EmployeeAuthService` still resolves one through the repository. Replacing
 those needs an `EmployeeSummary` DTO plus a reader the login path returns - a contract change on three ports used
 by Console's controllers, and the next slice of this item rather than a footnote to it.
+---
+
+### 298. Stage 2 C3: `UserDirectory` + `UserSummary` land; the migration is parked with its measurement
+
+**What was built (additive, no call site switched).**
+
+- `App\Modules\Identity\DTOs\UserSummary` - id, first/last name, email, status, the two verification flags,
+  and `fullName()`. Final, readonly, no `save()`: a caller that receives it cannot write the row.
+- `App\Modules\Identity\Contracts\UserDirectory` - `summaryFor(int)` and `summariesFor(int[])`, the latter
+  returning `array<int, UserSummary>` keyed by id.
+- `App\Modules\Identity\Services\UserDirectoryReader` - one query via `whereIn`, with the columns listed
+  explicitly so a later column (a password hash, a token version) cannot leak into a DTO by accident.
+- Bound in `IdentityServiceProvider`; `tests/Feature/Review/UserDirectoryContractTest` proves the properties
+  that matter: **3 ids cost exactly 1 query**, summaries are keyed, unknown ids are absent (not null entries),
+  an empty request queries nothing, `summaryFor()` returns null for an unknown user, and the DTO is final
+  without a `save()`.
+
+**One thing the build found, and it changed the DTO's docblock.** I first wrote that `fullName()` replicates
+`User::fullName()`. It does not exist: only `Employee` has `fullName()`. Users' names are concatenated inline,
+five different ways in the codebase (`RideResource`, `BookingResource`, `RideBooked`, `RideCancelled`,
+`ReportStuckEscrowCommand`), all of them `trim($first.' '.$last)`. The DTO follows the *rule*, which is shared,
+rather than a method that is not - and the test now pins the DTO against that inline expression instead of
+against a method I had invented.
+
+**Why the migration did not happen in this commit.** The decision gate for C3 says: park with measurements if
+a snapshot, budget or ledger property cannot hold. Measured before touching anything:
+
+| Measure | Count |
+|---|---|
+| Files importing `App\Models\User`, per module | **16 in each** of Communication, Console, Identity, Money, Ride (80 module files) |
+| `User::` static calls in Console services | `AdminDashboardActivityService` 8, `AdminUserService` 6, `EmployeeManagementService` 6, `AdminReportService` 4, `BanService` 3, `AdminDriverQueryService` 2, `AdminVerificationQueueService` 2, `StaffVerificationQueueService` 2 |
+| `User::` static calls elsewhere | Ride's `NoShowPenaltyService` 2, Identity's own services/repositories (its own table, not counted against it) |
+
+Eighty module files name the model. Most name it for the *principal* (`$request->user()`, a policy signature, an
+`int $userId`), which ADR 0007 explicitly keeps - so the migration is not 80 edits, it is however many of those
+80 read *another* user's data. Separating the two requires auditing each file, and the audit is the work. Doing
+it blind would move response shapes, and the snapshot corpus (byte-identical by rule) is exactly what would catch
+me, in the most expensive way: one endpoint at a time, each needing its own characterization first.
+
+**What is therefore true right now.** The port exists, is bound, is tested, and costs one query for a list - so
+the correct call is available to whoever migrates a given file. Nothing is switched over, so no snapshot, budget
+or ledger property has moved, and the C3 decision gate is satisfied as "not yet attempted beyond the foundation".
+The item stays open with this record as its measurement, rather than being reported as done because a contract
+compiles.
+
+**Verification.** `UserDirectoryContractTest` 6 tests / 16 assertions. Ratchets and Identity floors together
+(`AppFuture`, `Review`, `Auth`, `Staff`, `Otp`, `Security`, `Unit/Middleware`, `Unit/Providers`): **1192 tests /
+4070 assertions**, with only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures.
+Pint clean on the module and the new test. Autoload classmap 11953 -> 11957 (four new classes).
