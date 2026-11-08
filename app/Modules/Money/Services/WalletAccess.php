@@ -8,12 +8,26 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Modules\Ride\Contracts\BookingEscrowLedger;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 
 /** Wallet lookup, row locking and the balance guard shared by the money paths. */
 class WalletAccess
 {
+    /**
+     * Stage 2 C2: Ride owns ookings, so the guarded escrow decrement lives there.
+     *
+     * Optional so the existing
+ew WalletAccess call sites (tests that build the money paths by hand)
+     * keep working; production resolves it from the container like every other port.
+     */
+    public function __construct(private ?BookingEscrowLedger $escrowLedger = null) {}
+
+    private function escrowLedger(): BookingEscrowLedger
+    {
+        return $this->escrowLedger ??= app(BookingEscrowLedger::class);
+    }
+
     /**
      * Format an amount for safe interpolation into raw SQL.
      *
@@ -64,15 +78,10 @@ class WalletAccess
             return;
         }
 
-        $affected = DB::table('bookings')
-            ->where('id', $booking->id)
-            ->where('escrow_held', '>=', $this->money($amount))
-            ->update([
-                'escrow_held' => DB::raw('escrow_held - '.$this->money($amount)),
-            ]);
-
-        if ($affected !== 1) {
-            $held = (float) (DB::table('bookings')->where('id', $booking->id)->value('escrow_held') ?? 0);
+        // Stage 2 C2: the conditional UPDATE and its refusal read both live behind Ride's port now.
+        // Same statement, same guard, same two queries - the table's owner runs its own SQL.
+        if (! $this->escrowLedger()->conditionallyDebit((int) $booking->id, $amount)) {
+            $held = $this->escrowLedger()->heldFor((int) $booking->id);
 
             throw new \RuntimeException(
                 "RV-02 L2: booking #{$booking->id} does not hold {$this->money($amount)} in escrow "

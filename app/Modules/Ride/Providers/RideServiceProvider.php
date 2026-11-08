@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ride\Providers;
 
+use App\Modules\Ride\Contracts\BookingEscrowLedger;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\NoShowReportInterface;
@@ -11,6 +12,7 @@ use App\Modules\Ride\Contracts\UserRideStatsInterface;
 use App\Modules\Ride\Domain\ScorePolicyFactory;
 use App\Modules\Ride\Repositories\RideRepository;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
+use App\Modules\Ride\Services\BookingEscrowWriter;
 use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\Noshowservice;
@@ -35,6 +37,8 @@ final class RideServiceProvider extends ServiceProvider
     {
         // Geocoding, score and route calculation.
         $this->app->singleton(ArabicPlaceNameService::class);
+        // Stage 2 C2: the guarded escrow decrement, so Money stops writing ookings itself.
+        $this->app->bind(BookingEscrowLedger::class, BookingEscrowWriter::class);
 
         $this->app->singleton(GeocodingService::class, function ($app) {
             return new GeocodingService(

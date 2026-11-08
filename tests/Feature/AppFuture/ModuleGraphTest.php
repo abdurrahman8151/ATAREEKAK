@@ -89,6 +89,10 @@ class ModuleGraphTest extends TestCase
         'Identity -> Console' => 1,
         'Identity -> Money' => 4,
         'Identity -> Ride' => 2,
+        // Stage 2 C2: escrow is stored on the booking row, so the guarded decrement runs in Ride -
+        // the table's owner - and Money calls it. Ride already calls Money for payouts and charges, so
+        // this closes a mutual pair rather than opening a one-way one.
+        'Money -> Ride' => 1,
         'Money -> Communication' => 1,
         'Money -> Identity' => 1,
         'Ride -> Communication' => 1,
@@ -101,6 +105,7 @@ class ModuleGraphTest extends TestCase
         'Communication <-> Console' => 'a passenger-facing contact endpoint must reach the back office to build its response; an event cannot return the agent and a kernel listener would breach the 5-file Contracts ceiling',
         'Console <-> Identity' => 'staff authentication lives in Identity and employee records in Console (batch 233 context map); cutting it would move one or the other',
         'Identity <-> Money' => 'OTP-verified withdrawal versus wallet top-up: both need a return value and cutting either moves an HTTP endpoint between modules',
+        'Money <-> Ride' => 'escrow is a COLUMN ON THE BOOKING ROW, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids',
         'Identity <-> Ride' => 'driver-document checks versus ride stats and score: same shape as Identity <-> Money',
     ];
 
@@ -113,19 +118,24 @@ class ModuleGraphTest extends TestCase
     private const DERIVED_CYCLES = [
         'Communication -> Console -> Identity',
         'Communication -> Console -> Identity -> Money',
+        'Communication -> Console -> Identity -> Money -> Ride',
         'Communication -> Console -> Identity -> Ride',
         'Communication -> Console -> Identity -> Ride -> Money',
         'Communication -> Console -> Money',
         'Communication -> Console -> Money -> Identity',
         'Communication -> Console -> Money -> Identity -> Ride',
+        'Communication -> Console -> Money -> Ride',
+        'Communication -> Console -> Money -> Ride -> Identity',
         'Communication -> Console -> Ride',
         'Communication -> Console -> Ride -> Identity',
         'Communication -> Console -> Ride -> Identity -> Money',
         'Communication -> Console -> Ride -> Money',
         'Communication -> Console -> Ride -> Money -> Identity',
         'Console -> Money -> Identity',
+        'Console -> Money -> Ride -> Identity',
         'Console -> Ride -> Identity',
         'Console -> Ride -> Money -> Identity',
+        'Identity -> Money -> Ride',
         'Identity -> Ride -> Money',
     ];
 

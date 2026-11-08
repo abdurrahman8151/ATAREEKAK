@@ -18093,3 +18093,42 @@ by a full-suite disaster. One pair is not worth an undiagnosed 500 in a money-ad
    It is written down here as OPEN, not explained.
 
 The pair stays in the baseline at 35 until then.
+---
+
+### 281. Stage 2 C2: the guarded escrow decrement moves to Ride - Money stops writing `bookings`
+
+This is the item ratchet 3 produced two commits ago: `Money\Services\WalletAccess` ran
+`DB::table('bookings')` twice, and `bookings` is Ride's table in the Phase C map.
+
+**The problem.** `debitEscrow()` took `amount` out of a booking's escrow with an UPDATE whose guard was in
+the WHERE clause - `escrow_held >= :amount`, evaluated by the database, so two concurrent settlements cannot
+both see the pre-decrement value. That statement is Ride's data being written by Money. No model import and no
+`use` line makes that visible; only the raw-table ratchet did.
+
+**The port.** `Ride\Contracts\BookingEscrowLedger` - `conditionallyDebit(int $bookingId, float $amount): bool`
+and `heldFor(int $bookingId): float` - implemented by `Ride\Services\BookingEscrowWriter`, bound in
+`RideServiceProvider`, and called from `WalletAccess`. The contract is deliberately narrow: returning the
+booking row and letting Money save it would have moved the coupling and lost the atomicity, which is the whole
+point of the statement.
+
+**What had to stay byte-identical, and did.** Same table, same WHERE clause, same `DB::raw` arithmetic, same
+two-decimal formatting (moved into the owner, so no caller-supplied string ever reaches `DB::raw` - the owner
+decides money semantics for its own column), same two queries, same exception text with the same `money()`
+rendering. `WalletAccess`'s public methods are unchanged, so every caller is untouched.
+
+**The cycle is real, so it is declared rather than hidden.** Money -> Ride completes a mutual pair with the
+existing Ride -> Money (5 ports). It cannot be cut while the schema is frozen: escrow is a *column on the
+booking row*, so whoever owns the table owns the storage. `UNCUT_CYCLES` now carries that reason, and
+`DERIVED_CYCLES` was regenerated from the measured list (14 -> 21 loops) - the new loops are consequences of
+the declared pair, exactly as that table is designed to document.
+
+**One deliberate compromise.** `WalletAccess` takes the port as an *optional* constructor argument with a
+container fallback, because three money tests build it bare (`new WalletAccess`). That keeps the change from
+touching any assertion; production resolves it from the container like every other port.
+
+**What is left.** `app/Console/Testing/Testfullrideflow.php:286` still writes `bookings` directly. That is a
+kernel testing helper, not a module, so it is outside this ratchet's scope - noted, not changed.
+
+Verification: Wallet + Payment + Unit/Domain + AppFuture + Snapshots **678 tests / 5470 assertions OK**
+(ledger and wallet state snapshots byte-identical); ModelOwnershipTest 5 tests OK; whole-tree Pint 807 files
+PASS. Money now has **zero** `DB::table` calls into another module's tables.
