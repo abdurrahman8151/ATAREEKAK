@@ -10,7 +10,7 @@ use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\LedgerAggregates;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -319,47 +319,25 @@ final class AdminReportService
             return ['error' => 'Admin wallets not yet initialised'];
         }
 
-        // ── SyCash: escrow received from passengers ──────────────────────────
-        $escrowReceivedQ = WalletTransaction::where('wallet_id', $syCashWallet->id)
-            ->where('type', 'escrow_received');          // ← was 'ride_creation_fee'
-
-        // ── SyCash: total released on completion ─────────────────────────────
-        // The live payout path writes the singular 'escrow_release' (one row per
-        // confirmed booking). The plural 'escrow_released' was only ever written
-        // by the legacy ride-wide release, so both are counted to keep any
-        // historical rows in the total.
-        $escrowReleasedQ = WalletTransaction::where('wallet_id', $syCashWallet->id)
-            ->whereIn('type', ['escrow_release', 'escrow_released']);
-
-        // ── SyCash: total refunds paid out ───────────────────────────────────
-        $refundsQ = WalletTransaction::where('wallet_id', $syCashWallet->id)
-            ->whereIn('type', [
-                'driver_cancellation_refunds',
-                'cancellation_processing',
-                'driver_no_show_refund',
-            ]);
-
-        // ── Primary: platform fees earned (5% of completions + no-shows) ─────
-        $platformFeesQ = WalletTransaction::where('wallet_id', $primaryWallet->id)
-            ->where('type', 'platform_fee');             // ← was 'ride_booking_received'
-
-        if ($start && $end) {
-            $escrowReceivedQ->whereBetween('created_at', [$start, $end]);
-            $escrowReleasedQ->whereBetween('created_at', [$start, $end]);
-            $refundsQ->whereBetween('created_at', [$start, $end]);
-            $platformFeesQ->whereBetween('created_at', [$start, $end]);
-        }
+        // Stage 2 C2: the four ledger totals are Money's queries - the type spellings (two escrow-released
+        // variants, three refund types, escrow_received, platform_fee) are ledger semantics, not report
+        // formatting, so they moved behind Money\Contracts\LedgerAggregates.
+        $ledger = app(LedgerAggregates::class);
+        $escrowReceived = $ledger->escrowReceived($syCashWallet->id, $start, $end);
+        $escrowReleased = $ledger->escrowReleased($syCashWallet->id, $start, $end);
+        $refundsPaid = $ledger->refundsPaid($syCashWallet->id, $start, $end);
+        $platformFees = $ledger->platformFees($primaryWallet->id, $start, $end);
 
         return [
             'sycash' => [
                 'current_balance' => Money::from($syCashWallet->balance)->formatted(),
-                'total_escrow_in' => Money::from($escrowReceivedQ->sum('amount'))->formatted(),
-                'total_escrow_out' => Money::from(abs((float) $escrowReleasedQ->sum('amount')))->formatted(),
-                'total_refunds_paid' => Money::from(abs((float) $refundsQ->sum('amount')))->formatted(),
+                'total_escrow_in' => Money::from($escrowReceived)->formatted(),
+                'total_escrow_out' => Money::from(abs($escrowReleased))->formatted(),
+                'total_refunds_paid' => Money::from(abs($refundsPaid))->formatted(),
             ],
             'primary_admin' => [
                 'current_balance' => Money::from($primaryWallet->balance)->formatted(),
-                'total_platform_fees' => Money::from($platformFeesQ->sum('amount'))->formatted(),
+                'total_platform_fees' => Money::from($platformFees)->formatted(),
                 // Primary never disburses in the new model
             ],
             'active_rides_locked' => Money::from($this->calculateLockedFunds())->formatted(),

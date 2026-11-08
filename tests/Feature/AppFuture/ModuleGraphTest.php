@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       4      2        -          1
- *   Console            4       6      2        6          -
+ *   Console            4       7      2        6          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -87,7 +87,9 @@ class ModuleGraphTest extends TestCase
         // Money's WalletTransactionRecorder port instead of inserting the row themselves.
         // Stage 2 C2: the admin driver dashboard's earnings sum is Money's query, run by Money.
         // Stage 2 C2: the admin wallet-transaction page is Money's query, run by Money.
-        'Console -> Money' => 6,
+        // Stage 2 C2: the admin financial report's four ledger totals are Money's queries and Money's
+        // ledger type spellings, so Console calls the aggregate reader.
+        'Console -> Money' => 7,
         'Console -> Ride' => 2,
         'Identity -> Communication' => 1,
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so

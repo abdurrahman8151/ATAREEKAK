@@ -18315,3 +18315,46 @@ Verification: Admin + Snapshots + Review + Wallet **1005 tests / 4762 assertions
 pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures - the paginated admin wallet-transaction
 response is byte-identical; AppFuture 61 tests OK; `Console -> Money` 5 -> 6 declared with its docblock column;
 whole-tree Pint PASS.
+---
+
+### 287. Stage 2 C2 precondition 2 COMPLETE: the admin report's four ledger totals move into Money
+
+**The step.** `AdminReportService::getFinancialStatistics()` built four `wallet_transactions` queries and summed
+them. They are now `Money\Contracts\LedgerAggregates` - `escrowReceived`, `escrowReleased`, `refundsPaid`,
+`platformFees`, each taking a wallet id and an optional window - implemented by `LedgerAggregateReader` and
+bound in `MoneyServiceProvider`.
+
+**What moved is vocabulary, not just SQL.** Three of the four queries encode history that only Money knows, and
+each is now documented next to the table instead of inside a report:
+
+- escrow received is the **singular** `escrow_received` (it was `ride_creation_fee` once - the old name is
+  still in the report's comment as a warning, so it moved with the query);
+- escrow released counts **both** `escrow_release` (the live path, one row per confirmed booking) and
+  `escrow_released` (the legacy ride-wide release), so historical rows still appear in the total;
+- refunds cover three type names, and the no-show refund is one of them;
+- platform fees are the primary admin wallet's `platform_fee` rows.
+
+Money owns the ledger type names, so Money owns the lists. Console now passes a wallet id and a window and never
+names a type.
+
+**`abs()` stayed with the presentation.** The contract returns amounts raw and signed, as stored; the report
+still applies `abs()` where it presents an outflow. Moving that into the reader would have been a formatting
+opinion baked into a data accessor.
+
+**The window is applied inside the reader** rather than by mutating four builders the caller holds - the same
+SQL, and one fewer moving part than the original's build-then-`whereBetween` sequence.
+
+**`Console -> WalletTransaction` is gone: baseline 34 -> 33.** This was precondition 2's last item; the three
+previous commits (`AdminWalletCharger`/`AdminWalletRequestService`, `AdminDriverDashboardService`,
+`AdminWalletService`) each removed uses without removing the pair, because at least one other file still named
+the model. This one removes the last one.
+
+**The per-file ratchet caught my own sloppiness.** I rewrote the `AdminReportService` allowlist entry from
+memory and omitted `Booking` (used by `calculateLockedFunds`); the "a listed Console file grew a new foreign
+model" assertion failed with exactly that line. That assertion has now paid for itself twice - it is the only
+check that would have noticed a hand-edited allowlist drifting from the code.
+
+Verification: Admin + Snapshots + Review + Wallet **1005 tests / 4762 assertions** with only the three
+pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures - the financial report's figures are
+unchanged; AppFuture 61 tests OK; `Console -> Money` 6 -> 7 declared with its docblock column; whole-tree Pint
+PASS.

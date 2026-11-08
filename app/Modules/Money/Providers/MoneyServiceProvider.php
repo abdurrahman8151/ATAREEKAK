@@ -6,6 +6,7 @@ use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Contracts\DriverEarningsReader;
+use App\Modules\Money\Contracts\LedgerAggregates;
 use App\Modules\Money\Contracts\LedgerServiceInterface;
 use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
@@ -23,6 +24,7 @@ use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\CancellationRefund;
 use App\Modules\Money\Services\CashRideFeeService;
 use App\Modules\Money\Services\DriverEarningsReaderService;
+use App\Modules\Money\Services\LedgerAggregateReader;
 use App\Modules\Money\Services\LedgerService;
 use App\Modules\Money\Services\NoShowSettlement;
 use App\Modules\Money\Services\PassengerWalletCharger;
@@ -56,6 +58,8 @@ final class MoneyServiceProvider extends ServiceProvider
         $this->app->bind(DriverEarningsReader::class, DriverEarningsReaderService::class);
         // Stage 2 C2: the admin wallet-transaction page, owned by the module with the table.
         $this->app->bind(WalletTransactionPager::class, AdminWalletTransactionPager::class);
+        // Stage 2 C2: the admin report's four ledger totals, with the type spellings Money owns.
+        $this->app->bind(LedgerAggregates::class, LedgerAggregateReader::class);
 
         $this->app->singleton(WalletAccess::class);
         // Stage 2 C1: the read door other modules use instead of `$user->wallet`.
