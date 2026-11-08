@@ -2,15 +2,14 @@
 
 namespace App\Modules\Identity\Contracts;
 
-use App\Models\Employee;
-
 /**
  * Port over the staff-token verification surface (stage 1.5, item 3). Implemented by
  * `App\Modules\Identity\Services\StaffJwtService` and consumed by `StaffJwtMiddleware`.
  *
  * Staff tokens carry their own secret, audience and claims, so this port exists separately from
- * `UserTokenVerifierInterface` even though two of the three user methods have the same shape: the
- * employee type is not the user type and a shared port would have to be generic to say so.
+ * `UserTokenVerifierInterface` even though the methods have the same shape: a staff token and a user
+ * token are different credentials, and a shared port would have to be generic to say so. Both methods
+ * are now scalar-shaped (a token string, a version number), so this contract names no model at all.
  */
 interface StaffTokenVerifierInterface
 {
@@ -20,7 +19,12 @@ interface StaffTokenVerifierInterface
     /**
      * Compare the token's version claim with the employee's current token version.
      *
+     * Stage 2 C2: the second parameter is the version NUMBER, not the `Employee` row. This port never
+     * needed the row - it compared one integer - and taking the model meant the kernel middleware that
+     * calls it (and this contract) both named a Console table. The caller already has the row and reads
+     * the column, which is the owner's job.
+     *
      * @param  array<string, mixed>  $payload
      */
-    public function validateTokenVersion(array $payload, Employee $employee): bool;
+    public function validateTokenVersion(array $payload, int $tokenVersion): bool;
 }

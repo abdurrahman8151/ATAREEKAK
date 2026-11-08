@@ -95,9 +95,9 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
     /**
      * Guard against tokens issued before the last password change / logout-all.
      */
-    public function validateTokenVersion(array $payload, Employee $employee): bool
+    public function validateTokenVersion(array $payload, int $tokenVersion): bool
     {
-        return ((int) ($payload['ver'] ?? -1)) === $employee->token_version;
+        return ((int) ($payload['ver'] ?? -1)) === $tokenVersion;
     }
 
     // ── Refresh ───────────────────────────────────────────────────────────────

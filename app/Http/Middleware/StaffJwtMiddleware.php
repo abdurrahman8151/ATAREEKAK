@@ -69,7 +69,7 @@ final class StaffJwtMiddleware
         }
 
         // ── 5. Token version check ────────────────────────────────────────────
-        if (! $this->staffJwtService->validateTokenVersion($payload, $employee)) {
+        if (! $this->staffJwtService->validateTokenVersion($payload, (int) $employee->token_version)) {
             return $this->fail('TOKEN_INVALIDATED', 'Session invalidated. Please log in again.');
         }
 

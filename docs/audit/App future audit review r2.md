@@ -18841,3 +18841,39 @@ compiles.
 (`AppFuture`, `Review`, `Auth`, `Staff`, `Otp`, `Security`, `Unit/Middleware`, `Unit/Providers`): **1192 tests /
 4070 assertions**, with only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures.
 Pint clean on the module and the new test. Autoload classmap 11953 -> 11957 (four new classes).
+---
+
+### 299. Stage 2 C2: `StaffTokenVerifierInterface` stops naming `Employee`
+
+**The finding.** The contract's `validateTokenVersion(array $payload, Employee $employee)` compared one integer:
+`((int) ($payload['ver'] ?? -1)) === $employee->token_version`. Taking the row meant the contract named a Console
+table, and so did its only caller - `StaffJwtMiddleware`, a **kernel** file - which was already loading the row
+itself and reading the column.
+
+**The change.** The parameter is now `int $tokenVersion`; the middleware passes
+`(int) $employee->token_version`. Three files: the contract, `StaffJwtService`'s method, and the one call site.
+The contract now names **no model at all** - both methods take scalars (a token string, a version number) - and
+the docblock says so, replacing a sentence ("the employee type is not the user type") that was true when the
+signature carried the type and false afterwards.
+
+**Why this one was worth doing and the other two are not (yet).** Measured before touching it:
+
+| Contract method | Production call sites | Test call sites |
+|---|---|---|
+| `validateTokenVersion` | **1** (`StaffJwtMiddleware`) | **0** |
+| `generateTokenPair` | 2 (`AdminAuthService`, `EmployeeAuthService`) plus internal | ~27 |
+| `formatEmployee` | 5 (`EmployeeManagementController` x4, `StaffAuthController`) | 2 |
+
+One production site and zero tests, against a comparison of two integers: the change is provably
+behaviour-preserving and the gate can show it. The other two take the row *for its fields* - `generateTokenPair`
+mints `sub`, `role` and `ver` from it, `formatEmployee` renders nine fields including a formatted
+`last_login_at` - so replacing them needs an `EmployeeSummary` DTO, and that DTO has to live somewhere the
+**kernel** may name, because `StaffJwtMiddleware` currently gets the employee from `Employee::find()` and would
+have to construct or receive the summary. That is an architecture decision (a kernel DTO versus moving the
+middleware's lookup behind a Console reader), not a signature tweak, and it is parked with that reason rather
+than guessed at. The remaining coupling is exactly two methods in two contracts.
+
+**Verification.** `Staff`, `Unit/Middleware`, `Review`, `AppFuture`, `Admin`, `Security` together: **1165 tests /
+3989 assertions**, only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures. Pint
+clean on the module and the middleware. The middleware still names `Employee` - for `is_active` and `role`, which
+are the two things it needs and which the employee row legitimately carries in the kernel.
