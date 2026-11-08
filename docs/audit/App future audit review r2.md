@@ -18572,3 +18572,47 @@ only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` fail
 `L10AdminChargeWalletCharacterizationTest`, `AdminChargeWalletMissingExternalCharacterizationTest` and
 `DoubleEntryLedgerTest`, which are the three tests that pin this exact path; AppFuture 61 tests OK;
 `Console -> Money` 8 -> 9 declared with its docblock column; whole-tree Pint PASS.
+---
+
+### 293. Stage 2 C2: `AdminWalletRequestService` is not a reader gap - Console writes wallet balances, so C1-Money is PARKED
+
+**What the previous rounds assumed, and what reading the controller showed.** The plan (sec 291/292) called this a
+"locking repository" - a read-side port with two `lockForUpdate()` calls. It is not. The queue service returns
+models, and `AdminWalletRequestController` then **writes through them**:
+
+| Line | Statement |
+|---|---|
+| `:213-214` | `$wallet->balance = $movement['new_balance']; $wallet->save();` |
+| `:324-325` | `$external->balance += $externalDelta; $external->save();` |
+| `:145`, `:355` | `$walletRequest->update([...])` - the decision itself |
+| `:211`, `:217`, `:236` | `resolveApprovedMovement()`, `recordWalletMovement()`, `settleExternalCapital()` - the withdrawal guard, the `wallet_transactions` row, the External Capital leg |
+
+So Console holds a complete money approval workflow: a balance write under a row lock, an external transfer leg
+through `LedgerServiceInterface::postExternalTransfer`, and the status transition that decides whether the money
+moves at all. A Reader contract cannot fix that any more than it could fix sec 292's charger; only moving the
+**workflow** into Money can, which is a 300-line relocation of a live money path, not a port.
+
+**And the response pins the models.** `formatRequest()` reads `$r->user->first_name`, `$r->user->email`,
+`$r->wallet->wallet_number`, `$r->wallet->balance`, `$r->wallet->cash_ride_debt` off the eager-loaded rows, and
+`reviewList()` paginates `WalletRequest` models with two relations loaded. Any DTO boundary here has to reproduce
+`toArray()` plus two nested relations **exactly** - the same JSON-parity artefact sec 291 refused to build.
+
+**State: PARKED, with the two decisions it needs.**
+
+1. **Response payloads.** Two Console endpoints embed Eloquent rows in their JSON:
+   `showWalletTransactions()` (`'wallet' => $result['wallet']`, whole row) and the wallet-request review list
+   (paginated requests with `user` and `wallet` nested). Either narrow both to documented shapes - which changes
+   public responses and is the owner's call - or keep them and let the pairs stand with the allowlist naming them.
+2. **Where the approval workflow lives.** `approve()` performs the withdrawal guard, the balance write, the
+   transaction row, the external leg and the status change. Moving it into Money is the only way to retire the
+   last `Wallet`/`WalletRequest` imports; it is a behaviour-preserving move of a live money path, and the owner
+   has so far authorised C2 as readers and recorders, which is narrower than "relocate an approval workflow".
+
+**C1-Money position, stated exactly.** Three of the five original blockers are retired (secs 290, 292 and the
+`Console/Testing/` exemption in 291). The two that remain are both model-in-response couplings, and one of them
+also writes balances. No further Console-side port can retire them; the blockers are now decisions plus one
+300-line move into Money.
+
+**What was verified this round:** by reading, not by running - the tree is unchanged and green from `204d20b`
+(AppFuture 61, money gate 1439 with the three known failures). No code was touched, so there is nothing to
+re-run.
