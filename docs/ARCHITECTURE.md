@@ -239,3 +239,65 @@ document in the commit that moved the number. The three places that will notice 
 - `ModuleBoundaryTest` - file floors, the kernel Contracts ceiling, the entrypoint lists;
 - `DanglingImportTest` - any name in this document that is written as an FQCN and no longer exists. That
   is why it is written as paths in the history notes.
+## 10. The data-ownership map
+
+Every table has exactly one owning module ([ADR 0006](adr/0006-strict-data-ownership-schema-frozen.md)).
+The schema is frozen - no migrations, no foreign-key changes, no table renames - and every model declares
+`protected $table` explicitly, so a class can move between namespaces without its rows moving.
+
+| Owner | Model | Table | Class lives in |
+|---|---|---|---|
+| Communication | Conversation | `conversations` | `App\Modules\Communication\Models` (moved) |
+| Communication | ConversationParticipant | `conversation_participants` | `App\Modules\Communication\Models` (moved) |
+| Communication | Message | `messages` | `App\Modules\Communication\Models` (moved) |
+| Communication | Notification | `notifications` | `App\Modules\Communication\Models` (moved) |
+| Communication | UserNotification | `user_notifications` | `App\Modules\Communication\Models` (moved) |
+| Communication | PushNotificationToken | `push_notification_tokens` | `App\Modules\Communication\Models` (moved) |
+| Money | Wallet | `wallets` | `App\Models` (pending) |
+| Money | WalletRequest | `wallet_requests` | `App\Models` (pending) |
+| Money | WalletTransaction | `wallet_transactions` | `App\Models` (pending) |
+| Money | LedgerEntry | `ledger_entries` | `App\Models` (pending) |
+| Ride | Ride | `rides` | `App\Models` (pending) |
+| Ride | Booking | `bookings` | `App\Models` (pending) |
+| Ride | NoshowReport | `noshow_reports` | `App\Models` (pending) |
+| Ride | ScoreTransaction | `score_transactions` | `App\Models` (pending) |
+| Ride | UserScore | `user_scores` | `App\Models` (pending) |
+| Identity | Otp | `otps` | `App\Models` (pending) |
+| Identity | RefreshToken | `refresh_tokens` | `App\Models` (pending) |
+| Identity | StaffRefreshToken | `staff_refresh_tokens` | `App\Models` (pending) |
+| Identity | Photo | `photos` | `App\Models` (pending) |
+| Identity | Profile | `profiles` | `App\Models` (pending) |
+| Identity | ProfileComment | `profile_comments` | `App\Models` (pending) |
+| Identity | UserRating | `user_ratings` | `App\Models` (pending) |
+| Console | Complaint | `complaints` | `App\Models` (pending) |
+| Console | ComplaintAttachment | `complaint_attachments` | `App\Models` (pending) |
+| Console | Employee | `employees` | `App\Models` (pending) |
+| *kernel* | User | `users` | `App\Models` - the authenticated principal only ([ADR 0007](adr/0007-user-is-the-authenticated-principal.md)) |
+
+"Pending" means the ownership is declared and enforced by the ratchets, while the class itself still sits in
+`app/Models`. Moving the class is the mechanical half of the work; it is gated on nothing but the imports that
+still name it (see [README](../README.md) and the audit record for the current list).
+
+## 11. Who may read a table, and through what
+
+A module reads its own tables directly and every other table through a contract in the owner's `Contracts`
+namespace ([ADR 0008](adr/0008-readers-and-dtos-not-relations.md)). The contracts a module publishes are
+its public surface: adding a method there is a design decision, adding an import elsewhere is a ratchet
+failure.
+
+| Module | Read contracts (return DTOs or scalars) | Write contracts (one verb each) |
+|---|---|---|
+| Communication | `NotificationPort`, `PushNotifierInterface`, `UnreadNotificationCounter`, `ChatRepositoryInterface`, `MessageTypeInterface`, `MessageBroadcaster` | `NotificationPort` (send), `PushNotifierInterface` (push) |
+| Money | `WalletDirectory`, `WalletChargeHistory`, `WalletTransactionPager`, `LedgerAggregates`, `LedgerReconciliation`, `DriverEarningsReader` | `WalletTransactionRecorder`, `AdminWalletCredit`, `LedgerServiceInterface`, `BookingChargeInterface`, `RidePayoutInterface`, `NoShowSettlementInterface`, `CancellationRefundInterface`, `PassengerWalletChargerInterface`, `CashRideFeeServiceInterface` |
+| Ride | `RideRepositoryInterface`, `NoShowReportInterface`, `UserRideStatsInterface`, `ScoreServiceInterface`, `GeocodingServiceInterface` | `BookingEscrowLedger` |
+| Identity | `UserRepositoryInterface`, `ProfileRepositoryInterface`, `PhotoRepositoryInterface`, `OtpRepositoryInterface`, `PasswordResetRepositoryInterface`, `VerificationRepositoryInterface`, `StaffTokenVerifierInterface`, `UserTokenVerifierInterface`, `EmployeeAuthInterface`, `StaffJwtInterface`, `DocumentVerificationInterface`, `VerificationApprovalInterface`, `EmailOtpServiceInterface`, `OtpMailInterface` | `TokenRevokerInterface`, `StaffTokenCleanupInterface`, `UserTokenCleanupInterface` |
+| Console | `ComplaintRepositoryInterface`, `EmployeeRepositoryInterface`, `EmployeeManagementInterface`, `BanLifterInterface`, `SupportAgentRoutingInterface` | `ComplaintRecorder`, `EmployeeTokenVersion` |
+
+Two rules ride along with that table, and both are ratchet-enforced rather than conventional:
+
+- **A batched method exists wherever a list is rendered.** `WalletDirectory::summariesFor()` and the by-id
+  readers exist so that replacing an eager load with a contract cannot introduce a per-row query; the query
+  budgets in the snapshot suite fail the build if one appears.
+- **A response does not change.** Every port in this table was moved behind a byte-identical response, proved by
+  the snapshot corpus. Where the payload embeds an Eloquent row, the port is not attempted: it is parked with
+  that reason (see the audit record for the two endpoints still in that state).

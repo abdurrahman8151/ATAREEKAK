@@ -18616,3 +18616,41 @@ also writes balances. No further Console-side port can retire them; the blockers
 **What was verified this round:** by reading, not by running - the tree is unchanged and green from `204d20b`
 (AppFuture 61, money gate 1439 with the three known failures). No code was touched, so there is nothing to
 re-run.
+---
+
+### 294. Stage 2 PHASE D: the data-ownership map, five module READMEs, and four ADRs
+
+**What was written.** Documentation only - no PHP changed, so nothing was re-run beyond the suites that police
+docs-adjacent behaviour.
+
+- `docs/ARCHITECTURE.md` gained **§10 The data-ownership map** (all twenty-six tables: owner, table name, and
+  whether the class has moved) and **§11 Who may read a table, and through what** (each module's read and write
+  contracts in one table, plus the two ratchet-enforced rules: batched readers where a list renders, and
+  byte-identical responses).
+- Five `README.md` files under `app/Modules/*`: owned models and tables, the contracts the module publishes, the
+  contracts it calls, and its own rules - written as the module's own rules, not a summary of the global ones.
+- Four ADRs: **0006** strict data ownership with the schema frozen; **0007** `App\Models\User` is the
+  authenticated principal, not a module model; **0008** readers and DTOs instead of relations and eager loads;
+  **0009** domain events move with their publisher, jobs/listeners stay in the kernel, and the queue must be
+  drained before deploying. ADR 0009 records that it supersedes the *events* half of 0004 in a line at the top,
+  per the index's own convention, rather than rewriting 0004.
+
+**The map says "pending" for ten of the sixteen module models, and that is the honest word.** Communication's six
+are moved; Money's four, Ride's five, Identity's seven and Console's three still sit in `app/Models` with their
+ownership declared and enforced but their classes not yet relocated. A map that drew the target state as if it
+were the current one would be the most useless kind of documentation: it would read as done.
+
+**Every link was checked, not eyeballed.** Six relative links in the module READMEs were one level short on the
+first write (`../../docs/adr` from `app/Modules/<M>/` lands in `app/docs`); a script resolved every markdown link
+in the new files against the filesystem - **13 of 13 resolve now** - and the same check normalised
+`ARCHITECTURE.md`'s three `../docs/adr/` links to `adr/` for consistency with the ones already there.
+
+**One thing the docs made me state plainly, because the code will not say it:** the deploy note is the only part
+of stage 2 that a test suite cannot prove. `MessageSent` and `NotificationSent` both use `SerializesModels`, so a
+payload serialised before the move cannot be deserialised after it. That is now in ADR 0009 and in the
+Communication README, and it is why the note says *drain the queue before deploying* rather than *safe to deploy*.
+
+Verification: AppFuture + Review **724 tests / 2833 assertions** with only the three pre-existing
+`L16DriverNoShowSettlementCharacterizationTest` failures - no test reads these documents, which is itself worth
+knowing: the ownership map cannot rot silently into a false claim *only* because the ratchets keep the code
+honest, so the map's "pending" column must be maintained by hand when a class moves.

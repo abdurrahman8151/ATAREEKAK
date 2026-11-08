@@ -1,49 +1,47 @@
-# Console
+﻿# Console module
 
-The back office: the staff-facing admin surface, and the employee/support plumbing it sits on.
+The admin and staff surface: dashboards, reports, the complaint queue, employee management and the wallet
+review screens. It is the module most tempted to read everything, and therefore the one with the largest
+reporting allowance - a named, shrink-only list of files that may still name a foreign model.
 
-## What it owns
+## Owned tables
 
-- `Http/Controllers` - the admin and staff endpoints (dashboard, users, drivers, trips, wallet requests,
-  refunds, complaints, reviews, chat, documents, exports).
-- `Services/Admin*` - one service per admin area (dashboard, wallet, report, export, trip, driver, user).
-- `Services/EmployeeManagementService` - employees, shadow users for chat, staff accounts.
-- `Services/BanService` - bans, including the expired-ban lift that every authenticated request checks.
-- `Services/SupportAgentRoutingService` - who the least-loaded support agent is.
-- `Services/ReviewModerationService`, `StaffComplaintService`, `ComplaintService`,
-  `StaffCancellationService`, `StaffUserProfileService`.
-- `Repositories/EmployeeRepository`, `ComplaintRepository`.
-
-## Public Contracts (5)
-
-| Port | Implemented by | Consumers today |
+| Model | Table | Status |
 |---|---|---|
-| `EmployeeManagementInterface` | `EmployeeManagementService` | Communication (`ContactController`), `StaffJwtMiddleware` |
-| `SupportAgentRoutingInterface` | `SupportAgentRoutingService` | Communication (`ContactController`) |
-| `EmployeeRepositoryInterface` | `EmployeeRepository` | Identity (`EmployeeAuthService`) |
-| `ComplaintRepositoryInterface` | `ComplaintRepository` | internal |
-| `BanLifterInterface` | `BanService` | `JwtAuthHandler` (stage 1.5 item 3) |
+| `Complaint` | `complaints` | pending (class still in `app/Models`) |
+| `ComplaintAttachment` | `complaint_attachments` | pending |
+| `Employee` | `employees` | pending |
 
-## Who may call it
+## Contracts it publishes
 
-Communication (support routing, shadow users) and Identity (employee records). Console itself is the
-biggest consumer in the graph: Communication (3 ports: notifications and chat), Identity (6: staff admin,
-documents, login, bans), Money (3: wallet requests, ledger, cancellation refunds) and Ride (2: score and
-ride stats on the staff user profile).
+- `ComplaintRepositoryInterface` - complaint reads.
+- `ComplaintRecorder` - record a complaint (one verb, returns the new id). Ride's no-show path uses it.
+- `EmployeeRepositoryInterface`, `EmployeeManagementInterface` - employee reads and management.
+- `EmployeeTokenVersion` - bump an employee's token version (revocation).
+- `BanLifterInterface`, `SupportAgentRoutingInterface` - support surfaces.
 
-Two of its edges are declared uncut cycles - `Communication <-> Console` and `Console <-> Identity` - with
-the reasons recorded in `ModuleGraphTest`, because both are the back office needing the domain it
-administers, and the domain needing the back office's employee records.
+## Contracts it calls
 
-## What it may not do
+Money (`WalletDirectory`, `AdminWalletCredit`, `LedgerAggregates`, `LedgerReconciliation`,
+`WalletTransactionPager`, `DriverEarningsReader`), Ride (`NoShowReportInterface`, `UserRideStatsInterface`),
+Identity (`EmployeeAuthInterface`, `StaffJwtInterface`, ...) and Communication (`NotificationPort`) - all
+through their contracts, never their tables.
 
-- Import another module's implementation.
-- Grow a ban, refund or identity rule inside an admin controller: the admin surface calls the owning
-  module's port, so the rule stays in one place.
-- Register dev-only commands in production: `app/Console/Testing` is a separate directory loaded only in
-  `local` and `testing` (ADR 0005), and it is the single directory-level entrypoint exemption.
+## Rules
 
-## Tests
+- **Reporting files are an allowance, not a right.** `ModelOwnershipTest` keeps a named list of Console files
+  that may still name a foreign model, records which models each one touches, and fails if a listed file grows a
+  new one or an unlisted file appears. Removing an entry is the goal; adding one needs a reason in the same
+  commit.
+- Admin money screens call Money's contracts. `AdminWalletCharger` performs no writes itself any more: the credit
+  happens inside `AdminWalletCredit`.
+- Two endpoints are **parked** because their responses serialise Eloquent rows: `showWalletTransactions`
+  (whole wallet row) and the wallet-request review list (paginated requests with `user` and `wallet`). The
+  wallet-request approval workflow also still writes balances from here - it is the last Console-side money
+  write, and moving it into Money is a decision, not a refactor.
 
-`tests/Feature/Admin`, `tests/Feature/Staff`, `tests/Feature/Console`, plus the admin ratchets
-(`RV13`, `RV16`, `RV28`, `RV29`, `RV30`).
+## Dev-only tools
+
+`app/Console/Testing` is exempt as a directory, not per file
+([ADR 0005](../../../docs/adr/0005-console-testing-directory-exemption.md)): it fabricates state, is registered
+only under `local`/`testing`, and `DevCommandRegistrationTest` pins that guard.

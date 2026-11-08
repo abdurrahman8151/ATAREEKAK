@@ -1,48 +1,39 @@
-# Communication
+﻿# Communication module
 
-Chat, push notifications and the notification fan-out: the module that delivers something to a user.
+Publishes messages and notifications. It is the module every other module talks to when a user must be told
+something, and the only one that may read chat tables.
 
-## What it owns
+## Owned tables
 
-- `Services/NotificationService` - the fan-out for in-app, push and mail notifications, behind
-  `Contracts/NotificationPort`.
-- `Services/ChatMessageHandler` and `Repositories/ChatRepository` - conversations, messages, read state.
-- `Services/PushNotificationService`, `Services/FcmSenderService`, `Services/PushTokenManager` - device
-  tokens and FCM delivery.
-- `Contracts/MessageTypeInterface` - the message-type vocabulary.
-- The kernel's `app/Mail` transport belongs to this context in the boundary map: mail delivery is a
-  Communication concern, which is why `App\Mail\OtpMailer` is described here even though the file stays
-  in the kernel (ADR 0004).
-
-## Public Contracts (5)
-
-| Port | Implemented by | Consumers today |
+| Model | Table | Status |
 |---|---|---|
-| `NotificationPort` | `NotificationService` | Console (7 files), Identity (2), Money (1), Ride (12) |
-| `PushNotifierInterface` | `PushNotificationService` | kernel jobs (`SendPushNotification`, `SendPushNotificationJob`) |
-| `ChatMessageHandlerInterface` | `ChatMessageHandler` | Console (`StaffChatController`) |
-| `ChatRepositoryInterface` | `ChatRepository` | Communication's own `ContactController`, Console's `StaffChatController` |
-| `MessageTypeInterface` | - (vocabulary) | - |
+| `Conversation` | `conversations` | moved |
+| `ConversationParticipant` | `conversation_participants` | moved |
+| `Message` | `messages` | moved |
+| `Notification` | `notifications` | moved |
+| `UserNotification` | `user_notifications` | moved |
+| `PushNotificationToken` | `push_notification_tokens` | moved |
 
-## Who may call it
+All six live in `App\Modules\Communication\Models` with an explicit `protected $table`. Events published by this
+module live in `App\Modules\Communication\Events` (`MessageSent`, `NotificationSent`).
 
-Any module, through the ports above. It is the most-depended-on module in the graph, by design: almost
-everything the system does ends in a notification, and routing that through one port keeps the queue,
-the FCM client and the chat schema in one place.
+## Contracts others may call
 
-Its own dependencies: **Console** (`SupportAgentRoutingInterface`, `EmployeeManagementInterface`, used by
-`ContactController` to park a passenger with the least-loaded support agent). That is the
-`Communication <-> Console` cycle, declared in `ModuleGraphTest` with its reason.
+- `NotificationPort` - create an in-app notification for a user.
+- `PushNotifierInterface` - push to a user's registered devices.
+- `UnreadNotificationCounter` - how many unread, for a badge.
+- `ChatRepositoryInterface` - the chat reads other modules need (participants, thread lookups).
+- `MessageTypeInterface`, `MessageBroadcaster` - message semantics and live delivery.
 
-## What it may not do
+## Rules
 
-- Import another module's implementation (rule A). It previously imported `Identity\Contracts\OtpMailInterface`
-  in its provider; stage 1.5 item 4 moved that binding to the kernel catalogue and the
-  `Communication -> Identity` edge - and its cycle - is gone.
-- Let a chat or notification rule leak into a ride or wallet service: consumers get a port, not the
-  service.
+- Nobody outside this module reads `messages`, `conversations` or `notifications` directly. Chat reads other
+  modules need go through `ChatRepositoryInterface`.
+- A send is a write contract, never a model handed to a caller: a module that received a `Notification` row
+  could edit it.
+- The two `SerializesModels` events mean a deploy that moves them needs a drained queue (see
+  [ADR 0009](../../../docs/adr/0009-events-move-with-their-publisher.md)).
 
-## Tests
+## Known gap
 
-`tests/Feature/Notifications`, `tests/Feature/Chat`, `tests/Unit/Services` (notification/chat units), plus
-the boundary ratchets in `tests/Feature/AppFuture`.
+`NotificationPort` ships a `test`-only path (`TestNotificationCommand`); it is a dev tool and exempt.
