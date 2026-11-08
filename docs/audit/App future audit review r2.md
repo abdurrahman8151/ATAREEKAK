@@ -18046,3 +18046,50 @@ to police is now executable, and each ratchet was demonstrated failing on a real
 to work.
 
 Verification: AppFuture 61 tests / 461 assertions OK; whole-tree Pint 805 files PASS.
+---
+
+### 280. Stage 2 C2: the `Communication -> Profile` port, attempted and ROLLED BACK - the first real cost of the ratchet
+
+The import ratchet's cheapest-looking pair was `Communication -> Profile`: one module, one file, one field. I
+built the port and it worked - and then the ratchets I wrote in the previous rounds caught what the plan did
+not.
+
+**What was built.** `Identity\Contracts\ProfilePhotoDirectory` (`photoPathFor`, `photoPathsFor`) plus
+`ProfilePhotoReader`, selecting only `user_id` and `profile_photo`; bound in `IdentityServiceProvider`;
+`ChatMessageHandler` switched off `App\Models\Profile`. Chat and Notification suites: **29 tests, OK**, and the
+three chat snapshots came back **byte-identical** - the JSON never moved.
+
+**What failed.** The query budgets: `chat/messages-index` 8 -> 11, `chat/messages-store` 5 -> 6,
+`staff/chat-messages` 13 -> 15. The per-message `photoPathFor()` had replaced a *bulk* eager load
+(`ChatRepository::getMessages` does `->with('sender.profile')`), turning one query for a page into one per
+message - precisely the N+1 the budget file exists to catch, introduced by me while removing a cross-module
+import.
+
+**The fix I attempted.** Batch it: `photoPathsFor()` for the page's senders, drop the `sender.profile` eager
+load, thread the resolved photo through `formatMessage(Message, ?string, bool)`. `staff/chat-messages` went
+green and `chat/messages-store` stayed at 6 vs 5, but `chat/messages-index` turned into a **500**
+("Failed to fetch messages") that I had not diagnosed when the cost of continuing exceeded the value of the
+pair.
+
+**Rolled back.** All four modified files restored, both new files deleted. Verified: AppFuture + Chat + the
+whole snapshot suite **264 tests / 2561 assertions OK**, snapshots byte-identical, tree clean.
+
+**Why the rollback is the right call and not a defeat.** The ratchets did exactly their job: they failed
+loudly, specifically, and on the *first* attempt to move a boundary, converting a silent N+1 into a red build
+with the query count printed. That is the difference between this phase and the Console wall, which was found
+by a full-suite disaster. One pair is not worth an undiagnosed 500 in a money-adjacent read path.
+
+**What the next attempt needs, precisely** - so it starts from measurements instead of repeating mine:
+
+1. A batched photo resolution inside `getFormattedMessages` AND on the single-message path
+   (`ChatController:190`, `StaffChatController:202`, and `sendMessage` itself), because `messages-store` is the
+   single-message case and it pays one extra query today.
+2. `ChatRepository:128`'s `->with('sender.profile')` removed in the same commit - it is one of the two queries
+   the batch replaces.
+3. The `Communication -> Identity` edge declared in `ModuleGraphTest`, **and** the cycle it forms with the
+   existing `Identity -> Communication` handled through that test's uncut-cycle list; the file already
+   discusses this exact edge at line 67.
+4. Start by capturing the `chat/messages-index` 500 with a temporary probe test rather than assuming its cause.
+   It is written down here as OPEN, not explained.
+
+The pair stays in the baseline at 35 until then.
