@@ -70,7 +70,7 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Services/AdminUserService.php' => ['Profile'],
         'app/Modules/Console/Services/AdminWalletCharger.php' => ['Wallet'],
         'app/Modules/Console/Services/AdminWalletRequestService.php' => ['Wallet', 'WalletRequest'],
-        'app/Modules/Console/Services/AdminWalletService.php' => ['Wallet', 'WalletTransaction'],
+        'app/Modules/Console/Services/AdminWalletService.php' => ['Wallet'],
         'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment', 'Employee'],
         // Stage 2 C2: the bumper for Identity's session invalidation - it writes Console's own table.
         'app/Modules/Console/Services/EmployeeTokenVersionBumper.php' => ['Employee'],

@@ -13,10 +13,12 @@ use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
 use App\Modules\Money\Contracts\WalletChargeHistory;
 use App\Modules\Money\Contracts\WalletDirectory;
+use App\Modules\Money\Contracts\WalletTransactionPager;
 use App\Modules\Money\Contracts\WalletTransactionRecorder;
 use App\Modules\Money\Domain\Strategies\CashPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\PaymentStrategyFactory;
+use App\Modules\Money\Services\AdminWalletTransactionPager;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\CancellationRefund;
 use App\Modules\Money\Services\CashRideFeeService;
@@ -52,6 +54,9 @@ final class MoneyServiceProvider extends ServiceProvider
         $this->app->singleton(NoShowSettlement::class);
         // Stage 2 C2: the admin driver dashboard's earnings sum, owned by the module with the table.
         $this->app->bind(DriverEarningsReader::class, DriverEarningsReaderService::class);
+        // Stage 2 C2: the admin wallet-transaction page, owned by the module with the table.
+        $this->app->bind(WalletTransactionPager::class, AdminWalletTransactionPager::class);
+
         $this->app->singleton(WalletAccess::class);
         // Stage 2 C1: the read door other modules use instead of `$user->wallet`.
         $this->app->bind(WalletDirectory::class, WalletDirectoryReader::class);

@@ -18285,3 +18285,33 @@ Verification: Admin + Snapshots + Review **971 tests / 4706 assertions** with on
 `L16DriverNoShowSettlementCharacterizationTest` failures - which is the point of this commit: the admin driver
 dashboard snapshot is byte-identical; AppFuture 61 tests OK; `Console -> Money` 4 -> 5 declared in the graph with
 its docblock column updated; whole-tree Pint PASS.
+---
+
+### 286. Stage 2 C2 precondition 2, second reader: the admin wallet-transaction page moves into Money
+
+**The step.** `AdminWalletService::getWalletTransactions()` ran the query itself - `WalletTransaction::where('wallet_id', ...)->orderBy('created_at', 'desc')->paginate($perPage)`. That is now
+`Money\Contracts\WalletTransactionPager::paginateForWallet(int $walletId, int $perPage): LengthAwarePaginator`,
+implemented by `AdminWalletTransactionPager` and bound in `MoneyServiceProvider`.
+
+**The design decision that mattered.** The port returns the **same Eloquent paginator**, not a page of DTOs.
+This is the one precondition-2 shape where a DTO would have been tempting and wrong: the admin response
+serialises those rows as-is, so a DTO page would change a response the snapshots pin. The port exists to move
+the *query*, not the JSON - and the snapshots proved it, byte-identical, without a line of hand-comparison.
+
+**Default page size stays with the caller.** `$perPage = 10` remains in the Console signature and is passed in
+explicitly; the port holds no screen's opinion about how many rows a page shows.
+
+**What is deliberately left behind.** `$wallet = Wallet::findOrFail($walletId)` stays in Console, along with
+`'wallet' => $wallet` - the full wallet row is serialised directly by the response, and `WalletSummary` (the
+DTO that already exists) carries five fields, not the whole row. Swapping it would change the response shape,
+which the standing rule parks. So the `Console -> Wallet` pair remains, and only the transaction half of this
+method moved.
+
+**Allowlist.** `AdminWalletService` goes from `['Wallet', 'WalletTransaction']` to `['Wallet']`. The pair
+`Console -> WalletTransaction` is now down to `AdminReportService` alone - the last Console file naming the
+model - which makes the four escrow/revenue aggregates the single remaining item of precondition 2.
+
+Verification: Admin + Snapshots + Review + Wallet **1005 tests / 4762 assertions** with only the three
+pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures - the paginated admin wallet-transaction
+response is byte-identical; AppFuture 61 tests OK; `Console -> Money` 5 -> 6 declared with its docblock column;
+whole-tree Pint PASS.

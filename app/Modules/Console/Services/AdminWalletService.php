@@ -4,7 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\WalletTransactionPager;
 use RuntimeException;
 
 /**
@@ -134,9 +134,8 @@ class AdminWalletService
     public function getWalletTransactions(int $walletId, int $perPage = 10): array
     {
         $wallet = Wallet::findOrFail($walletId);
-        $transactions = WalletTransaction::where('wallet_id', $walletId)
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+        // Stage 2 C2: Money owns `wallet_transactions`; the page comes from its pager.
+        $transactions = app(WalletTransactionPager::class)->paginateForWallet($walletId, $perPage);
 
         return [
             'wallet' => $wallet,
