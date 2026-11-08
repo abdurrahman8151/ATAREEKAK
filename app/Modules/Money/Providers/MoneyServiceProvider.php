@@ -5,6 +5,7 @@ namespace App\Modules\Money\Providers;
 use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
+use App\Modules\Money\Contracts\DriverEarningsReader;
 use App\Modules\Money\Contracts\LedgerServiceInterface;
 use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
@@ -19,6 +20,7 @@ use App\Modules\Money\Domain\Strategies\PaymentStrategyFactory;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\CancellationRefund;
 use App\Modules\Money\Services\CashRideFeeService;
+use App\Modules\Money\Services\DriverEarningsReaderService;
 use App\Modules\Money\Services\LedgerService;
 use App\Modules\Money\Services\NoShowSettlement;
 use App\Modules\Money\Services\PassengerWalletCharger;
@@ -48,6 +50,8 @@ final class MoneyServiceProvider extends ServiceProvider
         $this->app->singleton(RidePayout::class);
         $this->app->singleton(CancellationRefund::class);
         $this->app->singleton(NoShowSettlement::class);
+        // Stage 2 C2: the admin driver dashboard's earnings sum, owned by the module with the table.
+        $this->app->bind(DriverEarningsReader::class, DriverEarningsReaderService::class);
         $this->app->singleton(WalletAccess::class);
         // Stage 2 C1: the read door other modules use instead of `$user->wallet`.
         $this->app->bind(WalletDirectory::class, WalletDirectoryReader::class);

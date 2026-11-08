@@ -3,14 +3,13 @@
 namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Enums\LedgerType;
 use App\Models\Booking;
 use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Contracts\DriverEarningsReader;
 
 /**
  * The per-driver dashboard widget: ratings, ride counts, recent rides, favourite destination,
@@ -151,10 +150,8 @@ final class AdminDriverDashboardService
      */
     private function dashboardMoney(int $driverId): array
     {
-        $ledgerEarnings = WalletTransaction::where('user_id', $driverId)
-            ->whereIn('type', [LedgerType::RIDE_EARNINGS->value, LedgerType::RIDE_EARNING->value])
-            ->where('status', 'completed')
-            ->sum('amount');
+        // Stage 2 C2: the two RV-39 spellings and the completed-only rule live with Money's table.
+        $ledgerEarnings = app(DriverEarningsReader::class)->completedEarningsForDriver($driverId);
 
         $estimatedGross = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
             ->where('rides.driver_id', $driverId)

@@ -18244,3 +18244,44 @@ error. Repaired with real newlines and the docblock column (`Console` row, Money
 Verification: Admin + Wallet + Payment + Review + Snapshots **1280 tests / 7486 assertions** with only the three
 pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures; AppFuture 61 tests OK; whole-tree Pint
 **811 files PASS**.
+---
+
+### 285. Stage 2 C2 precondition 2, first reader: the driver-earnings sum moves into Money
+
+**The step.** `AdminDriverDashboardService::dashboardMoney()` summed `wallet_transactions` itself:
+
+```
+WalletTransaction::where('user_id', $driverId)
+    ->whereIn('type', [LedgerType::RIDE_EARNINGS->value, LedgerType::RIDE_EARNING->value])
+    ->where('status', 'completed')->sum('amount')
+```
+
+That single expression is a policy, not a query: RV-39 has **two** spellings of the earnings type and both must
+be summed, and a `pending` row is not money that moved. Both statements are about Money's column and Money's
+enum, so they now live in Money - `Money\Contracts\DriverEarningsReader::completedEarningsForDriver(int): float`
+plus `DriverEarningsReaderService`, bound in `MoneyServiceProvider`. Console asks for a number and gets one.
+
+**Why this reader and not the other two.** Precondition 2 has three shapes: a paginated transaction list
+(`AdminWalletService::getWalletTransactions`), four escrow/revenue aggregates combined with other builders
+(`AdminReportService`), and this - a standalone scalar. Only this one has no response-shape risk at all: it
+returns a float into an existing array key, so "byte-identical" is provable rather than argued. The other two
+are the next steps, and the paginator one deserves its own commit because its JSON shape is the thing at risk.
+
+**Scope note.** The dashboard's other half - an estimated gross projected off current ride prices via
+`Booking::join('rides', ...)` - is a Ride/Booking question and is left exactly where it is. The
+`Console -> Booking` pair is untouched by this commit.
+
+**Cleanup the formatter did for me.** Removing the inline query left `App\Enums\LedgerType` imported and unused
+in the Console service; Pint's `no_unused_imports` dropped it. Worth noting because it is the second time a
+kernel enum import has quietly followed a query into its owner - the enum was the only reason Console needed
+that file.
+
+**Allowlist.** `AdminDriverDashboardService` goes from six foreign models to five
+(`['Booking', 'Photo', 'Profile', 'Ride', 'UserRating']`), which the per-file ratchet records. The pair
+`Console -> WalletTransaction` still stands - `AdminWalletService` and `AdminReportService` remain - so the
+baseline is unchanged at 34.
+
+Verification: Admin + Snapshots + Review **971 tests / 4706 assertions** with only the three pre-existing
+`L16DriverNoShowSettlementCharacterizationTest` failures - which is the point of this commit: the admin driver
+dashboard snapshot is byte-identical; AppFuture 61 tests OK; `Console -> Money` 4 -> 5 declared in the graph with
+its docblock column updated; whole-tree Pint PASS.
