@@ -4,10 +4,10 @@ namespace App\Modules\Identity\Services;
 
 use App\DTOs\Auth\SendEmailOtpDTO;
 use App\DTOs\Auth\VerifyEmailOtpDTO;
-use App\Models\Otp;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
 use App\Modules\Identity\Contracts\OtpMailInterface;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Modules\Identity\Models\Otp;
 use App\Support\Logging\SafeExceptionLog;
 use App\Support\OtpDisclosure;
 use Carbon\Carbon;

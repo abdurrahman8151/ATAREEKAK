@@ -2,8 +2,8 @@
 
 namespace App\Modules\Identity\Repositories;
 
-use App\Models\Otp;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Modules\Identity\Models\Otp;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 

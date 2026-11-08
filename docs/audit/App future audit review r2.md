@@ -19142,3 +19142,47 @@ by only intending to revert my own files; `git checkout -- .` is a whole-tree op
 while the owner has uncommitted work. The correct rollback was per-file (`git checkout -- <paths>` for the files
 the move touched, plus removing the one new directory), and that is what the remaining rounds must use. Recorded
 here rather than quietly fixed, because the owner's `phpunit.xml` cannot be restored by me.
+---
+
+### 306. Stage 2 C1/Identity: `Otp` moves to `App\Modules\Identity\Models`
+
+**Why this one was next.** After sec 304 the `UserRating` move is blocked by the kernel `User` model, so the next
+Identity model had to be chosen by measured coupling rather than by list order. `Otp` is the cleanest model in the
+tree: **five references in `app/`, every one of them inside Identity** (`OtpRepositoryInterface`, `OtpRepository`,
+`EmailOtpService`, `TextMeBotOtpService`, `WhatsAppOtpService`), **zero relations** - not even to `User` - and zero
+consumers in Console or the kernel. Its table, `otps`, is already declared on the ratchet's side:
+`ModelOwnershipTest` carried `'Identity -> Otp' => 'otps'` before the move, so the baseline was waiting for this
+rather than needing to grow.
+
+**What changed.** `git mv` to `App\Modules\Identity\Models\Otp`; namespace; explicit
+`protected $table = 'otps'` (the schema is frozen, so the class moves and the rows do not); the mutator that hashes
+`otp_code`, `MAX_ATTEMPTS` and the two date helpers moved unchanged. Eleven files rewritten: the five Identity
+files above and six tests (`Console\CleanupExpiredOtpsCommandTest`, `Otp\{OtpTest,OtpAttemptLimitTest,
+TextMeOtpControllerTest}`, `Review\RV16OtpPlaintextStorageTest`, `Wallet\WalletTest`). `docs/ARCHITECTURE.md` §10
+row updated from *(pending)* to *(moved)* - 9 moved, 16 pending.
+
+**Two Wallet tests failed, and they were already failing.** `WalletTest::test_initiate_returns_otp_in_testing_mode`
+and `::test_can_create_wallet_after_otp_verification` failed after the move with `otp_code` NULL. I assumed my own
+change and went looking; the honest answer came from measurement, not from reading code:
+
+- With `WALLET_OTP_MODE=testing` exported in the shell, the whole file is green (**34 tests / 56 assertions**).
+- With my move stashed (tree at `HEAD`), running `tests/Feature/Wallet` **alone** reproduces exactly the same two
+  failures by name.
+
+So the pair is a **pre-existing order-dependency**, not a regression: they pass in a full-suite run because an
+earlier test leaves the OTP testing mode resolved in the process, and they fail when the file is run on its own.
+This is the same class of fixture the owner's rules name ("order-dependent tests" that are red on HEAD) and it is
+**not** part of this step, so it was left alone rather than "fixed" - fixing it would mean changing when the mode is
+resolved, which is a config/test-isolation decision, not a model move. Recorded so the next person does not spend
+another round on it: **run `WalletTest` alone and two tests fail on a clean tree.**
+
+**Incident note.** The earlier `git checkout -- .` (sec 305) had reverted the owner's `phpunit.xml`; while chasing
+this pair I confirmed `phpunit.xml`'s `<php>` block still carries `WALLET_OTP_MODE=testing`, and that `.env` says
+the same - so the mode is not missing from the repo, it is the *isolation* that is missing from the pair. No action
+taken on either file.
+
+**Verification.** `AppFuture` (all ratchets, including `ModelOwnershipTest` and
+`BoundaryDependencyTest`), `Otp`, `Console`, `Wallet`, `Staff`, `Auth`: **477 tests / 1432 assertions**, the only
+failures being the two pre-existing `Wallet` ones above; with the mode exported, Wallet is 34/56 green. Focused
+re-run after reverting two files that Pint had reordered without cause: **52 tests / 137 assertions OK**. Pint
+clean on the module and the touched tests. Autoload stays **11962** (a move, not an addition).

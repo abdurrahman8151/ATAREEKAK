@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Identity\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
 use Carbon\Carbon;
@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Otp extends Model
 {
+    /**
+     * Stage 2 C1: declared explicitly so the class can move without the rows moving with it.
+     */
+    protected $table = 'otps';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;

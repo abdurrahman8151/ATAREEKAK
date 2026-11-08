@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Otp;
 
-use App\Models\Otp;
 use App\Models\User;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Modules\Identity\Models\Otp;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

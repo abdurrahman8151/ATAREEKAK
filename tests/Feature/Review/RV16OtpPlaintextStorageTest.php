@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Otp;
+use App\Modules\Identity\Models\Otp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;

@@ -3,8 +3,8 @@
 namespace App\Modules\Identity\Services;
 
 use App\Domain\ValueObjects\PhoneNumber;
-use App\Models\Otp;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
+use App\Modules\Identity\Models\Otp;
 use App\Support\Logging\SafeExceptionLog;
 use App\Support\OtpDisclosure;
 use Carbon\Carbon;

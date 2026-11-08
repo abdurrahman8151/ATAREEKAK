@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Wallet;
 
-use App\Models\Otp;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Modules\Identity\Models\Otp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Concerns\SeedsSystemWallets;

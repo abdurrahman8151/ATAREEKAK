@@ -2,7 +2,7 @@
 
 namespace App\Modules\Identity\Contracts;
 
-use App\Models\Otp;
+use App\Modules\Identity\Models\Otp;
 
 interface OtpRepositoryInterface
 {
