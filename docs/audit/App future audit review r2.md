@@ -18522,3 +18522,53 @@ Until then the pair `Console -> Wallet` stays and the Money model move waits on 
 **What this round did *not* do, stated plainly.** No code changed. The value here is that the next attempt starts
 from three classified items and a controller-line-level argument for each, instead of the four-item list I
 committed one round ago - one of which was wrong, and two of which conflated "needs work" with "needs a decision".
+---
+
+### 292. Stage 2 C2: the admin credit is Money's write path now (blockers 3 -> 2)
+
+**The step.** `Console\Services\AdminWalletCharger` locked a wallet row, wrote its balance, posted the
+`admin_credit` leg and the `external_inbound` leg against External Capital. That is a **write** to Money's
+tables from another module - the one kind of coupling a Reader contract cannot fix, because a reader is the
+wrong shape for it. The body moved, verbatim, into `Money\Contracts\AdminWalletCredit::credit()` /
+`AdminWalletCreditService`.
+
+**How the body moved without being retyped.** The new implementation was generated *from a copy of the original
+file*: namespace and class header rewritten, `chargeWallet` renamed to `credit`, and the returned array replaced.
+Every money statement - the `assertPositive` guard, `DB::transaction`, `lockForUpdate()->firstOrFail()`, the
+balance arithmetic, the `admin_credit` and `external_inbound` type strings, the `EXT_` transaction-id prefix, the
+`RuntimeException` naming `SystemWalletSeeder`, the `postExternalTransfer` legs - is byte-for-byte the code that
+was already there. Retyping 140 lines of money code would have been the single most dangerous thing this phase
+could do; copying and editing the seams is what made it safe.
+
+**What the return shape had to preserve, and why.** Four unit tests read
+`$result['previous_balance']->amount()`, `$result['new_balance']->amount()` and
+`$result['transaction']->transaction_id`, and `AdminDashboardController::chargeWallet()` reads
+`$result['wallet']->phone_number`. The contract returns scalars (`previous_balance`, `new_balance`,
+`transaction_id`, `phone_number`, `wallet_id`) plus the recorder's opaque `transaction` handle; the Console
+delegator rebuilds the two `Money` value objects and returns `'wallet' => ['phone_number' => ...]`. The controller
+now reads `$result['wallet']['phone_number']`; **no assertion was edited and the JSON is unchanged** - the
+`chargeWallet` response still contains exactly `phone_number`, `previous_balance`, `new_balance`,
+`transaction_id` and the snapshots agree.
+
+**One opaque handle, deliberately.** `transaction` stays `mixed` because the recorder already returns `mixed` and
+its only used surface is `transaction_id` (returned separately as well). Typing it would have meant either a DTO
+nobody needs or a model leaving Money - and a model leaving the module is a writable row leaving the module.
+
+**A docblock tripped the ratchet, which is how I learned the scan is textual.** Writing "so Console no longer
+names `App\Models\Wallet` here" put the literal class name in the file and
+`console_only_touches_foreign_models_from_named_files` failed on a file that only *mentioned* a model. Worth
+knowing: the Console scan matches text, not resolved symbols, so a comment can violate it. The sentence was
+reworded rather than the ratchet.
+
+**Blocker list for the Money move: 3 -> 2.**
+
+| File | Money models still named | Obstacle |
+|---|---|---|
+| `Console/Services/AdminWalletRequestService.php` | `WalletRequest`, `Wallet` | `WalletRequest::with(...)` + `Wallet::lockForUpdate()` - needs a locking repository |
+| `Console/Services/AdminWalletService.php` | `Wallet` | **PARKED** - the response serialises the whole row (sec 291) |
+
+Verification: unit admin + Admin + Snapshots + Review + Wallet + Payment **1439 tests / 7853 assertions** with
+only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures - including
+`L10AdminChargeWalletCharacterizationTest`, `AdminChargeWalletMissingExternalCharacterizationTest` and
+`DoubleEntryLedgerTest`, which are the three tests that pin this exact path; AppFuture 61 tests OK;
+`Console -> Money` 8 -> 9 declared with its docblock column; whole-tree Pint PASS.

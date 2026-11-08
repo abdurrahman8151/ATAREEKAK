@@ -2,6 +2,7 @@
 
 namespace App\Modules\Money\Providers;
 
+use App\Modules\Money\Contracts\AdminWalletCredit;
 use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
@@ -20,6 +21,7 @@ use App\Modules\Money\Contracts\WalletTransactionRecorder;
 use App\Modules\Money\Domain\Strategies\CashPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\PaymentStrategyFactory;
+use App\Modules\Money\Services\AdminWalletCreditService;
 use App\Modules\Money\Services\AdminWalletTransactionPager;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\CancellationRefund;
@@ -64,6 +66,8 @@ final class MoneyServiceProvider extends ServiceProvider
         $this->app->bind(LedgerAggregates::class, LedgerAggregateReader::class);
         // Stage 2 C2: `ledger:reconcile` asks Money whether the ledger explains the balances.
         $this->app->bind(LedgerReconciliation::class, LedgerReconciliationReader::class);
+        // Stage 2 C2: an admin credit, performed by the module that owns the balance.
+        $this->app->bind(AdminWalletCredit::class, AdminWalletCreditService::class);
 
         $this->app->singleton(WalletAccess::class);
         // Stage 2 C1: the read door other modules use instead of `$user->wallet`.

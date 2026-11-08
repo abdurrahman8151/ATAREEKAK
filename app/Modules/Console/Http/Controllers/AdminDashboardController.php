@@ -258,7 +258,7 @@ final class AdminDashboardController extends Controller
                 'status' => 'success',
                 'message' => 'Wallet charged successfully',
                 'wallet' => [
-                    'phone_number' => $result['wallet']->phone_number,
+                    'phone_number' => $result['wallet']['phone_number'],
                     'previous_balance' => $result['previous_balance']->formatted(),
                     'new_balance' => $result['new_balance']->formatted(),
                 ],
