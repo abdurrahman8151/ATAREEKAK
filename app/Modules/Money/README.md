@@ -1,49 +1,64 @@
-﻿# Money module
+# Money
 
-Owns balances, the transaction ledger and every movement of money. This is the module with the least tolerance
-for a boundary shortcut: a caller that can write a balance can break the ledger.
+The ledger, wallets, escrow and every way money moves. The most load-bearing module in the project: a
+bug here loses or duplicates money, so its rules are the ones the audit treats as untouchable.
+
+## What it owns
+
+- `Domain/Ledger` - posting keys, ledger types, double-entry posting.
+- `Services` - wallet charging, escrow hold/release, refunds, cancellation refunds, driver payouts, cash
+  ride fee, no-show settlement, payment strategies (`Domain/Strategies`).
+- `Http/Controllers` - the wallet endpoints (balance, top-up, withdrawal with OTP).
+- `Contracts/LedgerServiceInterface` etc. - the surfaces other modules are allowed to touch.
+
+## Public Contracts (8)
+
+| Port | Implemented by | Consumers today |
+|---|---|---|
+| `LedgerServiceInterface` | ledger service | Console (`AdminWalletRequestController`, `AdminWalletCharger`) |
+| `BookingChargeInterface` | booking charge service | Ride (`BookingService`, `BookingCompletionService`) |
+| `CancellationRefundInterface` | cancellation refund service | Ride (4 files), Console (`StaffCancellationService`) |
+| `CashRideFeeServiceInterface` | cash ride fee service | Ride (3 files), Console (`AdminWalletRequestController`) |
+| `RidePayoutInterface` | payout service | Ride (`RideCompletionService`, `RideService`) |
+| `NoShowSettlementInterface` | no-show settlement | Ride (`NoShowPenaltyService`, `Noshowservice`) |
+| `PassengerWalletChargerInterface` | `PassengerWalletCharger` | Identity (`PassengerProfileController`) |
+| `PaymentStrategyFactoryInterface` | `Domain/Strategies/PaymentStrategyFactory` | Ride (`BookingService`, `BookingCompletionService`) |
+
+## Who may call it
+
+Ride, Console and Identity, through the ports above. Every one of those consumers needs a *result*
+(a posted ledger entry, a charged wallet, a resolved settlement) - which is why none of these edges can
+be replaced by an event, and why `Money <-> Identity` is one of the four declared uncut cycles.
+
+## What it may not do
+
+- Import another module's implementation. Its own dependencies are Communication
+  (`NotificationPort`) and Identity (`EmailOtpServiceInterface` for the withdrawal OTP).
+- Change an amount, a refund tier, the 95/5 split, a posting key, an escrow semantic or a ledger type
+  name to make a caller happier. The ledger's vocabulary is `App\Enums\LedgerType`, and
+  `RV39SeederHygieneTest` fails if a `wallet_transactions.type` literal outside it appears anywhere in
+  `app/` or the seeders.
+
+## Tests
+
+`tests/Feature/Wallet`, `tests/Feature/Payment`, `tests/Unit/Domain`, plus the money ratchets (`RV39`,
+`CommittedRowLeakGuardTest`).
 
 ## Owned tables
 
-| Model | Table | Status |
+Every table has one owner ([ADR 0006](../../../docs/adr/0006-strict-data-ownership-schema-frozen.md));
+the schema is frozen and each model declares its table explicitly.
+
+| Model | Table | Class location |
 |---|---|---|
-| `Wallet` | `wallets` | pending (class still in `app/Models`) |
-| `WalletRequest` | `wallet_requests` | pending |
-| `WalletTransaction` | `wallet_transactions` | pending |
-| `LedgerEntry` | `ledger_entries` | pending |
-
-All four already declare an explicit `protected $table`, so moving the classes cannot change where rows land.
-
-## Read contracts
-
-- `WalletDirectory` - a user's wallet summary, batched by user id, plus `byPhone()` and
-  `systemWalletByPhone()` (the latter carries the RV-21 boundary: platform-owned wallets only).
-- `WalletChargeHistory`, `WalletTransactionPager` - paginated transaction pages.
-- `LedgerAggregates` - the admin report's four totals; owns the ledger type spellings, including the two
-  escrow-release variants and the three refund types.
-- `LedgerReconciliation` - `ledger:reconcile`'s reads: wallet/entry counts, system imbalance, per-wallet drift.
-- `DriverEarningsReader` - the admin driver dashboard's settled-earnings sum (both RV-39 spellings).
-
-## Write contracts
-
-- `WalletTransactionRecorder` - record a `wallet_transactions` row (a single leg).
-- `AdminWalletCredit` - an admin credit: row lock, balance write, `admin_credit` leg and the `external_inbound`
-  leg against External Capital.
-- `LedgerServiceInterface` - post a balanced transfer.
-- `BookingChargeInterface`, `RidePayoutInterface`, `NoShowSettlementInterface`, `CancellationRefundInterface`,
-  `PassengerWalletChargerInterface`, `CashRideFeeServiceInterface` - the named money paths.
-
-## Rules
-
-- Amounts are never re-typed by a caller: `WalletSummary::balance` is `mixed` on purpose so a decimal string
-  stays a decimal string.
-- Every leg is traceable to the wallet transaction that caused it; historical rows stay `NULL`.
-- Reconciliation (`php artisan ledger:reconcile`) exits non-zero if any wallet's movement is unexplained. That
-  is an alarm by design, not a report.
+| `Wallet` | `wallets` | `App\Models` - ownership enforced, class move pending |
+| `WalletRequest` | `wallet_requests` | `App\Models` - ownership enforced, class move pending |
+| `WalletTransaction` | `wallet_transactions` | `App\Models` - ownership enforced, class move pending |
+| `LedgerEntry` | `ledger_entries` | `App\Models` - ownership enforced, class move pending |
 
 ## Known gap
 
-Two Console endpoints still embed Eloquent rows in their responses (the whole wallet row, and the wallet-request
-review list). Retiring the last `Wallet`/`WalletRequest` imports needs a response-shape decision, and the
-wallet-request approval workflow still writes balances from Console - it is parked with that reason in the audit
+Two Console endpoints still serialise Eloquent rows (the whole wallet row, and the wallet-request
+review list), and the wallet-request approval workflow still writes balances from Console. Retiring the last
+Wallet/WalletRequest imports is a response-shape decision, not a refactor - parked with that reason in the audit
 record.

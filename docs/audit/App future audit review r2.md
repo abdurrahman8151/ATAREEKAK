@@ -18654,3 +18654,29 @@ Verification: AppFuture + Review **724 tests / 2833 assertions** with only the t
 `L16DriverNoShowSettlementCharacterizationTest` failures - no test reads these documents, which is itself worth
 knowing: the ownership map cannot rot silently into a false claim *only* because the ratchets keep the code
 honest, so the map's "pending" column must be maintained by hand when a class moves.
+---
+
+### 295. Correction: the module READMEs already existed - merge, do not replace
+
+**What I got wrong in sec 294.** I wrote five module READMEs from scratch and committed them, and the `git show
+--stat` was the only thing that said so: `| 65 +++++-------` means a rewrite, not an addition. Those files
+already existed - and they were **better than what I replaced them with**. Each already had
+`## What it owns`, `## Public Contracts (N)`, `## Who may call it`, `## What it may not do` and `## Tests`. Phase
+D's "module READMEs (owned models and tables, Readers, who may call them)" was, for the Readers half, already
+satisfied; my rewrite was largely a duplicate in different words, and it destroyed the per-service inventory
+(which `Services/NotificationService` exists, which `Admin*` services exist, and so on) that the original carried.
+
+**The fix.** Each README was restored from `HEAD~1` and **appended to**, not replaced: a `## Owned tables` section
+(model, table, class location - `moved` for Communication's six, `pending` for the other sixteen) and, where there
+is a real one, a `## Known gap`. Money's gap names the two response-payload endpoints and the wallet-request
+approval workflow that still writes balances from Console; Identity's names C3 (`UserDirectory` / `UserSummary`)
+as unbuilt. Nothing from the original was dropped.
+
+**The lesson, which cost two commits.** `git show --stat` on my own commit is part of verification, not
+decoration: it is the only cheap way to see "I edited an existing file" when the tool that writes it says
+"created". A file that exists and is good should be extended; re-authoring it in my own words is data loss with a
+clean diff. Every markdown link in the five files was re-resolved after the merge (6 of 6 ok).
+
+**Also corrected:** my sec 294 README text claimed contracts sets that the originals already documented more
+precisely (for example Identity's `## Public Contracts (17)` count). The originals win; my appended sections carry
+only the ownership table and the gaps, which is what was actually missing.
