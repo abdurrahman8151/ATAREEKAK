@@ -18488,3 +18488,37 @@ Verification: Admin + Snapshots + Review + Wallet **1005 tests / 4762 assertions
 pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures - the financial report and the RV-21
 system-wallet boundary tests are unchanged; AppFuture 61 tests OK; `Console -> Money` 7 -> 8 declared with its
 docblock column; whole-tree Pint PASS.
+---
+
+### 291. Stage 2 C2: the Money-move blocker list corrected to THREE, and `AdminWalletService` parked with its reason
+
+**A correction to my own note.** Sec 290 listed five blockers, including
+`app/Console/Testing/Testfullrideflow.php`. That file is **not** a blocker: `ModuleBoundaryTest` exempts the whole
+`Console/Testing/` directory from the entrypoint rule, with the reason written next to the exemption - those
+tools "name module implementation code freely, and that is correct", because `App\Console\Kernel::commands()`
+registers them only inside `if ($this->app->environment(['local', 'testing']))` and
+`DevCommandRegistrationTest` pins that guard. The harness creates and mutates wallets (`Wallet::create`,
+`increment('balance')`) because fabricating state is its job. A reader or writer port there would add a seam to a
+dev-only tool to satisfy a scan that already exempts it. **Blocker count is three, not four.**
+
+**The three, with the controller code that decides each one.** Reading
+`AdminDashboardController::chargeWallet()` and `::showWalletTransactions()` settles which obstacles are real:
+
+| File | Obstacle | Evidence |
+|---|---|---|
+| `Console/Services/AdminWalletService.php` | **PARKED** - the response serialises the whole wallet row | `'wallet' => $result['wallet']` (`AdminDashboardController:290`) |
+| `Console/Services/AdminWalletCharger.php` | pending, not blocked - the response picks scalars | `$result['wallet']->phone_number`, `->transaction_id` (`:261`, `:265`) |
+| `Console/Services/AdminWalletRequestService.php` | pending - `WalletRequest::with(...)` plus `Wallet::lockForUpdate()` (`:74`) | a repository with a locking read |
+
+**Why `AdminWalletService` is parked rather than solved.** `showWalletTransactions()` passes the Eloquent model
+straight into `response()->json()` - the payload is the wallet row's own `toArray()`, every column and cast
+included. `WalletSummary` carries five fields by design (it exists to *stop* callers seeing a writable row), and a
+new 20-field shadow DTO whose `toArray()` matches Eloquent's cast-for-cast would be a JSON-compatibility artefact
+built to satisfy a refactor - more surface than the coupling it removes, and it would re-introduce exactly the
+"here is the whole row" seam the DTO layer exists to close. **Parked with the reason: this endpoint's payload
+needs an owner decision (narrow it to a documented wallet shape, or accept the full row and allowlist the pair).**
+Until then the pair `Console -> Wallet` stays and the Money model move waits on it.
+
+**What this round did *not* do, stated plainly.** No code changed. The value here is that the next attempt starts
+from three classified items and a controller-line-level argument for each, instead of the four-item list I
+committed one round ago - one of which was wrong, and two of which conflated "needs work" with "needs a decision".
