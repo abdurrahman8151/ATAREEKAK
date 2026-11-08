@@ -1,20 +1,24 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Identity\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class RefreshToken extends Model
+class StaffRefreshToken extends Model
 {
+    /**
+     * Stage 2 C1: declared explicitly so the class can move without the rows moving with it.
+     */
+    protected $table = 'staff_refresh_tokens';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
+        'employee_id',
         'token',
         'expires_at',
         'revoked',
@@ -27,25 +31,11 @@ class RefreshToken extends Model
         'revoked' => 'boolean',
     ];
 
-    /**
-     * Get the user that owns the refresh token
-     */
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    /**
-     * Check if token is expired
-     */
     public function isExpired(): bool
     {
         return $this->expires_at->isPast();
     }
 
-    /**
-     * Check if token is valid
-     */
     public function isValid(): bool
     {
         return ! $this->revoked && ! $this->isExpired();

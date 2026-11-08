@@ -263,8 +263,8 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | Ride | ScoreTransaction | `score_transactions` | `App\Models` (pending) |
 | Ride | UserScore | `user_scores` | `App\Models` (pending) |
 | Identity | Otp | `otps` | `App\Models` (pending) |
-| Identity | RefreshToken | `refresh_tokens` | `App\Models` (pending) |
-| Identity | StaffRefreshToken | `staff_refresh_tokens` | `App\Models` (pending) |
+| Identity | RefreshToken | `refresh_tokens` | `App\Modules\Identity\Models` (moved) |
+| Identity | StaffRefreshToken | `staff_refresh_tokens` | `App\Modules\Identity\Models` (moved) |
 | Identity | Photo | `photos` | `App\Models` (pending) |
 | Identity | Profile | `profiles` | `App\Models` (pending) |
 | Identity | ProfileComment | `profile_comments` | `App\Models` (pending) |

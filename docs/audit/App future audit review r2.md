@@ -18943,3 +18943,47 @@ procedure rather than the largest one that can fail.
 **Stage 2 is not complete, and this section does not claim it is.** Three C1 module moves are unstarted (Ride,
 Identity, Console), the C3 migration is unstarted, and four owner decisions are outstanding. What this section
 adds is the measurement that makes the next move a decision instead of an experiment.
+---
+
+### 301. Stage 2 C1: Identity's two token models move; the other five are blocked by Console consumers
+
+**What moved.** `App\Models\StaffRefreshToken` -> `App\Modules\Identity\Models\StaffRefreshToken` (table
+`staff_refresh_tokens`) and `App\Models\RefreshToken` -> `App\Modules\Identity\Models\RefreshToken` (table
+`refresh_tokens`), each with an explicit `protected $table` so the class move cannot move the rows. Ten files
+rewritten to the new `use` path, no leftover reference to the old FQCN anywhere in `app/`, `tests/`, `database/`,
+`config/` or `routes/`.
+
+**Why only two of seven.** The measurement in sec 300 said which Identity models are bounded by Console rather
+than by Identity, and the reference counts confirm it:
+
+| Model | Files naming it | Blocking consumers |
+|---|---|---|
+| `StaffRefreshToken` | 6 (1 app) | none outside Identity - **moved** |
+| `RefreshToken` | 5 (1 app) | none outside Identity - **moved** |
+| `UserRating` | 16 | Console: `AdminDashboardActivityService`, `AdminDriverDashboardService`, `AdminDriverQueryService`, `StaffUserProfileService`; kernel `UserObserver`; a seeder and a migration |
+| `ProfileComment` | 6 | Console: `ReviewModerationService` (plus 3 tests) |
+| `Otp` | 5 | 18 embedded occurrences |
+| `Photo` | 7 | 4 embedded |
+| `Profile` | 14 | 44 embedded, 1 returned directly |
+
+The five that remain need a Reader contract in the owning direction before the class can move - which is the C2
+work, not a rename. Moving the class first would break the ratchet that forbids Console naming another module's
+model, and the honest order is contract first, class second.
+
+**A hazard the gate caught, which applies to every remaining move.** `RefreshToken::user()` was declared
+`belongsTo(User::class)` with **no import** - legal while the class lived in `App\Models`, because `User` resolved
+implicitly in the same namespace. In `App\Modules\Identity\Models` the same unqualified reference resolved to
+`App\Modules\Identity\Models\User`, which does not exist, and
+`RefreshTokenTest::test_belongs_to_user` failed with "Class not found". Fixed with an explicit
+`use App\Models\User;`. The general rule for the rest of the C1 work: **after moving a model, scan it for
+unqualified `Foo::class` references** - any relation that pointed at a kernel model by namespace adjacency is now
+pointing at nothing, and only the test that touches that relation will say so.
+
+**Verification.** `Unit/Models` + AppFuture **220 tests / 672 assertions OK**. The affected gate - `Review`,
+`Auth`, `Staff`, `Console`, `Security`, `Unit/Models`, `Snapshots` - **1383 tests / 5724 assertions**, with only
+the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures. The snapshot corpus is
+byte-identical and the query budgets are unchanged. Autoload classmap 11957 (a move changes no class count). Pint
+clean on the module and the moved models.
+
+**The docs were updated in the same commit**, because they would otherwise have lied: `ARCHITECTURE.md`'s
+ownership map and the Identity README now show these two as moved rather than pending (8 moved rows, 17 pending).

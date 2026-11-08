@@ -3,13 +3,13 @@
 namespace App\Modules\Identity\Services;
 
 use App\Models\Employee;
-use App\Models\StaffRefreshToken;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeTokenVersion;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
 use App\Modules\Identity\Contracts\StaffTokenCleanupInterface;
 use App\Modules\Identity\Contracts\StaffTokenVerifierInterface;
 use App\Modules\Identity\Contracts\TokenRevokerInterface;
+use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Support\Logging\SafeExceptionLog;
 use Carbon\Carbon;
 use Firebase\JWT\ExpiredException;

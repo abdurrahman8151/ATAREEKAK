@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Console;
 
-use App\Models\RefreshToken;
+use App\Modules\Identity\Models\RefreshToken;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;

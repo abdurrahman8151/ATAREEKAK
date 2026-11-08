@@ -3,11 +3,11 @@
 namespace App\Modules\Identity\Services;
 
 use App\DTOs\Auth\CachedUser;
-use App\Models\RefreshToken;
 use App\Models\User;
 use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use App\Modules\Identity\Contracts\UserTokenCleanupInterface;
 use App\Modules\Identity\Contracts\UserTokenVerifierInterface;
+use App\Modules\Identity\Models\RefreshToken;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;

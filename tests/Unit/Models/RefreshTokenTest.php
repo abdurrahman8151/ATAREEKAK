@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Models;
 
-use App\Models\RefreshToken;
 use App\Models\User;
+use App\Modules\Identity\Models\RefreshToken;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;

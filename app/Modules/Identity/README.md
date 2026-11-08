@@ -60,8 +60,8 @@ the schema is frozen and each model declares its table explicitly.
 | Model | Table | Class location |
 |---|---|---|
 | `Otp` | `otps` | `App\Models` - ownership enforced, class move pending |
-| `RefreshToken` | `refresh_tokens` | `App\Models` - ownership enforced, class move pending |
-| `StaffRefreshToken` | `staff_refresh_tokens` | `App\Models` - ownership enforced, class move pending |
+| `RefreshToken` | `refresh_tokens` | this module: `App\Modules\Identity\Models` |
+| `StaffRefreshToken` | `staff_refresh_tokens` | this module: `App\Modules\Identity\Models` |
 | `Photo` | `photos` | `App\Models` - ownership enforced, class move pending |
 | `Profile` | `profiles` | `App\Models` - ownership enforced, class move pending |
 | `ProfileComment` | `profile_comments` | `App\Models` - ownership enforced, class move pending |
