@@ -18132,3 +18132,43 @@ kernel testing helper, not a module, so it is outside this ratchet's scope - not
 Verification: Wallet + Payment + Unit/Domain + AppFuture + Snapshots **678 tests / 5470 assertions OK**
 (ledger and wallet state snapshots byte-identical); ModelOwnershipTest 5 tests OK; whole-tree Pint 807 files
 PASS. Money now has **zero** `DB::table` calls into another module's tables.
+---
+
+### 282. Stage 2 C2: Identity stops writing `employees.token_version`, and a latent ratchet failure is closed
+
+**The step.** `StaffJwtService::revokeAllTokens()` revoked the refresh tokens and then ran
+`Employee::where('id', $employeeId)->increment('token_version')` - Identity writing Console's table. That
+increment is the whole revocation guarantee: any access token carrying the old `ver` stops verifying. It went
+through the model, so neither the import ratchet's intent nor the raw-table ratchet could see it as a *write*
+problem; it was one of the 35 baseline pairs with 4 other `Employee` references hiding behind it.
+
+`Console\Contracts\EmployeeTokenVersion` (`bump(int $employeeId): void`) + `EmployeeTokenVersionBumper`,
+bound in `ConsoleServiceProvider`, called from `StaffJwtService`. Same statement - one
+`UPDATE employees SET token_version = token_version + 1` - kept as an SQL increment rather than a
+read-modify-write, so two concurrent revocations cannot land the same value. The contract is one verb on
+purpose: Identity must be able to invalidate and must not be able to read or change anything else about an
+employee.
+
+**Why the pair is NOT removed yet.** `StaffJwtService` still names `Employee` in three places:
+`generateTokenPair(Employee)`, `validateTokenVersion(array, Employee)`, and `$tokenRecord->employee`
+(the `StaffRefreshToken <-> Employee` relation C2 names explicitly). Removing those changes the token-issuing
+path, and the objective's own rule applies: a characterization test pinning the claims first. The import
+stays, the baseline stays at 35, and `Identity -> Console` moves 1 -> 2 in `ModuleGraphTest`.
+
+**A latent failure found by running the right suite.** `tests/Feature/Review/TestDeterminismRatchetTest::
+no_test_writes_a_tracked_file` (RV-37) failed: `ModelOwnershipTest.php calls fwrite()`. My ratchet 1, committed
+as `6a79ecb` six rounds ago, used `fwrite(STDERR, ...)` for its shrink hint - and I never ran `tests/Feature/Review`
+in those rounds, because I was scoping runs to `tests/Feature/AppFuture`. RV-37 lists `fwrite` as a
+filesystem-write primitive, with two existing allowlist entries for exactly this pattern
+(`AssertsApiSnapshot`, `LedgerPropertySeed`, both "prints the shrink hint ... does not touch the filesystem").
+`ModelOwnershipTest` is now allowlisted with the same reason, matching the established precedent.
+
+**How I found it.** The ratchet caught me, not the reverse: I added a *second* `fwrite` while writing ratchet 4
+and only saw the failure when this step's gate widened to Review. The lesson is recorded rather than hidden -
+"scoped runs" is a speed rule with a blind spot, and the Review ratchets are exactly the tests that police the
+tests.
+
+Verification: AppFuture + TestDeterminismRatchetTest **66 tests / 478 assertions OK**; wider gate Review +
+Security + Snapshots + Staff **1102 tests / 5228 assertions** with only the three pre-existing
+`L16DriverNoShowSettlementCharacterizationTest` failures (unchanged red set, same names); whole-tree Pint
+**809 files PASS**.

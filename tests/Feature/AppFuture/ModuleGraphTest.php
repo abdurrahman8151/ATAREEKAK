@@ -86,7 +86,9 @@ class ModuleGraphTest extends TestCase
         'Console -> Money' => 3,
         'Console -> Ride' => 2,
         'Identity -> Communication' => 1,
-        'Identity -> Console' => 1,
+        // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so
+        // Identity calls Console's EmployeeTokenVersion port instead of running the increment itself.
+        'Identity -> Console' => 2,
         'Identity -> Money' => 4,
         'Identity -> Ride' => 2,
         // Stage 2 C2: escrow is stored on the booking row, so the guarded decrement runs in Ride -

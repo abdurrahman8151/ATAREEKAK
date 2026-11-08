@@ -6,6 +6,7 @@ use App\Modules\Console\Contracts\BanLifterInterface;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeManagementInterface;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Contracts\EmployeeTokenVersion;
 use App\Modules\Console\Contracts\SupportAgentRoutingInterface;
 use App\Modules\Console\Repositories\ComplaintRepository;
 use App\Modules\Console\Repositories\EmployeeRepository;
@@ -19,6 +20,7 @@ use App\Modules\Console\Services\AdminWalletService;
 use App\Modules\Console\Services\BanService;
 use App\Modules\Console\Services\ComplaintService;
 use App\Modules\Console\Services\EmployeeManagementService;
+use App\Modules\Console\Services\EmployeeTokenVersionBumper;
 use App\Modules\Console\Services\ReviewModerationService;
 use App\Modules\Console\Services\StaffComplaintService;
 use App\Modules\Console\Services\SupportAgentRoutingService;
@@ -38,6 +40,8 @@ final class ConsoleServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Admin back office.
+        // Stage 2 C2: Identity invalidates staff sessions through this, instead of writing employees.
+        $this->app->bind(EmployeeTokenVersion::class, EmployeeTokenVersionBumper::class);
         $this->app->singleton(AdminAuthService::class);
         $this->app->singleton(AdminWalletService::class);
         $this->app->singleton(AdminReportService::class);

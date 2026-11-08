@@ -4,6 +4,7 @@ namespace App\Modules\Identity\Services;
 
 use App\Models\Employee;
 use App\Models\StaffRefreshToken;
+use App\Modules\Console\Contracts\EmployeeTokenVersion;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
 use App\Modules\Identity\Contracts\StaffTokenCleanupInterface;
 use App\Modules\Identity\Contracts\StaffTokenVerifierInterface;
@@ -24,6 +25,8 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
     private const REFRESH_TTL_DAYS = 30;
 
     private const SUB_TYPE = 'employee';
+
+    public function __construct(private readonly EmployeeTokenVersion $tokenVersions) {}
 
     // ── Token generation ──────────────────────────────────────────────────────
 
@@ -163,8 +166,8 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
             ->where('revoked', false)
             ->update(['revoked' => true]);
 
-        Employee::where('id', $employeeId)
-            ->increment('token_version');
+        // Stage 2 C2: employees is Console's table; the module that owns the column runs the bump.
+        $this->tokenVersions->bump($employeeId);
     }
 
     // ── Maintenance ───────────────────────────────────────────────────────────

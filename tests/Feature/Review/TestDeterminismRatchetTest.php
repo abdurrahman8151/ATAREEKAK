@@ -327,6 +327,7 @@ class TestDeterminismRatchetTest extends TestCase
         'tests/Support/Snapshots/SnapshotManifest.php' => 'Writes tests/Snapshots/MANIFEST.json, and ONLY from scripts/refresh-snapshot-manifest.php - the freeze test that reads it never writes, deliberately, because a freeze that repairs itself is not a freeze.',
         'tests/Support/Snapshots/QueryBudgetStore.php' => 'Writes tests/Snapshots/query-budgets.json, only when SNAPSHOT_UPDATE=1; a normal run only reads the committed baseline.',
         'tests/Support/Concerns/AssertsApiSnapshot.php' => 'fwrite(STDERR, ...) only - prints the shrink hint for a query budget that can be lowered; it does not touch the filesystem.',
+        'tests/Feature/AppFuture/ModelOwnershipTest.php' => 'fwrite(STDERR, ...) only - prints the shrink hint for a ratchet baseline or Console allowlist entry that can be removed; it does not touch the filesystem.',
         'tests/Support/LedgerPropertySeed.php' => 'fwrite(STDERR, ...) only - prints the randomized ledger seed and case count so a red run can be replayed; it does not touch the filesystem.',
         'tests/Feature/Review/RV22OauthCredentialRedactionTest.php' => 'The subject of the test is a log file, so it must create one: the path is '
             .'storage_path(\'logs/rv22-*.log\') — under storage/, which .gitignore excludes — '
