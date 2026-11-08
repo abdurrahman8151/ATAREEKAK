@@ -18172,3 +18172,39 @@ Verification: AppFuture + TestDeterminismRatchetTest **66 tests / 478 assertions
 Security + Snapshots + Staff **1102 tests / 5228 assertions** with only the three pre-existing
 `L16DriverNoShowSettlementCharacterizationTest` failures (unchanged red set, same names); whole-tree Pint
 **809 files PASS**.
+---
+
+### 283. Stage 2 C2: Ride stops creating Console's complaints - **the first baseline shrink, 35 -> 34**
+
+**The step.** `Ride\Services\NoShowConflictService` auto-opens a `no_show` support complaint when both parties
+file a no-show report inside the 2-hour window, and it did that with `Complaint::create([...])` - Ride writing
+Console's `complaints` table. `Console\Contracts\ComplaintRecorder` (`record(array $attributes): int`) +
+`ComplaintRecorderService`, bound in `ConsoleServiceProvider`, now own the insert.
+
+**Why `int`, not the model.** The caller used the returned model for exactly one thing: `->id` (the log
+context, the two `complaint_id` keys in the notification payloads, and the notifier signature). Returning the
+model would have let Ride keep reading and saving a row it does not own, and would have handed Console's column
+set to Ride. The notifier now takes the id.
+
+**A dead import, removed.** `Noshowservice` imported `App\Models\Complaint` and never used it - the name
+appeared only in prose comments. It was half of the pair by itself; deleting it is not a behaviour change.
+
+**The pair is gone: 35 -> 34.** `'Ride -> Complaint' => 'complaints'` is deleted from `KERNEL_MODEL_IMPORTS`,
+making this the first time a ratchet baseline has actually shrunk. Every prior commit lowered *debt* without
+moving the number; this one moved the number, because the coupling was a write and not a type hint.
+
+**Graph.** New `Ride -> Console` edge (1), which closes a mutual pair with the existing `Console -> Ride` (2).
+Declared uncut with the honest reason: a no-show conflict must open a support complaint for the back office to
+investigate, Console already reaches Ride for its trip and booking screens, and cutting either side means
+moving an HTTP endpoint between modules. `DERIVED_CYCLES` regenerated 21 -> 25 from the measured list, and the
+enumerator's naming was caught by the test: it emits `Console <-> Ride`, not `Ride <-> Console`, so the first
+declaration attempt failed on the key alone.
+
+**One pragmatic note.** `Noshowservice` builds `NoShowConflictService` by hand (`new ...`), so it resolves the
+new port through `app()` rather than growing its own constructor - keeping that class's signature, and every
+call site, unchanged. The class is not container-managed, so this is the same construction path it already
+uses, not a new pattern.
+
+Verification: Rides + Bookings + Unit/Domain + Admin + Review + Snapshots **1200 tests / 5110 assertions** with
+only the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures (unchanged red set, same
+names); AppFuture 61 tests OK; whole-tree Pint **811 files PASS**.

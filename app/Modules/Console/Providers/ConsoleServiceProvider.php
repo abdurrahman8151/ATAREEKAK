@@ -3,6 +3,7 @@
 namespace App\Modules\Console\Providers;
 
 use App\Modules\Console\Contracts\BanLifterInterface;
+use App\Modules\Console\Contracts\ComplaintRecorder;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeManagementInterface;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
@@ -18,6 +19,7 @@ use App\Modules\Console\Services\AdminTripService;
 use App\Modules\Console\Services\AdminUserService;
 use App\Modules\Console\Services\AdminWalletService;
 use App\Modules\Console\Services\BanService;
+use App\Modules\Console\Services\ComplaintRecorderService;
 use App\Modules\Console\Services\ComplaintService;
 use App\Modules\Console\Services\EmployeeManagementService;
 use App\Modules\Console\Services\EmployeeTokenVersionBumper;
@@ -41,6 +43,8 @@ final class ConsoleServiceProvider extends ServiceProvider
     {
         // Admin back office.
         // Stage 2 C2: Identity invalidates staff sessions through this, instead of writing employees.
+        // Stage 2 C2: Ride opens its no-show support complaint through this instead of `Complaint::create()`.
+        $this->app->bind(ComplaintRecorder::class, ComplaintRecorderService::class);
         $this->app->bind(EmployeeTokenVersion::class, EmployeeTokenVersionBumper::class);
         $this->app->singleton(AdminAuthService::class);
         $this->app->singleton(AdminWalletService::class);

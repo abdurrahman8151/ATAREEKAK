@@ -97,6 +97,8 @@ class ModuleGraphTest extends TestCase
         'Money -> Ride' => 1,
         'Money -> Communication' => 1,
         'Money -> Identity' => 1,
+        // Stage 2 C2: Ride's no-show conflict opens a support complaint, which Console owns.
+        'Ride -> Console' => 1,
         'Ride -> Communication' => 1,
         'Ride -> Identity' => 1,
         'Ride -> Money' => 5,
@@ -107,6 +109,7 @@ class ModuleGraphTest extends TestCase
         'Communication <-> Console' => 'a passenger-facing contact endpoint must reach the back office to build its response; an event cannot return the agent and a kernel listener would breach the 5-file Contracts ceiling',
         'Console <-> Identity' => 'staff authentication lives in Identity and employee records in Console (batch 233 context map); cutting it would move one or the other',
         'Identity <-> Money' => 'OTP-verified withdrawal versus wallet top-up: both need a return value and cutting either moves an HTTP endpoint between modules',
+        'Console <-> Ride' => 'a no-show conflict must open a support complaint for the back office to investigate; Console already reaches Ride for its trip and booking screens, and cutting either side means moving an HTTP endpoint between modules',
         'Money <-> Ride' => 'escrow is a COLUMN ON THE BOOKING ROW, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids',
         'Identity <-> Ride' => 'driver-document checks versus ride stats and score: same shape as Identity <-> Money',
     ];
@@ -133,7 +136,11 @@ class ModuleGraphTest extends TestCase
         'Communication -> Console -> Ride -> Identity -> Money',
         'Communication -> Console -> Ride -> Money',
         'Communication -> Console -> Ride -> Money -> Identity',
+        'Console -> Identity -> Money -> Ride',
+        'Console -> Identity -> Ride',
         'Console -> Money -> Identity',
+        'Console -> Money -> Identity -> Ride',
+        'Console -> Money -> Ride',
         'Console -> Money -> Ride -> Identity',
         'Console -> Ride -> Identity',
         'Console -> Ride -> Money -> Identity',

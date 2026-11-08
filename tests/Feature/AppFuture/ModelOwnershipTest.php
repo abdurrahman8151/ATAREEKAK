@@ -74,6 +74,8 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment', 'Employee'],
         // Stage 2 C2: the bumper for Identity's session invalidation - it writes Console's own table.
         'app/Modules/Console/Services/EmployeeTokenVersionBumper.php' => ['Employee'],
+        // Stage 2 C2: Ride's no-show conflict opens its complaint through this Console file.
+        'app/Modules/Console/Services/ComplaintRecorderService.php' => ['Complaint'],
         'app/Modules/Console/Services/EmployeeManagementService.php' => ['Employee'],
         'app/Modules/Console/Services/ReviewModerationService.php' => ['ProfileComment'],
         'app/Modules/Console/Services/StaffBookingQueryService.php' => ['Booking'],
@@ -137,7 +139,6 @@ final class ModelOwnershipTest extends TestCase
         'Money -> WalletRequest' => 'wallet_requests',
         'Money -> WalletTransaction' => 'wallet_transactions',
         'Ride -> Booking' => 'bookings',
-        'Ride -> Complaint' => 'complaints',
         'Ride -> NoshowReport' => 'noshow_reports',
         'Ride -> Ride' => 'rides',
         'Ride -> ScoreTransaction' => 'score_transactions',

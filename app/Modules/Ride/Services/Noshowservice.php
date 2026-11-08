@@ -3,11 +3,11 @@
 namespace App\Modules\Ride\Services;
 
 use App\Models\Booking;
-use App\Models\Complaint;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Console\Contracts\ComplaintRecorder;
 use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Modules\Ride\Contracts\NoShowReportInterface;
 
@@ -53,7 +53,9 @@ final class Noshowservice implements NoShowReportInterface
         private readonly NoShowSettlementInterface $noShowSettlement,
         private readonly NotificationPort $notificationService,
     ) {
-        $this->conflicts = new NoShowConflictService($notificationService);
+        // Stage 2 C2: this class builds its collaborators by hand, so resolve the complaint recorder
+        // the same way - keeping this constructor unchanged, and with it every call site.
+        $this->conflicts = new NoShowConflictService($notificationService, app(ComplaintRecorder::class));
         $this->reports = new NoShowReportService($notificationService, $this->conflicts, new NoShowReportGuard);
         $this->penalties = new NoShowPenaltyService($scoreService, $noShowSettlement, $notificationService);
     }

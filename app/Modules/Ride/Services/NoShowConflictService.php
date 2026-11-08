@@ -5,11 +5,11 @@ namespace App\Modules\Ride\Services;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
 use App\Models\Booking;
-use App\Models\Complaint;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Console\Contracts\ComplaintRecorder;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Log;
 
@@ -24,6 +24,7 @@ final class NoShowConflictService
 {
     public function __construct(
         private readonly NotificationPort $notificationService,
+        private readonly ComplaintRecorder $complaints,
     ) {}
 
     /**
@@ -41,22 +42,22 @@ final class NoShowConflictService
     ): array {
         $this->recordDisputedCounterReport($existingReport, $driver, $passenger, $booking, $ride, $newReporterRole);
 
-        $complaint = $this->createConflictComplaint($driver, $passenger, $booking, $ride, $existingReport, $newReporterRole);
+        $complaintId = $this->createConflictComplaint($driver, $passenger, $booking, $ride, $existingReport, $newReporterRole);
 
-        $this->notifyConflictParties($driver, $passenger, $complaint, $ride);
+        $this->notifyConflictParties($driver, $passenger, $complaintId, $ride);
 
         Log::info('No-show conflict detected — auto-complaint created', [
             'ride_id' => $ride->id,
             'booking_id' => $booking->id,
             'driver_id' => $driver->id,
             'passenger_id' => $passenger->id,
-            'complaint_id' => $complaint->id,
+            'complaint_id' => $complaintId,
         ]);
 
         return [
             'message' => 'Both parties filed a no-show report. A support complaint has been opened automatically. No automatic penalty will be applied — the support team will investigate.',
             'conflict' => true,
-            'complaint_id' => $complaint->id,
+            'complaint_id' => $complaintId,
         ];
     }
 
@@ -103,8 +104,8 @@ final class NoShowConflictService
         Ride $ride,
         NoshowReport $existingReport,
         string $newReporterRole
-    ): Complaint {
-        return Complaint::create([
+    ): int {
+        return $this->complaints->record([
             'user_id' => $passenger->id,      // passenger as the "submitter"
             'complained_id' => $driver->id,         // driver as the "respondent"
             'type' => ComplaintType::NO_SHOW->value,
@@ -119,7 +120,7 @@ final class NoShowConflictService
     private function notifyConflictParties(
         User $driver,
         User $passenger,
-        Complaint $complaint,
+        int $complaintId,
         Ride $ride
     ): void {
         try {
@@ -128,7 +129,7 @@ final class NoShowConflictService
                 'noshow_conflict',
                 'تعارض تقارير الغياب',
                 'كلا الطرفين ضغطا زر الغياب. تم فتح شكوى تلقائية وسيتدخل فريق الدعم للبت في الأمر. لن تُطبَّق أي عقوبة تلقائية.',
-                ['ride_id' => $ride->id, 'complaint_id' => $complaint->id],
+                ['ride_id' => $ride->id, 'complaint_id' => $complaintId],
                 'high',
                 'system'
             );
@@ -137,7 +138,7 @@ final class NoShowConflictService
                 'noshow_conflict',
                 'تعارض تقارير الغياب',
                 'كلا الطرفين ضغطا زر الغياب. تم فتح شكوى تلقائية وسيتدخل فريق الدعم للبت في الأمر. لن تُطبَّق أي عقوبة تلقائية.',
-                ['ride_id' => $ride->id, 'complaint_id' => $complaint->id],
+                ['ride_id' => $ride->id, 'complaint_id' => $complaintId],
                 'high',
                 'system'
             );
