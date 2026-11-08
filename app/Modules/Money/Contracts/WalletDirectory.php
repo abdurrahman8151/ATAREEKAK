@@ -24,6 +24,20 @@ interface WalletDirectory
     public function forUser(int $userId, bool $fromWritePdo = false): ?WalletSummary;
 
     /**
+     * A system wallet by its phone number - the admin report looks up SyCash and the primary
+     * admin wallet this way, and `phone_number` is how operators identify them in config.
+     * One query; null when the wallet has not been provisioned yet.
+     */
+    public function byPhone(string $phoneNumber): ?WalletSummary;
+
+    /**
+     * A platform-owned (system) wallet by phone number. The `user_id IS NULL` guard is the RV-21
+     * boundary: the admin report must never read a user wallet that happens to share the configured
+     * phone, so this lookup is deliberately narrower than byPhone() and cannot be merged into it.
+     */
+    public function systemWalletByPhone(string $phoneNumber): ?WalletSummary;
+
+    /**
      * Summaries for many users, keyed by user id. One query for the whole set, which is why callers
      * rendering a list must use this rather than calling forUser() in a loop.
      *

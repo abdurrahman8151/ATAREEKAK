@@ -9,8 +9,8 @@ use App\Models\Complaint;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
 use App\Modules\Money\Contracts\LedgerAggregates;
+use App\Modules\Money\Contracts\WalletDirectory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -85,9 +85,8 @@ final class AdminReportService
         // SystemWalletSeeder seeds that phone). Value definition unchanged — still "the
         // Primary Escrow balance"; the fix only makes the intended lookup resolve. What
         // that balance MEANS is Wave-3's gated escrow redesign (§26.14) — untouched here.
-        $primaryWallet = Wallet::where('phone_number', config('admin.system_admin.phone'))
-            ->whereNull('user_id')   // RV-21 boundary: only the platform-owned wallet
-            ->first();
+        // Stage 2 C2: Money owns `wallets`; the RV-21 system-wallet boundary lives in the reader.
+        $primaryWallet = app(WalletDirectory::class)->systemWalletByPhone(config('admin.system_admin.phone'));
         $primaryBalance = $primaryWallet ? (float) $primaryWallet->balance : 0.0;
 
         return [
@@ -312,8 +311,9 @@ final class AdminReportService
     private function getFinancialStatistics(?Carbon $start, ?Carbon $end): array
     {
         $adminConfigs = config('admin');
-        $syCashWallet = Wallet::where('phone_number', $adminConfigs['sycash']['phone'])->first();
-        $primaryWallet = Wallet::where('phone_number', $adminConfigs['system_admin']['phone'])->first();
+        $wallets = app(WalletDirectory::class);
+        $syCashWallet = $wallets->byPhone($adminConfigs['sycash']['phone']);
+        $primaryWallet = $wallets->byPhone($adminConfigs['system_admin']['phone']);
 
         if (! $syCashWallet || ! $primaryWallet) {
             return ['error' => 'Admin wallets not yet initialised'];

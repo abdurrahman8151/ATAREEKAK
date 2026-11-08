@@ -18442,3 +18442,49 @@ attempted move, and no file outside the reverted set was touched.
 (lookup by phone and by id, returning a `WalletSummary`) retires four of the five in one commit, and the kernel
 testing helper is a test fixture that can take the contract too. Then the `git mv` is genuinely mechanical - and
 provable as such, because these three ratchets already know how to say no.
+---
+
+### 290. Stage 2 C2: the admin report reads system wallets through Money's directory (blockers 5 -> 4)
+
+**The step.** `AdminReportService` was one of the five files that blocked the Money model move (sec 289). It looked
+wallets up by phone three times: SyCash and the primary admin wallet in `getFinancialStatistics()`, and the
+primary balance in the overview. Those are now `WalletDirectory` calls - Money's existing read door, extended with
+two lookups it did not have.
+
+**Two lookups, not one, and the reason is a boundary.** The overview's primary-wallet lookup carried
+`->whereNull('user_id')` marked RV-21: the report must never read a *user* wallet that happens to share the
+configured phone. Folding that into a general `byPhone()` would have quietly dropped the guard, so the contract
+gets both:
+
+- `byPhone(string): ?WalletSummary` - any wallet with that phone (what the two statistics lookups did);
+- `systemWalletByPhone(string): ?WalletSummary` - the same lookup **plus** `user_id IS NULL`, with the RV-21
+  comment moved next to the query that enforces it.
+
+A general method with a boolean flag would have been one method and one place for a caller to pass the wrong
+value; two named methods make the boundary visible at the call site. This is the same reasoning as sec 285's
+"the moved expression is a policy": `whereNull('user_id')` is not a detail of the query, it is the rule.
+
+**`WalletSummary` was reused unchanged.** It already carries `id`, `walletNumber`, `balance` and `cashRideDebt`,
+and `balance` is deliberately `mixed` so the column's decimal string passes through untouched - which is what the
+report needs, because it formats `Money::from($wallet->balance)` exactly as before. No DTO change, no cast, no
+response movement.
+
+**Blocker list for the Money move: 5 -> 4.**
+
+| File | Money models still named |
+|---|---|
+| `Console/Services/AdminWalletService.php` | `Wallet` |
+| `Console/Services/AdminWalletCharger.php` | `Wallet` |
+| `Console/Services/AdminWalletRequestService.php` | `WalletRequest`, `Wallet` |
+| `Console/Testing/Testfullrideflow.php` (kernel helper) | `Wallet` |
+
+**Why the remaining four are harder, recorded now so the next attempt does not rediscover it:**
+`AdminWalletService` returns the full wallet row inside a response (`'wallet' => $wallet`), so a summary DTO
+would change JSON - parked on response shape. `AdminWalletCharger` **writes** the balance (`$wallet->balance =
+...; $wallet->save()`), so it needs a Money write port, not a reader. `AdminWalletRequestService` uses
+`WalletRequest::with(...)` and `Wallet::lockForUpdate()`, i.e. a repository with a locking read.
+
+Verification: Admin + Snapshots + Review + Wallet **1005 tests / 4762 assertions** with only the three
+pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures - the financial report and the RV-21
+system-wallet boundary tests are unchanged; AppFuture 61 tests OK; `Console -> Money` 7 -> 8 declared with its
+docblock column; whole-tree Pint PASS.

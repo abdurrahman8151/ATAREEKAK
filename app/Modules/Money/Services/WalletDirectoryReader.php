@@ -24,6 +24,22 @@ final class WalletDirectoryReader implements WalletDirectory
         return $wallet === null ? null : $this->toSummary($wallet);
     }
 
+    public function byPhone(string $phoneNumber): ?WalletSummary
+    {
+        $wallet = Wallet::where('phone_number', $phoneNumber)->first();
+
+        return $wallet === null ? null : $this->toSummary($wallet);
+    }
+
+    public function systemWalletByPhone(string $phoneNumber): ?WalletSummary
+    {
+        $wallet = Wallet::where('phone_number', $phoneNumber)
+            ->whereNull('user_id')   // RV-21 boundary: only the platform-owned wallet
+            ->first();
+
+        return $wallet === null ? null : $this->toSummary($wallet);
+    }
+
     public function summariesFor(array $userIds): array
     {
         if ($userIds === []) {
