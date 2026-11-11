@@ -206,6 +206,16 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 310): `User::bookings()` removed - a relation with NO consumer,
+  commit `Stage 2 C2: User::bookings removed; dead reverse relation`.** Measured by receiver before
+  deleting: every `bookings` in the tree is `$ride->bookings` (the Ride->Booking relation, staying), the
+  `RideCancelled` event's own property, `AdminDriverPresenter`'s `bookings_count`, a seeder's helper
+  property, or a `$bookingService->...` call - **no User query eager-loaded it and no test used it**.
+  Gate: Rides+Bookings+Wallet+Admin+AppFuture+Snapshots = 510 tests / 3095 assertions OK; whole-tree
+  Pint PASS. A dynamic `$user->bookings` would have thrown `RelationNotFoundException` and reddened the
+  HTTP snapshots in that selection; it did not.
+  **Next:** `givenRatings()`+`receivedRatings()` (11/6 - these block `UserRating`, whose move sec 304 rolled
+  back), then `photos()` (24/9), then `profile()` (45/21); then the Console `Ride` Reader contracts.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 309): `User::rides()` removed - the first reverse relation,
   commit `Stage 2 C2: User::rides removed; driver-profile query moved into Console`.** It was the only
   reverse relation with ONE live consumer: Console's driver-profile presenter. The eager load

@@ -163,10 +163,11 @@ class User extends Authenticatable
         return $this->hasMany(Photo::class);
     }
 
-    public function bookings(): HasMany
-    {
-        return $this->hasMany(Booking::class);
-    }
+    // Stage 2 C2: `bookings()` (hasMany Booking) is REMOVED - it had no consumer at all. Every
+    // `->bookings` in the tree belongs to a Ride (Ride::bookings), to the RideCancelled event's own
+    // property, or to a seeder's `$this->bookings`; no User query eager-loaded it and no test
+    // referenced `users.bookings`. Keeping a kernel relation to a model that is moving into the Ride
+    // module would only have been an edge with nothing on the other end.
 
     // Stage 2 C1: the five reverse relations to Communication's models (conversations, sentMessages,
     // notifications, userNotifications, pushTokens) are gone, together with the unread-count accessors

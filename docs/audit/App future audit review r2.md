@@ -19364,3 +19364,29 @@ So the unblocking work is C2's reverse relations, and `rides` is the cheapest: *
 one relation lighter but still needs a Reader-contract step for the six Console consumers plus the kernel
 `RideResource`/`BookingResource`; that is the next substantive piece, and it must keep the admin trip/report
 payloads byte-identical or it gets Parked.
+
+---
+
+### 310. Stage 2 C2: `User::bookings()` removed - a relation with no consumer at all
+
+**The measurement first.** Before touching it, every `bookings` occurrence in `app/`, `tests/` and `database/` was
+classified by its RECEIVER: `$ride->bookings` (nine sites, all the Ride->Booking relation, staying), the
+`RideCancelled` event's own `$this->bookings` property (two), `AdminDriverPresenter`'s `$r->bookings_count` (one), a
+seeder's `$this->bookings` helper property (many), and `$bookingService->...` calls (not the relation). **No User
+query eager-loaded `bookings`, no `withCount('bookings')` sat on a User query, and no test referenced the relation.**
+So this one is `delete the code the refactor made dead`, not a rewiring.
+
+**What changed.** `App\Models\User::bookings()` (hasMany `Booking`) deleted, with a comment recording why and what
+the receiver of every other `bookings` is. Nothing else: `Booking`, `Photo`, `Profile`, `UserRating` and `Ride` are
+all in `App\Models`, so there was no import to retire (`Booking` needed none - same namespace).
+
+**Verification.** Because `User` is a shared kernel model, the selection was the widest that still fits one run:
+`tests/Feature/Rides`, `Bookings`, `Wallet`, `Admin`, `AppFuture` (all four ratchets) and `Snapshots` =
+**510 tests / 3095 assertions OK**. One narrower run before it (`AppFuture` + the only test file that mentions a
+user's bookings in prose, `RV20ChargeThroughStrategyTest`) was **69 / 481 OK**. Whole-tree Pint PASS.
+If a caller had reached the relation dynamically, `User->bookings` would now throw `RelationNotFoundException` and
+the HTTP snapshots in that selection would have failed - they did not.
+
+**Next.** `givenRatings()` + `receivedRatings()` (11 hits / 6 files - `UserRating` is the model they block, and sec 304
+rolled that move back for exactly this reason), then `photos()` (24 / 9), then `profile()` (45 / 21). After the Ride
+pair, the Console `Ride` Reader contracts.
