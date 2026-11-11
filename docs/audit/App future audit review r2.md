@@ -19422,3 +19422,13 @@ the raw attribute - so the batched read must write the key the accessor itself r
 what `withAvg` already produces), and the accessor must be rewritten to read ONLY that key and never fall back to a
 query. Otherwise the "no N+1" guarantee turns into one query per row and the ride-list budgets move, which this mode
 forbids.
+
+
+**AND THE QUERY-BUDGET CONSTRAINT ON THAT STEP (measured now, so the next attempt does not burn a full run discovering
+it).** Three of the four sites are eager loads, so replacing each with ONE batched reader keeps the count identical.
+`AdminDriverQueryService:61` is different: `withAvg('receivedRatings as avg_rating', 'rating')` is a CORRELATED
+SUBQUERY inside the users query - **zero** extra statements - and `admin/drivers` is recorded at 9. Swapping it for a
+separate batched read makes it 10, and this mode forbids moving a budget. So either that site keeps a subquery (which
+means the reader must expose something the owner can EMBED, e.g. an average expression/sub-builder rather than a
+result set), or the site is left on the relation and `receivedRatings` cannot go yet. Decide that before writing
+code; do not start the change and then discover the budget.

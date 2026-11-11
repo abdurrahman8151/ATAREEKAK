@@ -219,7 +219,11 @@
   and `AdminDriverQueryService:61` (`withAvg('receivedRatings as avg_rating')`). **TRAP:** assigning
   `$user->average_rating` does NOT bypass the accessor - write `avg_rating` (which `withAvg` already
   produces) and make `getAverageRatingAttribute()` read ONLY that key with NO query fallback, or the ride
-  list becomes an N+1 and its budgets move (forbidden).
+  list becomes an N+1 and its budgets move (forbidden). **AND the budget constraint that decides the whole step:**
+  `AdminDriverQueryService:61`'s `withAvg('receivedRatings as avg_rating')` is a CORRELATED SUBQUERY (zero extra
+  statements) and `admin/drivers` is recorded at 9, so replacing it with a separate batched read makes it 10 -
+  forbidden. Either the reader exposes something the owner can EMBED (an average expression/sub-builder, not a
+  result set), or that site stays and `receivedRatings` cannot go yet. Decide before writing code.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 310): `User::bookings()` removed - a relation with NO consumer,
   commit `Stage 2 C2: User::bookings removed; dead reverse relation`.** Measured by receiver before
   deleting: every `bookings` in the tree is `$ride->bookings` (the Ride->Booking relation, staying), the
