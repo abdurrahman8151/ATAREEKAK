@@ -206,6 +206,18 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 312): `User::getTotalRatingsAttribute()` deleted (dead; no
+  `$appends`), commit `Stage 2 C2: dead rating accessor removed; UserRating move parked on one assertion`.**
+  Rating area 1378 tests / 5982 assertions / 2 skipped with ONLY the 3 pre-existing `L16DriverNoShow`
+  failures; Pint PASS; no snapshot or budget touched.
+  **`UserRating`'s move is PARKED ON ONE OWNER SENTENCE (4th attempt; sec 304 rolled one back).** Three
+  measured blockers: (1) `receivedRatings()` is the ONLY rating value in the API and its accessor's query
+  fallback is load-bearing for SEVEN single-model render sites, so it cannot simply be deleted; (2)
+  `admin/drivers` is budgeted at 9 and its `withAvg` is a correlated subquery worth ZERO statements, so a
+  separate batched read is forbidden; (3) **`UntangleBatchTest:68` asserts
+  `relationLoaded('receivedRatings')` - it pins the MECHANISM, and this mode forbids editing an assertion.**
+  **ASK:** may that one assertion change to the new mechanism (`avg_rating` attached / one rating query per
+  page)? The full six-step plan is written out in sec 312 and needs no re-derivation.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 311): `User::givenRatings()` and `UserRating::ride()` deleted -
   both dead, commit `Stage 2 C2: two dead rating relations removed`.** `givenRatings` had only its own
   definition; `UserRating::ride()` had no eager load and no `->ride` read (the `ride_id` column is still

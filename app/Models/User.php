@@ -205,10 +205,10 @@ class User extends Authenticatable
             : $this->receivedRatings()->avg('rating')) ?? 0;
     }
 
-    public function getTotalRatingsAttribute()
-    {
-        return $this->receivedRatings()->count();
-    }
+    // Stage 2 C2: `getTotalRatingsAttribute()` is REMOVED - it had no consumer. Every `total_ratings`
+    // in the tree is read off Identity's `UserRatingStats` DTO (or a response array built from it),
+    // never off a User. That leaves `average_rating` as the only rating accessor, which is the whole
+    // read surface once the relation goes.
 
     public function getIsBannedAttribute(): bool
     {

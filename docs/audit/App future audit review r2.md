@@ -19432,3 +19432,46 @@ separate batched read makes it 10, and this mode forbids moving a budget. So eit
 means the reader must expose something the owner can EMBED, e.g. an average expression/sub-builder rather than a
 result set), or the site is left on the relation and `receivedRatings` cannot go yet. Decide that before writing
 code; do not start the change and then discover the budget.
+
+---
+
+### 312. Stage 2 C2: `getTotalRatingsAttribute()` removed; the `UserRating` move is PARKED on one assertion
+
+**Done.** `App\Models\User::getTotalRatingsAttribute()` deleted - dead: every `total_ratings` in the tree is read off
+Identity's `UserRatingStats` DTO or a response array built from it, never off a User, and `User` has no `$appends`.
+`average_rating` is now the only rating accessor, which is exactly the read surface the next step has to replace.
+Verification (the rating area, not a slice): `Review` + `Admin` + `Staff` + `Rides` + `Bookings` + `Snapshots` +
+`AppFuture` = **1378 tests / 5982 assertions / 2 skipped**, with ONLY the three pre-existing `L16DriverNoShow`
+failures. Pint PASS. No snapshot or budget line touched.
+
+**The `UserRating` move does NOT follow, and this is the fourth attempt at it (sec 304 rolled one back).** Three
+measurements stop it, and none of them is guesswork:
+
+1. **`User::receivedRatings()` is not plumbing - it is the ONLY rating value in the API.**
+   `RideResource:79` and `BookingResource:39` read `average_rating`, whose accessor uses the eager-loaded relation when
+   present and otherwise issues ONE query. That fallback is load-bearing for the SINGLE-MODEL renders - `RideLifecycleHandler:53`
+   (create ride), `RideSearchReadHandler:163`/`:204`, and the booking handlers `RideBookingHandler:34`,
+   `RideBookingResponseHandler:54`/`:96`, `RideCancellationHandler:77`. Removing the relation without attaching a value
+   at all NINE render sites makes `rating` silently `0.0` on those paths, and only the snapshotted ones would fail.
+2. **The `admin/drivers` query budget is 9 and must not move.** `AdminDriverQueryService:61`'s
+   `withAvg('receivedRatings as avg_rating')` is a CORRELATED SUBQUERY - zero extra statements. Replacing it with a
+   separate batched read makes the endpoint 10. Any replacement has to EMBED an aggregate, which means the reader must
+   publish a subquery/expression, not a result set.
+3. **`tests/Feature/AppFuture/UntangleBatchTest.php:68` pins the MECHANISM:**
+   `assertTrue($found->driver->relationLoaded('receivedRatings'), 'wired path batch-loads ratings')`. A reader-based
+   replacement cannot keep that assertion true, and this mode's NEVER list includes **"edit an assertion"**. That makes
+   the step an owner call, not an engineering one.
+
+**OWNER QUESTION (one sentence):** may `UntangleBatchTest:68` be changed from "the relation is eager-loaded" to the new
+mechanism (e.g. "`avg_rating` is attached to every driver in the page", or "the page costs exactly one rating query")?
+Nothing else in that file changes, and the N+1 guarantee it exists for is preserved either way.
+
+**If yes, the plan is already written and measured** (do not re-derive): (i) Identity's `UserRatingReader` gains
+`averagesFor(array $userIds): array` (one grouped query) and `averageSubquery(string $ownerKeyColumn): Builder` (for
+the embed case); (ii) `User::getAverageRatingAttribute()` reads ONLY `$this->attributes['avg_rating']`, with NO query
+fallback - assigning `average_rating` would NOT bypass the accessor, so the key must be `avg_rating`, which is also
+what `withAvg` already produces; (iii) the three list paths (`RideRepository:276`, `RideSearchService:72`,
+`BookingService:271`) swap the eager load for the batch attach - one query either way; (iv) the seven single-model
+render sites attach one value each - one query each, exactly what the old fallback cost; (v) `AdminDriverQueryService:61`
+embeds `averageSubquery('users.id')` - zero extra statements, budget stays 9; (vi) THEN `receivedRatings()` goes and
+`UserRating` moves to `App\Modules\Identity\Models` with `protected $table = 'user_ratings'`.
