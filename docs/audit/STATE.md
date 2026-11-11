@@ -206,6 +206,20 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 311): `User::givenRatings()` and `UserRating::ride()` deleted -
+  both dead, commit `Stage 2 C2: two dead rating relations removed`.** `givenRatings` had only its own
+  definition; `UserRating::ride()` had no eager load and no `->ride` read (the `ride_id` column is still
+  written and read as a scalar). FULL suite identical to the sec-308 run number for number: 3072 tests /
+  13320 assertions / 2 skipped / 3 pre-existing `L16DriverNoShow` failures, wall 1196.1 s. Whole-tree Pint
+  PASS.
+  **NEXT STEP IS now fully measured (do NOT re-derive):** `User::receivedRatings()` is the only thing left
+  between `UserRating` and its move, and it feeds exactly ONE float into TWO resources
+  (`RideResource:79`, `BookingResource:39`). `getTotalRatingsAttribute()` is DEAD and goes with it. Batch
+  sites to replace: `RideRepository:276`, `RideSearchService:72`, `BookingService:271` (`*.receivedRatings`)
+  and `AdminDriverQueryService:61` (`withAvg('receivedRatings as avg_rating')`). **TRAP:** assigning
+  `$user->average_rating` does NOT bypass the accessor - write `avg_rating` (which `withAvg` already
+  produces) and make `getAverageRatingAttribute()` read ONLY that key with NO query fallback, or the ride
+  list becomes an N+1 and its budgets move (forbidden).
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 310): `User::bookings()` removed - a relation with NO consumer,
   commit `Stage 2 C2: User::bookings removed; dead reverse relation`.** Measured by receiver before
   deleting: every `bookings` in the tree is `$ride->bookings` (the Ride->Booking relation, staying), the

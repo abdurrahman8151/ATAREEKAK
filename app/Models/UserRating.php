@@ -28,8 +28,8 @@ class UserRating extends Model
         return $this->belongsTo(User::class, 'rated_user_id');
     }
 
-    public function ride(): BelongsTo
-    {
-        return $this->belongsTo(Ride::class);
-    }
+    // Stage 2 C2: `ride()` (belongsTo Ride) is REMOVED - it had no consumer. `ride_id` is still
+    // WRITTEN (ProfileInteractionService records it on the row) and still read as a scalar where a
+    // rating is joined to a trip; only the relation was dead, and it was the one thing that would
+    // have made this Identity model reach for a Ride-owned class once Ride moves.
 }

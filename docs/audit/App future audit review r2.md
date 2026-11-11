@@ -19390,3 +19390,35 @@ the HTTP snapshots in that selection would have failed - they did not.
 **Next.** `givenRatings()` + `receivedRatings()` (11 hits / 6 files - `UserRating` is the model they block, and sec 304
 rolled that move back for exactly this reason), then `photos()` (24 / 9), then `profile()` (45 / 21). After the Ride
 pair, the Console `Ride` Reader contracts.
+
+---
+
+### 311. Stage 2 C2: two dead rating relations removed (`User::givenRatings`, `UserRating::ride`)
+
+**Measured, not assumed.** Every occurrence of `givenRatings` was the definition itself - no eager load, no
+`whereHas`, no `$user->givenRatings` - so the relation is deleted outright. `UserRating::ride()` was the same: no
+eager load of a rating's ride and no `$rating->ride` read anywhere, while `ride_id` is still WRITTEN by
+`ProfileInteractionService` and read as a scalar wherever a rating is joined to a trip. The relation was dead, and it
+was the one thing that would have made an Identity model reach for a Ride-owned class.
+
+**What changed.** `App\Models\User::givenRatings()` deleted; `App\Models\UserRating::ride()` deleted. Nothing else -
+no column, no cast, no query, no response key.
+
+**Verification - the strongest available form of "nothing changed": the FULL suite, compared number for number with
+the run three commits earlier.** `Tests: 3072, Assertions: 13320, Skipped: 2, Failures: 3`, wall 1196.1 s - the same
+totals and the same three `L16DriverNoShowSettlementCharacterizationTest` names as after sec 308, i.e. these two
+deletions moved no test and no count. Whole-tree Pint PASS.
+
+**Two findings recorded for the next step (the `receivedRatings` reader).** `getTotalRatingsAttribute()` has **no
+consumer at all** (`->total_ratings` appears only on the `UserRatingStats` DTO, never on a User), so it goes with the
+relation. And `average_rating` has exactly TWO consumers - `RideResource:79` and `BookingResource:39` - which means
+the relation has one job: feed one float into two resources. The three paths that batch it are
+`RideRepository:276` (`driver.receivedRatings`), `RideSearchService:72` (same), `BookingService:271`
+(`user.receivedRatings`), plus `AdminDriverQueryService:61`'s `withAvg('receivedRatings as avg_rating')`.
+
+**The trap for whoever does that step (recorded so it is not discovered the hard way):** setting
+`$user->average_rating = ...` will NOT bypass the accessor - Laravel resolves `getAverageRatingAttribute()` before
+the raw attribute - so the batched read must write the key the accessor itself reads (`avg_rating`, which is also
+what `withAvg` already produces), and the accessor must be rewritten to read ONLY that key and never fall back to a
+query. Otherwise the "no N+1" guarantee turns into one query per row and the ride-list budgets move, which this mode
+forbids.

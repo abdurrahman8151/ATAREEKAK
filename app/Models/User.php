@@ -175,11 +175,9 @@ class User extends Authenticatable
     // sites all lived in Communication's own NotificationController, which now asks this module's
     // UnreadNotificationCounter directly - so the emitted `unread_count` is unchanged and this file
     // keeps no edge into the module, neither to a model nor to a contract.
-    public function givenRatings(): HasMany
-    {
-        return $this->hasMany(UserRating::class, 'rater_id');
-    }
-
+    // Stage 2 C2: `givenRatings()` (hasMany UserRating via rater_id) is REMOVED - it had no consumer.
+    // Every rating read in the tree goes through `receivedRatings` (the accessors below), Identity's
+    // `UserRatingReader`, or its own services; nothing asked a user for the ratings they GAVE.
     public function receivedRatings(): HasMany
     {
         return $this->hasMany(UserRating::class, 'rated_user_id');
