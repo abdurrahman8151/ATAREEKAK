@@ -260,7 +260,7 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | Ride | Ride | `rides` | `App\Models` (pending) |
 | Ride | Booking | `bookings` | `App\Models` (pending) |
 | Ride | NoshowReport | `noshow_reports` | `App\Models` (pending) |
-| Ride | ScoreTransaction | `score_transactions` | `App\Models` (pending) |
+| Ride | ScoreTransaction | `score_transactions` | `App\Modules\Ride\Models` (moved) |
 | Ride | UserScore | `user_scores` | `App\Models` (pending) |
 | Identity | Otp | `otps` | `App\Modules\Identity\Models` (moved) |
 | Identity | RefreshToken | `refresh_tokens` | `App\Modules\Identity\Models` (moved) |

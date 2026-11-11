@@ -6,6 +6,7 @@ use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 /**
  * UserScore Model
  *
@@ -18,8 +19,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $total_cancellations Cancelled bookings / rides
  * @property float $cancel_rate Computed: total_cancellations / max(1, total_rides+total_cancellations) * 100
  */
-use Illuminate\Database\Eloquent\Relations\HasMany;
-
 class UserScore extends Model
 {
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
@@ -53,10 +52,11 @@ class UserScore extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function transactions(): HasMany
-    {
-        return $this->hasMany(ScoreTransaction::class, 'user_id', 'user_id');
-    }
+    // Stage 2 C1: `transactions()` used to be a `hasMany(ScoreTransaction::class)` here. The audit
+    // trail's model moved into the Ride module, so the relation could only survive by making a KERNEL
+    // model name a module model - the exact cross-module edge the ownership ratchets forbid. It was
+    // never called (no eager load, no property read anywhere in app/, tests/ or the seeders), so it
+    // was deleted rather than rewired; the history feed reads the table inside Ride itself.
 
     // ── Computed attributes ──────────────────────────────────────────────────
 

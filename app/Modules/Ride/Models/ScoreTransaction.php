@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Ride\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 /**
@@ -15,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScoreTransaction extends Model
 {
+    /**
+     * Stage 2 C1: declared explicitly so the class can move without the rows moving with it.
+     * The schema is frozen - the namespace changes, the table does not.
+     */
+    protected $table = 'score_transactions';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;
@@ -27,7 +34,7 @@ class ScoreTransaction extends Model
         'points',
         'previous_score',
         'new_score',
-        'reference_type',   // e.g. App\Models\Booking
+        'reference_type',   // class name of the referenced row (App\Models\Ride / App\Models\Booking today)
         'reference_id',     // e.g. booking_id or ride_id
         'reason',
         'high_cancel_rate_applied',

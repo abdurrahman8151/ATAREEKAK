@@ -60,5 +60,5 @@ the schema is frozen and each model declares its table explicitly.
 | `Ride` | `rides` | `App\Models` - ownership enforced, class move pending |
 | `Booking` | `bookings` | `App\Models` - ownership enforced, class move pending |
 | `NoshowReport` | `noshow_reports` | `App\Models` - ownership enforced, class move pending |
-| `ScoreTransaction` | `score_transactions` | `App\Models` - ownership enforced, class move pending |
+| `ScoreTransaction` | `score_transactions` | `App\Modules\Ride\Models` |
 | `UserScore` | `user_scores` | `App\Models` - ownership enforced, class move pending |

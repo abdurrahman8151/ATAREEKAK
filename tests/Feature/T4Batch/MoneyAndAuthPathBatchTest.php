@@ -4,8 +4,8 @@ namespace Tests\Feature\T4Batch;
 
 use App\Models\Employee;
 use App\Models\Ride;
-use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Models\User;
+use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

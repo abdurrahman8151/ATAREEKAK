@@ -206,6 +206,25 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C1/Ride VERIFIED FIX (audit sec 307): `ScoreTransaction` moved to `App\Modules\Ride\Models`,
+  commit `Stage 2 C1/Ride: ScoreTransaction moves to the module; baseline 33 -> 28`.** The blocker was
+  `UserScore::transactions()` - a kernel `hasMany` with no import, which the move would have turned into a
+  kernel -> module reference; proven unused, deleted. Baseline lowered to the measured 28 (the shrink hint
+  is now absent) and `score_transactions` added to `TABLE_OWNERS`. Regression I caused and fixed in the same
+  commit: my PROSE comment in `UserScore.php` spelled the module namespace, which `ModuleBoundaryTest`'s
+  substring scan reads as a kernel -> module reference - **a kernel file may not even mention a module
+  namespace in a comment.** Gate A 444 tests / 2847 assertions OK; Gate B 898 / 2792 with only the 3
+  pre-existing `L16DriverNoShow` failures; whole-tree Pint PASS 830 files.
+  **ENVIRONMENT, PRE-EXISTING, RECORDED:** the snapshot corpus needs `EMAIL_OTP_MODE=testing` exported
+  (`phpunit.xml` sets only `WALLET_OTP_MODE`); without it `auth/password-forgot`,
+  `auth/email-verification-send` and `wallet/initiate` fail on the missing `otp_code` and nothing else does.
+  Also: the scratch MySQL died mid-session (connection refused at `migrate:fresh`), restarted once from
+  `AGENTS.local.md`, green after.
+  **Next step (its own commit, not a footnote): the score READ port.** `UserScore` cannot move while
+  `ScoreServiceInterface::getScore(): UserScore` is what Identity's `ProfileController` and Console's
+  `StaffUserProfileService` consume; a drafted `ScoreReader` (array-shaped `scoreSummary`/`historyFor` plus
+  the two reference-class helpers) was deliberately left out of sec 307 because it deletes an interface
+  method and rewires five files.
 - **STAGE 2 - Phase A (A1) COMPLETE, committed as `Stage 2 Phase A: A1 log hygiene ...` (R2 sec 257).** The resume point this block replaced: Phase A (A1) is implemented
   and locally verified, not yet committed: `app/Support/Logging/SafeExceptionLog.php` is new and
   126 `->getMessage()` calls inside `Log::error`/`Log::warning`/`Log::critical` sites across 46 files in

@@ -6,11 +6,11 @@ use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
 use App\Models\Booking;
 use App\Models\Ride;
-use App\Models\ScoreTransaction;
 use App\Models\User;
 use App\Models\UserScore;
 use App\Modules\Ride\Domain\ScoreBounds;
 use App\Modules\Ride\Domain\ScorePolicyFactory;
+use App\Modules\Ride\Models\ScoreTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 

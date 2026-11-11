@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Models;
 
-use App\Models\ScoreTransaction;
 use App\Models\User;
+use App\Modules\Ride\Models\ScoreTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

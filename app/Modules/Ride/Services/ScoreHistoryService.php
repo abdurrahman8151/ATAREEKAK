@@ -4,7 +4,7 @@ namespace App\Modules\Ride\Services;
 
 use App\Models\Booking;
 use App\Models\Ride;
-use App\Models\ScoreTransaction;
+use App\Modules\Ride\Models\ScoreTransaction;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**

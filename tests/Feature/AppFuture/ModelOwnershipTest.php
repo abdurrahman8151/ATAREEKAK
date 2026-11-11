@@ -99,6 +99,8 @@ final class ModelOwnershipTest extends TestCase
         'notifications' => 'Communication',
         'user_notifications' => 'Communication',
         'push_notification_tokens' => 'Communication',
+        // Stage 2 C1: `score_transactions` moved to Ride\Models with its class.
+        'score_transactions' => 'Ride',
     ];
 
     /**
@@ -117,18 +119,14 @@ final class ModelOwnershipTest extends TestCase
         'Console -> Profile' => 'profiles',
         'Console -> ProfileComment' => 'profile_comments',
         'Console -> Ride' => 'rides',
-        'Console -> UserRating' => 'user_ratings',
         'Console -> Wallet' => 'wallets',
         'Console -> WalletRequest' => 'wallet_requests',
         'Identity -> Booking' => 'bookings',
         'Identity -> Complaint' => 'complaints',
         'Identity -> Employee' => 'employees',
-        'Identity -> Otp' => 'otps',
         'Identity -> Photo' => 'photos',
         'Identity -> Profile' => 'profiles',
         'Identity -> ProfileComment' => 'profile_comments',
-        'Identity -> RefreshToken' => 'refresh_tokens',
-        'Identity -> StaffRefreshToken' => 'staff_refresh_tokens',
         'Identity -> UserRating' => 'user_ratings',
         'Money -> Booking' => 'bookings',
         'Money -> LedgerEntry' => 'ledger_entries',
@@ -139,7 +137,6 @@ final class ModelOwnershipTest extends TestCase
         'Ride -> Booking' => 'bookings',
         'Ride -> NoshowReport' => 'noshow_reports',
         'Ride -> Ride' => 'rides',
-        'Ride -> ScoreTransaction' => 'score_transactions',
         'Ride -> UserScore' => 'user_scores',
     ];
 

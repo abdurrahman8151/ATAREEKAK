@@ -3,9 +3,9 @@
 namespace Tests\Feature\Review;
 
 use App\Models\Employee;
+use App\Models\User;
 use App\Modules\Identity\Models\RefreshToken;
 use App\Modules\Identity\Models\StaffRefreshToken;
-use App\Models\User;
 use App\Modules\Identity\Services\JwtService;
 use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;

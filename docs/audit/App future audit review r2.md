@@ -19186,3 +19186,75 @@ taken on either file.
 failures being the two pre-existing `Wallet` ones above; with the mode exported, Wallet is 34/56 green. Focused
 re-run after reverting two files that Pint had reordered without cause: **52 tests / 137 assertions OK**. Pint
 clean on the module and the touched tests. Autoload stays **11962** (a move, not an addition).
+---
+
+### 307. Stage 2 C1/Ride: `ScoreTransaction` moves to `App\Modules\Ride\Models`
+
+**Why this one.** Sec 306 left the next move to be chosen by measured coupling, not by list order. `ScoreTransaction`
+is the cleanest remaining Ride model: three references in `app/`, all inside Ride (`ScoreHistoryService`,
+`ScoreLedger`, `ScoreService`); no Console, Identity or other kernel file names it (the kernel
+`ScoreTransactionResource` formats rows without importing the class); it declares one relation and that relation is
+to `User`, which the ratchet allows; and `ModelOwnershipTest` already carried
+`'Ride -> ScoreTransaction' => 'score_transactions'`.
+
+**What changed.**
+- `git mv` to `App\Modules\Ride\Models\ScoreTransaction`; namespace; explicit
+  `protected $table = 'score_transactions'` (the schema is frozen - the class moves, the rows do not).
+- The `user()` relation needed `use App\Models\User;`: unqualified `User::class` would otherwise resolve inside the
+  module namespace. The ratchet allows the principal as a relation target.
+- The three Ride service imports.
+- **`UserScore::transactions()` was DELETED - it was the one genuine blocker.** The kernel model declared
+  `hasMany(ScoreTransaction::class)` with no import (same namespace), so nothing text-matched it; after the move it
+  could only survive by naming the module's implementation, which `ModuleBoundaryTest` rule B forbids at a hard zero.
+  Proven unused before deleting: no `->transactions` call, no `scoreTransactions` call, no eager load and no property
+  read anywhere in `app/`, `tests/` or `database/`.
+- `ModelOwnershipTest`: the baseline went **33 -> 28**. Four of the five removed pairs had already been discharged by
+  earlier commits and were only being reported by the shrink hint (`Console -> UserRating`, `Identity -> Otp`,
+  `Identity -> RefreshToken`, `Identity -> StaffRefreshToken`); the fifth is this move. `score_transactions` was added
+  to `TABLE_OWNERS`, so a raw `DB::table` read of it from another module is now policed too.
+- Four test use-lines; `docs/ARCHITECTURE.md` section 10 and `app/Modules/Ride/README.md` rows set to (moved).
+- Pint whole tree PASS (830 files). Four **PRE-EXISTING** offenders were formatted in passing
+  (`GoogleOauthTokenTest`, `CleanupExpiredTokensCommandTest`, `RV29RefreshReuseDetectionTest`,
+  `MoneyAndAuthPathBatchTest`): misordered imports left by the earlier Identity model moves - the same cause as this
+  commit's own import edit. Formatting only; the diff is the order of `use` lines alone.
+
+**A regression I caused, and fixed in the same commit.** `ModuleBoundaryTest::test_kernel_files_may_not_name_module_implementation`
+went red on `app/Models/UserScore.php -> App\Modules\Ride\Models`. It was not code: my PROSE comment spelled the module
+namespace in full, and that scanner is deliberately a substring match. Rewritten to say "the Ride module". Rule to
+keep: **a kernel file may not even mention a module namespace inside a comment.**
+
+**The three snapshot failures were the environment, and that was measured, not assumed.** The first scoped run
+reported four failures: the boundary one above plus `auth/password-forgot`, `auth/email-verification-send` and
+`wallet/initiate` - all three with `otp_code` missing from the response, i.e. the OTP-disclosure branch. Cause:
+`phpunit.xml` exports `WALLET_OTP_MODE=testing` but NOT `EMAIL_OTP_MODE`, and `.env` says
+`EMAIL_OTP_MODE=production`, so without the variable the code is not disclosed while the committed corpus expects it.
+Proof, not inference: the same two snapshot files with `EMAIL_OTP_MODE=testing` exported are
+**OK (32 tests / 199 assertions)**. PRE-EXISTING and recorded here - **the snapshot corpus cannot be verified from a
+bare shell.** Not fixed here: adding the variable to `phpunit.xml` is an owner file (already lost once, sec 305) and a
+test-environment change, so it is reported rather than touched.
+
+**The scratch MySQL died mid-session.** The isolated run failed all 32 snapshot tests with
+`[2002] No connection could be made` at `migrate:fresh`; `mysqld` was not running. It was restarted once from the
+documented command in `AGENTS.local.md` and re-pinged, green thereafter. Infrastructure, not a test result, and no app
+change was made in response to it.
+
+**Verification.**
+- Gate A (with `EMAIL_OTP_MODE=testing`): `tests/Feature/AppFuture`, `tests/Unit/Models`, the five score/RV Review
+  files and `tests/Feature/Snapshots` = **444 tests / 2847 assertions OK**. Without the variable the same selection is
+  444 / 2837 with exactly the three OTP snapshots failing.
+- Gate B: `tests/Feature/Rides`, `tests/Feature/Bookings`, `tests/Unit/Domain`, `tests/Feature/Review` =
+  **898 tests / 2792 assertions / 2 skipped, 3 failures** - the three
+  `L16DriverNoShowSettlementCharacterizationTest` cases recorded as the unchanged red set in sec 283/284/306. No new
+  failure name.
+- The `[model-ownership] baseline can shrink` hint is now ABSENT from the run: the 28-entry baseline matches the
+  measured pairs exactly.
+- The four Pint-formatted files re-run: **OK (33 tests / 88 assertions)**.
+- `tests/Snapshots` byte-identical (no `SNAPSHOT_UPDATE`), no query budget moved, no response shape, status code or
+  auth rule changed.
+
+**Next.** Still chosen by measured coupling. `UserScore` is now blocked only on the read surface:
+`ScoreServiceInterface::getScore(): UserScore` is what Identity's `ProfileController` and Console's
+`StaffUserProfileService` consume, so the score read has to become an array/DTO-shaped Reader before that model can
+move. A port was drafted for this commit and deliberately LEFT OUT: it deletes an interface method and rewires five
+files, which is its own step, not a footnote to a model move. `NoshowReport` is blocked on its `Ride`/`Booking`
+relations (both still pending); `Photo` and `ProfileComment` are blocked on their Console consumers.
