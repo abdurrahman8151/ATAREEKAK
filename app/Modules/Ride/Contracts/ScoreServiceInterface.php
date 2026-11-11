@@ -3,7 +3,7 @@
 namespace App\Modules\Ride\Contracts;
 
 use App\Models\User;
-use App\Models\UserScore;
+use App\Modules\Ride\Models\UserScore;
 
 /**
  * Port over the score READ surface (batch 233), plus the one lifecycle write the kernel has to make.

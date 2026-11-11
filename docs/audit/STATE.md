@@ -206,6 +206,21 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C1/Ride VERIFIED FIX (audit sec 308): `UserScore` moved to `App\Modules\Ride\Models`,
+  commit `Stage 2 C1/Ride: UserScore moves to the module; baseline 28 -> 27`, full default-order suite
+  3072 tests / 13320 assertions / 2 skipped, wall 1248.9 s, ONLY the 3 pre-existing `L16DriverNoShow`
+  failures (unchanged names), whole-tree Pint PASS 830 files, no baseline-shrink hint.**
+  **A port I nearly built for nothing:** `ScoreServiceInterface::getScore(): UserScore` is NOT a blocker -
+  once the row is Ride's own model that signature is a module Contract naming its own model, and Identity
+  and Console only duck-type the returned row. The ONLY kernel blocker was
+  `ScoreSnapshot::fromUserScore(UserScore $userScore)`, a kernel DTO with the row as a parameter type;
+  the factory is removed and `ScoreLedger::apply()` builds the snapshot from the row's two counters.
+  **NEW TRAP:** a module FQCN in a KERNEL docblock is auto-promoted to a real `use` by Pint's
+  `fully_qualified_strict_types`, i.e. the formatter manufactures the kernel -> module reference
+  `ModuleBoundaryTest` forbids. Never write one; describe the class in prose.
+  **NEXT (forced order, not a choice):** `Ride` then `Booking` then `NoshowReport` - the relations force it,
+  because a module model may only relate to its own module or the principal. `Ride` is a READER-CONTRACT
+  step, not a move: six Console services plus the kernel `RideResource`/`BookingResource` name it.
 - **STAGE 2 - C1/Ride VERIFIED FIX (audit sec 307): `ScoreTransaction` moved to `App\Modules\Ride\Models`,
   commit `Stage 2 C1/Ride: ScoreTransaction moves to the module; baseline 33 -> 28`.** The blocker was
   `UserScore::transactions()` - a kernel `hasMany` with no import, which the move would have turned into a

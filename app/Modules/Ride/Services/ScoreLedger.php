@@ -7,10 +7,10 @@ use App\Enums\ScoreAction;
 use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
-use App\Models\UserScore;
 use App\Modules\Ride\Domain\ScoreBounds;
 use App\Modules\Ride\Domain\ScorePolicyFactory;
 use App\Modules\Ride\Models\ScoreTransaction;
+use App\Modules\Ride\Models\UserScore;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -110,7 +110,16 @@ final class ScoreLedger
             $userScore = $this->scoreRow($user);
 
             $policy = $this->policyFactory->make($action);
-            $result = $policy->calculate($action, ScoreSnapshot::fromUserScore($userScore), $context);
+            // Stage 2 C1: the snapshot is built from the row's two counters right here, because the
+            // typed factory that used to live on the kernel DTO would now name this module's model.
+            $result = $policy->calculate(
+                $action,
+                new ScoreSnapshot(
+                    totalCancellations: (int) $userScore->total_cancellations,
+                    cancelRate: (float) $userScore->cancel_rate,
+                ),
+                $context,
+            );
 
             $points = $pointsOverride ?? $result->points;
             $reason = $reasonOverride ?? $result->reason;

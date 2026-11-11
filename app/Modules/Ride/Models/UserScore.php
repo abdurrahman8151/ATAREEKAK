@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Ride\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class UserScore extends Model
 {
+    /**
+     * Stage 2 C1: declared explicitly so the class can move without the rows moving with it.
+     * The schema is frozen - the namespace changes, the table does not.
+     */
+    protected $table = 'user_scores';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;

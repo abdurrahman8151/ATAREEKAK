@@ -4,7 +4,7 @@ namespace Tests\Feature\Review;
 
 use App\Enums\ScoreAction;
 use App\Models\User;
-use App\Models\UserScore;
+use App\Modules\Ride\Models\UserScore;
 use App\Modules\Ride\Services\RideValidationService;
 use App\Modules\Ride\Services\ScoreService;
 use Illuminate\Foundation\Testing\RefreshDatabase;

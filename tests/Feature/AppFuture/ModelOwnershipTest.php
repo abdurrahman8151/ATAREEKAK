@@ -99,8 +99,9 @@ final class ModelOwnershipTest extends TestCase
         'notifications' => 'Communication',
         'user_notifications' => 'Communication',
         'push_notification_tokens' => 'Communication',
-        // Stage 2 C1: `score_transactions` moved to Ride\Models with its class.
+        // Stage 2 C1: the first two Ride tables whose class moved into the module.
         'score_transactions' => 'Ride',
+        'user_scores' => 'Ride',
     ];
 
     /**
@@ -137,7 +138,6 @@ final class ModelOwnershipTest extends TestCase
         'Ride -> Booking' => 'bookings',
         'Ride -> NoshowReport' => 'noshow_reports',
         'Ride -> Ride' => 'rides',
-        'Ride -> UserScore' => 'user_scores',
     ];
 
     /** @test */

@@ -19258,3 +19258,70 @@ change was made in response to it.
 move. A port was drafted for this commit and deliberately LEFT OUT: it deletes an interface method and rewires five
 files, which is its own step, not a footnote to a model move. `NoshowReport` is blocked on its `Ride`/`Booking`
 relations (both still pending); `Photo` and `ProfileComment` are blocked on their Console consumers.
+
+---
+
+### 308. Stage 2 C1/Ride: `UserScore` moves to `App\Modules\Ride\Models`
+
+**Why this one.** After sec 307 this was the next model whose coupling could be measured down to a single
+blocker, and the sweep found exactly one file outside Ride that named the class.
+
+**The blocker was NOT the port I expected, and the difference matters.** Coming out of 307 I had concluded that
+`ScoreServiceInterface::getScore(): UserScore` had to become array-shaped first, and a `ScoreReader` port was
+drafted for it. Re-reading the two ratchets showed that was WRONG on both:
+
+- once `UserScore` is RIDE's own model, that signature is a module Contract naming its OWN model, which is always
+  legal - it is not a cross-module reference at all;
+- Identity's `ProfileController` and Console's `StaffUserProfileService` only duck-type the row
+  (`->score`, `->tier`, `->cancel_rate`, `->total_rides`, `->total_cancellations`) and never name the class, so
+  moving it creates no import for either of them.
+
+The real blocker was `App\DTOs\Score\ScoreSnapshot::fromUserScore(UserScore $userScore)`: a KERNEL DTO with the row as
+a **parameter type**. Once the row moved, that type would have been a kernel -> module implementation reference -
+`ModuleBoundaryTest` rule B, hard zero. The port was therefore not built: it would have deleted a public interface
+method and rewired five files to solve a problem that does not exist. Recorded so the next session does not rebuild
+it.
+
+**What changed.**
+- `git mv` to `App\Modules\Ride\Models\UserScore`; namespace; explicit `protected $table = 'user_scores'`; the
+  `user()` relation needed `use App\Models\User;` (unqualified `User::class` would otherwise resolve inside the
+  module namespace).
+- `ScoreSnapshot`: the typed factory is REMOVED and the DTO keeps only its two scalar fields. `ScoreLedger::apply()`
+  constructs it from the row's own counters - the same two numbers, from the same attributes, no new query.
+- Imports: three Ride services, the Ride contract, four Review tests, three seeders, and the dev-only
+  `Console/Testing` command (exempt, but it would fatal otherwise).
+- `ModelOwnershipTest`: baseline **28 -> 27** (`Ride -> UserScore` removed) and `user_scores` added to
+  `TABLE_OWNERS`.
+- `docs/ARCHITECTURE.md` section 10 and the Ride README row set to (moved).
+
+**A SECOND boundary trap - and this one the FORMATTER created.** I first wrote the DTO docblock as
+`@see \App\Modules\Ride\Services\ScoreLedger::apply()`. Pint's `fully_qualified_strict_types` promoted that FQCN to a
+real `use App\Modules\Ride\Services\ScoreLedger;` line in the kernel DTO - i.e. the formatter itself manufactured
+exactly the kernel -> module implementation reference the test forbids. It was caught by reading Pint's output, not by
+the suite, which would have gone red only at the next full run. **Rule: never write a module FQCN in a kernel
+docblock; describe it in prose.** (Sec 307's version of the same trap was a module namespace in a kernel COMMENT.)
+
+**Verification - the full default-order suite, not a slice.**
+- `Tests: 3072, Assertions: 13320, Skipped: 2, Failures: 3`, wall **1248.9 s**. The three are exactly the
+  `L16DriverNoShowSettlementCharacterizationTest` cases recorded as the unchanged red set since sec 283 - no new
+  failure name, and no other failure at all.
+- 15 slowest (JUnit): `NotificationChannelTest::test_channel_class_exists` 19.281 s (an outlier - the rest are under
+  5 s); `RV39SeederHygieneTest` wallet-phonespace 4.883 s and 4.870 s; then twelve snapshot cases at 2.83-3.02 s
+  (`staff/escalated-resolve`, `employees/reset-password`, `employees/store`, `staff/escalated-complaints`,
+  `staff/chat-messages`, `staff/chat-send`, `admin/driver-profile`, `staff/chat-conversations`,
+  `admin/routes-popular`, `admin/verifications-approve`, `employees/toggle-active`, `employees/index`).
+- The `[model-ownership] baseline can shrink` hint is ABSENT: the 27-entry baseline matches the measured pairs.
+- Whole-tree Pint PASS (830 files). `tests/Snapshots` byte-identical (no `SNAPSHOT_UPDATE`), no query budget moved,
+  no response shape, status code or auth rule changed.
+- Environment, as recorded in sec 307: the run needs `EMAIL_OTP_MODE=testing` exported or three OTP snapshots fail on
+  the missing `otp_code` - pre-existing, and the only failures in 444 tests when it is set.
+- NOT run: the seeders. Their three files were edited for the import only, and a seeder would write to whatever DB it
+  is pointed at, so they are verified by `php -l` and by the class being loadable, not by execution.
+
+**Next.** `NoshowReport` is now the only Ride model left, and it is blocked on its own relations: `Ride` and `Booking`
+are both still in `App\Models`, and a module model may only relate to its own module or the principal. So the order is
+forced: `Ride` (relations: `User` only - allowed) then `Booking` (`User` + `Ride` - same module once `Ride` has moved)
+then `NoshowReport` (all three then same-module). `Ride`'s blockers are the Console readers
+(`AdminTripService`, `AdminDriverPresenter`, `AdminDriverQueryService`, `AdminReportService`, `StaffCancellationService`,
+`StaffBookingQueryService`) plus `RideResource`/`BookingResource` in the kernel - i.e. a Reader-contract step, not a
+move.

@@ -3,8 +3,8 @@
 namespace App\Modules\Ride\Services;
 
 use App\Models\User;
-use App\Models\UserScore;
 use App\Modules\Identity\Contracts\DocumentVerificationInterface;
+use App\Modules\Ride\Models\UserScore;
 use Carbon\Carbon;
 
 final class RideValidationService

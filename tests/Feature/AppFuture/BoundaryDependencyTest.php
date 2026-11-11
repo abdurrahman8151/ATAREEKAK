@@ -129,9 +129,12 @@ class BoundaryDependencyTest extends TestCase
         'models_to_enums' => 3,
         // Batch 227 item 2: no file under app/Domain names App\Models at all any more. The seven
         // Score policies (and their interface) take App\DTOs\Score\ScoreSnapshot instead of a
-        // UserScore row, built once in ScoreLedger::apply() via ScoreSnapshot::fromUserScore();
-        // the three Payment strategies lost their Booking/Ride/User type-hints and their three
-        // model imports (their app/Services imports are the separate domain_to_services item).
+        // UserScore row; the DTO is still built in ScoreLedger::apply(), which now constructs it from
+        // the row's two counters directly (Stage 2 C1 removed the DTO's typed `fromUserScore()`
+        // factory, whose parameter type would have become a kernel -> module reference once the row
+        // moved into Ride). The three Payment strategies lost their Booking/Ride/User type-hints and
+        // their three model imports (their app/Services imports are the separate domain_to_services
+        // item).
         'domain_to_models' => 0,
         'domain_to_http' => 0,
     ];
