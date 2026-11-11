@@ -206,6 +206,20 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 309): `User::rides()` removed - the first reverse relation,
+  commit `Stage 2 C2: User::rides removed; driver-profile query moved into Console`.** It was the only
+  reverse relation with ONE live consumer: Console's driver-profile presenter. The eager load
+  (`'rides' => ...limit(5)`) and `withCount('rides')` are replaced by the same correlated subquery inside the
+  same statement (so the query count cannot move) plus an explicit `select('users.*')` - `addSelect` alone
+  REPLACES the select list and silently returns null columns. `admin/driver-profile` is a committed snapshot
+  WITH a 12-query budget and BOTH are unchanged: `AdminSnapshotTest` 39/238 OK, area gate 570 tests / 3235
+  assertions OK, whole-tree Pint PASS.
+  **Measured and REJECTED as next targets:** `Employee` (needs Identity's staff-token contracts rewired =
+  token issuance, i.e. an auth change; also carries `Complaint`'s kernel relation and two entrypoints) and
+  `Photo` (needs `User::photos()`, 24 sites in 9 files, plus the KYC command).
+  **Next:** remaining reverse relations cheapest-first, one commit each - `bookings()` (16/7), then
+  `givenRatings()`+`receivedRatings()` (11/6), then `photos()` (24/9), then `profile()` (45/21). AFTER that,
+  `Ride` needs the Reader-contract step for six Console consumers + the kernel `RideResource`/`BookingResource`.
 - **STAGE 2 - C1/Ride VERIFIED FIX (audit sec 308): `UserScore` moved to `App\Modules\Ride\Models`,
   commit `Stage 2 C1/Ride: UserScore moves to the module; baseline 28 -> 27`, full default-order suite
   3072 tests / 13320 assertions / 2 skipped, wall 1248.9 s, ONLY the 3 pre-existing `L16DriverNoShow`

@@ -153,10 +153,10 @@ class User extends Authenticatable
         return $this->hasOne(Profile::class);
     }
 
-    public function rides(): HasMany
-    {
-        return $this->hasMany(Ride::class, 'driver_id');
-    }
+    // Stage 2 C2: `rides()` (hasMany Ride) is REMOVED. It had exactly one live consumer - Console's
+    // driver-profile presenter - which now queries Ride itself, so keeping it would only have been a
+    // kernel relation pointing at a model that is moving into the Ride module (the cross-module edge
+    // the ownership ratchets forbid). The two remaining mentions in tests are comments.
 
     public function photos(): HasMany
     {

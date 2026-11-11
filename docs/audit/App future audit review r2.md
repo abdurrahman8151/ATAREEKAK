@@ -19325,3 +19325,42 @@ then `NoshowReport` (all three then same-module). `Ride`'s blockers are the Cons
 (`AdminTripService`, `AdminDriverPresenter`, `AdminDriverQueryService`, `AdminReportService`, `StaffCancellationService`,
 `StaffBookingQueryService`) plus `RideResource`/`BookingResource` in the kernel - i.e. a Reader-contract step, not a
 move.
+
+---
+
+### 309. Stage 2 C2: `User::rides()` removed - the first reverse relation, and the only one with a single consumer
+
+**Why this one next, and why NOT `Employee` or `Photo`.** Both were measured and both are traps:
+`Employee` needs `Identity`'s staff-token contracts rewired (`EmployeeAuthInterface`, `StaffJwtInterface`,
+`StaffJwtService::{generateTokenPair,validateTokenVersion}`) - sec 282 already recorded that this changes token
+issuance and needs a claims characterization test first, i.e. it is an auth change, reserved - and it also has to
+carry `Complaint` (kernel `belongsTo(Employee::class, 'assigned_to')`) and two entrypoints (`StaffJwtMiddleware`,
+`RotateAdminPasswordCommand`). `Photo` needs `User::photos()` (24 call sites in 9 files) plus the KYC command.
+So the unblocking work is C2's reverse relations, and `rides` is the cheapest: **one live call site**.
+
+**The change.**
+- `App\Models\User::rides()` deleted (hasMany `Ride`). Grep found exactly ONE live consumer and two comments.
+- `AdminDriverQueryService::findDriverWithProfileData()` - the eager load `'rides' => fn ($q) => ...->limit(5)`
+  and `->withCount('rides')` are gone. The count is now written as the SAME correlated subquery `withCount`
+  generated (`Ride::selectRaw('count(*)')->whereColumn('rides.driver_id','users.id')`, added to the same
+  statement), with an explicit `select('users.*')` because `addSelect` REPLACES the select list when no columns
+  are set yet - the classic way to silently return a row of nulls.
+- `AdminDriverPresenter::driverProfileRecentRides()` queries `Ride::withCount('bookings')->where('driver_id')`
+  `->orderByDesc('created_at')->limit(5)` itself. Same five rows, same ordering, same `bookings_count`, same
+  `user_id`-scoped filter, and still ONE statement - so the endpoint's query count cannot move.
+- Dropped `use App\Models\Booking;` from that query service: already unused at HEAD (Pint's
+  `no_unused_imports` only surfaced it once the file was edited).
+
+**Verification.** `admin/driver-profile` is a committed snapshot WITH a 12-query budget, so it is the real test of
+"behaviour-preserving": the response body and the budget both had to be unchanged, and they are -
+`tests/Feature/Snapshots/AdminSnapshotTest.php` **OK (39 tests / 238 assertions)** with no
+`SNAPSHOT_UPDATE` and no budget line touched. Area gate: `tests/Feature/Admin`, `tests/Unit/Services/Admin`,
+`tests/Feature/AppFuture` (all four ratchets), `tests/Feature/Snapshots`, `tests/Feature/Console` =
+**570 tests / 3235 assertions OK**. Whole-tree Pint PASS (830 files). Before the area gate, the targeted
+`tests/Feature/Admin --filter Driver` was **OK (30 / 56)**.
+
+**Next.** The remaining `User` relations, cheapest first, each its own commit: `bookings()` (16 hits / 7 files),
+`givenRatings()` + `receivedRatings()` (11 / 6), `photos()` (24 / 9), `profile()` (45 / 21). `Ride` itself is now
+one relation lighter but still needs a Reader-contract step for the six Console consumers plus the kernel
+`RideResource`/`BookingResource`; that is the next substantive piece, and it must keep the admin trip/report
+payloads byte-identical or it gets Parked.

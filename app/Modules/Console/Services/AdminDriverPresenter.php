@@ -102,16 +102,27 @@ final class AdminDriverPresenter
         ];
     }
 
+    /**
+     * Stage 2 C2: this used to read `$driver->rides`, the relation `User::rides()` provided and the
+     * query service eager-loaded with `limit(5)`. That relation is gone (Ride's model belongs to the
+     * Ride module), so the same five rows - same ordering, same `bookings_count`, same limit - are
+     * queried here. One statement either way, so the endpoint's query count does not move.
+     */
     public function driverProfileRecentRides(User $driver): array
     {
-        return $driver->rides->map(fn ($r) => [
-            'id' => $r->id,
-            'pickup_address' => $r->pickup_address,
-            'destination_address' => $r->destination_address,
-            'departure_time' => $r->departure_time->toIso8601String(),
-            'status' => $r->status,
-            'bookings_count' => $r->bookings_count,
-        ])->values()->all();
+        return Ride::withCount('bookings')
+            ->where('driver_id', $driver->id)
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'pickup_address' => $r->pickup_address,
+                'destination_address' => $r->destination_address,
+                'departure_time' => $r->departure_time->toIso8601String(),
+                'status' => $r->status,
+                'bookings_count' => $r->bookings_count,
+            ])->values()->all();
     }
 
     /**

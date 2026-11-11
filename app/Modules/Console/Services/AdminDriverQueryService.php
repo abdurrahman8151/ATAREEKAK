@@ -2,7 +2,6 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Booking;
 use App\Models\Profile;
 use App\Models\Ride;
 use App\Models\User;
@@ -133,27 +132,25 @@ final class AdminDriverQueryService
     }
 
     /**
-     * The driver row the profile view is built from: profile, photos, the 5 most recent rides
-     * with their booking counts, and the uncapped ride count.
+     * The driver row the profile view is built from: profile, photos, and the uncapped ride count.
+     *
+     * Stage 2 C2: the recent-rides page and the ride count used to come from the `User::rides()`
+     * relation (eager-loaded with `limit(5)` for the page, `withCount('rides')` for the total). That
+     * relation is gone, so the count is written as the same correlated subquery `withCount` used to
+     * generate - part of the SAME statement, so the query count for this endpoint does not move - and
+     * the page is queried by the presenter from Ride directly.
      */
     private function findDriverWithProfileData(int $driverId): User
     {
-        return User::with([
-            'profile',
-            'photos',
-            // Only the RECENT rides are limited, for the `recent_rides` list below. `total_rides`
-            // used to be `$driver->rides->count()` off THIS relation, so it counted the capped
-            // collection: any driver with more than 5 rides reported exactly 5, and one with fewer
-            // reported a number that looked like a total but was a page size.
-            'rides' => fn ($q) => $q
-                ->withCount('bookings')
-                ->orderByDesc('created_at')
-                ->limit(5),
-            // RV-19 item 5: an uncapped scalar count, so the total is a total. Kept separate from
-            // the limited relation on purpose - sharing one relation cannot serve both a page of
-            // recent rows and a lifetime count.
-        ])
-            ->withCount('rides')
+        // RV-19 item 5: an uncapped scalar count, so the total is a total. It cannot share a query
+        // with the limited page, which is why the two were separated in the first place.
+        return User::query()
+            ->select('users.*')
+            ->addSelect([
+                'rides_count' => Ride::selectRaw('count(*)')
+                    ->whereColumn('rides.driver_id', 'users.id'),
+            ])
+            ->with(['profile', 'photos'])
             ->findOrFail($driverId);
     }
 }
