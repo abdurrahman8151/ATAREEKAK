@@ -94,7 +94,8 @@ class ModuleGraphTest extends TestCase
         'Console -> Money' => 9,
         // Stage 2 C2: the admin driver screens embed two ride aggregates in their own statement,
         // so Console asks Ride for the expressions instead of building them from the model; the same
-        // screen's recent-rides page and contact number are a second, row-returning port.
+        // screen's recent-rides page and contact number are a second, row-returning port, which the
+        // driver DASHBOARD then reuses for its counters, recent rides and favourite destination.
         'Console -> Ride' => 4,
         'Identity -> Communication' => 1,
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so

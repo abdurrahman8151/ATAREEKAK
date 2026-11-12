@@ -19554,3 +19554,48 @@ the unit tests that read `recent_rides` / `phone` / `stats.total_rides` pass une
 `Unit/Services/Admin` + `Snapshots` + `Review` + `Console` = **1178 tests / 5162 assertions / 2 skipped**, only the
 three pre-existing `L16DriverNoShow` failures - the same totals as the sec-313 gate, so this step moved nothing
 measurable. Whole-tree Pint **PASS 834 files**.
+
+---
+
+### 315. Stage 2 C2: the third Console file leaves `Ride` - the driver dashboard reuses `DriverRideReads`
+
+**No new port this time, and that is the point.** The dashboard's five ride uses are three counters, a recent-rides
+page and a favourite destination - all of them "a driver's ride reads", which is exactly what sec 314's
+`DriverRideReads` already is. So the port grew three methods instead of the graph growing a port:
+`rideStatsForDriver(int): array`, `dashboardRecentRidesForDriver(int, int = 10): array`,
+`favoriteDestinationForDriver(int): ?array`. **`Console -> Ride` stays at 4 ports** - I declared 5 first and
+`ModuleGraphTest` caught it immediately with `Measured: ... "Console -> Ride":4` vs `Declared: ...5`. Recording it
+because "a new contract on an existing edge" and "an existing contract reused" are different declarations, and the
+graph test's message names the two numbers side by side.
+
+**The three queries of `rideStatsForDriver` are deliberately NOT merged** into one grouped query. That would be
+tidier SQL and would move `admin/driver-dashboard`'s recorded query budget (17), which this mode forbids. The three
+counts, the `round(cancelled / total * 100, 1)` expression and the `0.0`-when-empty branch are unchanged.
+
+**The rows now arrive as arrays, and the presenter was adapted rather than the reader returning models.** Two
+options were open: move the QUERY only and let Console keep formatting model attributes (sec 286's precedent for a
+pass-through payload), or move the query AND the shape. This payload is not a pass-through - Console formats six
+keys including a `(float)` cast and an ISO timestamp - so the rows come back already shaped and
+`AdminDriverPresenter::formatDriverDashboard()` now indexes them instead of reading model attributes. Same keys,
+same order, same casts, same ISO format.
+
+**Ratchet movement.** `ModelOwnershipTest`: `AdminDriverDashboardService`
+`['Booking','Photo','Profile','Ride','UserRating']` -> `['Booking','Photo','Profile','UserRating']`. Graph unchanged
+at 4 ports, with the declaration's comment extended to say the dashboard reuses the second port.
+
+**Verification.** `AppFuture` + `AdminSnapshotTest` + `AdminDriverControllerTest` + `AdminDriverServiceTest` =
+**267 tests / 1048 assertions OK** - `admin/driver-dashboard` (17 queries), `admin/drivers` (9) and
+`admin/driver-profile` (12) all byte-identical with every budget untouched. Wider gate: `Admin` +
+`Unit/Services/Admin` + `Snapshots` + `Review` + `Console` = **1178 tests / 5162 assertions / 2 skipped**, only the
+three pre-existing `L16DriverNoShow` failures - identical totals to the sec-313 and sec-314 gates. Whole-tree Pint
+**PASS 834 files**.
+
+**Disk incident.** One run died with `Program 'php.exe' failed to run: There is not enough space on the disk`, and
+that is also the real cause of the repeated MySQL deaths this session (the machine was suspending and the volume
+was full). Cleared by deleting only my own scratch: `C:\temp\*.txt`, `C:\temp\*.xml`, `C:\temp\s05` and the
+`_dsh_session_...` folder I had extracted under Downloads - **the owner's zip was not touched**. 32.7 GB free
+after. Nothing in the repository was deleted.
+
+**Next: three Console files remain.** `AdminReportService` (4 uses - counts plus one query builder), `AdminTripService`
+(many - the biggest), `StaffCancellationService` (one use, but the ride is MUTATED inside the transaction: it needs a
+write port or the workflow moved into Ride, not a read).

@@ -6,10 +6,10 @@ use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
 use App\Models\Photo;
 use App\Models\Profile;
-use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Money\Contracts\DriverEarningsReader;
+use App\Modules\Ride\Contracts\DriverRideReads;
 
 /**
  * The per-driver dashboard widget: ratings, ride counts, recent rides, favourite destination,
@@ -94,37 +94,20 @@ final class AdminDriverDashboardService
 
     private function dashboardRideStats(int $driverId): array
     {
-        $totalRides = Ride::where('driver_id', $driverId)->count();
-        $completedRides = Ride::where('driver_id', $driverId)->where('status', 'finished')->count();
-        $cancelledRides = Ride::where('driver_id', $driverId)->where('status', 'cancelled')->count();
-
-        return [
-            'total_rides' => $totalRides,
-            'completed_rides' => $completedRides,
-            'cancelled_rides' => $cancelledRides,
-            'cancel_rate' => $totalRides > 0
-                ? round(($cancelledRides / $totalRides) * 100, 1)
-                : 0.0,
-        ];
+        // Stage 2 C2: Ride's rows, so Ride's counters - the same three queries, unchanged.
+        return app(DriverRideReads::class)->rideStatsForDriver($driverId);
     }
 
-    private function dashboardRecentRides(int $driverId)
+    private function dashboardRecentRides(int $driverId): array
     {
-        return Ride::where('driver_id', $driverId)
-            ->orderByDesc('created_at')
-            ->limit(10)
-            ->get(['id', 'status', 'pickup_address', 'destination_address', 'price_per_seat', 'departure_time']);
+        // Stage 2 C2: Ride owns the rows AND the shape of this block, so the rows arrive as arrays.
+        return app(DriverRideReads::class)->dashboardRecentRidesForDriver($driverId);
     }
 
-    private function dashboardFavoriteDestination(int $driverId): ?Ride
+    private function dashboardFavoriteDestination(int $driverId): ?array
     {
-        return Ride::where('driver_id', $driverId)
-            ->where('status', 'finished')
-            ->select('destination_address')
-            ->selectRaw('COUNT(*) as visit_count')
-            ->groupBy('destination_address')
-            ->orderByDesc('visit_count')
-            ->first();
+        // Stage 2 C2: the query and its two published keys are Ride's.
+        return app(DriverRideReads::class)->favoriteDestinationForDriver($driverId);
     }
 
     private function dashboardDocuments(User $driver)

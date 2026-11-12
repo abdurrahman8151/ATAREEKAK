@@ -156,19 +156,20 @@ final class AdminDriverPresenter
 
             'documents' => $documents,
 
-            'recent_rides' => $recentRides->map(fn ($ride) => [
-                'id' => $ride->id,
-                'status' => $ride->status,
-                'source' => $ride->pickup_address,
-                'destination' => $ride->destination_address,
-                'price_per_seat' => (float) $ride->price_per_seat,
-                'date' => $ride->departure_time->toIso8601String(),
+            // Stage 2 C2: the rows arrive from Ride's `DriverRideReads` port already shaped, so this block
+            // passes them through instead of reading model attributes. `price_per_seat` is still cast
+            // here, at the one place that decides the money format.
+            'recent_rides' => collect($recentRides)->map(fn ($ride) => [
+                'id' => $ride['id'],
+                'status' => $ride['status'],
+                'source' => $ride['source'],
+                'destination' => $ride['destination'],
+                'price_per_seat' => (float) $ride['price_per_seat'],
+                'date' => $ride['date'],
             ])->values(),
 
-            'favorite_destination' => $favoriteDestination ? [
-                'name' => $favoriteDestination->destination_address,
-                'visit_count' => $favoriteDestination->visit_count,
-            ] : null,
+            // Stage 2 C2: the same port produces the two published keys, or null.
+            'favorite_destination' => $favoriteDestination,
         ];
     }
 

@@ -206,6 +206,26 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 315): the THIRD Console file leaves `Ride`, commit
+  `Stage 2 C2: driver dashboard ride reads owned by Ride`.** The dashboard REUSES sec 314's `DriverRideReads`
+  - three methods added (`rideStatsForDriver`, `dashboardRecentRidesForDriver`,
+  `favoriteDestinationForDriver`), **NO new port, graph stays 4**. I first declared 5 and
+  `ModuleGraphTest` caught it (`Measured: Console -> Ride:4` vs `Declared:5`): reusing a contract and adding
+  one are different declarations. The three counters are deliberately NOT merged into one grouped query -
+  that would move `admin/driver-dashboard`'s budget (17), and budgets may only shrink. The rows arrive as
+  ARRAYS and `formatDriverDashboard()` indexes them, because that payload is formatted by Console (six keys
+  incl. a `(float)` cast and an ISO timestamp), unlike sec 286's pass-through rows.
+  **GATE:** AppFuture + AdminSnapshotTest + AdminDriverControllerTest + AdminDriverServiceTest = 267 tests /
+  1048 assertions OK with `admin/driver-dashboard` (17), `admin/drivers` (9), `admin/driver-profile` (12) all
+  byte-identical; wider Admin+Unit/Services/Admin+Snapshots+Review+Console = 1178/5162 with only the 3
+  pre-existing `L16DriverNoShow` failures (identical totals to secs 313/314); Pint PASS 834 files.
+  **DISK INCIDENT:** a run died with `There is not enough space on the disk` - that is ALSO the real cause of
+  the repeated MySQL deaths this session. Cleared by deleting only my own scratch (`C:\temp\*.txt`,
+  `C:\temp\*.xml`, `C:\temp\s05`, the extracted `_dsh_session_...` folder); the owner's zip was NOT touched;
+  32.7 GB free afterwards; nothing in the repo deleted.
+  **THREE Console files still name `Ride`:** `AdminReportService` (4 uses), `AdminTripService` (many - biggest),
+  `StaffCancellationService` (1 use but the ride is MUTATED inside its transaction = a write port or a
+  workflow move, not a read).
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 314): the SECOND Console file leaves `Ride`, commit
   `Stage 2 C2: driver profile ride reads owned by Ride`.** NEW `Ride\Contracts\DriverRideReads`
   (`recentRidesForDriver(int, int=5): array`, `latestCommunicationNumberForDriver(int): ?string`) + service +
