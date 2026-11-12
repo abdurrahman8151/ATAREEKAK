@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          2
- *   Money              1       1      -        -          -
+ *   Money              1       1      2        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       4      2        -          1
  *   Console            4       9      7        7          -
@@ -109,7 +109,8 @@ class ModuleGraphTest extends TestCase
         // Stage 2 C2: escrow is stored on the booking row, so the guarded decrement runs in Ride -
         // the table's owner - and Money calls it. Ride already calls Money for payouts and charges, so
         // this closes a mutual pair rather than opening a one-way one.
-        'Money -> Ride' => 1,
+        // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through Ride.
+        'Money -> Ride' => 2,
         'Money -> Communication' => 1,
         'Money -> Identity' => 1,
         // Stage 2 C2: Ride's no-show conflict opens a support complaint, which Console owns.

@@ -3,7 +3,6 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -44,7 +43,7 @@ final class CashRideFeeRefundService
      * Deferred fees: reduce debt by the resolved amount — no actual money movement.
      * Paid fees:     transfer the resolved amount from Primary Admin wallet to driver.
      */
-    public function refundCashRideCreationFee(Ride $ride, User $driver, bool $hadActiveBookings = false): void
+    public function refundCashRideCreationFee($ride, User $driver, bool $hadActiveBookings = false): void
     {
         $feeAmount = (float) $ride->cash_creation_fee;
 
@@ -100,7 +99,7 @@ final class CashRideFeeRefundService
      * Returns 100.0 if departure_time has already passed (fully elapsed).
      * Returns 100.0 if the ride window has zero duration (edge case).
      */
-    private function calculateElapsedPct(Ride $ride): float
+    private function calculateElapsedPct($ride): float
     {
         $now = now();
         $created = $ride->created_at;
@@ -145,7 +144,7 @@ final class CashRideFeeRefundService
     }
 
     /** Paid fee: either the audit-only no-refund row, or the transfer back to the driver. */
-    private function settlePaidFeeRefund(Ride $ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, float $platformKeeps, string $refundKey, string $noRefundKey): void
+    private function settlePaidFeeRefund($ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, float $platformKeeps, string $refundKey, string $noRefundKey): void
     {
         if ($refundAmount <= 0) {
             $this->recordNoRefund($ride, $driver, $driverWallet, $feeAmount, $elapsedPct, $refundPct, $hadActiveBookings, $refundAmount, $noRefundKey);
@@ -157,7 +156,7 @@ final class CashRideFeeRefundService
     }
 
     /** Deferred fee: only the driver debt is reduced; no money moves. */
-    private function cancelDeferredDebt(Ride $ride, User $driver, Wallet $driverWallet, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, string $debtCancelKey): void
+    private function cancelDeferredDebt($ride, User $driver, Wallet $driverWallet, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, string $debtCancelKey): void
     {
         PostingKey::assertUnused($debtCancelKey);
 
@@ -193,7 +192,7 @@ final class CashRideFeeRefundService
     }
 
     /** No refund (late cancellation with passengers): an audit row only; no money moves. */
-    private function recordNoRefund(Ride $ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, string $noRefundKey): void
+    private function recordNoRefund($ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, string $noRefundKey): void
     {
         // Audit record only — no money movement
         PostingKey::assertUnused($noRefundKey);
@@ -224,7 +223,7 @@ final class CashRideFeeRefundService
     }
 
     /** Partial or full refund: Primary Admin to Driver wallet, as two double-entry legs. */
-    private function refundToDriver(Ride $ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, float $platformKeeps, string $refundKey): void
+    private function refundToDriver($ride, User $driver, Wallet $driverWallet, float $feeAmount, float $elapsedPct, int $refundPct, bool $hadActiveBookings, float $refundAmount, float $platformKeeps, string $refundKey): void
     {
         PostingKey::assertUnused($refundKey);
 
@@ -274,7 +273,7 @@ final class CashRideFeeRefundService
     }
 
     /** The Primary Admin wallet must cover the refund before any money moves. */
-    private function ensurePrimaryCanRefund(Ride $ride, Wallet $primaryWallet, float $refundAmount): void
+    private function ensurePrimaryCanRefund($ride, Wallet $primaryWallet, float $refundAmount): void
     {
         if ((float) $primaryWallet->balance < $refundAmount) {
             Log::error('Cannot refund cash ride fee — insufficient Primary Admin balance', [
@@ -289,7 +288,7 @@ final class CashRideFeeRefundService
     }
 
     /** Platform-side leg of the refund: the matching wallet transaction (no posting key). */
-    private function recordPrimaryRefundTransaction(Ride $ride, User $driver, Wallet $primaryWallet, float $refundAmount, float $platformKeeps, float $primaryPrev, string $txId): WalletTransaction
+    private function recordPrimaryRefundTransaction($ride, User $driver, Wallet $primaryWallet, float $refundAmount, float $platformKeeps, float $primaryPrev, string $txId): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
@@ -306,7 +305,7 @@ final class CashRideFeeRefundService
         ]);
     }
 
-    private function postRefundLegs(Ride $ride, Wallet $primaryWallet, Wallet $driverWallet, float $refundAmount, ?WalletTransaction $issuedTransaction = null, ?WalletTransaction $refundTransaction = null): void
+    private function postRefundLegs($ride, Wallet $primaryWallet, Wallet $driverWallet, float $refundAmount, ?WalletTransaction $issuedTransaction = null, ?WalletTransaction $refundTransaction = null): void
     {
         // ── Decision un3: double-entry legs (platform → driver, partial) ────────
         // A PARTIAL refund: only `$refundAmount` moves back to the driver; the platform keeps

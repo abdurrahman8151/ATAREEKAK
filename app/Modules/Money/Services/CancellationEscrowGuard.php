@@ -3,7 +3,6 @@
 namespace App\Modules\Money\Services;
 
 use App\Models\Booking;
-use App\Models\Ride;
 use App\Models\Wallet;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -39,7 +38,7 @@ class CancellationEscrowGuard
      * The escrow guard pair over the whole booking set, before any balance moves: 100% of each
      * booking's escrow goes back, so every booking's row is cleared to zero by this call.
      */
-    public function guardDriverCancellationEscrow(Ride $ride, Collection $bookings): string
+    public function guardDriverCancellationEscrow($ride, Collection $bookings): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         // 100% of each booking's escrow goes back, so every booking's row is cleared to zero by
@@ -76,7 +75,7 @@ class CancellationEscrowGuard
      * `$refundable` is touched: the needs-review rows were never charged, so they hold no escrow,
      * and this is deliberately not a second place to guess an amount at them.
      */
-    public function guardStaffCancellationEscrow(Ride $ride, Collection $refundable): string
+    public function guardStaffCancellationEscrow($ride, Collection $refundable): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         $escrowOutKey = PostingKey::buildForSet($ride->id, 'staff-cancel', $refundable);
@@ -94,7 +93,7 @@ class CancellationEscrowGuard
      *
      * @return array{0: Wallet, 1: Wallet, 2: Wallet}
      */
-    public function lockTimeBasedCancellationWallets(Booking $booking, Ride $ride, $totalPaid): array
+    public function lockTimeBasedCancellationWallets(Booking $booking, $ride, $totalPaid): array
     {
         $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);

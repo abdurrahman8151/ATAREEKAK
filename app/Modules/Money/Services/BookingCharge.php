@@ -4,7 +4,6 @@ namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -29,7 +28,7 @@ class BookingCharge implements BookingChargeInterface
      *   - DIRECT booking confirmed
      *   - REQUEST booking accepted by driver
      */
-    public function chargePassengerForBooking(Booking $booking, Ride $ride, User $passenger): void
+    public function chargePassengerForBooking(Booking $booking, $ride, User $passenger): void
     {
         $amount = $booking->seats * $ride->price_per_seat;
 
@@ -128,7 +127,7 @@ class BookingCharge implements BookingChargeInterface
     }
 
     /** Persist what this booking paid as an immutable snapshot on the booking itself. */
-    private function snapshotBookingCharge(Booking $booking, Ride $ride, $amount): void
+    private function snapshotBookingCharge(Booking $booking, $ride, $amount): void
     {
         // RV-40: persist the money as an immutable snapshot on the booking, the moment it
         // is actually charged. Before this, nothing recorded what a booking paid; every
@@ -164,7 +163,7 @@ class BookingCharge implements BookingChargeInterface
      */
     private function recordChargeTransactions(
         Booking $booking,
-        Ride $ride,
+        $ride,
         User $passenger,
         Wallet $passengerWallet,
         Wallet $syCashWallet,

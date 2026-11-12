@@ -4,7 +4,6 @@ namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -24,7 +23,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      * Passenger didn't show — E-PAY ride.
      * SyCash → Driver (95%) + SyCash → Primary (5%).
      */
-    public function processPassengerNoShow(Booking $booking, Ride $ride, User $passenger): void
+    public function processPassengerNoShow(Booking $booking, $ride, User $passenger): void
     {
         $total = $booking->seats * $ride->price_per_seat;
         // RV-19: one definition of the 95/5 split. This used to round each share independently,
@@ -70,7 +69,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      * Driver didn't show — E-PAY ride.
      * SyCash → Passenger (100% refund).
      */
-    public function processDriverNoShowRefund(Ride $ride, Booking $booking, User $passenger): void
+    public function processDriverNoShowRefund($ride, Booking $booking, User $passenger): void
     {
         $refundAmount = $booking->seats * $ride->price_per_seat;
 
@@ -104,7 +103,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      *
      * @return array{0: Wallet, 1: Wallet, 2: Wallet}
      */
-    private function lockPassengerNoShowWallets(Ride $ride, $total): array
+    private function lockPassengerNoShowWallets($ride, $total): array
     {
         $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
         $driverWallet = $this->access->lockWalletByUserId($ride->driver_id);
@@ -223,7 +222,7 @@ class NoShowSettlement implements NoShowSettlementInterface
     /** The driver's 95% earning row and the platform's 5% fee row for a passenger no-show. */
     private function recordPassengerNoShowShares(
         Booking $booking,
-        Ride $ride,
+        $ride,
         Wallet $driverWallet,
         Wallet $primaryWallet,
         $driverShare,
@@ -267,7 +266,7 @@ class NoShowSettlement implements NoShowSettlementInterface
     /** The SyCash escrow debit row plus the full refund row back to the passenger. */
     private function recordDriverNoShowRefundRows(
         Booking $booking,
-        Ride $ride,
+        $ride,
         User $passenger,
         Wallet $syCashWallet,
         Wallet $passengerWallet,

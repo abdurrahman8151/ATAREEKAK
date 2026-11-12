@@ -3,7 +3,6 @@
 namespace App\Modules\Money\Services;
 
 use App\Models\Booking;
-use App\Models\Ride;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,7 +25,7 @@ class CancellationLedgerWriter
 
     /** The single SyCash debit row covering every passenger refund of a driver cancellation. */
     public function recordDriverCancellationEscrowRow(
-        Ride $ride,
+        $ride,
         Wallet $syCashWallet,
         $totalRefund,
         string $escrowOutKey,
@@ -52,7 +51,7 @@ class CancellationLedgerWriter
     }
 
     /** One passenger's full refund for a driver cancellation: credit the wallet and write the refund row. */
-    public function refundPassengerForDriverCancellation(Ride $ride, Booking $booking, string $txId): WalletTransaction
+    public function refundPassengerForDriverCancellation($ride, Booking $booking, string $txId): WalletTransaction
     {
         $refundAmount = $booking->seats * $ride->price_per_seat;
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
@@ -85,7 +84,7 @@ class CancellationLedgerWriter
 
     /** The refund fan-out as ONE transfer with N+1 legs, posted after the per-passenger loop. */
     public function postDriverCancellationRefundLegs(
-        Ride $ride,
+        $ride,
         Collection $bookings,
         Wallet $syCashWallet,
         $totalRefund,
@@ -121,7 +120,7 @@ class CancellationLedgerWriter
     }
 
     /** One passenger's full refund for a staff cancellation: credit the wallet and write the refund row. */
-    public function refundPassengerForStaffCancellation(Ride $ride, Booking $booking, string $txId): WalletTransaction
+    public function refundPassengerForStaffCancellation($ride, Booking $booking, string $txId): WalletTransaction
     {
         $refundAmount = (float) $booking->amount_paid;
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
@@ -156,7 +155,7 @@ class CancellationLedgerWriter
 
     /** The single SyCash debit row covering every passenger refund of a staff cancellation. */
     public function recordStaffCancellationEscrowRow(
-        Ride $ride,
+        $ride,
         Wallet $syCashWallet,
         $totalRefund,
         string $escrowOutKey,
@@ -183,7 +182,7 @@ class CancellationLedgerWriter
 
     /** The refund fan-out as ONE transfer with N+1 legs, posted after the per-passenger loop. */
     public function postStaffCancellationRefundLegs(
-        Ride $ride,
+        $ride,
         Collection $refundable,
         Wallet $syCashWallet,
         $totalRefund,
@@ -250,7 +249,7 @@ class CancellationLedgerWriter
     }
 
     /** Driver side of a time-based cancellation: the compensation row, when the driver is owed anything. */
-    public function recordDriverCompensation(Ride $ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): ?WalletTransaction
+    public function recordDriverCompensation($ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): ?WalletTransaction
     {
         if ($driverAmount > 0) {
             return WalletTransaction::create([

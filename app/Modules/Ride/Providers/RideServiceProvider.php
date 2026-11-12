@@ -4,6 +4,7 @@ namespace App\Modules\Ride\Providers;
 
 use App\Modules\Ride\Contracts\AdminTripQueries;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
+use App\Modules\Ride\Contracts\CashRideCounter;
 use App\Modules\Ride\Contracts\DriverRideReads;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
@@ -20,6 +21,7 @@ use App\Modules\Ride\Services\AdminTripQueriesService;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
 use App\Modules\Ride\Services\BookingEscrowWriter;
 use App\Modules\Ride\Services\BookingService;
+use App\Modules\Ride\Services\CashRideCounterService;
 use App\Modules\Ride\Services\DriverRideReadsService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\Noshowservice;
@@ -90,6 +92,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(AdminTripQueries::class, AdminTripQueriesService::class);
         // Stage 2 C2: the staff cancellation flow's trip writes (Console keeps the workflow itself).
         $this->app->bind(TripCancellationWriter::class, TripCancellationWriterService::class);
+        // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through this port.
+        $this->app->bind(CashRideCounter::class, CashRideCounterService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

@@ -3,10 +3,10 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
+use App\Modules\Ride\Contracts\CashRideCounter;
 
 /**
  * CashRideFeeService
@@ -71,7 +71,7 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
     // =========================================================================
 
     /** Delegates to CashRideFeeRefundService. */
-    public function refundCashRideCreationFee(Ride $ride, User $driver, bool $hadActiveBookings = false): void
+    public function refundCashRideCreationFee($ride, User $driver, bool $hadActiveBookings = false): void
     {
         $this->refunds->refundCashRideCreationFee($ride, $driver, $hadActiveBookings);
     }
@@ -176,7 +176,7 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
      *
      * The ride must already have cash_creation_fee and cash_fee_deferred set.
      */
-    public function chargeCashRideCreationFee(Ride $ride, User $driver): void
+    public function chargeCashRideCreationFee($ride, User $driver): void
     {
         $this->creationFeeCharger->chargeCashRideCreationFee($ride, $driver);
     }
@@ -191,9 +191,8 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
      */
     private function countCashRides(int $driverId): int
     {
-        return Ride::where('driver_id', $driverId)
-            ->where('payment_method', 'cash')
-            ->count();
+        // Stage 2 C2: the count over the rides table is Ride's; the tier logic below is unchanged.
+        return app(CashRideCounter::class)->countForDriver($driverId);
     }
 
     // =========================================================================

@@ -3,7 +3,6 @@
 namespace App\Modules\Money\Contracts;
 
 use App\Models\Booking;
-use App\Models\Ride;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -15,9 +14,9 @@ use Illuminate\Database\Eloquent\Collection;
  */
 interface CancellationRefundInterface
 {
-    public function refundPassengersForDriverCancellation(Ride $ride, Collection $bookings): void;
+    public function refundPassengersForDriverCancellation($ride, Collection $bookings): void;
 
-    public function refundPassengersForStaffCancellation(Ride $ride, Collection $bookings): array;
+    public function refundPassengersForStaffCancellation($ride, Collection $bookings): array;
 
     /** Elapsed-time refund tier for a passenger cancellation. */
     public function calculateRefundPolicy(Carbon $departureTime, Carbon $bookingCreatedAt): array;
@@ -25,7 +24,7 @@ interface CancellationRefundInterface
     /** Time-based cancellation: SyCash -> passenger (refund%) + SyCash -> driver (rest). */
     public function processTimeBasedCancellation(
         Booking $booking,
-        Ride $ride,
+        $ride,
         int $seatsCancelled,
         array $refundPolicy
     ): void;

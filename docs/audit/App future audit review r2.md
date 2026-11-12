@@ -19844,3 +19844,43 @@ why `ProfileComment` was safe and `NoshowReport` was not.
 `Staff` + `Review` + `AppFuture` + `Snapshots` + `Rides` + `Bookings` + `Console` = **1420 tests / 6055 assertions
 / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures (the 4th L16 error and the three
 `NoshowSettlementGuardTest` errors are gone). Whole-tree Pint **PASS**.
+
+---
+
+### 322. Stage 2 C2: MONEY stops naming `Ride` - the decisive blocker is gone
+
+**What the eleven files actually did with the model.** Classified first, and it split cleanly in two:
+**fourteen parameter types** (`Ride $ride` in five of Money's own Contracts and nine of its services) and **exactly
+one statement** - `CashRideFeeService::countCashRides()`, `Ride::where('driver_id', ...)->where('payment_method',
+'cash')->count()`, the count Money's cash-creation-fee tiers are based on.
+
+**The parameter types were dropped, not moved.** All fourteen are now untyped, which is this codebase's
+established way to hold another module's value without naming its class (the same choice as the rating-stats DTO
+in sec 302 and Console's trip formatter in sec 317). The bodies are untouched: every `$ride->...` read is
+byte-identical. Ride still passes the same instances to the same methods; only the signature's type is gone.
+
+**The one statement became `Ride\Contracts\CashRideCounter`** (`countForDriver(int): int`) + service + binding -
+one query, identical SQL, and the tier logic, thresholds and messages stay in Money. Money already reached Ride
+through `BookingEscrowLedger` (sec 281), so this is a second port on an existing edge, not a new edge.
+
+**Cleanup that Pint could NOT do, and why.** After dropping the types, eleven `use App\Models\Ride;` lines were
+unused - but the `no_unused_imports` fixer kept them, because every one of those files mentions "Ride"/"RIDE" in
+its COMMENTS ("RIDE decides WHEN the fee is charged", "Ride 3+ ..."). The rule is a name check, not a
+symbol-resolution check, so a comment mentioning the short name is enough to keep an import. Removed by hand (11
+files), which is also why `php -l` + `pint --test` were re-run afterwards.
+
+**Ratchet movement.** `ModelOwnershipTest`: the pair `Money -> Ride` is REMOVED - **baseline 26 -> 25** and the
+shrink hint is silent. `ModuleGraphTest`: `Money -> Ride` **1 -> 2** ports, docblock column updated.
+
+**Verification - the money path got the widest selection of the phase.** `AppFuture` + `Wallet` + `Payment` +
+`Rides` + `Bookings` + `Snapshots` + `Unit/Domain` + `Unit/Services` + `Review` = **1819 tests / 8755 assertions /
+2 skipped**, only the three pre-existing `L16DriverNoShow` failures. That includes the cash-fee tier tests, the
+ledger property seeds, the four double-entry anchors and every frozen response body. Whole-tree Pint **PASS 842
+files**.
+
+**WHAT IS LEFT FOR THE `Ride` MOVE.** Kernel: `Booking::ride()` (moves WITH Ride - Ride owns bookings),
+`NoshowReport::ride()` (kept; its single eager load would have to be rewired, a query-count change) and
+`Complaint::ride()` (kept; a test asserts the relation resolves). Money is out of the way; Console is out of the
+way; the kernel's remaining three are one relation that must travel with the model and two that are parked with
+reasons. The next step is therefore to measure the LAST module-side pair - `Identity -> Ride` and `Identity ->
+Booking` - and then the `git mv` itself, with `Ride` and `Booking` moving together in one commit.

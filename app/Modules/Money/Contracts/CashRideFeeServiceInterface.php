@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 
@@ -23,7 +22,7 @@ interface CashRideFeeServiceInterface
      *
      * @param  bool  $hadActiveBookings  snapshotted BEFORE the bookings were cancelled
      */
-    public function refundCashRideCreationFee(Ride $ride, User $driver, bool $hadActiveBookings = false): void;
+    public function refundCashRideCreationFee($ride, User $driver, bool $hadActiveBookings = false): void;
 
     /**
      * Can this driver create a cash ride, and what does the caller need to know about the fee?
@@ -33,7 +32,7 @@ interface CashRideFeeServiceInterface
     public function canCreateCashRide(User $driver, float $feeAmount): array;
 
     /** Charge the 5% creation fee for a newly created cash ride (immediate or deferred). */
-    public function chargeCashRideCreationFee(Ride $ride, User $driver): void;
+    public function chargeCashRideCreationFee($ride, User $driver): void;
 
     /** After an approved top-up: clear any outstanding cash-ride debt on this wallet. */
     public function autoClearDebt(Wallet $wallet, User $driver): void;

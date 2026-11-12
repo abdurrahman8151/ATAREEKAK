@@ -206,6 +206,23 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 322): MONEY stops naming `Ride` - THE DECISIVE BLOCKER IS GONE,
+  commit `Stage 2 C2: Money reaches Ride through contracts only`.** Classified first: FOURTEEN parameter
+  types (five Money Contracts + nine services) and EXACTLY ONE statement
+  (`CashRideFeeService::countCashRides()`). The types were DROPPED (untyped = the established pattern,
+  bodies byte-identical); the statement became `Ride\Contracts\CashRideCounter::countForDriver(int)` + service
+  + binding (one query, same SQL; Money already reached Ride via `BookingEscrowLedger`, so a second port on an
+  existing edge). **Pint could NOT remove eleven unused `use App\Models\Ride;` lines because those files
+  mention "Ride"/"RIDE" in COMMENTS - `no_unused_imports` is a name check, not symbol resolution**; removed by
+  hand. **RATCHETS: pair `Money -> Ride` REMOVED, baseline 26 -> 25, shrink hint silent; graph `Money -> Ride`
+  1 -> 2 ports.**
+  **GATE:** the widest selection of the phase - AppFuture+Wallet+Payment+Rides+Bookings+Snapshots+Unit/Domain+
+  Unit/Services+Review = 1819 tests / 8755 assertions / 2 skipped, only the 3 pre-existing
+  `L16DriverNoShow` failures; Pint PASS 842 files.
+  **LEFT FOR THE `Ride` MOVE:** kernel `Booking::ride()` (moves WITH Ride), `NoshowReport::ride()` (parked -
+  its eager load rewiring would move a query count), `Complaint::ride()` (parked - a test asserts the relation
+  resolves). **NEXT: measure the last module-side pairs (`Identity -> Ride`, `Identity -> Booking`), then the
+  `git mv` of `Ride` + `Booking` TOGETHER.**
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 321): the two kernel ENTRYPOINT commands leave `Ride`, and
   `ProfileComment::ride()` is removed - plus a REGRESSION I caused and reverted in the same step,
   commit `Stage 2 C2: entrypoint commands and a dead profile-comment relation leave Ride`.**

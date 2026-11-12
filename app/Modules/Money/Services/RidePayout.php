@@ -4,7 +4,6 @@ namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
-use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -28,7 +27,7 @@ class RidePayout implements RidePayoutInterface
      * SyCash → Driver  (95%)
      * SyCash → Primary ( 5%)
      */
-    public function releaseEarningsToDriver(Ride $ride, Collection $confirmedBookings): void
+    public function releaseEarningsToDriver($ride, Collection $confirmedBookings): void
     {
         $total = $confirmedBookings->sum(fn ($b) => $b->seats * $ride->price_per_seat);
 
@@ -88,7 +87,7 @@ class RidePayout implements RidePayoutInterface
      * AND the settled set, so re-running this same completion cannot pay again, while
      * cancelling a different subset of the same ride is still a distinct movement.
      */
-    private function debitEscrowForRideCompletionSet(Ride $ride, Collection $confirmedBookings): string
+    private function debitEscrowForRideCompletionSet($ride, Collection $confirmedBookings): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         $escrowOutKey = PostingKey::buildForSet($ride->id, 'ride-complete', $confirmedBookings);
@@ -128,7 +127,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** SyCash debit row for a whole-set completion release: the escrow that left SyCash. */
-    private function recordEscrowReleasedRow(Ride $ride, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId): WalletTransaction
+    private function recordEscrowReleasedRow($ride, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId): WalletTransaction
     {
         // SyCash debit
         return WalletTransaction::create([
@@ -157,7 +156,7 @@ class RidePayout implements RidePayoutInterface
      * The sum is checked by `postTransfer`, so if the 95/5 arithmetic ever drifts from `$total`
      * the transfer is REFUSED rather than silently creating or destroying money.
      */
-    private function postCompletionTransfer(Ride $ride, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
+    private function postCompletionTransfer($ride, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
     {
         $this->ledger->postTransfer([
             [
@@ -182,7 +181,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Driver share of a completed ride (95%): the earnings row. */
-    public function recordDriverShare(Ride $ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): WalletTransaction
+    public function recordDriverShare($ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
@@ -199,7 +198,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Platform share of a completed ride (5%): the platform fee row. */
-    public function recordPlatformShare(Ride $ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): WalletTransaction
+    public function recordPlatformShare($ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
@@ -226,7 +225,7 @@ class RidePayout implements RidePayoutInterface
      * @throws \RuntimeException if SyCash has insufficient balance,
      *                           or if any required wallet is missing.
      */
-    public function releaseEscrowToDriver(Booking $booking, Ride $ride, User $driver): void
+    public function releaseEscrowToDriver(Booking $booking, $ride, User $driver): void
     {
         // `R2 sec 117`: seats x price is a MONEY product, so it is computed in integer minor units.
         // Multiplying the float first and rounding after could land on the wrong side of a half-fils.
