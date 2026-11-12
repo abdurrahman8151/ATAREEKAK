@@ -20,7 +20,7 @@ use Tests\TestCase;
  *   Communication      -       -      -        -          2
  *   Money              1       1      2        -          -
  *   Ride               1       5      1        1          -
- *   Identity           1       4      2        -          1
+ *   Identity           1       4      3        -          1
  *   Console            4       9      7        7          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
@@ -105,7 +105,9 @@ class ModuleGraphTest extends TestCase
         // Identity calls Console's EmployeeTokenVersion port instead of running the increment itself.
         'Identity -> Console' => 2,
         'Identity -> Money' => 4,
-        'Identity -> Ride' => 2,
+        // Stage 2 C2: Identity's admin passenger profile reads the passenger's booking history
+        // through Ride's PassengerBookingHistory port.
+        'Identity -> Ride' => 3,
         // Stage 2 C2: escrow is stored on the booking row, so the guarded decrement runs in Ride -
         // the table's owner - and Money calls it. Ride already calls Money for payouts and charges, so
         // this closes a mutual pair rather than opening a one-way one.

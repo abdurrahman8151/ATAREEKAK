@@ -120,7 +120,6 @@ final class ModelOwnershipTest extends TestCase
         'Console -> ProfileComment' => 'profile_comments',
         'Console -> Wallet' => 'wallets',
         'Console -> WalletRequest' => 'wallet_requests',
-        'Identity -> Booking' => 'bookings',
         'Identity -> Complaint' => 'complaints',
         'Identity -> Employee' => 'employees',
         'Identity -> Photo' => 'photos',

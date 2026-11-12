@@ -206,6 +206,22 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 324): Identity stops naming `Booking` - only CONSOLE is left,
+  commit `Stage 2 C2: passenger booking history owned by Ride`.** NEW
+  `Ride\Contracts\PassengerBookingHistory` + service + binding, FIVE methods, one per statement Identity ran:
+  completed-rides count, `SUM(seats * rides.price_per_seat)` join, the `DATE_FORMAT` monthly group (keyed
+  `YYYY-MM`, caller walks its own range so empty months still appear), the recent-trips list (arrays, same
+  keys), and the eligibility `exists()`. Query counts identical. **Presentation stayed in Identity** - Arabic
+  month labels, `total_cost` + Money formatting, panel keys, the 403 sentence - which is why the frozen
+  passenger-profile JSON did not move.
+  **RATCHETS: pair `Identity -> Booking` REMOVED -> baseline 23, shrink hint silent; graph `Identity -> Ride`
+  2 -> 3 ports.**
+  **GATE:** AppFuture+Profile+Admin+Staff+Snapshots+Review+Rides+Bookings = 1390 tests / 5998 assertions with
+  only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 844 files.
+  **LAST MODULE NAMING `Booking`: CONSOLE** - four services with real queries (`StaffBookingQueryService` list,
+  `StaffCancellationService` booking-cancel, `AdminReportService` three aggregates,
+  `AdminDriverDashboardService` estimated gross). **THEN: the `git mv` of `Ride` + `Booking` together**, the
+  three parked kernel relations, the ARCHITECTURE ownership map and the module READMEs.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 323): Money stops naming `Booking` too - MONEY NOW NAMES NEITHER
   `Ride` NOR `Booking`, commit `Stage 2 C2: Money drops the Booking parameter types`.** Measured first:
   Money's Booking coupling was ONE KIND of thing - **43 parameter types** across eleven files (four contracts,

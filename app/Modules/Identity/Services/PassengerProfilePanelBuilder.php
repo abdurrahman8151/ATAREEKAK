@@ -5,13 +5,13 @@ namespace App\Modules\Identity\Services;
 use App\Domain\ValueObjects\Money;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserRating;
 use App\Modules\Money\Contracts\WalletChargeHistory;
 use App\Modules\Money\Contracts\WalletDirectory;
+use App\Modules\Ride\Contracts\PassengerBookingHistory;
 
 /**
  * The five panels of the admin passenger profile page - stats, monthly trips, recent trips,
@@ -40,15 +40,10 @@ final class PassengerProfilePanelBuilder
     {
         $userId = $user->id;
 
-        $totalRides = Booking::where('user_id', $userId)
-            ->whereIn('status', ['completed'])
-            ->count();
-
-        $totalSpending = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
-            ->where('bookings.user_id', $userId)
-            ->where('bookings.status', 'completed')
-            ->selectRaw('SUM(bookings.seats * rides.price_per_seat) as total')
-            ->value('total') ?? 0.0;
+        // Stage 2 C2: ookings is Ride's, so both aggregates come from Ride's port.
+        $history = app(PassengerBookingHistory::class);
+        $totalRides = $history->completedRidesCount($userId);
+        $totalSpending = $history->completedSpending($userId);
 
         $avgRating = UserRating::where('rated_user_id', $userId)->avg('rating') ?? 0.0;
 
@@ -71,30 +66,19 @@ final class PassengerProfilePanelBuilder
      */
     public function buildMonthlyTrips(int $userId, int $months = 6): array
     {
-        $rows = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
-            ->where('bookings.user_id', $userId)
-            ->where('bookings.status', 'completed')
-            ->where('rides.departure_time', '>=', now()->subMonths($months)->startOfMonth())
-            ->selectRaw(
-                "DATE_FORMAT(rides.departure_time, '%Y-%m') as month_key,
-                 COUNT(*) as trips,
-                 SUM(bookings.seats * rides.price_per_seat) as total_cost"
-            )
-            ->groupBy('month_key')
-            ->orderBy('month_key')
-            ->get()
-            ->keyBy('month_key');
+        // Stage 2 C2: the grouped query is Ride's; the month labels and money below are this panel's.
+        $rows = app(PassengerBookingHistory::class)->monthlyTrips($userId, $months);
 
         $result = [];
         for ($i = $months - 1; $i >= 0; $i--) {
             $date = now()->subMonths($i)->startOfMonth();
             $key = $date->format('Y-m');
-            $row = $rows->get($key);
+            $row = $rows[$key] ?? null;
             $result[] = [
                 'month' => $date->locale('ar')->isoFormat('MMMM'),
                 'month_key' => $key,
-                'trips' => $row ? (int) $row->trips : 0,
-                'total_cost' => $row ? Money::from((float) $row->total_cost)->amount() : 0.0,
+                'trips' => $row ? (int) $row['trips'] : 0,
+                'total_cost' => $row ? Money::from((float) $row['total_cost'])->amount() : 0.0,
             ];
         }
 
@@ -106,29 +90,22 @@ final class PassengerProfilePanelBuilder
      */
     public function buildRecentTrips(int $userId, int $limit = 10): array
     {
-        return Booking::with([
-            'ride:id,pickup_address,destination_address,departure_time,price_per_seat,driver_id',
-            'ride.driver:id,first_name,last_name',
-        ])
-            ->where('user_id', $userId)
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get()
+        // Stage 2 C2: the bookings, their ride and their driver come from Ride's port already shaped; the
+        // only thing left here is `total_cost`, which is THIS panel's money format.
+        return collect(app(PassengerBookingHistory::class)->recentTrips($userId, $limit))
             ->map(fn ($b) => [
-                'id' => $b->id,
-                'date' => $b->created_at->toDateString(),
-                'route_from' => $b->ride?->pickup_address,
-                'route_to' => $b->ride?->destination_address,
-                'driver' => $b->ride?->driver
-                    ? trim("{$b->ride->driver->first_name} {$b->ride->driver->last_name}")
-                    : null,
-                'seats' => $b->seats,
-                'price_per_seat' => (float) ($b->ride?->price_per_seat ?? 0),
-                'total_cost' => Money::from((float) ($b->ride?->price_per_seat ?? 0))
-                    ->multiply((float) $b->seats)
+                'id' => $b['id'],
+                'date' => $b['date'],
+                'route_from' => $b['route_from'],
+                'route_to' => $b['route_to'],
+                'driver' => $b['driver'],
+                'seats' => $b['seats'],
+                'price_per_seat' => $b['price_per_seat'],
+                'total_cost' => Money::from((float) $b['price_per_seat'])
+                    ->multiply((float) $b['seats'])
                     ->amount(),
-                'status' => $b->status,
-                'departure_time' => $b->ride?->departure_time?->toIso8601String(),
+                'status' => $b['status'],
+                'departure_time' => $b['departure_time'],
             ])
             ->values()
             ->all();

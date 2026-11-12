@@ -19914,3 +19914,39 @@ path, `AdminReportService` three aggregates, `AdminDriverDashboardService`'s est
 it in two** (`PassengerProfilePanelBuilder`'s four passenger-history queries, `ProfileInteractionService`'s
 eligibility check). Those six files need booking-shaped ports, exactly as the Ride side did in secs 313-318 - then
 the `git mv` of BOTH models, the three parked kernel relations and the ownership map.
+
+---
+
+### 324. Stage 2 C2: Identity stops naming `Booking` - `PassengerBookingHistory`
+
+**What Identity actually did with the table.** Two services, five statements:
+`PassengerProfilePanelBuilder` ran a completed-rides COUNT, a `SUM(seats * rides.price_per_seat)` JOIN, a
+`DATE_FORMAT(...)` monthly GROUP BY, and the recent-trips list with its ride and driver eager loads;
+`ProfileInteractionService` ran the rating/comment eligibility `exists()`. All five are statements over
+`bookings`, which Ride owns.
+
+**The port.** `Ride\Contracts\PassengerBookingHistory` + service + binding, five methods - one per statement, each
+verbatim: `completedRidesCount`, `completedSpending`, `monthlyTrips` (keyed by `YYYY-MM`, caller walks its own
+range so empty months still appear), `recentTrips` (arrays with the same keys), and
+`hasCompletedBookingWithDriver` (the same `exists()`). Query counts are identical: same filters, same join, same
+grouping and ordering, same eager-load column lists.
+
+**What stayed in Identity, deliberately.** Every presentation decision: the Arabic month labels
+(`$date->locale('ar')->isoFormat('MMMM')`), the `total_cost` multiplication and its `Money` formatting, the
+`avg_rating` rounding, the panel keys and their order. The port returns raw numbers and raw row fields precisely so
+that the frozen passenger-profile JSON did not have to be re-derived. `ProfileInteractionService` keeps its 403
+refusal sentence untouched.
+
+**Ratchet movement.** `ModelOwnershipTest`: the pair `Identity -> Booking` is REMOVED - **baseline 24 -> 23**, and
+the shrink hint is silent. `ModuleGraphTest`: `Identity -> Ride` **2 -> 3** ports (a new Ride contract used by
+Identity), docblock column updated.
+
+**Verification.** `AppFuture` + `Profile` + `Admin` + `Staff` + `Snapshots` + `Review` + `Rides` + `Bookings` =
+**1390 tests / 5998 assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures - which
+includes the `admin/passenger-*` and `profile/*` corpus this port feeds. Whole-tree Pint **PASS**.
+
+**WHAT IS LEFT: Console is the last module naming `Booking`** - four services with real queries
+(`StaffBookingQueryService` the staff booking list, `StaffCancellationService` the booking-cancel path,
+`AdminReportService` three aggregates, `AdminDriverDashboardService`'s estimated gross). After that: the `git mv`
+of `Ride` + `Booking` together, the three parked kernel relations, the ARCHITECTURE ownership map and the module
+READMEs.

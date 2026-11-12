@@ -3,10 +3,10 @@
 namespace App\Modules\Identity\Services;
 
 use App\Exceptions\Domain\ConflictViolation;
-use App\Models\Booking;
 use App\Models\Profile;
 use App\Models\ProfileComment;
 use App\Models\UserRating;
+use App\Modules\Ride\Contracts\PassengerBookingHistory;
 
 /**
  * ProfileInteractionService — corrected for actual DB schema:
@@ -147,12 +147,8 @@ class ProfileInteractionService
         int $rideId,
         string $action,
     ): void {
-        $eligible = Booking::query()
-            ->where('user_id', $actorId)
-            ->where('ride_id', $rideId)
-            ->where('status', 'completed')
-            ->whereHas('ride', fn ($q) => $q->where('driver_id', $driverId))
-            ->exists();
+        // Stage 2 C2: the eligibility query over ookings is Ride's; the refusal below is unchanged.
+        $eligible = app(PassengerBookingHistory::class)->hasCompletedBookingWithDriver($actorId, $rideId, $driverId);
 
         if (! $eligible) {
             throw new \Exception(

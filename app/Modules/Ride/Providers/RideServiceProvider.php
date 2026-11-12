@@ -9,6 +9,7 @@ use App\Modules\Ride\Contracts\DriverRideReads;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\NoShowReportInterface;
+use App\Modules\Ride\Contracts\PassengerBookingHistory;
 use App\Modules\Ride\Contracts\RideQueryExpressions;
 use App\Modules\Ride\Contracts\RideReportCounts;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
@@ -25,6 +26,7 @@ use App\Modules\Ride\Services\CashRideCounterService;
 use App\Modules\Ride\Services\DriverRideReadsService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\Noshowservice;
+use App\Modules\Ride\Services\PassengerBookingHistoryService;
 use App\Modules\Ride\Services\RideQueryExpressionsService;
 use App\Modules\Ride\Services\RideReportCountsService;
 use App\Modules\Ride\Services\RideSearchService;
@@ -94,6 +96,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(TripCancellationWriter::class, TripCancellationWriterService::class);
         // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through this port.
         $this->app->bind(CashRideCounter::class, CashRideCounterService::class);
+        // Stage 2 C2: Identity's admin passenger profile reads this passenger's booking history.
+        $this->app->bind(PassengerBookingHistory::class, PassengerBookingHistoryService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }
