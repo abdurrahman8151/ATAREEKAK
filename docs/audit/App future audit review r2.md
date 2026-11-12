@@ -20024,3 +20024,32 @@ the exact dashboard snapshots that failed before the fix. Whole-tree Pint **PASS
 
 **Console now names `Booking` in TWO files, both staff-side:** `StaffBookingQueryService` (the booking list) and
 `StaffCancellationService` (the booking-cancel path, which also WRITES the booking).
+
+---
+
+### 327. Stage 2 C2: the staff bookings list moves to Ride - `StaffBookingList`
+
+**What the file did.** `StaffBookingQueryService` built the paginated staff bookings query (three eager loads with
+their column lists, three optional filters, `created_at` DESC, `per_page`/`page` defaults) and mapped each row
+into the public shape.
+
+**The port returns the PAGINATOR, not DTOs - deliberately.** `Ride\Contracts\StaffBookingList::paginateStaffBookings(array):
+LengthAwarePaginator` + service + binding. The rows a paginator carries ARE what this screen serialises, so the
+honest move is the QUERY and not the JSON - the sec-286 precedent (the admin wallet-transaction page). Converting
+1,300+ lines of staff-booking rows into DTOs would have been a JSON-parity artefact bigger than the coupling it
+removes. Console keeps `toRow()`, which is now untyped: the same method, the same keys, the same fallbacks.
+
+**Filter semantics stayed at the boundary**, documented on the contract: `status = 'all'` means no filter,
+`user_id`/`ride_id` narrow only when present, defaults 15/1, order `created_at` DESC. The statement itself is
+verbatim.
+
+**Ratchet movement.** `ModelOwnershipTest`: the per-file entry for `StaffBookingQueryService` is REMOVED entirely -
+it named only `Booking`. `ModuleGraphTest`: `Console -> Ride` **9 -> 10** ports, docblock column updated.
+
+**Verification.** `AppFuture` + `Staff` + `Snapshots` + `Admin` + `Review` = **1271 tests / 5738 assertions / 2
+skipped**, only the three pre-existing `L16DriverNoShow` failures - the staff bookings snapshots and their query
+budgets are unchanged, and the graph measures 10 as declared. Whole-tree Pint **PASS**.
+
+**ONE Console file still names `Booking`: `StaffCancellationService`** - and it is the hard one, because the
+booking-cancel path both READS and WRITES the row (the trip half is already ported in sec 318). After that, the
+`git mv` of `Ride` + `Booking`.

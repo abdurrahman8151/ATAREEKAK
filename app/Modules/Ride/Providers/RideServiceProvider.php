@@ -16,6 +16,7 @@ use App\Modules\Ride\Contracts\RideQueryExpressions;
 use App\Modules\Ride\Contracts\RideReportCounts;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
+use App\Modules\Ride\Contracts\StaffBookingList;
 use App\Modules\Ride\Contracts\TripCancellationWriter;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
 use App\Modules\Ride\Domain\ScorePolicyFactory;
@@ -39,6 +40,7 @@ use App\Modules\Ride\Services\RideValidationService;
 use App\Modules\Ride\Services\RouteCalculationService;
 use App\Modules\Ride\Services\ScoreLedger;
 use App\Modules\Ride\Services\ScoreService;
+use App\Modules\Ride\Services\StaffBookingListService;
 use App\Modules\Ride\Services\TripCancellationWriterService;
 use App\Modules\Ride\Services\UserRideStatsService;
 use Illuminate\Support\ServiceProvider;
@@ -106,6 +108,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(BookingRevenueAggregates::class, BookingRevenueAggregatesService::class);
         // Stage 2 C2: the admin dashboard's recent-activity feed.
         $this->app->bind(BookingActivityFeed::class, BookingActivityFeedService::class);
+        // Stage 2 C2: the staff bookings list query.
+        $this->app->bind(StaffBookingList::class, StaffBookingListService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

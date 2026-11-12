@@ -2,7 +2,7 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Booking;
+use App\Modules\Ride\Contracts\StaffBookingList;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
@@ -20,33 +20,9 @@ final class StaffBookingQueryService
      */
     public function paginate(array $filters): LengthAwarePaginator
     {
-        $query = Booking::with([
-            'user:id,first_name,last_name,email',
-            'ride:id,pickup_address,destination_address,departure_time,price_per_seat,status,driver_id',
-            'ride.driver:id,first_name,last_name',
-        ]);
-
-        $status = $filters['status'] ?? 'all';
-        if ($status !== 'all') {
-            $query->where('status', $status);
-        }
-
-        if (isset($filters['user_id'])) {
-            $query->where('user_id', (int) $filters['user_id']);
-        }
-
-        if (isset($filters['ride_id'])) {
-            $query->where('ride_id', (int) $filters['ride_id']);
-        }
-
-        return $query
-            ->orderByDesc('created_at')
-            ->paginate(
-                (int) ($filters['per_page'] ?? 15),
-                ['*'],
-                'page',
-                (int) ($filters['page'] ?? 1)
-            );
+        // Stage 2 C2: the query over `bookings` (and its ride/driver/passenger eager loads) is Ride's; the
+        // rows come back here and `toRow()` below still shapes them.
+        return app(StaffBookingList::class)->paginateStaffBookings($filters);
     }
 
     /**
@@ -54,7 +30,7 @@ final class StaffBookingQueryService
      *
      * @return array<string, mixed>
      */
-    public function toRow(Booking $booking): array
+    public function toRow($booking): array
     {
         return [
             'id' => $booking->id,

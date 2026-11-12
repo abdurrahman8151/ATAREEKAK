@@ -206,6 +206,19 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 327): the staff bookings list moves to Ride, commit
+  `Stage 2 C2: staff booking list query owned by Ride`.** NEW
+  `Ride\Contracts\StaffBookingList::paginateStaffBookings(array): LengthAwarePaginator` + service + binding.
+  **The port returns the PAGINATOR, not DTOs, deliberately** - the rows a paginator carries ARE what this
+  screen serialises, so the QUERY moved and not the JSON (the sec-286 precedent). Console keeps `toRow()`,
+  now untyped; filter semantics stay documented at the boundary. **Allowlist: the `StaffBookingQueryService`
+  entry is REMOVED entirely (it named only `Booking`); graph `Console -> Ride` 9 -> 10 ports.**
+  **GATE:** AppFuture+Staff+Snapshots+Admin+Review = 1271 tests / 5738 assertions with only the 3 pre-existing
+  `L16DriverNoShow` failures; graph measures 10 as declared; Pint PASS 850 files.
+  **ONE Console file still names `Booking`: `StaffCancellationService`** - the hard one, because the
+  booking-cancel path both READS and WRITES the row (its trip half was ported in sec 318). **After that: the
+  `git mv` of `Ride` + `Booking` together**, the three parked kernel relations, the ARCHITECTURE ownership map
+  and the module READMEs.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 326): the admin recent-activity feed moves to Ride,
   commit `Stage 2 C2: recent activity feed owned by Ride`.** NEW
   `Ride\Contracts\BookingActivityFeed::recentActivities(int): array` + service + binding, returning RAW rows

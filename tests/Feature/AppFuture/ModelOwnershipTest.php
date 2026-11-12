@@ -76,7 +76,6 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Services/ComplaintRecorderService.php' => ['Complaint'],
         'app/Modules/Console/Services/EmployeeManagementService.php' => ['Employee'],
         'app/Modules/Console/Services/ReviewModerationService.php' => ['ProfileComment'],
-        'app/Modules/Console/Services/StaffBookingQueryService.php' => ['Booking'],
         'app/Modules/Console/Services/StaffCancellationService.php' => ['Booking'],
         'app/Modules/Console/Services/StaffComplaintService.php' => ['Complaint', 'Employee'],
         'app/Modules/Console/Services/StaffUserProfileService.php' => ['Profile', 'UserRating'],
