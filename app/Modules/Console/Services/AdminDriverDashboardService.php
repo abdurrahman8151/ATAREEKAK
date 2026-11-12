@@ -3,12 +3,12 @@
 namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Booking;
 use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Money\Contracts\DriverEarningsReader;
+use App\Modules\Ride\Contracts\BookingRevenueAggregates;
 use App\Modules\Ride\Contracts\DriverRideReads;
 
 /**
@@ -135,11 +135,8 @@ final class AdminDriverDashboardService
         // Stage 2 C2: the two RV-39 spellings and the completed-only rule live with Money's table.
         $ledgerEarnings = app(DriverEarningsReader::class)->completedEarningsForDriver($driverId);
 
-        $estimatedGross = Booking::join('rides', 'bookings.ride_id', '=', 'rides.id')
-            ->where('rides.driver_id', $driverId)
-            ->where('bookings.status', 'completed')
-            ->selectRaw('SUM(bookings.seats * rides.price_per_seat * ?) as total', [(float) config('fees.driver_share_rate', 0.95)])
-            ->value('total') ?? 0.0;
+        // Stage 2 C2: the projection is arithmetic over bookings x rides, so Ride computes it.
+        $estimatedGross = app(BookingRevenueAggregates::class)->estimatedGrossForDriver($driverId);
 
         return [(float) $ledgerEarnings, (float) $estimatedGross];
     }

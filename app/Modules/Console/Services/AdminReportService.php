@@ -10,6 +10,7 @@ use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Money\Contracts\LedgerAggregates;
 use App\Modules\Money\Contracts\WalletDirectory;
+use App\Modules\Ride\Contracts\BookingRevenueAggregates;
 use App\Modules\Ride\Contracts\RideReportCounts;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -281,13 +282,10 @@ final class AdminReportService
     // PRIVATE HELPERS
     // =========================================================================
 
-    // AFTER (qualified with table name)
+    // Stage 2 C2: the SUM over bookings x rides lives with the tables it reads.
     private function getTotalRevenue(): float
     {
-        return (float) Booking::where('bookings.status', 'completed')  // ← add 'bookings.'
-            ->join('rides', 'bookings.ride_id', '=', 'rides.id')
-            ->selectRaw('SUM(bookings.seats * rides.price_per_seat) as total')
-            ->value('total');
+        return app(BookingRevenueAggregates::class)->completedBookingsRevenue();
     }
 
     private function getRideStatistics(?Carbon $start, ?Carbon $end): array
@@ -334,11 +332,7 @@ final class AdminReportService
 
     private function calculateLockedFunds(): float
     {
-        return (float) Booking::whereHas('ride', fn ($q) => $q->whereIn('status', ['active', 'full', 'awaiting_confirmation'])
-        )
-            ->join('rides', 'bookings.ride_id', '=', 'rides.id')
-            ->where('bookings.status', 'confirmed')
-            ->selectRaw('SUM(bookings.seats * rides.price_per_seat) as total')
-            ->value('total');
+        // Stage 2 C2: locked funds are Ride's arithmetic, whereHas included.
+        return app(BookingRevenueAggregates::class)->lockedFundsInActiveRides();
     }
 }

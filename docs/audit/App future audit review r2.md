@@ -19950,3 +19950,36 @@ includes the `admin/passenger-*` and `profile/*` corpus this port feeds. Whole-t
 `AdminReportService` three aggregates, `AdminDriverDashboardService`'s estimated gross). After that: the `git mv`
 of `Ride` + `Booking` together, the three parked kernel relations, the ARCHITECTURE ownership map and the module
 READMEs.
+
+---
+
+### 325. Stage 2 C2: Console's three booking money projections move to Ride
+
+**Why they are Ride's and not Money's.** All three are arithmetic over `bookings` x `rides` - seats times the
+ride's CURRENT price per seat - and the report itself labels the first one `estimated`, because it is a projection
+off today's prices rather than settled money. `Money\Contracts\LedgerAggregates` (sec 287) already owns the four
+sums that read `ledger_entries`; these are deliberately the other kind of number, so they belong with the tables
+they read.
+
+**What moved.** `Ride\Contracts\BookingRevenueAggregates` + service + binding:
+- `estimatedGrossForDriver(int)` - the driver dashboard's projection, INCLUDING
+  `config('fees.driver_share_rate', 0.95)` applied inside the SQL exactly as before, so the platform's cut is
+  still defined in one place;
+- `completedBookingsRevenue()` - the report's total revenue (`SUM(seats x price_per_seat)`, no share);
+- `lockedFundsInActiveRides()` - the `whereHas('ride', status IN ...)` guard plus the confirmed-bookings sum,
+  the guard being part of the definition rather than a filter the caller may vary.
+
+Each is the statement it replaces, character for character - same joins, same `where`s, same `selectRaw`, same
+`value('total')`.
+
+**Ratchet movement.** `ModelOwnershipTest` per-file: `AdminDriverDashboardService` loses `Booking` ->
+`['Photo','Profile','UserRating']`. (`AdminReportService` keeps it - its recent-activities feed still reads
+bookings, which is the next slice.) `ModuleGraphTest`: `Console -> Ride` **7 -> 8** ports, docblock column updated.
+
+**Verification.** `AppFuture` + `Snapshots` + `Admin` + `Staff` + `Review` = **1271 tests / 5738 assertions / 2
+skipped**, only the three pre-existing `L16DriverNoShow` failures - the admin dashboard and report bodies and
+their query budgets are unchanged. Whole-tree Pint **PASS**.
+
+**Console's remaining `Booking` files (three):** `AdminReportService::getRecentActivities()` (the feed with its
+ride/driver/user eager loads and its formatting), `StaffBookingQueryService` (the staff booking list) and
+`StaffCancellationService` (the booking-cancel path, which also WRITES the booking).

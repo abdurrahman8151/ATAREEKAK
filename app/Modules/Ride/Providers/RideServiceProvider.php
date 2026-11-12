@@ -4,6 +4,7 @@ namespace App\Modules\Ride\Providers;
 
 use App\Modules\Ride\Contracts\AdminTripQueries;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
+use App\Modules\Ride\Contracts\BookingRevenueAggregates;
 use App\Modules\Ride\Contracts\CashRideCounter;
 use App\Modules\Ride\Contracts\DriverRideReads;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
@@ -21,6 +22,7 @@ use App\Modules\Ride\Repositories\RideRepository;
 use App\Modules\Ride\Services\AdminTripQueriesService;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
 use App\Modules\Ride\Services\BookingEscrowWriter;
+use App\Modules\Ride\Services\BookingRevenueAggregatesService;
 use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\CashRideCounterService;
 use App\Modules\Ride\Services\DriverRideReadsService;
@@ -98,6 +100,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(CashRideCounter::class, CashRideCounterService::class);
         // Stage 2 C2: Identity's admin passenger profile reads this passenger's booking history.
         $this->app->bind(PassengerBookingHistory::class, PassengerBookingHistoryService::class);
+        // Stage 2 C2: the admin report's three booking-based money projections.
+        $this->app->bind(BookingRevenueAggregates::class, BookingRevenueAggregatesService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

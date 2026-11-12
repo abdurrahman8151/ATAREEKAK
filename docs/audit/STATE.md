@@ -206,6 +206,18 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 325): Console's three booking money projections move to Ride,
+  commit `Stage 2 C2: booking revenue projections owned by Ride`.** NEW
+  `Ride\Contracts\BookingRevenueAggregates` + service + binding: `estimatedGrossForDriver(int)` (incl.
+  `config('fees.driver_share_rate', 0.95)` inside the SQL, so the platform cut keeps ONE definition),
+  `completedBookingsRevenue()`, `lockedFundsInActiveRides()` (the `whereHas` status guard is part of the
+  definition). Ride's, not Money's, because these are projections over `bookings` x `rides` - the ledger sums
+  are Money's `LedgerAggregates` (sec 287). **Allowlist: `AdminDriverDashboardService` loses `Booking`;
+  graph `Console -> Ride` 7 -> 8 ports.** GATE: AppFuture+Snapshots+Admin+Staff+Review = 1271 tests / 5738
+  assertions with only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 846 files.
+  **CONSOLE'S REMAINING `Booking` FILES (three):** `AdminReportService::getRecentActivities()` (feed + eager
+  loads + formatting), `StaffBookingQueryService` (staff booking list), `StaffCancellationService`
+  (booking-cancel path - which also WRITES the booking). Then the `git mv` of `Ride` + `Booking`.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 324): Identity stops naming `Booking` - only CONSOLE is left,
   commit `Stage 2 C2: passenger booking history owned by Ride`.** NEW
   `Ride\Contracts\PassengerBookingHistory` + service + binding, FIVE methods, one per statement Identity ran:
