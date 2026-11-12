@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Models\Booking;
 use App\Models\User;
 
 /**
@@ -16,8 +15,8 @@ use App\Models\User;
 interface NoShowSettlementInterface
 {
     /** Passenger did not show on an e-pay ride: SyCash -> driver (95%) + platform (5%). */
-    public function processPassengerNoShow(Booking $booking, $ride, User $passenger): void;
+    public function processPassengerNoShow($booking, $ride, User $passenger): void;
 
     /** Driver did not show on an e-pay ride: SyCash -> passenger (100% refund). */
-    public function processDriverNoShowRefund($ride, Booking $booking, User $passenger): void;
+    public function processDriverNoShowRefund($ride, $booking, User $passenger): void;
 }

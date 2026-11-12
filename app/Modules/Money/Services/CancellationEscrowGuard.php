@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\Booking;
 use App\Models\Wallet;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -47,7 +46,7 @@ class CancellationEscrowGuard
         $this->access->assertPostingKeyUnused($escrowOutKey);
         $this->access->debitEscrowForSet(
             $bookings,
-            fn (Booking $b) => (float) $b->seats * (float) $ride->price_per_seat
+            fn ($b) => (float) $b->seats * (float) $ride->price_per_seat
         );
 
         return $escrowOutKey;
@@ -82,7 +81,7 @@ class CancellationEscrowGuard
         $this->access->assertPostingKeyUnused($escrowOutKey);
         $this->access->debitEscrowForSet(
             $refundable,
-            fn (Booking $b) => (float) $b->amount_paid
+            fn ($b) => (float) $b->amount_paid
         );
 
         return $escrowOutKey;
@@ -93,7 +92,7 @@ class CancellationEscrowGuard
      *
      * @return array{0: Wallet, 1: Wallet, 2: Wallet}
      */
-    public function lockTimeBasedCancellationWallets(Booking $booking, $ride, $totalPaid): array
+    public function lockTimeBasedCancellationWallets($booking, $ride, $totalPaid): array
     {
         $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
@@ -117,7 +116,7 @@ class CancellationEscrowGuard
      * and `BookingService` reduces `$booking->seats` immediately afterwards, so a later completion
      * of the same booking releases exactly what is left here.
      */
-    public function guardTimeBasedCancellationEscrow(Booking $booking, int $seatsCancelled, $totalPaid): string
+    public function guardTimeBasedCancellationEscrow($booking, int $seatsCancelled, $totalPaid): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         // THE KEY MUST DISTINGUISH A PARTIAL CANCEL FROM THE FULL SETTLEMENT — and successive

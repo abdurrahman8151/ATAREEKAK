@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Models\Booking;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -14,7 +13,7 @@ use Illuminate\Database\Eloquent\Collection;
 interface RidePayoutInterface
 {
     /** Release escrow for ONE passenger on that passenger's confirmation. */
-    public function releaseEscrowToDriver(Booking $booking, $ride, User $driver): void;
+    public function releaseEscrowToDriver($booking, $ride, User $driver): void;
 
     /** Release escrow for the WHOLE confirmed set after a ride completes. */
     public function releaseEarningsToDriver($ride, Collection $confirmedBookings): void;

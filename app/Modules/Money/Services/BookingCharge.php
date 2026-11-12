@@ -3,7 +3,6 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -28,7 +27,7 @@ class BookingCharge implements BookingChargeInterface
      *   - DIRECT booking confirmed
      *   - REQUEST booking accepted by driver
      */
-    public function chargePassengerForBooking(Booking $booking, $ride, User $passenger): void
+    public function chargePassengerForBooking($booking, $ride, User $passenger): void
     {
         $amount = $booking->seats * $ride->price_per_seat;
 
@@ -60,7 +59,7 @@ class BookingCharge implements BookingChargeInterface
     /**
      * The replay guard, FIRST — before any wallet is locked or any balance is written.
      */
-    private function guardAgainstDoubleCharge(Booking $booking): string
+    private function guardAgainstDoubleCharge($booking): string
     {
         // ── RV-02 L2 (D1): the replay guard, FIRST — before any wallet is locked or
         // any balance is written.
@@ -127,7 +126,7 @@ class BookingCharge implements BookingChargeInterface
     }
 
     /** Persist what this booking paid as an immutable snapshot on the booking itself. */
-    private function snapshotBookingCharge(Booking $booking, $ride, $amount): void
+    private function snapshotBookingCharge($booking, $ride, $amount): void
     {
         // RV-40: persist the money as an immutable snapshot on the booking, the moment it
         // is actually charged. Before this, nothing recorded what a booking paid; every
@@ -162,7 +161,7 @@ class BookingCharge implements BookingChargeInterface
      * @return array<int, WalletTransaction>
      */
     private function recordChargeTransactions(
-        Booking $booking,
+        $booking,
         $ride,
         User $passenger,
         Wallet $passengerWallet,
@@ -211,7 +210,7 @@ class BookingCharge implements BookingChargeInterface
      *
      * @param  array<int, WalletTransaction>  $transactions  keyed by wallet id (stage 2 B2)
      */
-    private function postChargeLegs(Booking $booking, Wallet $passengerWallet, Wallet $syCashWallet, $amount, array $transactions = []): void
+    private function postChargeLegs($booking, Wallet $passengerWallet, Wallet $syCashWallet, $amount, array $transactions = []): void
     {
         // ── Decision un3: double-entry legs ────────────────────────────────────
         // The two `wallet_transactions` rows above are the SINGLE-SIDED record: one row per wallet

@@ -19884,3 +19884,33 @@ files**.
 way; the kernel's remaining three are one relation that must travel with the model and two that are parked with
 reasons. The next step is therefore to measure the LAST module-side pair - `Identity -> Ride` and `Identity ->
 Booking` - and then the `git mv` itself, with `Ride` and `Booking` moving together in one commit.
+
+---
+
+### 323. Stage 2 C2: Money stops naming `Booking` too - 43 parameter types, no statements
+
+**The measurement that made this safe.** Unlike `Ride` (which needed a port for one count), Money's coupling to
+`Booking` was ONE KIND of thing: **43 parameter types** across eleven files - `Booking $booking` in the four
+contracts and seven services, including closure signatures (`fn (Booking $b) => ...`) in the cancellation and
+payout filters. **No `Booking::` static call existed anywhere in Money**, so there was no query to move: the
+models arrive as arguments from Ride, and the bodies read `$booking->seats`, `$booking->amount_paid`,
+`$booking->id` exactly as before.
+
+**What changed.** All 43 type hints dropped (`\bBooking (\$\w+)` -> `$1`), bodies untouched. Eleven
+`use App\Models\Booking;` lines became unused; Pint's `no_unused_imports` removed five of them and left six,
+again because those files mention "booking" in comments - the fixer is a name check. Removed by hand. `php -l` on
+all 53 Money files: clean.
+
+**Ratchet movement.** `ModelOwnershipTest`: the pair `Money -> Booking` is REMOVED - **baseline 25 -> 24** and the
+shrink hint is silent. **Money now names NEITHER `Ride` NOR `Booking`.**
+
+**Verification.** The same widest selection as sec 322: `AppFuture` + `Wallet` + `Payment` + `Rides` + `Bookings` +
+`Snapshots` + `Unit/Domain` + `Unit/Services` + `Review` = **1819 tests / 8755 assertions / 2 skipped**, only the
+three pre-existing `L16DriverNoShow` failures. Whole-tree Pint **PASS**.
+
+**WHAT REMAINS BEFORE `Ride` + `Booking` CAN MOVE.** Module side: **Console names `Booking` in four services with
+real queries** (`StaffBookingQueryService` the staff booking list, `StaffCancellationService` the booking-cancel
+path, `AdminReportService` three aggregates, `AdminDriverDashboardService`'s estimated gross) and **Identity names
+it in two** (`PassengerProfilePanelBuilder`'s four passenger-history queries, `ProfileInteractionService`'s
+eligibility check). Those six files need booking-shaped ports, exactly as the Ride side did in secs 313-318 - then
+the `git mv` of BOTH models, the three parked kernel relations and the ownership map.

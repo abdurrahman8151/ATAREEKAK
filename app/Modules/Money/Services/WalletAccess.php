@@ -4,7 +4,6 @@ namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Enums\WalletKind;
-use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
@@ -71,7 +70,7 @@ ew WalletAccess call sites (tests that build the money paths by hand)
      * @throws \RuntimeException when the booking does not hold that much (already settled, or
      *                           never charged at all — both are reasons not to pay).
      */
-    public function debitEscrow(Booking $booking, float $amount): void
+    public function debitEscrow($booking, float $amount): void
     {
         if ($amount <= 0) {
             return;

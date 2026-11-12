@@ -3,7 +3,6 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -23,7 +22,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      * Passenger didn't show — E-PAY ride.
      * SyCash → Driver (95%) + SyCash → Primary (5%).
      */
-    public function processPassengerNoShow(Booking $booking, $ride, User $passenger): void
+    public function processPassengerNoShow($booking, $ride, User $passenger): void
     {
         $total = $booking->seats * $ride->price_per_seat;
         // RV-19: one definition of the 95/5 split. This used to round each share independently,
@@ -69,7 +68,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      * Driver didn't show — E-PAY ride.
      * SyCash → Passenger (100% refund).
      */
-    public function processDriverNoShowRefund($ride, Booking $booking, User $passenger): void
+    public function processDriverNoShowRefund($ride, $booking, User $passenger): void
     {
         $refundAmount = $booking->seats * $ride->price_per_seat;
 
@@ -138,7 +137,7 @@ class NoShowSettlement implements NoShowSettlementInterface
     }
 
     /** The escrow guard pair, before any balance moves: build the key, assert it is unused, debit. */
-    private function releaseEscrowOnce(Booking $booking, $amount, string $reason): string
+    private function releaseEscrowOnce($booking, $amount, string $reason): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         $escrowOutKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-out', $reason);
@@ -197,7 +196,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** The SyCash escrow debit row, carrying the posting key that makes the movement single-shot. */
     private function recordEscrowOutTransaction(
-        Booking $booking,
+        $booking,
         Wallet $syCashWallet,
         $total,
         $syCashPrev,
@@ -221,7 +220,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** The driver's 95% earning row and the platform's 5% fee row for a passenger no-show. */
     private function recordPassengerNoShowShares(
-        Booking $booking,
+        $booking,
         $ride,
         Wallet $driverWallet,
         Wallet $primaryWallet,
@@ -265,7 +264,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** The SyCash escrow debit row plus the full refund row back to the passenger. */
     private function recordDriverNoShowRefundRows(
-        Booking $booking,
+        $booking,
         $ride,
         User $passenger,
         Wallet $syCashWallet,
@@ -306,7 +305,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** Double-entry legs for the passenger no-show fan-out (same 95/5 shape as ride completion). */
     private function postPassengerNoShowLegs(
-        Booking $booking,
+        $booking,
         Wallet $syCashWallet,
         Wallet $driverWallet,
         Wallet $primaryWallet,
@@ -325,7 +324,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** Double-entry legs for the driver no-show refund (SyCash → passenger, 100%). */
     private function postDriverNoShowRefundLegs(
-        Booking $booking,
+        $booking,
         Wallet $syCashWallet,
         Wallet $passengerWallet,
         $refundAmount,

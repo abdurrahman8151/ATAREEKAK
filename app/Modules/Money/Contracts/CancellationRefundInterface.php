@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Models\Booking;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -23,7 +22,7 @@ interface CancellationRefundInterface
 
     /** Time-based cancellation: SyCash -> passenger (refund%) + SyCash -> driver (rest). */
     public function processTimeBasedCancellation(
-        Booking $booking,
+        $booking,
         $ride,
         int $seatsCancelled,
         array $refundPolicy

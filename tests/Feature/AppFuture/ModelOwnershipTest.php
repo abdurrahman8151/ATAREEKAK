@@ -127,7 +127,6 @@ final class ModelOwnershipTest extends TestCase
         'Identity -> Profile' => 'profiles',
         'Identity -> ProfileComment' => 'profile_comments',
         'Identity -> UserRating' => 'user_ratings',
-        'Money -> Booking' => 'bookings',
         'Money -> LedgerEntry' => 'ledger_entries',
         'Money -> Wallet' => 'wallets',
         'Money -> WalletRequest' => 'wallet_requests',

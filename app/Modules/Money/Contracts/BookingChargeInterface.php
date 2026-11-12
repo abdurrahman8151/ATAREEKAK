@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Models\Booking;
 use App\Models\User;
 
 /**
@@ -15,5 +14,5 @@ use App\Models\User;
  */
 interface BookingChargeInterface
 {
-    public function chargePassengerForBooking(Booking $booking, $ride, User $passenger): void;
+    public function chargePassengerForBooking($booking, $ride, User $passenger): void;
 }

@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\Booking;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Illuminate\Database\Eloquent\Collection;
@@ -51,7 +50,7 @@ class CancellationLedgerWriter
     }
 
     /** One passenger's full refund for a driver cancellation: credit the wallet and write the refund row. */
-    public function refundPassengerForDriverCancellation($ride, Booking $booking, string $txId): WalletTransaction
+    public function refundPassengerForDriverCancellation($ride, $booking, string $txId): WalletTransaction
     {
         $refundAmount = $booking->seats * $ride->price_per_seat;
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
@@ -120,7 +119,7 @@ class CancellationLedgerWriter
     }
 
     /** One passenger's full refund for a staff cancellation: credit the wallet and write the refund row. */
-    public function refundPassengerForStaffCancellation($ride, Booking $booking, string $txId): WalletTransaction
+    public function refundPassengerForStaffCancellation($ride, $booking, string $txId): WalletTransaction
     {
         $refundAmount = (float) $booking->amount_paid;
         $passengerWallet = $this->access->lockWalletByUserId($booking->user_id);
@@ -216,7 +215,7 @@ class CancellationLedgerWriter
     }
 
     /** Passenger side of a time-based cancellation: a refund row, or an audit row when the refund is zero. */
-    public function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId): WalletTransaction
+    public function recordPassengerRefund($booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId): WalletTransaction
     {
         if ($refundAmount > 0) {
             return WalletTransaction::create([
@@ -249,7 +248,7 @@ class CancellationLedgerWriter
     }
 
     /** Driver side of a time-based cancellation: the compensation row, when the driver is owed anything. */
-    public function recordDriverCompensation($ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): ?WalletTransaction
+    public function recordDriverCompensation($ride, $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId): ?WalletTransaction
     {
         if ($driverAmount > 0) {
             return WalletTransaction::create([
@@ -303,7 +302,7 @@ class CancellationLedgerWriter
 
     /** The SyCash debit row for a time-based cancellation. */
     public function recordTimeBasedCancellationEscrowRow(
-        Booking $booking,
+        $booking,
         Wallet $syCashWallet,
         $totalPaid,
         $refundAmount,
@@ -335,7 +334,7 @@ class CancellationLedgerWriter
      * balance it, which would be misleading rather than wrong.
      */
     public function postTimeBasedCancellationLegs(
-        Booking $booking,
+        $booking,
         Wallet $syCashWallet,
         Wallet $passengerWallet,
         Wallet $driverWallet,

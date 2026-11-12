@@ -2,7 +2,6 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\Booking;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
@@ -96,7 +95,7 @@ class CancellationRefund implements CancellationRefundInterface
             ];
         }
 
-        $totalRefund = (float) $refundable->sum(fn (Booking $b) => (float) $b->amount_paid);
+        $totalRefund = (float) $refundable->sum(fn ($b) => (float) $b->amount_paid);
         $syCashWallet = $this->guard->lockStaffCancellationSyCash($totalRefund);
 
         $escrowOutKey = $this->guard->guardStaffCancellationEscrow($ride, $refundable);
@@ -127,7 +126,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return WalletTransaction the row this refund wrote (stage 2 B2)
      */
-    public function refundPassengerForStaffCancellation($ride, Booking $booking, string $txId)
+    public function refundPassengerForStaffCancellation($ride, $booking, string $txId)
     {
         return $this->writer->refundPassengerForStaffCancellation($ride, $booking, $txId);
     }
@@ -177,7 +176,7 @@ class CancellationRefund implements CancellationRefundInterface
      * SyCash → Passenger (refund%) + SyCash → Driver (non-refundable%).
      */
     public function processTimeBasedCancellation(
-        Booking $booking,
+        $booking,
         $ride,
         int $seatsCancelled,
         array $refundPolicy
@@ -229,7 +228,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return WalletTransaction the row this policy wrote (stage 2 B2)
      */
-    public function recordPassengerRefund(Booking $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId)
+    public function recordPassengerRefund($booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId)
     {
         return $this->writer->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
     }
@@ -239,7 +238,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return WalletTransaction|null
      */
-    public function recordDriverCompensation($ride, Booking $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId)
+    public function recordDriverCompensation($ride, $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId)
     {
         return $this->writer->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
     }
@@ -254,11 +253,11 @@ class CancellationRefund implements CancellationRefundInterface
      */
     private function splitStaffCancellationBookings($ride, Collection $bookings): array
     {
-        $refundable = $bookings->filter(fn (Booking $b) => (float) $b->amount_paid > 0.0);
+        $refundable = $bookings->filter(fn ($b) => (float) $b->amount_paid > 0.0);
 
         // Confirmed e-pay rows with no snapshot: charged before RV-40 exists. Never fabricate an
         // amount from the current price; surface them for manual review instead.
-        $needsReview = $bookings->filter(function (Booking $b) use ($refundable) {
+        $needsReview = $bookings->filter(function ($b) use ($refundable) {
             return (float) $b->amount_paid <= 0.0
                 && ! $refundable->contains($b)
                 && $b->status === 'confirmed';

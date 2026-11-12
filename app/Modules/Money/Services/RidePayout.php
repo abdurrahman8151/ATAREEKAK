@@ -3,7 +3,6 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -94,7 +93,7 @@ class RidePayout implements RidePayoutInterface
         $this->access->assertPostingKeyUnused($escrowOutKey);
         $this->access->debitEscrowForSet(
             $confirmedBookings,
-            fn (Booking $b) => (float) $b->seats * (float) $ride->price_per_seat
+            fn ($b) => (float) $b->seats * (float) $ride->price_per_seat
         );
 
         return $escrowOutKey;
@@ -225,7 +224,7 @@ class RidePayout implements RidePayoutInterface
      * @throws \RuntimeException if SyCash has insufficient balance,
      *                           or if any required wallet is missing.
      */
-    public function releaseEscrowToDriver(Booking $booking, $ride, User $driver): void
+    public function releaseEscrowToDriver($booking, $ride, User $driver): void
     {
         // `R2 sec 117`: seats x price is a MONEY product, so it is computed in integer minor units.
         // Multiplying the float first and rounding after could land on the wrong side of a half-fils.
@@ -289,7 +288,7 @@ class RidePayout implements RidePayoutInterface
      * but that exclusion lives in the CALLER. These guards make the guarantee hold at the
      * money layer itself, so a caller that gets that filter wrong can no longer pay twice.
      */
-    private function debitEscrowForBookingRelease(Booking $booking, float $total): string
+    private function debitEscrowForBookingRelease($booking, float $total): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         $escrowOutKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-out', 'release');
@@ -325,7 +324,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the SyCash debit row for that booking. */
-    private function recordEscrowReleaseRow(Booking $booking, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId, string $txRef): WalletTransaction
+    private function recordEscrowReleaseRow($booking, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId, string $txRef): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
@@ -343,7 +342,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the driver's 95% earnings row for that booking. */
-    private function recordDriverEarningRow(Booking $booking, User $driver, Wallet $driverWallet, float $driverPrev, float $driverShare, string $txId, string $txRef): WalletTransaction
+    private function recordDriverEarningRow($booking, User $driver, Wallet $driverWallet, float $driverPrev, float $driverShare, string $txId, string $txRef): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
@@ -360,7 +359,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the platform's 5% fee row for that booking. */
-    private function recordPlatformFeeRow(Booking $booking, Wallet $primaryWallet, float $primaryPrev, float $primaryShare, string $txId, string $txRef): WalletTransaction
+    private function recordPlatformFeeRow($booking, Wallet $primaryWallet, float $primaryPrev, float $primaryShare, string $txId, string $txRef): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
@@ -384,7 +383,7 @@ class RidePayout implements RidePayoutInterface
      * becomes checkable: if the two shares ever stop summing to `$total`, the legs do not
      * balance and the transfer is refused instead of quietly creating or destroying money.
      */
-    private function postPerPassengerTransfer(Booking $booking, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
+    private function postPerPassengerTransfer($booking, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
     {
         $this->ledger->postTransfer([
             ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: escrow released", 'wallet_transaction_id' => $transactions[$syCashWallet->id]->id ?? null],

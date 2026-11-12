@@ -206,6 +206,20 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 323): Money stops naming `Booking` too - MONEY NOW NAMES NEITHER
+  `Ride` NOR `Booking`, commit `Stage 2 C2: Money drops the Booking parameter types`.** Measured first:
+  Money's Booking coupling was ONE KIND of thing - **43 parameter types** across eleven files (four contracts,
+  seven services, including closure signatures like `fn ($b) => ...`) - and **no `Booking::` static call
+  existed**, so there was no query to move. All 43 dropped, bodies untouched; six unused imports removed by
+  hand (Pint dropped five, kept six because those files mention "booking" in comments - the fixer is a name
+  check). **Baseline: pair `Money -> Booking` REMOVED -> 24; shrink hint silent.**
+  **GATE:** AppFuture+Wallet+Payment+Rides+Bookings+Snapshots+Unit/Domain+Unit/Services+Review = 1819/8755 with
+  only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 842 files.
+  **REMAINING BEFORE THE `git mv` OF `Ride` + `Booking`:** Console names `Booking` in FOUR services with real
+  queries (`StaffBookingQueryService` list, `StaffCancellationService` booking-cancel, `AdminReportService`
+  three aggregates, `AdminDriverDashboardService` estimated gross) and Identity in TWO
+  (`PassengerProfilePanelBuilder` four history queries, `ProfileInteractionService` eligibility). Those six
+  files need booking-shaped ports, then the move + the three parked kernel relations + the ownership map.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 322): MONEY stops naming `Ride` - THE DECISIVE BLOCKER IS GONE,
   commit `Stage 2 C2: Money reaches Ride through contracts only`.** Classified first: FOURTEEN parameter
   types (five Money Contracts + nine services) and EXACTLY ONE statement
