@@ -19759,3 +19759,16 @@ and `ExpireStaleBookingsCommand.php` (entrypoints - rules C requires the allowli
 and `BookingResource`, and the four kernel models' relations (`Booking`, `Complaint`, `NoshowReport`,
 `ProfileComment`). On the module side, **Money names `Ride` in eleven files** - five of its own Contracts take it
 as a parameter type - which is the largest single blocker and the same shape as the sec-289 rollback.
+
+
+**PROCESS TRAP (hit twice this session, recorded so it stops costing a fix-up): `git add -- <paths>` ABORTS
+ENTIRELY when one path is a file that a `git mv` already moved away.** The error is
+`fatal: pathspec 'app/Events/RideBooked.php' did not match any files`, and the add has staged NOTHING up to that
+point except what an earlier command staged - so the commit that follows contains only the renames and leaves the
+namespace rewrites, the call sites and the tests UNSTAGED. Here that produced a commit whose files sat in
+`App\Modules\Ride\Events` while still declaring `namespace App\Events;` - a PSR-4 mismatch, i.e. a red tree, and
+`git status` was the only thing that showed it. Fixed by staging the remaining paths and `git commit --amend`
+(commit `7548578`). **The rule: after a `git mv`, never put the OLD path in an `add` list; either add only the new
+paths, or use `git add -A -- <dirs>` for the whole change.** And always read `git show --stat HEAD` (or
+`git status --short`) before believing a commit is complete - `git commit` prints a summary that looked right in
+both cases.
