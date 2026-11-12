@@ -206,6 +206,24 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 314): the SECOND Console file leaves `Ride`, commit
+  `Stage 2 C2: driver profile ride reads owned by Ride`.** NEW `Ride\Contracts\DriverRideReads`
+  (`recentRidesForDriver(int, int=5): array`, `latestCommunicationNumberForDriver(int): ?string`) + service +
+  binding. A SECOND contract rather than two more methods on `RideQueryExpressions`: that one returns
+  `Builder` expressions the caller EMBEDS; these return a row set and a scalar, so folding them in would have
+  made the name describe neither half. `AdminDriverPresenter` is now a one-line delegator for both and no
+  longer names the model. **Allowlist:** `AdminDriverPresenter` -> `['Profile']`; **graph:** `Console -> Ride`
+  3 -> 4 ports (declared, no ceiling raised).
+  **GATE:** AppFuture + AdminSnapshotTest + AdminDriverControllerTest + Unit/Services/Admin/
+  AdminDriverServiceTest = 267 tests / 1048 assertions OK, `admin/drivers` (9) and `admin/driver-profile`
+  (12) byte-identical, budgets untouched, unit assertions on `recent_rides`/`phone` unedited; wider
+  Admin+Unit/Services/Admin+Snapshots+Review+Console = 1178/5162 with only the 3 pre-existing
+  `L16DriverNoShow` failures - the SAME totals as the sec-313 gate, so nothing measurable moved. Pint PASS
+  834 files.
+  **FOUR Console files still name `Ride`:** `AdminDriverDashboardService` (5 uses), `AdminReportService` (4),
+  `AdminTripService` (many - biggest), `StaffCancellationService` (1 use but the ride is MUTATED inside its
+  transaction = a write port or a workflow move, not a read port). The PAIR `Console -> Ride` stays until all
+  four are free.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 313): the FIRST Console file leaves `Ride`, commit
   `Stage 2 C2: admin driver ride expressions owned by Ride`.** NEW `Ride\Contracts\RideQueryExpressions`
   (`completedRidesForDriver(int): int`, `rideCountSubquery(ownerKeyColumn): Builder`,

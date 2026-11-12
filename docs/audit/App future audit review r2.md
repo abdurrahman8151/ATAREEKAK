@@ -19524,3 +19524,33 @@ assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures
 (5), `AdminReportService` (4), `AdminTripService` (many - the biggest), `StaffCancellationService` (1 use, but the
 ride is MUTATED inside its transaction, so it needs a write port or the workflow moved, not a reader). One file per
 commit, cheapest first, exactly as this one.
+
+---
+
+### 314. Stage 2 C2: the second Console file leaves `Ride` - `DriverRideReads`
+
+**Why a SECOND contract and not two more methods on `RideQueryExpressions`.** That contract exists for expressions
+the caller EMBEDS so they cost zero queries (`Builder` returns). This step needed a finished row set and a scalar.
+Putting them on the "expressions" port would have made its name describe neither half honestly, so the row reads got
+their own port: `Ride\Contracts\DriverRideReads` -> `recentRidesForDriver(int, int = 5): array` and
+`latestCommunicationNumberForDriver(int): ?string`. Same reasons as sec 313 otherwise: the contract names no model,
+every signature is a column name / int / array, and the row formatting moved WITH the query instead of being
+reimplemented, because the payload is pinned by a frozen snapshot and by `AdminDriverServiceTest`.
+
+**What changed.** `AdminDriverPresenter::driverProfileRecentRides()` and `::resolveDriverPhone()` became one-line
+delegators to the port; the presenter no longer imports `App\Models\Ride` (its `Ride` import went from three uses to
+zero, and its other import - `Profile` - stays). `RideServiceProvider` binds the new port.
+
+**Ratchet movement.** `ModelOwnershipTest` per-file allowlist: `AdminDriverPresenter` `['Profile','Ride']` ->
+`['Profile']`. `ModuleGraphTest`: `Console -> Ride` **3 -> 4** ports, docblock column updated, same reason block.
+The PAIR `Console -> Ride` still stands - **four Console files remain**: `AdminDriverDashboardService` (5 uses),
+`AdminReportService` (4), `AdminTripService` (many, the biggest), `StaffCancellationService` (1 use, but the ride is
+MUTATED inside its transaction, so it needs a write port or a workflow move).
+
+**Verification.** `AppFuture` (all ratchets incl. the two updated counts) + `AdminSnapshotTest` +
+`AdminDriverControllerTest` + `Unit/Services/Admin/AdminDriverServiceTest` = **267 tests / 1048 assertions OK** -
+`admin/drivers` (9 queries) and `admin/driver-profile` (12 queries) byte-identical with both budgets untouched, and
+the unit tests that read `recent_rides` / `phone` / `stats.total_rides` pass unedited. Wider gate: `Admin` +
+`Unit/Services/Admin` + `Snapshots` + `Review` + `Console` = **1178 tests / 5162 assertions / 2 skipped**, only the
+three pre-existing `L16DriverNoShow` failures - the same totals as the sec-313 gate, so this step moved nothing
+measurable. Whole-tree Pint **PASS 834 files**.

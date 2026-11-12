@@ -62,7 +62,7 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Services/AdminAuthService.php' => ['Employee'],
         'app/Modules/Console/Services/AdminDashboardActivityService.php' => ['Photo', 'Profile', 'UserRating'],
         'app/Modules/Console/Services/AdminDriverDashboardService.php' => ['Booking', 'Photo', 'Profile', 'Ride', 'UserRating'],
-        'app/Modules/Console/Services/AdminDriverPresenter.php' => ['Profile', 'Ride'],
+        'app/Modules/Console/Services/AdminDriverPresenter.php' => ['Profile'],
         'app/Modules/Console/Services/AdminDriverQueryService.php' => ['Booking', 'Profile', 'UserRating'],
         'app/Modules/Console/Services/AdminDriverService.php' => ['Photo', 'Profile'],
         'app/Modules/Console/Services/AdminReportService.php' => ['Booking', 'Complaint', 'Profile', 'Ride'],

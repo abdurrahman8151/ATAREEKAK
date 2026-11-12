@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       4      2        -          1
- *   Console            4       9      3        7          -
+ *   Console            4       9      4        7          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -93,8 +93,9 @@ class ModuleGraphTest extends TestCase
         // Stage 2 C2: the admin credit is Money's write path, called through its contract.
         'Console -> Money' => 9,
         // Stage 2 C2: the admin driver screens embed two ride aggregates in their own statement,
-        // so Console asks Ride for the expressions instead of building them from the model.
-        'Console -> Ride' => 3,
+        // so Console asks Ride for the expressions instead of building them from the model; the same
+        // screen's recent-rides page and contact number are a second, row-returning port.
+        'Console -> Ride' => 4,
         'Identity -> Communication' => 1,
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so
         // Identity calls Console's EmployeeTokenVersion port instead of running the increment itself.
