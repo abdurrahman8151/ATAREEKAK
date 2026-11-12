@@ -2,10 +2,10 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Booking;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
+use App\Modules\Ride\Contracts\StaffBookingCancellation;
 use App\Modules\Ride\Contracts\TripCancellationWriter;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -100,7 +100,7 @@ final class StaffCancellationService
         }
 
         try {
-            $booking = Booking::with(['ride', 'user'])->findOrFail($bookingId);
+            $booking = app(StaffBookingCancellation::class)->findForCancellation($bookingId);
 
             // Only cancel active bookings
             if (! in_array($booking->status, ['pending', 'confirmed'])) {
@@ -251,7 +251,7 @@ final class StaffCancellationService
      *
      * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
      */
-    private function cancelBookingWithinTransaction(Booking $booking, array $input, $agent): array
+    private function cancelBookingWithinTransaction($booking, array $input, $agent): array
     {
         $seatsToRestore = $booking->seats;
         $ride = $booking->ride;
@@ -259,7 +259,7 @@ final class StaffCancellationService
         $refund = $this->refundCancelledBooking($booking, $ride);
 
         // Cancel booking
-        $booking->update(['status' => 'cancelled']);
+        app(StaffBookingCancellation::class)->markCancelled($booking->id);
 
         $this->restoreSeatsForCancelledBooking($ride, $seatsToRestore);
 
@@ -280,7 +280,7 @@ final class StaffCancellationService
      *
      * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
      */
-    private function refundCancelledBooking(Booking $booking, $ride): array
+    private function refundCancelledBooking($booking, $ride): array
     {
         if (! $ride) {
             return ['refunded' => 0.0, 'bookings' => 0, 'needs_review' => 0, 'amount_source' => 'none'];
@@ -289,7 +289,7 @@ final class StaffCancellationService
         // An ELOQUENT collection, not collect(): the service signature is typed to
         // Eloquent's Collection and a support-collection here was a hard 500.
         return $this->cancellationRefund
-            ->refundPassengersForStaffCancellation($ride, Booking::whereIn('id', [$booking->id])->get());
+            ->refundPassengersForStaffCancellation($ride, app(StaffBookingCancellation::class)->forRefund($booking->id));
     }
 
     /**
@@ -306,7 +306,7 @@ final class StaffCancellationService
     /**
      * Notify the passenger whose booking was cancelled.
      */
-    private function notifyPassengerOfCancelledBooking(Booking $booking, $ride, array $input): void
+    private function notifyPassengerOfCancelledBooking($booking, $ride, array $input): void
     {
         if (! $booking->user) {
             return;
@@ -328,7 +328,7 @@ final class StaffCancellationService
     /**
      * Audit trail for a staff-initiated booking cancellation.
      */
-    private function logCancelledBooking(Booking $booking, $agent, array $input, $seatsToRestore, array $refund): void
+    private function logCancelledBooking($booking, $agent, array $input, $seatsToRestore, array $refund): void
     {
         Log::info('Staff cancelled booking', [
             'booking_id' => $booking->id,

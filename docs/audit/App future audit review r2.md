@@ -20053,3 +20053,42 @@ budgets are unchanged, and the graph measures 10 as declared. Whole-tree Pint **
 **ONE Console file still names `Booking`: `StaffCancellationService`** - and it is the hard one, because the
 booking-cancel path both READS and WRITES the row (the trip half is already ported in sec 318). After that, the
 `git mv` of `Ride` + `Booking`.
+
+---
+
+### 328. Stage 2 C2: the staff booking-cancel path moves to Ride - MILESTONE: NO MODULE NAMES `Ride` OR `Booking`
+
+**The last Console file.** `StaffCancellationService`'s booking half ran three statements over `bookings`: the
+`with(['ride','user'])` find-or-fail, the `$booking->update(['status' => 'cancelled'])` flip, and the
+`whereIn('id', [$id])->get()` collection handed to Money's refund. All three became
+`Ride\Contracts\StaffBookingCancellation` + service + binding:
+`findForCancellation(int): mixed` (eager loads and `ModelNotFoundException` intact, so the caller's 404 branch is
+untouched), `markCancelled(int): void` (the same flip, same `updated_at`), and `forRefund(int): Collection` - the
+fresh fetch is kept DELIBERATELY rather than wrapping the already-loaded row, because wrapping it would drop a
+query and move the endpoint's recorded budget. A separate contract from `TripCancellationWriter` (sec 318) for the
+same reason that one was split out: Ride owns both tables, and one name should not describe two workflows.
+
+**THE MILESTONE.** With this commit, the pair baseline loses its last two model entries for these classes:
+**no module file anywhere names `App\Models\Ride` or `App\Models\Booking`.** The baseline went 33 -> 22 across
+this phase, and what remains is debt for OTHER models (Complaint, Photo, Profile, ProfileComment, Employee,
+Wallet, WalletRequest, WalletTransaction, LedgerEntry, UserRating) plus the three Ride-internal entries
+(`Ride -> Ride`, `Ride -> Booking`, `Ride -> NoshowReport`) that disappear when those classes move.
+
+**Ratchet movement.** `ModelOwnershipTest`: the `StaffCancellationService` allowlist entry is REMOVED (it named
+only `Booking`), and the `Console -> Booking` PAIR is removed - baseline **23 -> 22**. `ModuleGraphTest`:
+`Console -> Ride` **10 -> 11** ports, docblock column updated.
+
+**Verification.** `AppFuture` + `Staff` + `Snapshots` + `Admin` + `Review` + `Rides` + `Bookings` = **1378 tests /
+5982 assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures - both staff cancellation
+endpoints, their snapshots and their budgets are unchanged. Whole-tree Pint **PASS**.
+
+**WHAT THE `git mv` OF `Ride` + `Booking` NOW NEEDS (and nothing else on the module side):**
+1. the two classes move together, each with an explicit `protected $table`;
+2. `Booking::ride()` moves WITH them (Ride owns bookings) - it is a same-namespace relation inside the moved
+   class, so it resolves to the module's own Ride after the move;
+3. `NoshowReport::ride()` and `Complaint::ride()` stay in the kernel and are PARKED with their reasons (the first
+   has an eager load that would change a query count if trimmed; the second is asserted by
+   `RV23ComplaintContextTest`), so **those two kernel files will name a module model** - which `ModuleBoundaryTest`
+   rule B forbids at hard zero. **That is the next decision point**: either those two models move with Ride, or the
+   relations go, or the rule needs an owner decision. Measure before moving.
+4. the ARCHITECTURE ownership map, the Ride/Console READMEs and the section-12 deploy note.

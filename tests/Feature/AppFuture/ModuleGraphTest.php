@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      2        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       4      3        -          1
- *   Console            4       9     10        7          -
+ *   Console            4       9     11        7          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -100,8 +100,8 @@ class ModuleGraphTest extends TestCase
         // admin/staff trip screens' four queries are a fourth; the staff cancellation flow's trip writes
         // are a fifth (the workflow itself stays in Console); the report's three booking-based money
         // projections are a sixth; the recent-activity feed is a seventh; the staff bookings list is
-        // an eighth.
-        'Console -> Ride' => 10,
+        // an eighth; the staff booking-cancel path's lookup and write are a ninth.
+        'Console -> Ride' => 11,
         'Identity -> Communication' => 1,
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so
         // Identity calls Console's EmployeeTokenVersion port instead of running the increment itself.

@@ -206,6 +206,22 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 328) - MILESTONE: NO MODULE NAMES `Ride` OR `Booking` ANY MORE,
+  commit `Stage 2 C2: staff booking cancellation ported; no module names Ride or Booking`.** The last Console
+  file (`StaffCancellationService`'s booking half) now uses
+  `Ride\Contracts\StaffBookingCancellation` + service + binding: `findForCancellation(int): mixed` (eager loads
+  + `ModelNotFoundException` intact), `markCancelled(int)`, `forRefund(int): Collection` (the fresh fetch kept
+  DELIBERATELY - wrapping the loaded row would drop a query and move the budget). **Allowlist entry removed;
+  pair `Console -> Booking` removed -> baseline 23 -> 22 (was 33 at the start of this phase); graph
+  `Console -> Ride` 10 -> 11 ports.** GATE: AppFuture+Staff+Snapshots+Admin+Review+Rides+Bookings = 1378 tests /
+  5982 assertions with only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 852 files.
+  **NEXT: the `git mv` OF `Ride` + `Booking` TOGETHER.** What it needs, and nothing else on the module side:
+  (1) both classes move with explicit `protected $table`; (2) `Booking::ride()` travels with them (same-module
+  relation afterwards); (3) **`NoshowReport::ride()` and `Complaint::ride()` STAY IN THE KERNEL and are parked -
+  so those two kernel files will name a module model, which `ModuleBoundaryTest` rule B forbids at hard zero.
+  THAT IS THE NEXT DECISION POINT:** move those two models with Ride, or delete the relations, or an owner
+  decision on the rule. MEASURE before moving. (4) ARCHITECTURE ownership map + Ride/Console READMEs + the
+  section-12 deploy note.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 327): the staff bookings list moves to Ride, commit
   `Stage 2 C2: staff booking list query owned by Ride`.** NEW
   `Ride\Contracts\StaffBookingList::paginateStaffBookings(array): LengthAwarePaginator` + service + binding.
