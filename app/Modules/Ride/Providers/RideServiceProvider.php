@@ -6,6 +6,7 @@ use App\Modules\Ride\Contracts\BookingEscrowLedger;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\NoShowReportInterface;
+use App\Modules\Ride\Contracts\RideQueryExpressions;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
@@ -16,6 +17,7 @@ use App\Modules\Ride\Services\BookingEscrowWriter;
 use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\Noshowservice;
+use App\Modules\Ride\Services\RideQueryExpressionsService;
 use App\Modules\Ride\Services\RideSearchService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RideValidationService;
@@ -69,6 +71,9 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(ScoreServiceInterface::class, ScoreService::class);
         $this->app->bind(UserRideStatsInterface::class, UserRideStatsService::class);
         $this->app->bind(RideRepositoryInterface::class, RideRepository::class);
+        // Stage 2 C2: the admin driver screens embed two ride aggregates in their own query, so the
+        // expressions - not result sets - cross the boundary and their query count stays zero.
+        $this->app->bind(RideQueryExpressions::class, RideQueryExpressionsService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

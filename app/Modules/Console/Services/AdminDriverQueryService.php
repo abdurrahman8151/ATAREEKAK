@@ -3,9 +3,9 @@
 namespace App\Modules\Console\Services;
 
 use App\Models\Profile;
-use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Identity\Contracts\UserRatingReader;
+use App\Modules\Ride\Contracts\RideQueryExpressions;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
@@ -59,12 +59,11 @@ final class AdminDriverQueryService
             //     (`created_at DESC`, then whatever the engine returns for ties - the old scalar
             //     `value()` query behaved identically), same NULL semantics.
             ->withAvg('receivedRatings as avg_rating', 'rating')
-            ->addSelect(['latest_communication_number' => Ride::query()
-                ->select('communication_number')
-                ->whereColumn('rides.driver_id', 'users.id')
-                ->whereNotNull('communication_number')
-                ->orderByDesc('created_at')
-                ->limit(1),
+            // Stage 2 C2: Ride owns the rows, so the expression is Ride's too. It is still embedded in
+            // THIS statement - the port returns a subquery, not a result set - so the endpoint's query
+            // count does not move.
+            ->addSelect(['latest_communication_number' => app(RideQueryExpressions::class)
+                ->latestCommunicationNumberSubquery('users.id'),
             ])
             ->where(function ($q) {
                 $q->where('is_verified_driver', true)
@@ -111,9 +110,8 @@ final class AdminDriverQueryService
         // because the presenter rounds and casts before emitting.
         $ratingStats = app(UserRatingReader::class)->statsFor($driverId);
 
-        $completedRides = Ride::where('driver_id', $driverId)
-            ->where('status', 'finished')
-            ->count();
+        // Stage 2 C2: one scalar, one query - Ride's COUNT, published as a number.
+        $completedRides = app(RideQueryExpressions::class)->completedRidesForDriver($driverId);
 
         return [
             ...$this->presenter->driverProfileIdentity($driver),
@@ -147,8 +145,7 @@ final class AdminDriverQueryService
         return User::query()
             ->select('users.*')
             ->addSelect([
-                'rides_count' => Ride::selectRaw('count(*)')
-                    ->whereColumn('rides.driver_id', 'users.id'),
+                'rides_count' => app(RideQueryExpressions::class)->rideCountSubquery('users.id'),
             ])
             ->with(['profile', 'photos'])
             ->findOrFail($driverId);

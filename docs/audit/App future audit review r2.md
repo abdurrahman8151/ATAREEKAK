@@ -19475,3 +19475,52 @@ what `withAvg` already produces; (iii) the three list paths (`RideRepository:276
 render sites attach one value each - one query each, exactly what the old fallback cost; (v) `AdminDriverQueryService:61`
 embeds `averageSubquery('users.id')` - zero extra statements, budget stays 9; (vi) THEN `receivedRatings()` goes and
 `UserRating` moves to `App\Modules\Identity\Models` with `protected $table = 'user_ratings'`.
+
+---
+
+### 313. Stage 2 C2: the first Console file leaves `Ride` - `RideQueryExpressions`
+
+**The step, and why it is an EXPRESSION port rather than a reader.** `AdminDriverQueryService` was the smallest
+Console file still naming `Ride`: three uses, two of them EMBEDDED in its own paginated `users` query
+(`count(*)` per driver, and the newest non-null communication number), one a plain `count()` of finished rides.
+`admin/drivers` is budgeted at **9 queries** and that budget may only shrink, so a reader returning a RESULT SET was
+never an option there - it would have made the endpoint 10. The owner now publishes the expressions themselves:
+
+- `Ride\Contracts\RideQueryExpressions` - `completedRidesForDriver(int): int`,
+  `rideCountSubquery(string $ownerKeyColumn): Builder`,
+  `latestCommunicationNumberSubquery(string $ownerKeyColumn): Builder`.
+- `Ride\Services\RideQueryExpressionsService` - every statement character-for-character the inline one it replaces
+  (same `status = 'finished'`, same `count(*)`, same `whereNotNull`, same `orderByDesc('created_at')`, same
+  `limit(1)`), bound in `RideServiceProvider`.
+- The contract names **no model** in any signature - only a column name, a string and an int - so nothing outside
+  Ride has to reference the class.
+
+**The error I made and the run that caught it.** My first version of the service imported
+`App\Modules\Ride\Models\Ride`, which does not exist yet: the model is still `App\Models\Ride`. That is the same
+class of mistake as sec 301's unqualified `User::class` - writing the post-move namespace before the move. It showed
+up as `DanglingImportTest` plus every admin route erroring. Fixed by importing the real class; Ride is allowed to
+name `App\Models\Ride` today, which is exactly what the shrink-only baseline entry `Ride -> Ride` records.
+
+**The scratch MySQL died twice more this session** (machine suspension). Both times the symptom was a wall of
+`E`/connection-refused at `migrate:fresh` - infrastructure, not a test result. Restarted once each time from the
+documented command and re-ran; the numbers below are from the clean re-run. **74 "errors" in one run were entirely
+this**, and a run with 12 real failures earlier in the same step was the import bug above, so the two must not be
+confused: connection-refused is always the DB, never the diff.
+
+**Ratchet movement (this is the visible part).**
+- `ModelOwnershipTest` per-file allowlist: `AdminDriverQueryService` `['Booking','Profile','Ride','UserRating']` ->
+  `['Booking','Profile','UserRating']`. Console still names `Booking`, so the PAIR `Console -> Ride` stays in the
+  baseline - it is down to five files now.
+- `ModuleGraphTest`: `Console -> Ride` **2 -> 3** ports, docblock column updated, with the reason next to the count.
+  No ceiling raised: it is a new port on an edge that already exists, which the graph test's own message requires be
+  declared in the commit that adds it.
+
+**Verification.** `AppFuture` + `AdminSnapshotTest` + `AdminDriverControllerTest` = **125 tests / 748 assertions
+OK**, including `admin/drivers` (9 queries) and `admin/driver-profile` (12 queries) byte-identical with both budgets
+untouched. Wider gate: `Admin` + `Unit/Services/Admin` + `Snapshots` + `Review` + `Console` = **1178 tests / 5162
+assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures. Whole-tree Pint **PASS 832 files**.
+
+**Next.** The remaining Console files naming `Ride`: `AdminDriverPresenter` (2 uses), `AdminDriverDashboardService`
+(5), `AdminReportService` (4), `AdminTripService` (many - the biggest), `StaffCancellationService` (1 use, but the
+ride is MUTATED inside its transaction, so it needs a write port or the workflow moved, not a reader). One file per
+commit, cheapest first, exactly as this one.

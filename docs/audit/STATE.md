@@ -206,6 +206,27 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 313): the FIRST Console file leaves `Ride`, commit
+  `Stage 2 C2: admin driver ride expressions owned by Ride`.** NEW `Ride\Contracts\RideQueryExpressions`
+  (`completedRidesForDriver(int): int`, `rideCountSubquery(ownerKeyColumn): Builder`,
+  `latestCommunicationNumberSubquery(ownerKeyColumn): Builder`) + service + binding; `AdminDriverQueryService`
+  no longer names the model. **An EXPRESSION port, not a reader, and that is forced:** two of the three uses
+  are EMBEDDED in Console's paginated `users` query and `admin/drivers` is budgeted at **9** - a reader
+  returning a result set would make it 10, which this mode forbids. The contract names no model in any
+  signature. `ModelOwnershipTest` allowlist `AdminDriverQueryService` -> `['Booking','Profile','UserRating']`;
+  `ModuleGraphTest` `Console -> Ride` 2 -> 3 ports (declared, no ceiling raised).
+  **MY ERROR, CAUGHT BY THE RUN:** the service first imported `App\Modules\Ride\Models\Ride`, which does not
+  exist yet - the model is still `App\Models\Ride`. Writing the post-move namespace before the move is the
+  same trap as sec 301's unqualified `User::class`.
+  **GATE:** AppFuture + AdminSnapshotTest + AdminDriverControllerTest 125/748 OK with `admin/drivers` (9) and
+  `admin/driver-profile` (12) byte-identical and both budgets untouched; wider Admin+Unit/Services/Admin+
+  Snapshots+Review+Console 1178/5162 with only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 832
+  files. **Scratch MySQL died TWICE more this session (machine suspension) - connection-refused at
+  migrate:fresh is ALWAYS the DB, never the diff; restart from AGENTS.local.md and re-run.**
+  **Next:** remaining Console files naming `Ride`, cheapest first - `AdminDriverPresenter` (2 uses),
+  `AdminDriverDashboardService` (5), `AdminReportService` (4), `AdminTripService` (many, the biggest),
+  `StaffCancellationService` (1 use but the ride is MUTATED in its transaction = a write port or the workflow
+  moves, not a reader).
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 312): `User::getTotalRatingsAttribute()` deleted (dead; no
   `$appends`), commit `Stage 2 C2: dead rating accessor removed; UserRating move parked on one assertion`.**
   Rating area 1378 tests / 5982 assertions / 2 skipped with ONLY the 3 pre-existing `L16DriverNoShow`
