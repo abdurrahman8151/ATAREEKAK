@@ -206,6 +206,27 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 326): the admin recent-activity feed moves to Ride,
+  commit `Stage 2 C2: recent activity feed owned by Ride`.** NEW
+  `Ride\Contracts\BookingActivityFeed::recentActivities(int): array` + service + binding, returning RAW rows
+  (ids, status, seats, communication number, `created_at`, name parts, pickup/destination, price per seat);
+  every label stayed in Console (masked number, RTL arrow, Today/Yesterday wording, Money/`---`), so
+  `total_value` is the caller's arithmetic. The method's non-ASCII literals (double-encoded em dash + arrow)
+  were handled with a throwaway ASCII-anchored script, deleted in the same step; `git diff` confirms those
+  branches are unchanged.
+  **REGRESSION I CAUSED AND FIXED: a missing `use` line.** The rewrite referenced `BookingActivityFeed::class`
+  without the import, so PHP resolved it inside Console -> `BindingResolutionException` -> **500 on
+  `admin/dashboard` and `admin/dashboard-recent`**. `php -l` and Pint both passed. **Three tests caught it, and
+  the SAME omission explained the graph mismatch I had just glossed over: `ModuleGraphTest` measured
+  `Console -> Ride: 8` against my declared 9, because the enumerator matches the CONTRACT's namespace text and
+  an unqualified class name contains none of it. The ratchet disagreement was the earlier signal - investigate
+  it BEFORE the test run.** After the import: 369 tests / 2795 assertions OK, graph measures 9.
+  **Allowlist:** `AdminReportService` -> `['Complaint','Profile']`; graph `Console -> Ride` 8 -> 9 ports.
+  **GATE:** Admin+Staff+Review+AppFuture+Snapshots+Rides+Bookings+Profile = 1390 tests / 5998 assertions with
+  only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 848 files.
+  **CONSOLE NAMES `Booking` IN TWO FILES NOW, both staff-side:** `StaffBookingQueryService` (booking list) and
+  `StaffCancellationService` (booking-cancel path - also WRITES the booking). Then the `git mv` of `Ride` +
+  `Booking`.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 325): Console's three booking money projections move to Ride,
   commit `Stage 2 C2: booking revenue projections owned by Ride`.** NEW
   `Ride\Contracts\BookingRevenueAggregates` + service + binding: `estimatedGrossForDriver(int)` (incl.

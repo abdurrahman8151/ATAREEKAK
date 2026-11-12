@@ -3,6 +3,7 @@
 namespace App\Modules\Ride\Providers;
 
 use App\Modules\Ride\Contracts\AdminTripQueries;
+use App\Modules\Ride\Contracts\BookingActivityFeed;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
 use App\Modules\Ride\Contracts\BookingRevenueAggregates;
 use App\Modules\Ride\Contracts\CashRideCounter;
@@ -21,6 +22,7 @@ use App\Modules\Ride\Domain\ScorePolicyFactory;
 use App\Modules\Ride\Repositories\RideRepository;
 use App\Modules\Ride\Services\AdminTripQueriesService;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
+use App\Modules\Ride\Services\BookingActivityFeedService;
 use App\Modules\Ride\Services\BookingEscrowWriter;
 use App\Modules\Ride\Services\BookingRevenueAggregatesService;
 use App\Modules\Ride\Services\BookingService;
@@ -102,6 +104,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(PassengerBookingHistory::class, PassengerBookingHistoryService::class);
         // Stage 2 C2: the admin report's three booking-based money projections.
         $this->app->bind(BookingRevenueAggregates::class, BookingRevenueAggregatesService::class);
+        // Stage 2 C2: the admin dashboard's recent-activity feed.
+        $this->app->bind(BookingActivityFeed::class, BookingActivityFeedService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

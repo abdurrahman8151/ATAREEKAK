@@ -19983,3 +19983,44 @@ their query budgets are unchanged. Whole-tree Pint **PASS**.
 **Console's remaining `Booking` files (three):** `AdminReportService::getRecentActivities()` (the feed with its
 ride/driver/user eager loads and its formatting), `StaffBookingQueryService` (the staff booking list) and
 `StaffCancellationService` (the booking-cancel path, which also WRITES the booking).
+
+---
+
+### 326. Stage 2 C2: the admin recent-activity feed moves to Ride - and a missing import that a snapshot caught
+
+**What moved, and what deliberately did not.** `AdminReportService::getRecentActivities()` was the last
+dashboard read over `bookings`. The query, its three eager loads and its ordering became
+`Ride\Contracts\BookingActivityFeed::recentActivities(int): array`, returning RAW rows (booking id, status, seats,
+communication number, `created_at`, passenger name parts, driver name parts, pickup/destination, price per seat).
+Every label stayed in Console: the masked number (`XXX-XXX-` + last four), the RTL route arrow, the
+`Today, 14:05` / `Yesterday, 14:05` / `d M, H:i` wording, the `Money` string and the `---` for a cancelled row.
+`total_value` is computed by the caller from the two raw numbers for exactly that reason.
+
+**The non-ASCII problem, and how it was handled.** The method contains a literal em dash and an RTL arrow that are
+double-encoded in the file. A literal `edit` on those lines failed to match, so the rewrite was done with a
+throwaway script using ASCII-anchored replacements only - the non-ASCII branches were never in a search pattern,
+and `git diff` confirms they are unchanged context lines. The script was deleted in the same step (proved by
+`Test-Path` returning false).
+
+**THE REGRESSION: a missing import.** The rewrite referenced `BookingActivityFeed::class` without adding
+`use App\Modules\Ride\Contracts\BookingActivityFeed;`. PHP resolved it to `App\Modules\Console\Services\BookingActivityFeed`,
+so the container threw `BindingResolutionException: Target class [...] does not exist` - inside the controller's
+catch-all, which turned it into a **500 on `admin/dashboard` and `admin/dashboard-recent`**. `php -l` passed, Pint
+passed, and the class name looked right in the diff. **Three tests caught it** (`AdminSnapshotTest` twice and
+`AdminDashboardControllerTest`), and the SAME omission also explained the graph mismatch I had just written off:
+`ModuleGraphTest` measured `Console -> Ride: 8` against my declared 9, because the enumerator matches
+`App\Modules\Ride\Contracts\...` text and an unqualified `BookingActivityFeed::class` contains none of it. **One
+missing `use` line produced a red snapshot AND a wrong ratchet reading; the ratchet disagreement was the earlier
+signal and should have been investigated before the test run, not after it.**
+Fixed by adding the import; the file then has 3 Ride contracts, and the graph measures 9 as declared.
+
+**Ratchet movement.** `ModelOwnershipTest`: `AdminReportService` loses `Booking` -> `['Complaint','Profile']`.
+`ModuleGraphTest`: `Console -> Ride` **8 -> 9** ports, docblock column updated.
+
+**Verification.** After the fix: `AppFuture` + `Admin` + `Snapshots` = **369 tests / 2795 assertions OK**.
+Wider gate: `Admin` + `Staff` + `Review` + `AppFuture` + `Snapshots` + `Rides` + `Bookings` + `Profile` =
+**1390 tests / 5998 assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures - including
+the exact dashboard snapshots that failed before the fix. Whole-tree Pint **PASS**.
+
+**Console now names `Booking` in TWO files, both staff-side:** `StaffBookingQueryService` (the booking list) and
+`StaffCancellationService` (the booking-cancel path, which also WRITES the booking).

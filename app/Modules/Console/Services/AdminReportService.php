@@ -4,12 +4,12 @@ namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Enums\ComplaintStatus;
-use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Money\Contracts\LedgerAggregates;
 use App\Modules\Money\Contracts\WalletDirectory;
+use App\Modules\Ride\Contracts\BookingActivityFeed;
 use App\Modules\Ride\Contracts\BookingRevenueAggregates;
 use App\Modules\Ride\Contracts\RideReportCounts;
 use Carbon\Carbon;
@@ -216,42 +216,32 @@ final class AdminReportService
      */
     public function getRecentActivities(int $limit = 10): array
     {
-        $bookings = Booking::with([
-            'ride:id,pickup_address,destination_address,price_per_seat,status,departure_time,driver_id',
-            'ride.driver:id,first_name,last_name',
-            'user:id,first_name,last_name',
-        ])
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get();
+        $bookings = collect(app(BookingActivityFeed::class)->recentActivities($limit));
 
-        return $bookings->map(function (Booking $booking) {
-            $ride = $booking->relationLoaded('ride') ? $booking->ride : $booking->load('ride')->ride;
-            $driver = $ride?->driver;
-            $totalValue = $booking->seats * ($ride?->price_per_seat ?? 0);
-            $isCancelled = in_array($booking->status, ['cancelled', 'no_show']);
+        return $bookings->map(function ($booking) {
+            $totalValue = $booking['seats'] * ($booking['price_per_seat'] ?? 0);
+            $isCancelled = in_array($booking['status'], ['cancelled', 'no_show']);
 
             return [
-                'booking_id' => $booking->id,
+                'booking_id' => $booking['booking_id'],
                 'user' => [
-                    'name' => trim("{$booking->user?->first_name} {$booking->user?->last_name}"),
-                    'number' => 'XXX-XXX-'.substr($booking->communication_number ?? '', -4),
+                    'name' => trim("{$booking['user_first_name']} {$booking['user_last_name']}"),
+                    'number' => 'XXX-XXX-'.substr($booking['communication_number'] ?? '', -4),
                 ],
-                'driver' => $driver
-                    ? trim("{$driver->first_name} {$driver->last_name}")
+                'driver' => $booking['driver_first_name'] ? trim("{$booking['driver_first_name']} {$booking['driver_last_name']}")
                     : '—',
-                'route' => $ride
-                    ? "{$ride->pickup_address} ← {$ride->destination_address}"
+                'route' => $booking['pickup_address']
+                    ? "{$booking['pickup_address']} ← {$booking['destination_address']}"
                     : '—',
                 'date' => [
-                    'raw' => $booking->created_at->toIso8601String(),
-                    'human' => $booking->created_at->isToday()
-                        ? 'Today, '.$booking->created_at->format('H:i')
-                        : ($booking->created_at->isYesterday()
-                            ? 'Yesterday, '.$booking->created_at->format('H:i')
-                            : $booking->created_at->format('d M, H:i')),
+                    'raw' => $booking['created_at']->toIso8601String(),
+                    'human' => $booking['created_at']->isToday()
+                        ? 'Today, '.$booking['created_at']->format('H:i')
+                        : ($booking['created_at']->isYesterday()
+                            ? 'Yesterday, '.$booking['created_at']->format('H:i')
+                            : $booking['created_at']->format('d M, H:i')),
                 ],
-                'status' => $booking->status,
+                'status' => $booking['status'],
                 'value' => $isCancelled
                     ? '---'
                     : Money::from($totalValue)->formatted(),
