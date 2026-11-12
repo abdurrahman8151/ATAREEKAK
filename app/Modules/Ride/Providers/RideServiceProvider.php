@@ -8,6 +8,7 @@ use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\NoShowReportInterface;
 use App\Modules\Ride\Contracts\RideQueryExpressions;
+use App\Modules\Ride\Contracts\RideReportCounts;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
@@ -20,6 +21,7 @@ use App\Modules\Ride\Services\DriverRideReadsService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\Noshowservice;
 use App\Modules\Ride\Services\RideQueryExpressionsService;
+use App\Modules\Ride\Services\RideReportCountsService;
 use App\Modules\Ride\Services\RideSearchService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RideValidationService;
@@ -78,6 +80,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(RideQueryExpressions::class, RideQueryExpressionsService::class);
         // Stage 2 C2: the driver-profile screen's recent-rides page and contact number.
         $this->app->bind(DriverRideReads::class, DriverRideReadsService::class);
+        // Stage 2 C2: the report's fleet-wide trip counters are counts over Ride's own table.
+        $this->app->bind(RideReportCounts::class, RideReportCountsService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

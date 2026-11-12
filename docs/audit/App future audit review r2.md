@@ -19599,3 +19599,37 @@ after. Nothing in the repository was deleted.
 **Next: three Console files remain.** `AdminReportService` (4 uses - counts plus one query builder), `AdminTripService`
 (many - the biggest), `StaffCancellationService` (one use, but the ride is MUTATED inside the transaction: it needs a
 write port or the workflow moved into Ride, not a read).
+
+---
+
+### 316. Stage 2 C2: the fourth Console file leaves `Ride` - `RideReportCounts`
+
+**What the report actually needed was four counts.** `AdminReportService`'s ride uses are the dashboard's
+`active_trips` / `completed_trips`, the growth chart's per-month `completedTripsBetween`, and the statistics block's
+five status counters. No report screen reads a ride ROW, so the new port returns numbers only:
+`Ride\Contracts\RideReportCounts` -> `activeTrips()`, `completedTrips()`, `completedTripsBetween(Carbon, Carbon)`,
+`statistics(?Carbon, ?Carbon): array`. Bound in `RideServiceProvider`.
+
+**The status vocabulary stays in Ride.** Callers ask for "active trips" and "completed trips"; no caller writes
+`status = 'active'`. That is the second thing this port buys beyond the import: the enum values the report used to
+spell are now Ride's business, which matters because `finished` vs `completed` is exactly the kind of drift the
+RV-39 earnings spellings already cost this codebase.
+
+**`statistics()` stays FIVE queries on purpose.** One grouped `GROUP BY status` would be tidier and would move
+`admin/reports`' recorded budget; a budget may only shrink. The clone-builder shape (`$q = Ride::query()`, optional
+`created_at` window, then one count per status) is reproduced exactly.
+
+**Ratchet movement.** `ModelOwnershipTest`: `AdminReportService` `['Booking','Complaint','Profile','Ride']` ->
+`['Booking','Complaint','Profile']`. `ModuleGraphTest`: `Console -> Ride` **4 -> 5** ports (a genuinely new
+contract this time, unlike sec 315 where I over-declared by reusing one), docblock column updated.
+
+**Verification.** `AppFuture` + `AdminSnapshotTest` + `Admin` = **222 tests / 964 assertions OK** -
+`admin/reports`, `admin/dashboard`, `admin/dashboard-growth` and the other dashboard snapshots byte-identical with
+budgets untouched. Wider gate: `Admin` + `Unit/Services/Admin` + `Snapshots` + `Review` + `Console` =
+**1178 tests / 5162 assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures - the same
+totals as the sec-313/314/315 gates. Whole-tree Pint **PASS 836 files**.
+
+**TWO Console files remain, and they are the two hard ones.** `AdminTripService` (many uses: trip lists, six status
+counts, a paginated browse and a detail view) and `StaffCancellationService` (one use, but the ride is MUTATED
+inside its transaction - seat restore, status write - so it needs a Ride WRITE port or the workflow moved into
+Ride, which is the same class of decision sec 293 hit for the wallet-request approval workflow).

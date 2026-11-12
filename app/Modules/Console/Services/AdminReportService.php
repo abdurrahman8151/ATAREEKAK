@@ -7,10 +7,10 @@ use App\Enums\ComplaintStatus;
 use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\Profile;
-use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Money\Contracts\LedgerAggregates;
 use App\Modules\Money\Contracts\WalletDirectory;
+use App\Modules\Ride\Contracts\RideReportCounts;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -91,8 +91,9 @@ final class AdminReportService
 
         return [
             'total_users' => User::count(),
-            'active_trips' => Ride::where('status', 'active')->count(),
-            'completed_trips' => Ride::where('status', 'finished')->count(),
+            // Stage 2 C2: the trip counters are Ride's own table, so Ride counts them.
+            'active_trips' => app(RideReportCounts::class)->activeTrips(),
+            'completed_trips' => app(RideReportCounts::class)->completedTrips(),
             'total_revenue' => [
                 'raw' => $primaryBalance,
                 'formatted' => Money::from($primaryBalance)->formatted(),
@@ -127,9 +128,7 @@ final class AdminReportService
             $start = Carbon::now()->startOfMonth()->subMonths($i);
             $end = $start->copy()->endOfMonth();
 
-            $completedTrips = Ride::where('status', 'finished')
-                ->whereBetween('finished_at', [$start, $end])
-                ->count();
+            $completedTrips = app(RideReportCounts::class)->completedTripsBetween($start, $end);
 
             $newUsers = User::whereBetween('created_at', [$start, $end])->count();
 
@@ -293,19 +292,8 @@ final class AdminReportService
 
     private function getRideStatistics(?Carbon $start, ?Carbon $end): array
     {
-        $q = Ride::query();
-
-        if ($start && $end) {
-            $q->whereBetween('created_at', [$start, $end]);
-        }
-
-        return [
-            'total' => $q->count(),
-            'active' => (clone $q)->where('status', 'active')->count(),
-            'completed' => (clone $q)->where('status', 'finished')->count(),
-            'cancelled' => (clone $q)->where('status', 'cancelled')->count(),
-            'awaiting_confirmation' => (clone $q)->where('status', 'awaiting_confirmation')->count(),
-        ];
+        // Stage 2 C2: five counts over Ride's table, run by Ride; the keys are unchanged.
+        return app(RideReportCounts::class)->statistics($start, $end);
     }
 
     private function getFinancialStatistics(?Carbon $start, ?Carbon $end): array

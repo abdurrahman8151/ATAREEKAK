@@ -206,6 +206,24 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 316): the FOURTH Console file leaves `Ride`, commit
+  `Stage 2 C2: admin report ride counts owned by Ride`.** NEW `Ride\Contracts\RideReportCounts`
+  (`activeTrips()`, `completedTrips()`, `completedTripsBetween(Carbon,Carbon)`,
+  `statistics(?Carbon,?Carbon): array`) + service + binding. Numbers only - no report screen reads a ride row.
+  **The status vocabulary stays in Ride:** callers ask for "active"/"completed trips", never `status='active'`,
+  which matters because `finished` vs `completed` is the drift RV-39 already cost this codebase.
+  `statistics()` stays FIVE queries on purpose - one `GROUP BY status` would move `admin/reports`' budget, and
+  budgets may only shrink.
+  **GATE:** AppFuture + AdminSnapshotTest + Admin = 222/964 OK (`admin/reports`, `admin/dashboard`,
+  `admin/dashboard-growth` byte-identical, budgets untouched); wider Admin+Unit/Services/Admin+Snapshots+
+  Review+Console = 1178/5162 with only the 3 pre-existing `L16DriverNoShow` failures (same totals as secs
+  313-315); Pint PASS 836 files. Allowlist: `AdminReportService` -> `['Booking','Complaint','Profile']`;
+  graph `Console -> Ride` 4 -> 5 ports (a REAL new contract this time, unlike sec 315 where reusing one was
+  not a new port).
+  **TWO Console files remain, both hard:** `AdminTripService` (trip lists, six status counts, paginated browse
+  + detail) and `StaffCancellationService` (one use, but the ride is MUTATED inside its transaction - seat
+  restore, status write - so it needs a Ride WRITE port or the workflow moved into Ride, the same class of
+  decision sec 293 hit for the wallet-request approval workflow).
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 315): the THIRD Console file leaves `Ride`, commit
   `Stage 2 C2: driver dashboard ride reads owned by Ride`.** The dashboard REUSES sec 314's `DriverRideReads`
   - three methods added (`rideStatsForDriver`, `dashboardRecentRidesForDriver`,
