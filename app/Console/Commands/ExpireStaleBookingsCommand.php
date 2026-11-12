@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Enums\BookingStatus;
 use App\Models\Booking;
-use App\Models\Ride;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Console\Command;
@@ -143,7 +142,7 @@ class ExpireStaleBookingsCommand extends Command
      * A failed notification must not roll the expiry back, or the row would be retried
      * forever and stay pending.
      */
-    private function notifyPassenger(NotificationPort $notifications, Booking $booking, Ride $ride): bool
+    private function notifyPassenger(NotificationPort $notifications, Booking $booking, $ride): bool
     {
         try {
             $notifications->createNotification(

@@ -206,6 +206,26 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 321): the two kernel ENTRYPOINT commands leave `Ride`, and
+  `ProfileComment::ride()` is removed - plus a REGRESSION I caused and reverted in the same step,
+  commit `Stage 2 C2: entrypoint commands and a dead profile-comment relation leave Ride`.**
+  `BackfillBookingMoneySnapshot` + `ExpireStaleBookingsCommand` reached a ride only through `Booking::ride()`,
+  so dropping the one `Ride` parameter type each freed them (no port needed; statements untouched). **No
+  non-exempt kernel file names `App\Models\Ride` any more.** `ProfileComment::ride()` was dead (verified
+  against EVERY quoted `'ride'` string) and is gone; `ride_id` and its writes stay.
+  **REGRESSION + REVERT:** I also removed `NoshowReport::ride()` on the strength of a grep for `->ride`,
+  `with('ride')`, `load('ride')`, `whereHas('ride')`, `relationLoaded('ride')` - and SEVEN Review tests went
+  red with `RelationNotFoundException [ride] on [App\Models\NoshowReport]`. The user was
+  `NoShowPenaltyService:34`'s ARRAY-FORM eager load `with(['ride.driver','booking.user'])`, which none of
+  those patterns can see. The relation is restored (code identical to HEAD + a docblock saying why it stays).
+  **LESSON: `->x` / `with('x')` / `load('x')` is NOT proof a relation is dead - enumerate every quoted
+  `'name'` string and justify each hit.**
+  **GATE:** the exact selection that caught it (Admin+Staff+Review+AppFuture+Snapshots+Rides+Bookings+
+  Console) = 1420/6055 with only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS.
+  **`Ride`-MOVE BLOCKERS NOW PRECISELY NAMED:** `Booking::ride()` (moves WITH Ride - not separately
+  removable), `NoshowReport::ride()` (kept; its one eager load would need rewiring = a query-count change,
+  parked), `Complaint::ride()` (kept; `RV23ComplaintContextTest:82` asserts the relation RESOLVES = editing an
+  assertion, parked), and **Money's eleven files** (five of its own Contracts take `Ride` as a parameter type).
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 320): `ScoreTransactionResource` moved to
   `App\Modules\Ride\Http\Resources`, commit `Stage 2 C2: score transaction resource moves with Ride`.**
   Measured first: `RideResource` and `BookingResource` name NO model (they read `$this->...`), so they block

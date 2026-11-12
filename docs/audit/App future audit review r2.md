@@ -19800,3 +19800,47 @@ assertions OK** - the `score/transactions` corpus (which is what this resource r
 `reference` block whose formatters stage 0.6 item 2 fixed) is byte-identical. Wider gate: `Rides` + `Bookings` +
 `Admin` + `Staff` + `Review` + `AppFuture` + `Snapshots` = **1378 tests / 5982 assertions / 2 skipped**, only the
 three pre-existing `L16DriverNoShow` failures. Whole-tree Pint **PASS**.
+
+---
+
+### 321. Stage 2 C2: the two entrypoint commands leave `Ride`; `ProfileComment::ride()` is dead - and a
+### regression I caused and reverted in the same step
+
+**The commands.** `BackfillBookingMoneySnapshot` and `ExpireStaleBookingsCommand` are kernel ENTRYPOINTS, and
+`ModuleBoundaryTest` rule C requires the entrypoint allowlist to stay empty - so naming a module implementation
+after the move would fail the build. Measured first: both reach a ride ONLY through `Booking::ride()`
+(`$booking->ride`, `$fresh->ride`, `->whereHas('ride')`, `->with('ride')`), and the model was named in exactly one
+place each - a parameter type. **Dropping the type hints (the established pattern) removed both**; no port was
+needed, and the commands' statements are untouched. **No non-exempt kernel file names `App\Models\Ride` any more**;
+what remains is the `Console/Testing/` directory exemption.
+
+**`ProfileComment::ride()` removed.** Verified against EVERY quoted `'ride'` string in `app/` and `tests/`: the
+only hits tied to a ProfileComment-adjacent path are a `whereHas('ride')` on a **Booking** query
+(`ProfileInteractionService:147-155`) and the response key in `BookingResource`. Nothing loads the relation, so it
+went, with the `ride_id` column and its writes left alone.
+
+**THE REGRESSION, and the lesson.** I first also removed **`NoshowReport::ride()`** on the strength of a grep for
+`->ride`, `with('ride')`, `load('ride')`, `whereHas('ride')` and `relationLoaded('ride')` - every one of which
+matched only Booking queries. The suite disagreed: **seven Review tests went red** with
+`RelationNotFoundException: Call to undefined relationship [ride] on model [App\Models\NoshowReport]`. The user was
+`NoShowPenaltyService:34`, `NoshowReport::where(...)->with(['ride.driver', 'booking.user'])` - an ARRAY-FORM eager
+load that none of those patterns can see. The relation is restored, code-identical to HEAD, with a docblock
+recording why it stays. (The value it loads looks unused - the settlement re-reads the ride through the booking it
+locks - but deleting the eager load instead would change that command's query count, which this mode forbids, so it
+is parked rather than trimmed.)
+**LESSON FOR EVERY REMAINING "dead relation" CLAIM: `->x`, `with('x')`, `load('x')` is NOT a proof. Eager loads
+also appear as `with(['x.y'])`, `load([...])` and `loadMissing([...])`, and a receiver-based grep attributes
+nothing. Enumerate every quoted `'name'` string and justify each hit.** That is what the second pass did, and it is
+why `ProfileComment` was safe and `NoshowReport` was not.
+
+**Still a blocker for the Ride move, and now precisely named:**
+- `Booking::ride()` - must move WITH Ride (Ride owns bookings); not separately removable.
+- `NoshowReport::ride()` - kept; needs its one eager load rewired, which changes a query count (parked).
+- `Complaint::ride()` - kept; `RV23ComplaintContextTest:82` asserts the relation RESOLVES, so removing it means
+  editing an assertion, which this mode forbids (parked, owner question if it must go).
+- Money's eleven files, unchanged.
+
+**Verification.** The reverted-and-clean tree re-ran the exact selection that caught the regression: `Admin` +
+`Staff` + `Review` + `AppFuture` + `Snapshots` + `Rides` + `Bookings` + `Console` = **1420 tests / 6055 assertions
+/ 2 skipped**, only the three pre-existing `L16DriverNoShow` failures (the 4th L16 error and the three
+`NoshowSettlementGuardTest` errors are gone). Whole-tree Pint **PASS**.

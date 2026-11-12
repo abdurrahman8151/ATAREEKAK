@@ -29,9 +29,8 @@ class ProfileComment extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    /** The ride that entitled this user to leave the comment. */
-    public function ride(): BelongsTo
-    {
-        return $this->belongsTo(Ride::class);
-    }
+    // Stage 2 C2: `ride()` (belongsTo Ride) is REMOVED - it had no consumer. The `ride_id` column is still
+    // written when a comment is earned by a completed ride, and the eligibility check that used to read a
+    // ride reads it through the BOOKING (`Booking::whereHas('ride', ...)` in ProfileInteractionService), so
+    // nothing ever loaded this relation.
 }

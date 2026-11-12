@@ -34,6 +34,16 @@ class NoshowReport extends Model
 
     // ── Relations ─────────────────────────────────────────────────────────────
 
+    /**
+     * The trip this report is about.
+     *
+     * Stage 2 C2: this relation was looked at for removal and KEPT, because it is not dead:
+     * `Ride\Services\NoShowPenaltyService::resolveExpiredReports()` eager-loads `ride.driver` on a
+     * NoshowReport query, and dropping the relation turns that statement into a
+     * `RelationNotFoundException` (measured - seven Review tests went red). The value it loads may be
+     * unused on the current code path (the settlement re-reads the ride through the booking it locks), but
+     * removing the eager load instead would change that command's query count, which this mode forbids.
+     */
     public function ride(): BelongsTo
     {
         return $this->belongsTo(Ride::class);

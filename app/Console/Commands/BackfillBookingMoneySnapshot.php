@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\Booking;
-use App\Models\Ride;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -163,7 +162,7 @@ class BackfillBookingMoneySnapshot extends Command
      *
      * @return 'cash'
      */
-    private function markCashMethodSnapshot(Booking $booking, ?Ride $ride, bool $dry): string
+    private function markCashMethodSnapshot(Booking $booking, $ride, bool $dry): string
     {
         if (! $dry && $booking->payment_method === null) {
             $booking->forceFill(['payment_method' => $ride?->payment_method ?? 'cash'])
