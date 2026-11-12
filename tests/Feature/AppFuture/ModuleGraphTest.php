@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      -        -          -
  *   Ride               1       5      1        1          -
  *   Identity           1       4      2        -          1
- *   Console            4       9      6        7          -
+ *   Console            4       9      7        7          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -97,8 +97,9 @@ class ModuleGraphTest extends TestCase
         // screen's recent-rides page and contact number are a second, row-returning port, which the
         // driver DASHBOARD then reuses for its counters, recent rides and favourite destination.
         // Stage 2 C2: the admin report's fleet-wide trip counters are a third Ride contract; the
-        // admin/staff trip screens' four queries are a fourth.
-        'Console -> Ride' => 6,
+        // admin/staff trip screens' four queries are a fourth; the staff cancellation flow's trip writes
+        // are a fifth (the workflow itself stays in Console).
+        'Console -> Ride' => 7,
         'Identity -> Communication' => 1,
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so
         // Identity calls Console's EmployeeTokenVersion port instead of running the increment itself.

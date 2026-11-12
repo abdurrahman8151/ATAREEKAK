@@ -19670,3 +19670,50 @@ the tie test that pinned the tiebreaker this move had to preserve) with budgets 
 `Staff` + `Unit/Services/Admin` + `Snapshots` + `Review` + `Console` = **1411 tests / 5717 assertions / 2
 skipped**, only the three pre-existing `L16DriverNoShow` failures - the STAFF trips screen uses the same service,
 which is why `Staff` was added to this gate. Whole-tree Pint **PASS 838 files**.
+
+---
+
+### 318. Stage 2 C2: `StaffCancellationService` leaves `Ride` - and with it the LAST Console coupling
+
+**The step that needed a different shape of contract.** Every port so far returned data. This file needs one
+LOOKUP and three WRITES: cancel the trip, give seats back when a single booking is cancelled, and the
+`cancelled` count in the response. A reader cannot cover the writes, and handing Console the row to mutate would
+leave another module writing `rides` - the thing C2 exists to stop. So `Ride\Contracts\TripCancellationWriter`
+publishes the row for READING (`findForCancellation()`, `ModelNotFoundException` and all, so the caller's 404
+branch is untouched) and the mutations as named operations whose SQL lives in Ride:
+
+- `markCancelled(int)` = the old `$ride->update(['status' => 'cancelled'])`, as a query-builder update. Same row,
+  same value, same `updated_at`; the only difference from the model path is model events, and a grep confirms
+  **no Ride observer or model listener exists**.
+- `restoreSeats(int, int, string $rideStatus)` = the old `increment('available_seats', $n)` plus the
+  `'full' -> 'active'` write. The status is PASSED IN rather than re-read, because re-reading would add a
+  `select` and move the endpoint's query count - which is why the caller keeps its `in_array` guard.
+- `cancelledBookings(int)` = the `bookings()->where('status','cancelled')->count()` the response reports.
+
+**What did NOT move, deliberately.** The refund, the passenger notifications, the booking updates and the log
+lines stay in Console, which owns the HTTP endpoint and the money port it calls. Moving the whole workflow into
+Ride is the sec-293 class of decision (there, the same question parked the wallet-request approval workflow), and
+it is **recorded, not taken silently** - see the question at the end of this section.
+
+**THE PAIR IS GONE.** `ModelOwnershipTest`: the per-file entry drops to `['Booking']`, and the shrink hint then
+named the last one - **the pair baseline lost `Console -> Ride` (27 -> 26)**, because NO Console file names the
+model any more. `ModuleGraphTest`: `Console -> Ride` **6 -> 7** ports (the writes are the seventh), docblock
+column updated. This is the first module-to-owner coupling in this phase to be fully retired on the importing
+side.
+
+**Verification.** `AppFuture` + `Snapshots` + `StaffCancellationRefundTest` + `Staff` = **486 tests / 3110
+assertions OK** (the three `[query-budget]` lines in the output are the pre-existing wallet shrink hints, not
+failures). Wider gate: `Admin` + `Staff` + `Unit/Services/Admin` + `Snapshots` + `Review` + `Console` + `Wallet` =
+**1445 tests / 5773 assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures. Whole-tree
+Pint **PASS 840 files**.
+
+**OWNER QUESTION (one sentence), if the write port is not the desired end state:** should the staff
+trip-cancellation *workflow* (refund, notify, status flip, seat restore, audit log - about 130 lines) move into
+Ride as well, leaving Console only the HTTP endpoint and its status codes? It is not required for the class move -
+nothing outside Ride names the model now - it is a question about which module owns the operation.
+
+**NEXT, AND IT IS THE BIG ONE: `Ride` itself can now move.** Console is out of the way; what remains is the
+kernel and the other modules: `App\Models\Booking`/`NoshowReport`/`Complaint`/`ProfileComment` declare relations
+pointing at Ride, `App\Http\Resources\RideResource`/`BookingResource` name it, and `Money`/`Identity` reach it
+through their own baselines. Measure those before moving; the sec-289 Money attempt is the precedent for what
+happens when one of them is missed.

@@ -12,6 +12,7 @@ use App\Modules\Ride\Contracts\RideQueryExpressions;
 use App\Modules\Ride\Contracts\RideReportCounts;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
+use App\Modules\Ride\Contracts\TripCancellationWriter;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
 use App\Modules\Ride\Domain\ScorePolicyFactory;
 use App\Modules\Ride\Repositories\RideRepository;
@@ -30,6 +31,7 @@ use App\Modules\Ride\Services\RideValidationService;
 use App\Modules\Ride\Services\RouteCalculationService;
 use App\Modules\Ride\Services\ScoreLedger;
 use App\Modules\Ride\Services\ScoreService;
+use App\Modules\Ride\Services\TripCancellationWriterService;
 use App\Modules\Ride\Services\UserRideStatsService;
 use Illuminate\Support\ServiceProvider;
 
@@ -86,6 +88,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(RideReportCounts::class, RideReportCountsService::class);
         // Stage 2 C2: the admin/staff trip screens' four queries over Ride's own table.
         $this->app->bind(AdminTripQueries::class, AdminTripQueriesService::class);
+        // Stage 2 C2: the staff cancellation flow's trip writes (Console keeps the workflow itself).
+        $this->app->bind(TripCancellationWriter::class, TripCancellationWriterService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

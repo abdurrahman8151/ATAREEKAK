@@ -206,6 +206,26 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 318): `StaffCancellationService` leaves `Ride` - THE LAST CONSOLE
+  COUPLING IS GONE, commit `Stage 2 C2: staff trip cancellation writes owned by Ride`.** NEW
+  `Ride\Contracts\TripCancellationWriter` - the FIRST port with WRITES: `findForCancellation(int): mixed`
+  (the old `findOrFail`, `ModelNotFoundException` intact so the caller's 404 is unchanged),
+  `markCancelled(int)`, `restoreSeats(int, int, string $rideStatus)` (status PASSED IN, or re-reading would
+  add a `select` and move the budget), `cancelledBookings(int)`. Service + binding. Console keeps the
+  workflow (refund, notifications, booking updates, logs) - moving that is the sec-293 class of decision and
+  is recorded as an owner question, NOT taken silently.
+  **RATCHETS: the pair baseline lost `Console -> Ride` (27 -> 26) - no Console file names the model any
+  more.** Per-file allowlist `['Booking','Ride']` -> `['Booking']`; graph `Console -> Ride` 6 -> 7 ports.
+  **GATE:** AppFuture+Snapshots+StaffCancellationRefundTest+Staff = 486/3110 OK (the query-budget lines are
+  pre-existing wallet shrink hints); wider Admin+Staff+Unit/Services/Admin+Snapshots+Review+Console+Wallet =
+  1445/5773 with only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 840 files.
+  **OWNER QUESTION:** should the staff trip-cancellation WORKFLOW (~130 lines: refund, notify, flip status,
+  restore seats, audit log) also move into Ride, leaving Console only the HTTP endpoint and its status codes?
+  Not required for the class move - nothing outside Ride names the model now.
+  **NEXT: `Ride` CAN NOW MOVE.** Remaining blockers to measure first: kernel `Booking`/`NoshowReport`/
+  `Complaint`/`ProfileComment` relations pointing at Ride, kernel `Http/Resources/RideResource`/
+  `BookingResource`, and the `Money`/`Identity` baseline pairs. Precedent for missing one: the sec-289 Money
+  rollback.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 317): the FIFTH Console file leaves `Ride` - the biggest one,
   commit `Stage 2 C2: admin and staff trip queries owned by Ride`.** `AdminTripService` (371 lines) had FOUR
   query sites (paginated list, six tab counters, live-trips query, popular-routes aggregate) and ELEVEN

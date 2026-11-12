@@ -3,10 +3,10 @@
 namespace App\Modules\Console\Services;
 
 use App\Models\Booking;
-use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
+use App\Modules\Ride\Contracts\TripCancellationWriter;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -46,7 +46,7 @@ final class StaffCancellationService
         }
 
         try {
-            $ride = Ride::findOrFail($rideId);
+            $ride = app(TripCancellationWriter::class)->findForCancellation($rideId);
 
             // Only cancel active/full rides
             if (! in_array($ride->status, ['active', 'full', 'awaiting_confirmation'])) {
@@ -68,7 +68,7 @@ final class StaffCancellationService
                 'data' => [
                     'ride_id' => $ride->id,
                     'new_status' => 'cancelled',
-                    'bookings_cancelled' => $ride->bookings()->where('status', 'cancelled')->count(),
+                    'bookings_cancelled' => app(TripCancellationWriter::class)->cancelledBookings($ride->id),
                     // Decision 6: surfaced so staff can see the money actually moved, and so a
                     // legacy booking with no snapshot is visible instead of silently dropped.
                     'refund_total' => $refund['refunded'],
@@ -172,7 +172,7 @@ final class StaffCancellationService
      *
      * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
      */
-    private function cancelTripWithinTransaction(Ride $ride, array $input, $agent): array
+    private function cancelTripWithinTransaction($ride, array $input, $agent): array
     {
         // The bookings this cancellation actually affects.
         $affectedBookings = $ride->bookings()
@@ -197,7 +197,7 @@ final class StaffCancellationService
         }
 
         // Cancel the ride
-        $ride->update(['status' => 'cancelled']);
+        app(TripCancellationWriter::class)->markCancelled($ride->id);
 
         // Notify affected passengers
         $this->notifyPassengersOfCancelledTrip($affectedBookings, $ride, $input);
@@ -210,7 +210,7 @@ final class StaffCancellationService
     /**
      * Notify every passenger whose booking was cancelled along with the ride.
      */
-    private function notifyPassengersOfCancelledTrip($affectedBookings, Ride $ride, array $input): void
+    private function notifyPassengersOfCancelledTrip($affectedBookings, $ride, array $input): void
     {
         $notificationService = $this->notificationService;
         $reason = $input['reason'] ?? null;
@@ -231,7 +231,7 @@ final class StaffCancellationService
     /**
      * Audit trail for a staff-initiated trip cancellation.
      */
-    private function logCancelledTrip(Ride $ride, $agent, array $input, $affectedBookings, array $refund): void
+    private function logCancelledTrip($ride, $agent, array $input, $affectedBookings, array $refund): void
     {
         Log::info('Staff cancelled trip', [
             'ride_id' => $ride->id,
@@ -280,7 +280,7 @@ final class StaffCancellationService
      *
      * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
      */
-    private function refundCancelledBooking(Booking $booking, ?Ride $ride): array
+    private function refundCancelledBooking(Booking $booking, $ride): array
     {
         if (! $ride) {
             return ['refunded' => 0.0, 'bookings' => 0, 'needs_review' => 0, 'amount_source' => 'none'];
@@ -299,19 +299,14 @@ final class StaffCancellationService
     {
         // Restore seats on the ride if it's still active
         if ($ride && in_array($ride->status, ['active', 'full', 'awaiting_confirmation'])) {
-            $ride->increment('available_seats', $seatsToRestore);
-
-            // If ride was full, set back to active
-            if ($ride->status === 'full') {
-                $ride->update(['status' => 'active']);
-            }
+            app(TripCancellationWriter::class)->restoreSeats($ride->id, $seatsToRestore, $ride->status);
         }
     }
 
     /**
      * Notify the passenger whose booking was cancelled.
      */
-    private function notifyPassengerOfCancelledBooking(Booking $booking, ?Ride $ride, array $input): void
+    private function notifyPassengerOfCancelledBooking(Booking $booking, $ride, array $input): void
     {
         if (! $booking->user) {
             return;
