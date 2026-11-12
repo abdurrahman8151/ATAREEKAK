@@ -4,7 +4,7 @@ namespace App\Modules\Ride\Http\Controllers;
 
 use App\DTOs\Score\ScoreFormatter;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\ScoreTransactionResource;
+use App\Modules\Ride\Http\Resources\ScoreTransactionResource;
 use App\Modules\Ride\Services\ScoreHistoryService;
 use App\Modules\Ride\Services\ScoreService;
 use Illuminate\Http\JsonResponse;

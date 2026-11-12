@@ -19772,3 +19772,31 @@ namespace rewrites, the call sites and the tests UNSTAGED. Here that produced a 
 paths, or use `git add -A -- <dirs>` for the whole change.** And always read `git show --stat HEAD` (or
 `git status --short`) before believing a commit is complete - `git commit` prints a summary that looked right in
 both cases.
+
+---
+
+### 320. Stage 2 C2: `ScoreTransactionResource` moves into `App\Modules\Ride\Http\Resources`
+
+**Only ONE of the three kernel resources was actually in the way.** Measured before touching anything:
+`RideResource` and `BookingResource` extend `JsonResource` and read `$this->...` - they import NEITHER
+`App\Models\Ride` nor `App\Models\Booking`, so they block nothing and moving them would be churn with snapshot
+risk. `ScoreTransactionResource` is different: `formatRide(array $base, Ride $ride)` types the model, and it is
+the last kernel resource that names a Ride. It is also used from exactly ONE place - `ScoreController` in the Ride
+module (`use App\Http\Resources\ScoreTransactionResource;` + one `::collection()` call). So it moved:
+`App\Modules\Ride\Http\Resources\ScoreTransactionResource`, namespace rewritten, the controller's use-line
+updated, nothing else touched.
+
+**Why a resource may live in a module at all.** `ModuleBoundaryTest`'s kernel rule is about IMPLEMENTATION
+references, and a module-namespaced resource is resolved from the container at runtime and never serialised into a
+queue payload - the same reasoning as any other module class. Its two remaining imports (`App\Models\Ride`,
+`App\Models\Booking`) are module -> kernel, legal today and already in the shrink-only baseline.
+
+**What is left of the kernel side of the Ride move** (measured after this step): the two entrypoint commands
+(`BackfillBookingMoneySnapshot`, `ExpireStaleBookingsCommand`), and the four kernel models' relations to Ride
+(`Booking`, `Complaint`, `NoshowReport`, `ProfileComment`). No kernel resource names a ride any more.
+
+**Verification.** `AppFuture` + `Snapshots` + `Rides` + the three score Review files = **366 tests / 2814
+assertions OK** - the `score/transactions` corpus (which is what this resource renders, including the
+`reference` block whose formatters stage 0.6 item 2 fixed) is byte-identical. Wider gate: `Rides` + `Bookings` +
+`Admin` + `Staff` + `Review` + `AppFuture` + `Snapshots` = **1378 tests / 5982 assertions / 2 skipped**, only the
+three pre-existing `L16DriverNoShow` failures. Whole-tree Pint **PASS**.

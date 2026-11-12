@@ -206,6 +206,19 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 320): `ScoreTransactionResource` moved to
+  `App\Modules\Ride\Http\Resources`, commit `Stage 2 C2: score transaction resource moves with Ride`.**
+  Measured first: `RideResource` and `BookingResource` name NO model (they read `$this->...`), so they block
+  nothing and were left alone; `ScoreTransactionResource` types `Ride` in `formatRide()` and is used from exactly
+  ONE place (`ScoreController`). **No kernel resource names a ride any more.**
+  **GATE:** AppFuture+Snapshots+Rides+the three score Review files = 366/2814 OK (the `score/transactions` corpus
+  including the `reference` block is byte-identical); wider Rides+Bookings+Admin+Staff+Review+AppFuture+
+  Snapshots = 1378/5982 with only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 840 files.
+  **KERNEL SIDE OF THE `Ride` MOVE, now down to:** the two entrypoint commands
+  (`BackfillBookingMoneySnapshot`, `ExpireStaleBookingsCommand`) and the four kernel models' relations
+  (`Booking`, `Complaint`, `NoshowReport`, `ProfileComment`). **MODULE SIDE: Money names `Ride` in eleven
+  files (five of its own Contracts take it as a parameter type)** - the largest blocker, same shape as the
+  sec-289 rollback.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 319): the three Ride events moved to `App\Modules\Ride\Events`,
   commit `Stage 2 C2: Ride events move with their publisher`.** They each TYPE a `Ride`, so in the kernel they
   would break `ModuleBoundaryTest` rule B the moment the model moves; ADR 0009 says an event moves with its

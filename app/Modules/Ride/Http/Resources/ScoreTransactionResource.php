@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\Modules\Ride\Http\Resources;
 
 use App\Enums\ScoreAction;
 use App\Models\Booking;
