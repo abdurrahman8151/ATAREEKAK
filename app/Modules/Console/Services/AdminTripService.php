@@ -2,8 +2,8 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Ride;
 use App\Models\User;
+use App\Modules\Ride\Contracts\AdminTripQueries;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -45,36 +45,19 @@ final class AdminTripService
         int $perPage = 15,
         int $page = 1,
     ): LengthAwarePaginator {
-        $now = Carbon::now();
-
-        $query = Ride::with([
-            'driver:id,first_name,last_name',
-            'driver.profile:user_id,profile_photo',
-            // Only load booked seats that count toward capacity
-            'bookings' => fn ($q) => $q
-                ->select('id', 'ride_id', 'user_id', 'seats', 'status')
-                ->whereIn('status', ['confirmed', 'completed']),
-        ]);
-
-        match ($filter) {
-            'scheduled' => $query->where('status', 'active')->where('departure_time', '>', $now),
-            'active' => $query->where('status', 'active')->where('departure_time', '<=', $now),
-            'completed' => $query->where('status', 'finished'),
-            'cancelled' => $query->where('status', 'cancelled'),
-            'awaiting' => $query->where('status', 'awaiting_confirmation'), // ← ADD THIS
-            default => $query->whereIn('status', ['active', 'finished', 'cancelled', 'awaiting_confirmation']),
-        };
-
-        return $query
-            ->orderByDesc('departure_time')
-            ->paginate($perPage, ['*'], 'page', $page);
+        // Stage 2 C2: the query over `rides` is Ride's; the rows come back here and are formatted below.
+        return app(AdminTripQueries::class)->paginateTrips($filter, $perPage, $page);
     }
 
     /**
      * Shape a single Ride model into the array the controller will return.
      * Kept separate so the controller loop stays one-liner.
+     *
+     * Stage 2 C2: the parameter is deliberately UNTYPED - naming the Ride model is the one thing a module
+     * may not do to another module, and an untyped parameter is this codebase's established way to hold a
+     * value from another module. The body is unchanged.
      */
-    public function formatTrip(Ride $ride): array
+    public function formatTrip($ride): array
     {
         $now = Carbon::now();
         $driver = $ride->driver;
@@ -128,16 +111,9 @@ final class AdminTripService
      */
     public function getStatusCounts(): array
     {
-        $now = Carbon::now();
-
-        return [
-            'all' => Ride::whereIn('status', ['active', 'finished', 'cancelled', 'awaiting_confirmation'])->count(),
-            'scheduled' => Ride::where('status', 'active')->where('departure_time', '>', $now)->count(),
-            'active' => Ride::where('status', 'active')->where('departure_time', '<=', $now)->count(),
-            'completed' => Ride::where('status', 'finished')->count(),
-            'cancelled' => Ride::where('status', 'cancelled')->count(),
-            'awaiting' => Ride::where('status', 'awaiting_confirmation')->count(), // ← ADD THIS
-        ];
+        // Stage 2 C2: six counts over Ride's own table; `$now` is passed so the badge counts and the
+        // list filter on the same request agree on the instant.
+        return app(AdminTripQueries::class)->statusCounts(Carbon::now());
     }
 
     // =========================================================================
@@ -154,43 +130,19 @@ final class AdminTripService
      */
     public function getPopularRoutes(int $limit = 10): array
     {
-        $rows = Ride::select(
-            'rides.pickup_address',
-            'rides.destination_address',
-            DB::raw('COUNT(*) as trip_count'),
-            DB::raw('COALESCE(SUM(b.seats), 0) as total_passengers'),
-        )
-            ->leftJoin(
-                DB::raw("(
-        SELECT ride_id, SUM(seats) as seats
-        FROM bookings
-        WHERE status IN ('confirmed', 'completed')
-        GROUP BY ride_id
-    ) as b"),
-                'b.ride_id', '=', 'rides.id'
-            )
-            ->whereNotIn('rides.status', ['cancelled'])
-            ->groupBy('rides.pickup_address', 'rides.destination_address')
-            ->orderByDesc('trip_count')
-            // A tiebreaker, and not a cosmetic one: trip_count alone left two destinations with the
-            // same count in whatever order MySQL's grouping happened to produce. Stage 0.5's order
-            // matrix caught it (the snapshot answered Hama/Latakia/Homs in four execution orders and
-            // Homs-first in the fifth). destination_address is a grouping column, so ordering by it
-            // is stable and deterministic. It only ever decides ties: the committed
-            // `admin/routes-popular` snapshot did not change when this was added.
-            ->orderBy('rides.destination_address')
-            ->limit($limit)
-            ->get();
-        $maxCount = $rows->max('trip_count') ?: 1;
+        // Stage 2 C2: the grouped query over `rides` is Ride's; the demand figures below are this
+        // screen's presentation of the numbers it returns.
+        $rows = app(AdminTripQueries::class)->popularRoutes($limit);
+        $maxCount = collect($rows)->max('trip_count') ?: 1;
 
-        return $rows->map(function ($row) use ($maxCount): array {
-            $pct = ($row->trip_count / $maxCount) * 100;
+        return collect($rows)->map(function ($row) use ($maxCount): array {
+            $pct = ($row['trip_count'] / $maxCount) * 100;
 
             return [
-                'from' => $row->pickup_address,
-                'to' => $row->destination_address,
-                'trip_count' => (int) $row->trip_count,
-                'total_passengers' => (int) $row->total_passengers,
+                'from' => $row['from'],
+                'to' => $row['to'],
+                'trip_count' => $row['trip_count'],
+                'total_passengers' => $row['total_passengers'],
                 'demand_percentage' => (int) round($pct),
                 'demand_level' => $this->demandLevel($pct),
             ];
@@ -261,8 +213,8 @@ final class AdminTripService
     {
         $now = Carbon::now();
 
-        return $this->liveTripsQuery($now)
-            ->map(fn (Ride $ride) => $this->formatLiveTrip($ride, $now))
+        return app(AdminTripQueries::class)->liveTrips($now)
+            ->map(fn ($ride) => $this->formatLiveTrip($ride, $now))
             ->all();
     }
 
@@ -271,27 +223,9 @@ final class AdminTripService
     // =========================================================================
 
     /**
-     * Rides on the road right now: status active and departure already passed.
-     */
-    private function liveTripsQuery(Carbon $now)
-    {
-        return Ride::with([
-            'driver:id,first_name,last_name',
-            'driver.profile:user_id,profile_photo',
-            'bookings' => fn ($q) => $q
-                ->where('status', 'confirmed')
-                ->with('user:id,first_name,last_name'),
-        ])
-            ->where('status', 'active')
-            ->where('departure_time', '<=', $now)
-            ->orderBy('departure_time')
-            ->get();
-    }
-
-    /**
      * Shape one live trip for the map view / contact-driver panel.
      */
-    private function formatLiveTrip(Ride $ride, Carbon $now): array
+    private function formatLiveTrip($ride, Carbon $now): array
     {
         $minutesElapsed = (int) $ride->departure_time->diffInMinutes($now);
         $durationMins = $ride->duration ? (int) round($ride->duration / 60) : null;
@@ -324,7 +258,7 @@ final class AdminTripService
         ];
     }
 
-    private function liveTripDriverBlock(Ride $ride): array
+    private function liveTripDriverBlock($ride): array
     {
         return [
             'id' => $ride->driver?->id,
@@ -336,7 +270,7 @@ final class AdminTripService
         ];
     }
 
-    private function liveTripRouteBlock(Ride $ride): array
+    private function liveTripRouteBlock($ride): array
     {
         return [
             'from' => $ride->pickup_address,
@@ -347,7 +281,7 @@ final class AdminTripService
         ];
     }
 
-    private function liveTripPassengersBlock(Ride $ride): array
+    private function liveTripPassengersBlock($ride): array
     {
         return $ride->bookings->map(fn ($b) => [
             'id' => $b->user?->id,
@@ -360,7 +294,7 @@ final class AdminTripService
      * Translate the stored DB status + departure_time into the UI status string
      * the frontend uses for badges and filter matching.
      */
-    private function resolveUiStatus(Ride $ride, Carbon $now): string
+    private function resolveUiStatus($ride, Carbon $now): string
     {
         return match (true) {
             $ride->status === 'finished' => 'completed',
@@ -401,7 +335,7 @@ final class AdminTripService
      * Safely extract coordinates from the Ride's spatial accessor.
      * Returns null instead of throwing if the DB row has no geometry.
      */
-    private function safeCoords(Ride $ride, string $type): ?array
+    private function safeCoords($ride, string $type): ?array
     {
         try {
             return $type === 'pickup'

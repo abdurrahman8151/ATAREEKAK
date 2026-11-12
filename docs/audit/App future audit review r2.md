@@ -19633,3 +19633,40 @@ totals as the sec-313/314/315 gates. Whole-tree Pint **PASS 836 files**.
 counts, a paginated browse and a detail view) and `StaffCancellationService` (one use, but the ride is MUTATED
 inside its transaction - seat restore, status write - so it needs a Ride WRITE port or the workflow moved into
 Ride, which is the same class of decision sec 293 hit for the wallet-request approval workflow).
+
+---
+
+### 317. Stage 2 C2: the fifth Console file leaves `Ride` - `AdminTripQueries` (the biggest one)
+
+**What was in the way.** `AdminTripService` (371 lines) had FOUR query sites over `rides` - the paginated trip
+list, six tab counters, the live-trips map query and the popular-routes aggregate - plus ELEVEN methods that named
+`App\Models\Ride` as a parameter type (`formatTrip`, `formatLiveTrip`, its three block helpers, `resolveUiStatus`,
+`safeCoords`, ...). Two different problems, two different fixes:
+
+- **The queries became `Ride\Contracts\AdminTripQueries`** (`paginateTrips`, `statusCounts(Carbon $now)`,
+  `liveTrips(Carbon $now)`, `popularRoutes(int)`) + service + binding, each statement verbatim: same eager loads
+  with the same relation column lists, same `match` filter, same `orderByDesc('departure_time')`, same
+  `leftJoin` on the bookings aggregate, same tiebreaker `orderBy('rides.destination_address')`, same limits.
+- **The eleven parameter types were dropped, not moved.** The formatting stayed in Console because those payloads
+  (`trip_ref`, driver/route/passenger blocks, UI status, timing label) are the back office's presentation of a
+  trip, not the ride, and THREE endpoints' snapshots freeze them. An untyped parameter is this codebase's
+  established way to hold another module's value without naming its class - the same choice made for the rating
+  stats DTO in sec 302, and the reason `ScoreReader`/`DriverRideReads` return arrays in the first place.
+
+**One thing that genuinely had to move:** the demand percentage and its banding. They are computed from the whole
+row set (`trip_count / max(trip_count)`), so the port returns the raw grouped rows and Console keeps `demandLevel()`,
+`maxCount` and the rounding. Same numbers, same order, same `int` casts.
+
+**A dead method went with it.** `liveTripsQuery()` existed only to build the query that is now Ride's; the port
+calls it, so the private method was deleted rather than left as a shell.
+
+**Ratchet movement.** `ModelOwnershipTest`: the per-file entry for `AdminTripService` is **REMOVED entirely** - it
+named only `Ride`, so the file now names no foreign model at all. `ModuleGraphTest`: `Console -> Ride`
+**5 -> 6** ports, docblock column updated. **One Console file remains: `StaffCancellationService`.**
+
+**Verification.** `AppFuture` + `AdminSnapshotTest` + `AdminPopularRoutesTieBreakTest` + `Admin` =
+**223 tests / 969 assertions OK**, covering `admin/trips`, `admin/trips-live`, `admin/routes-popular` (including
+the tie test that pinned the tiebreaker this move had to preserve) with budgets untouched. Wider gate: `Admin` +
+`Staff` + `Unit/Services/Admin` + `Snapshots` + `Review` + `Console` = **1411 tests / 5717 assertions / 2
+skipped**, only the three pre-existing `L16DriverNoShow` failures - the STAFF trips screen uses the same service,
+which is why `Staff` was added to this gate. Whole-tree Pint **PASS 838 files**.

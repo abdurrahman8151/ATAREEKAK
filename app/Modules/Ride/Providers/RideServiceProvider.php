@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ride\Providers;
 
+use App\Modules\Ride\Contracts\AdminTripQueries;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
 use App\Modules\Ride\Contracts\DriverRideReads;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
@@ -14,6 +15,7 @@ use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
 use App\Modules\Ride\Domain\ScorePolicyFactory;
 use App\Modules\Ride\Repositories\RideRepository;
+use App\Modules\Ride\Services\AdminTripQueriesService;
 use App\Modules\Ride\Services\ArabicPlaceNameService;
 use App\Modules\Ride\Services\BookingEscrowWriter;
 use App\Modules\Ride\Services\BookingService;
@@ -82,6 +84,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->bind(DriverRideReads::class, DriverRideReadsService::class);
         // Stage 2 C2: the report's fleet-wide trip counters are counts over Ride's own table.
         $this->app->bind(RideReportCounts::class, RideReportCountsService::class);
+        // Stage 2 C2: the admin/staff trip screens' four queries over Ride's own table.
+        $this->app->bind(AdminTripQueries::class, AdminTripQueriesService::class);
         $this->app->bind(NoShowReportInterface::class, Noshowservice::class);
     }
 }

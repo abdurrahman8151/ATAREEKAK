@@ -206,6 +206,23 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 317): the FIFTH Console file leaves `Ride` - the biggest one,
+  commit `Stage 2 C2: admin and staff trip queries owned by Ride`.** `AdminTripService` (371 lines) had FOUR
+  query sites (paginated list, six tab counters, live-trips query, popular-routes aggregate) and ELEVEN
+  methods naming `Ride` as a parameter type. The queries became `Ride\Contracts\AdminTripQueries`
+  (`paginateTrips`, `statusCounts(Carbon)`, `liveTrips(Carbon)`, `popularRoutes(int)`) + service + binding,
+  every statement verbatim; **the eleven parameter types were DROPPED, not moved** - the formatting stays in
+  Console because those payloads are the back office's presentation of a trip and THREE endpoints' snapshots
+  freeze them (untyped parameter = this codebase's established way to hold another module's value, as with the
+  rating stats DTO). Demand percentage/banding stayed with Console because they are computed from the whole row
+  set; the port returns raw grouped rows. `liveTripsQuery()` was deleted as dead once the port owned it.
+  **RATCHETS:** the per-file allowlist entry for `AdminTripService` is **REMOVED ENTIRELY** (it named only
+  `Ride`); graph `Console -> Ride` 5 -> 6 ports. **ONE Console file remains: `StaffCancellationService`** (the
+  ride is MUTATED in its transaction - a write port or a workflow move, the sec-293 class of decision).
+  **GATE:** AppFuture + AdminSnapshotTest + AdminPopularRoutesTieBreakTest + Admin = 223/969 OK (admin/trips,
+  admin/trips-live, admin/routes-popular incl. the tie test, budgets untouched); wider Admin+Staff+
+  Unit/Services/Admin+Snapshots+Review+Console = 1411/5717 with only the 3 pre-existing `L16DriverNoShow`
+  failures (Staff added because the staff trips screen uses the same service); Pint PASS 838 files.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 316): the FOURTH Console file leaves `Ride`, commit
   `Stage 2 C2: admin report ride counts owned by Ride`.** NEW `Ride\Contracts\RideReportCounts`
   (`activeTrips()`, `completedTrips()`, `completedTripsBetween(Carbon,Carbon)`,
