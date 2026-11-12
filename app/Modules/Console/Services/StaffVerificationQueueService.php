@@ -3,6 +3,7 @@
 namespace App\Modules\Console\Services;
 
 use App\Models\User;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -28,34 +29,39 @@ final class StaffVerificationQueueService
     public function pendingVerificationList(): array
     {
         return Cache::remember('staff.pending-verifications', now()->addMinutes(2), function () {
-            return User::with(['photos', 'profile'])
+            // Stage 2 C2: the document rows are Identity's and arrive batched for the whole page.
+            $users = User::with(['profile'])
                 ->where('verification_status', 'pending')
                 ->orderByDesc('updated_at')
-                ->get()
-                ->map(function (User $u) {
-                    $docTypes = $u->photos->pluck('type')->toArray();
-                    $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
+                ->get();
 
-                    return [
-                        'user_id' => $u->id,
-                        'name' => trim("{$u->first_name} {$u->last_name}"),
-                        'email' => $u->email,
-                        'gender' => $u->gender,
-                        'address' => $u->address,
-                        'type' => $isDriver ? 'driver' : 'passenger',
-                        'profile_photo' => $u->profile?->profile_photo
-                            ? asset('storage/'.$u->profile->profile_photo)
-                            : null,
-                        'documents' => $u->photos->map(fn ($p) => [
-                            'type' => $p->type,
-                            // Decision 1b: KYC documents are served by the staff-authenticated
-                            // streaming route, not as a public asset() URL. The old public URL was
-                            // an IDOR: anyone holding it could download a face ID / licence.
-                            'url' => route('staff.documents.show', ['photoId' => $p->id]),
-                        ])->values()->all(),
-                        'submitted_at' => $u->updated_at->toIso8601String(),
-                    ];
-                })->values()->all();
+            $documents = app(PhotoRepositoryInterface::class)->documentsFor($users->pluck('id')->all());
+
+            return $users->map(function (User $u) use ($documents) {
+                $rows = $documents[$u->id] ?? [];
+                $docTypes = array_column($rows, 'type');
+                $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
+
+                return [
+                    'user_id' => $u->id,
+                    'name' => trim("{$u->first_name} {$u->last_name}"),
+                    'email' => $u->email,
+                    'gender' => $u->gender,
+                    'address' => $u->address,
+                    'type' => $isDriver ? 'driver' : 'passenger',
+                    'profile_photo' => $u->profile?->profile_photo
+                        ? asset('storage/'.$u->profile->profile_photo)
+                        : null,
+                    'documents' => collect($rows)->map(fn ($row) => [
+                        'type' => $row['type'],
+                        // Decision 1b: KYC documents are served by the staff-authenticated
+                        // streaming route, not as a public asset() URL. The old public URL was
+                        // an IDOR: anyone holding it could download a face ID / licence.
+                        'url' => route('staff.documents.show', ['photoId' => $row['id']]),
+                    ])->values()->all(),
+                    'submitted_at' => $u->updated_at->toIso8601String(),
+                ];
+            })->values()->all();
         });
     }
 

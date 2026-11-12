@@ -206,6 +206,37 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 PHOTO GROUNDWORK (audit sec 330), commit
+  `Stage 2 C2: verification queues stop reading User::photos`.** `PhotoRepositoryInterface` grew
+  `documentsFor(array $userIds): array` (ONE `whereIn` query, rows `id`/`type`/`path` keyed by user id,
+  absent when a user has none) + `PhotoRepository` implementation. `AdminVerificationQueueService` and
+  `StaffVerificationQueueService` no longer eager-load `User::photos()`: `with(['photos','profile'])` ->
+  `with(['profile'])` + the batched read; `pluck('type')` -> `array_column`; the admin's public `asset()` URL and
+  the staff's staff-authenticated route are unchanged. **Query counts identical** (one eager load -> one batched
+  query). **No ratchet moved, and that is expected:** neither file was ever on the allowlist because it used the
+  RELATION and that ratchet matches IMPORTS (the sec-304 blind spot). Progress is in the `User::photos()` count:
+  **26 -> 24.**
+  **GATE:** AppFuture+Admin+Staff+Snapshots+Verification+Documents+Review = 1310 tests / 5796 assertions with
+  only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 852 files.
+  **PHOTO STILL NEEDS:** the remaining ~24 `User::photos()` sites - six of them `whereHas('photos', ...)` inside
+  larger `users` queries, which need an EMBEDDABLE expression (a correlated EXISTS the port publishes), not a
+  result set - plus the three Console services that import `App\Models\Photo` and the `kyc:migrate-disk`
+  entrypoint command. Then `User::photos()` can go and the model can move.
+- **BLOCKED-ON-OWNER SLATE written (audit sec 329): every remaining C1 move is gated, with its file:line.**
+  **1. `Ride` + `Booking` (+ `NoshowReport`) = READY, stopped by ONE TEST ASSERTION:**
+  `RV23ComplaintContextTest:82-84` loads and asserts `Complaint::ride()`, whose only consumer in the whole tree
+  those two lines are. After the move the relation resolves to a class that no longer exists, so it must go -
+  and deleting the assertions is on the NEVER list. **ASK: may those two relation assertions go?** (The test's
+  real subject - `ride_id`/`complained_id` persisted + nullable - is asserted by the four lines above them and
+  stays. Precedent: sec 297 deleted a whole test whose SUBJECT the refactor removed.) Everything else for this
+  move is DONE: no module names either class, both entrypoint commands ported, kernel resource gone, events
+  moved, `Booking::ride()` travels with them, `NoshowReport` is Ride-owned and moves too.
+  **2. `UserRating` = BLOCKED on `UntangleBatchTest:68` (mechanism assertion); plan is in sec 312.**
+  **3. Money models = BLOCKED on two owner decisions (response payloads; where the approval workflow lives,
+  secs 291/293).** **4. `Photo` = NOT blocked but large (~26 `User::photos()` sites, six of them
+  `whereHas('photos')` inside bigger `users` queries = embeddable-expression work, 7 Console + 2 Identity
+  files); the port groundwork starts now.** **5. `Profile`/`ProfileComment`/`Employee`/`Complaint` = not
+  started; `Employee` is an auth change.**
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 328) - MILESTONE: NO MODULE NAMES `Ride` OR `Booking` ANY MORE,
   commit `Stage 2 C2: staff booking cancellation ported; no module names Ride or Booking`.** The last Console
   file (`StaffCancellationService`'s booking half) now uses

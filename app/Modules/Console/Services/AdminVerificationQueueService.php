@@ -3,6 +3,7 @@
 namespace App\Modules\Console\Services;
 
 use App\Models\User;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -23,25 +24,30 @@ final class AdminVerificationQueueService
      */
     public function pendingVerifications(): JsonResponse
     {
-        $pending = User::with(['photos', 'profile'])
+        // Stage 2 C2: photos is Identity's table; the rows arrive batched for the whole page.
+        $pending = User::with(['profile'])
             ->where('verification_status', 'pending')
-            ->get()
-            ->map(function ($u) {
-                $docTypes = $u->photos->pluck('type')->toArray();
-                $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
+            ->get();
 
-                return [
-                    'user_id' => $u->id,
-                    'name' => trim("{$u->first_name} {$u->last_name}"),
-                    'email' => $u->email,
-                    'type' => $isDriver ? 'driver' : 'passenger',
-                    'documents' => $u->photos->map(fn ($p) => [
-                        'type' => $p->type,
-                        'url' => asset("storage/{$p->path}"),
-                    ]),
-                    'submitted_at' => $u->updated_at->toIso8601String(),
-                ];
-            });
+        $documents = app(PhotoRepositoryInterface::class)->documentsFor($pending->pluck('id')->all());
+
+        $pending = $pending->map(function ($u) use ($documents) {
+            $rows = $documents[$u->id] ?? [];
+            $docTypes = array_column($rows, 'type');
+            $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
+
+            return [
+                'user_id' => $u->id,
+                'name' => trim("{$u->first_name} {$u->last_name}"),
+                'email' => $u->email,
+                'type' => $isDriver ? 'driver' : 'passenger',
+                'documents' => collect($rows)->map(fn ($row) => [
+                    'type' => $row['type'],
+                    'url' => asset("storage/{$row['path']}"),
+                ]),
+                'submitted_at' => $u->updated_at->toIso8601String(),
+            ];
+        });
 
         return response()->json(['status' => 'success', 'data' => $pending]);
     }

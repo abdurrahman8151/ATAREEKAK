@@ -20092,3 +20092,91 @@ endpoints, their snapshots and their budgets are unchanged. Whole-tree Pint **PA
    rule B forbids at hard zero. **That is the next decision point**: either those two models move with Ride, or the
    relations go, or the rule needs an owner decision. Measure before moving.
 4. the ARCHITECTURE ownership map, the Ride/Console READMEs and the section-12 deploy note.
+
+---
+
+### 329. Stage 2 C2: the OWNER DECISION SLATE - every remaining C1 move is gated, with the measurement for each
+
+Written after sec 328 closed the last module-side coupling to `Ride`/`Booking`. What follows is the complete,
+measured list of what stops each remaining model from moving. **No guessing, and no decision taken here.**
+
+**1. `Ride` + `Booking` (+ `NoshowReport`) - BLOCKED ON ONE TEST ASSERTION.**
+The move itself is ready: no module names either class (sec 328), both kernel entrypoint commands are ported
+(sec 321), the kernel resource is gone (sec 320), the events moved (sec 319), and `Booking::ride()` travels with
+them as a same-namespace relation. **What stops it is `tests/Feature/Review/RV23ComplaintContextTest.php:82-84`**:
+
+    $fresh->load(['ride', 'complainedUser']);
+    $this->assertTrue($fresh->ride->is($ride));
+    $this->assertTrue($fresh->complainedUser->is($driver));
+
+`Complaint::ride()` is a kernel model's relation to `Ride`. After the move it resolves to a class that no longer
+exists, so the relation must go - and its ONLY consumer anywhere in `app/` and `tests/` is those two lines (proved
+by an exhaustive search for every quoted `'ride'` string; the rest of `app/` reaches a ride through
+`$booking->ride`). Deleting them means editing an assertion, which this mode's NEVER list forbids.
+**THE QUESTION (one sentence): may the two relation assertions in `RV23ComplaintContextTest` be deleted?** The
+test's actual subject - that `ride_id` and `complained_id` are persisted and nullable - is asserted by the four
+lines ABOVE them and stays untouched. Precedent: sec 297 deleted `StaffRefreshTokenTest::test_belongs_to_employee`
+for the same reason ("its SUBJECT was removed, not an assertion that started disagreeing").
+**Also parked inside this move, with reasons recorded in secs 321/328:** `NoshowReport::ride()` is used only by an
+array-form eager load in `NoShowPenaltyService:34` (trimming it would move a query count) - and `NoshowReport` is
+Ride-owned, so it moves with Ride and the relation becomes same-module; `Complaint::ride()` is the one above.
+
+**2. `UserRating` - BLOCKED ON ONE TEST ASSERTION (sec 312).** `UntangleBatchTest:68` asserts
+`relationLoaded('receivedRatings')`, i.e. it pins the MECHANISM. The full six-step plan to replace the relation
+with a batched reader is written out in sec 312 and needs no re-derivation.
+
+**3. The Money models (`Wallet`, `WalletRequest`, `WalletTransaction`, `LedgerEntry`) - BLOCKED ON TWO OWNER
+DECISIONS (secs 291/293).** (a) Response payloads: `showWalletTransactions` embeds the whole wallet row and the
+request review list embeds paginated requests with `user` + `wallet`; narrowing those changes public responses.
+(b) Where the wallet-request APPROVAL WORKFLOW lives - moving `approve()` (guard + balance write + transaction row
++ external leg + status change) into Money is the only way to retire the last `Wallet`/`WalletRequest` imports,
+and it is wider than the readers/recorders C2 authorised.
+
+**4. `Photo` - NOT BLOCKED, and the reason it is not next.** Measured this round: `User::photos()` has ~26 call
+sites, and the shape is harder than `Booking`'s was - six of them are `whereHas('photos', ...)` INSIDE larger
+`users` queries (a correlated EXISTS that a result-set reader cannot express without changing the statement), plus
+batched `pluck('type')` reads in two queue services. Every one of those must become an embeddable expression or a
+batched byIds read, in 7 Console files and 2 Identity files, before the pair `Console -> Photo` / `Identity ->
+Photo` can shrink. That is several rounds of the same work this phase has been doing; it is STARTED in this
+commit's sibling, not finished.
+
+**5. `Profile` / `ProfileComment` / `Employee` / `Complaint(Attachment)` - NOT STARTED.** `Profile` is the largest
+kernel reverse relation left (`User::profile()`, ~45 sites) plus Communication's chat eager load; `Employee` needs
+Identity's staff-token contracts rewired first (sec 299/318 measured it as an auth change); `Complaint` is the
+assertion in item 1 plus `Employee::` relations.
+
+**BOTTOM LINE:** items 1-3 cannot move without an owner sentence each; items 4-5 are open work that the remaining
+rounds can only start. Nothing here is parked to look tidy - each entry names the exact file:line that stops it.
+
+---
+
+### 330. Stage 2 C2: the two verification queues stop reading `User::photos()` - Photo groundwork
+
+**Why this is groundwork and not a move.** The `Ride`/`Booking` thread is finished on the module side and is
+blocked on one owner sentence (sec 329), so this round starts the next unblocked model: `Photo`, which
+**Identity** owns. Measured first: what actually stops it is (1) `User::photos()` - a kernel relation, used at ~26
+sites, six of them `whereHas('photos', ...)` inside larger `users` queries; (2) `Console -> Photo` imports in three
+services; (3) the `kyc:migrate-disk` entrypoint command. This step attacks (1), where it is cheapest.
+
+**What changed.** Identity's own port grew one method - `PhotoRepositoryInterface::documentsFor(array $userIds)`,
+implemented in `PhotoRepository` as ONE `whereIn('user_id', ...)` query returning `id`/`type`/`path` rows keyed by
+user id (a user with no documents is absent, so `$documents[$id] ?? []` is the caller's idiom). The two
+verification queues now pass the ids they already hold and stop eager-loading the relation:
+- `AdminVerificationQueueService::pendingVerifications()` - `with(['photos','profile'])` -> `with(['profile'])`
+  plus the batched call; `$u->photos->pluck('type')` -> `array_column($rows, 'type')`; the documents map is built
+  from the rows. Its public `asset("storage/...")` URL is unchanged.
+- `StaffVerificationQueueService::pendingVerificationList()` - the same, keeping its staff-authenticated
+  `route('staff.documents.show', ['photoId' => ...])` (decision 1b: KYC files are not public URLs).
+
+**Query counts are identical** - the eager load was one query and the batched read is one query, so the two
+endpoints' recorded budgets cannot move. That is why the port returns rows rather than a URL or a boolean: each
+caller needs a different piece of the same row.
+
+**No ratchet moved, and that is expected.** Neither queue service was ever on the per-file allowlist, because it
+used the `photos` RELATION, and that ratchet matches IMPORTS - the same blind spot sec 304 recorded for
+`App\Models\User`. The visible progress here is in the count of `User::photos()` call sites (26 -> 24), which is
+what has to reach zero before the relation - and with it the model - can move.
+
+**Verification.** `AppFuture` + `Admin` + `Staff` + `Snapshots` + `Verification` + `Documents` + `Review` =
+**1310 tests / 5796 assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures - the two
+queue payloads are byte-identical. Whole-tree Pint **PASS**.

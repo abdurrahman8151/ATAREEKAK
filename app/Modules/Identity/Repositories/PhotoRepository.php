@@ -38,4 +38,25 @@ class PhotoRepository implements PhotoRepositoryInterface
     {
         return Photo::find($photoId);
     }
+
+    /**
+     * @param  array<int, int>  $userIds
+     * @return array<int, array<int, array{id: int, type: string|null, path: string|null}>>
+     */
+    public function documentsFor(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        return Photo::whereIn('user_id', $userIds)
+            ->get(['id', 'user_id', 'type', 'path'])
+            ->groupBy('user_id')
+            ->map(fn ($rows) => $rows->map(fn ($photo) => [
+                'id' => $photo->id,
+                'type' => $photo->type,
+                'path' => $photo->path,
+            ])->values()->all())
+            ->all();
+    }
 }
