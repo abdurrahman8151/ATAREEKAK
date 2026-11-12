@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Events;
+namespace App\Modules\Ride\Events;
 
-use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
@@ -12,18 +11,18 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Ride Booked Event
+ * Ride Cancelled Event
  *
- * FIXED: Explicit data arrays instead of only() to prevent accidental exposure
+ * FIXED: Explicit data arrays
  */
-class RideBooked implements ShouldBroadcast
+class RideCancelled implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
         public readonly Ride $ride,
-        public readonly Booking $booking,
-        public readonly User $passenger
+        public readonly array $bookings,
+        public readonly User $driver
     ) {}
 
     /**
@@ -31,10 +30,19 @@ class RideBooked implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-        return [
-            new PrivateChannel('user.'.$this->ride->driver_id),
-            new PrivateChannel('user.'.$this->passenger->id),
+        $channels = [
+            // T2-7: was a public Channel('rides'); private so the client must
+            // authorize through /broadcasting/auth (jwt) before subscribing.
+            new PrivateChannel('rides'),
+            new PrivateChannel('user.'.$this->driver->id),
         ];
+
+        // Add private channels for each affected passenger
+        foreach ($this->bookings as $booking) {
+            $channels[] = new PrivateChannel('user.'.$booking['user_id']);
+        }
+
+        return $channels;
     }
 
     /**
@@ -42,13 +50,11 @@ class RideBooked implements ShouldBroadcast
      */
     public function broadcastAs(): string
     {
-        return 'ride.booked';
+        return 'ride.cancelled';
     }
 
     /**
      * Get the data to broadcast
-     *
-     * FIXED: Explicit arrays prevent accidental data exposure
      */
     public function broadcastWith(): array
     {
@@ -58,18 +64,13 @@ class RideBooked implements ShouldBroadcast
                 'pickup_address' => $this->ride->pickup_address,
                 'destination_address' => $this->ride->destination_address,
                 'departure_time' => $this->ride->departure_time->toIso8601String(),
-                'available_seats' => $this->ride->available_seats,
             ],
-            'booking' => [
-                'id' => $this->booking->id,
-                'seats' => $this->booking->seats,
-                'status' => $this->booking->status,
-                'created_at' => $this->booking->created_at->toIso8601String(),
+            'driver' => [
+                'id' => $this->driver->id,
+                'name' => $this->driver->first_name.' '.$this->driver->last_name,
             ],
-            'passenger' => [
-                'id' => $this->passenger->id,
-                'name' => $this->passenger->first_name.' '.$this->passenger->last_name,
-            ],
+            'affected_bookings_count' => count($this->bookings),
+            'cancellation_time' => now()->toIso8601String(),
         ];
     }
 }

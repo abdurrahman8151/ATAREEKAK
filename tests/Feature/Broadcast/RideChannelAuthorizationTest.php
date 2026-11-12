@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Broadcast;
 
-use App\Events\RideCancelled;
-use App\Events\RideCreated;
 use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Identity\Services\JwtService;
+use App\Modules\Ride\Events\RideCancelled;
+use App\Modules\Ride\Events\RideCreated;
 use Illuminate\Broadcasting\Broadcasters\Broadcaster;
 use Illuminate\Broadcasting\BroadcastManager;
 use Illuminate\Broadcasting\Channel;

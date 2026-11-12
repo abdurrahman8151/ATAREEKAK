@@ -206,6 +206,23 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 VERIFIED FIX (audit sec 319): the three Ride events moved to `App\Modules\Ride\Events`,
+  commit `Stage 2 C2: Ride events move with their publisher`.** They each TYPE a `Ride`, so in the kernel they
+  would break `ModuleBoundaryTest` rule B the moment the model moves; ADR 0009 says an event moves with its
+  publisher. Measured first: one dispatcher each, ALL inside Ride; NO listener (broadcast-only, as
+  `EventServiceProvider`'s own docblock records); test surface = `RideChannelAuthorizationTest` +
+  `EventServiceProviderTest`. **DEPLOY NOTE (not optional): all three use `SerializesModels` and
+  `ShouldBroadcast`, so the broadcast is QUEUED and its payload carries the class name - ARCHITECTURE section
+  12's drain-the-queue table went 2 -> 5 rows, and the Ride README lists them.** This is the one kind of move a
+  green suite cannot prove safe. GATE: Broadcast+Unit/Providers+Unit/Notifications+AppFuture+Snapshots =
+  329/2625 OK; wider Rides+Bookings+Review+Admin+Staff+AppFuture+Snapshots+Broadcast = 1384/5993 with only the 3
+  pre-existing `L16DriverNoShow` failures; Pint PASS 840 files. `app/Events/` now holds only `UserVerified`.
+  **REMAINING `Ride` BLOCKERS, measured:** kernel `Console/Commands/{BackfillBookingMoneySnapshot,
+  ExpireStaleBookingsCommand}.php` (entrypoints; rule C needs the allowlist empty, so they need ports),
+  `Http/Resources/ScoreTransactionResource.php`, `Http/Resources/RideResource` + `BookingResource`, and the four
+  kernel models' relations (`Booking`, `Complaint`, `NoshowReport`, `ProfileComment`). **On the module side Money
+  names `Ride` in ELEVEN files - five of its own Contracts take it as a parameter type** - the largest blocker
+  and the same shape as the sec-289 rollback.
 - **STAGE 2 - C2 VERIFIED FIX (audit sec 318): `StaffCancellationService` leaves `Ride` - THE LAST CONSOLE
   COUPLING IS GONE, commit `Stage 2 C2: staff trip cancellation writes owned by Ride`.** NEW
   `Ride\Contracts\TripCancellationWriter` - the FIRST port with WRITES: `findForCancellation(int): mixed`

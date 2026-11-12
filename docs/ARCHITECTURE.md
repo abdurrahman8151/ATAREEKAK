@@ -303,12 +303,15 @@ Two rules ride along with that table, and both are ratchet-enforced rather than 
   that reason (see the audit record for the two endpoints still in that state).
 ## 12. Deploy notes: drain the queue before deploying
 
-Stage 2 moved two **queued** classes, and a queued class is the one kind of move a test suite cannot prove safe:
+Stage 2 moved five **queued** classes, and a queued class is the one kind of move a test suite cannot prove safe:
 
 | Old class name | New class name | Why it is a hazard |
 |---|---|---|
 | `App\Events\MessageSent` | `App\Modules\Communication\Events\MessageSent` | uses `SerializesModels` |
 | `App\Events\NotificationSent` | `App\Modules\Communication\Events\NotificationSent` | uses `SerializesModels` |
+| `App\Events\RideBooked` | `App\Modules\Ride\Events\RideBooked` | uses `SerializesModels`; broadcast, so it is queued |
+| `App\Events\RideCancelled` | `App\Modules\Ride\Events\RideCancelled` | uses `SerializesModels`; broadcast, so it is queued |
+| `App\Events\RideCreated` | `App\Modules\Ride\Events\RideCreated` | uses `SerializesModels`; broadcast, so it is queued |
 
 `SerializesModels` writes the class name into the payload. A job or listener queued *before* the deploy holds the
 old name, and the worker that picks it up *after* the deploy cannot deserialise it - the job fails, and on a

@@ -2,11 +2,11 @@
 
 namespace Tests\Unit\Providers;
 
-use App\Events\RideBooked;
 use App\Events\UserVerified;
 use App\Listeners\SendUserVerifiedNotification;
 use App\Models\User;
 use App\Modules\Communication\Services\NotificationService;
+use App\Modules\Ride\Events\RideBooked;
 use App\Providers\EventServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

@@ -15,6 +15,9 @@ The ride lifecycle: the booking, the trip, the completion, and everything that c
 - `Services/RideSearchService`, `RideValidationService`, `GeocodingService`, `RouteCalculationService`,
   `ArabicPlaceNameService` - discovery and validation.
 - `Repositories/RideRepository`, `Http/Controllers` - persistence and the passenger-facing endpoints.
+- `Events/RideCreated`, `Events/RideBooked`, `Events/RideCancelled` - the three broadcast events, moved here
+  with their publisher (ADR 0009). All three use `SerializesModels` and are queued for broadcast, so they are
+  listed in [ARCHITECTURE section 12](../../../docs/ARCHITECTURE.md) under "drain the queue before deploying".
 
 ## Public Contracts (5)
 

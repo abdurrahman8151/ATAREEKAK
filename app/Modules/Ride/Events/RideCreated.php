@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Events;
+namespace App\Modules\Ride\Events;
 
 use App\Models\Ride;
 use Illuminate\Broadcasting\InteractsWithSockets;

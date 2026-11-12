@@ -19717,3 +19717,45 @@ kernel and the other modules: `App\Models\Booking`/`NoshowReport`/`Complaint`/`P
 pointing at Ride, `App\Http\Resources\RideResource`/`BookingResource` name it, and `Money`/`Identity` reach it
 through their own baselines. Measure those before moving; the sec-289 Money attempt is the precedent for what
 happens when one of them is missed.
+
+---
+
+### 319. Stage 2 C2: the three Ride events move to `App\Modules\Ride\Events` (ADR 0009)
+
+**Why they had to move for the class move to be possible.** `RideCreated`, `RideBooked` and `RideCancelled` each
+type a `Ride`, and they lived in the kernel - so once the model moves, three kernel files name a module
+implementation (`ModuleBoundaryTest` rule B, hard zero). ADR 0009 already states the rule for this case: an event
+moves with its publisher. Measured before moving:
+
+- **Dispatcher: one each, all inside Ride** - `RideService:144` (created), `BookingService:98` (booked),
+  `RideCancellationService:100` (cancelled). Nothing outside the module fires them.
+- **Listener: NONE.** `EventServiceProvider`'s map holds one entry (`UserVerified ->
+  SendUserVerifiedNotification`); the three are broadcast-only, which is exactly what its own docblock records.
+- **Test surface: two files** - `RideChannelAuthorizationTest` (channel assertions) and
+  `EventServiceProviderTest` (asserts they are absent from `$listen`).
+
+**What changed.** `git mv` of the three into `App\Modules\Ride\Events` with the namespace rewritten; the three
+dispatch sites and the two test files updated. Lead-in: `RideBooked` still names `App\Models\Booking` - a module
+naming a kernel model, which is legal and already in the shrink-only baseline - and all three name `App\Models\User`,
+the authenticated principal.
+
+**THE DEPLOY NOTE, and it is not optional.** All three use `SerializesModels` and implement `ShouldBroadcast`, so
+the broadcast is QUEUED and the payload carries the class name: a broadcast queued before the deploy cannot be
+deserialised after it. ARCHITECTURE section 12's "drain the queue before deploying" table went from two classes to
+five, with the three new rows marked "broadcast, so it is queued", and the Ride README now names them under what
+the module owns. **This is the one kind of move a green suite cannot prove safe** - the suite has no queued
+payloads from before the move to fail on.
+
+**Verification.** `Broadcast` + `Unit/Providers` + `Unit/Notifications` + `AppFuture` (every ratchet) + `Snapshots`
+= **329 tests / 2625 assertions OK** - the channel-authorization tests assert the same private channels from the
+new namespace, and no snapshot moved. Wider gate: `Rides` + `Bookings` + `Review` + `Admin` + `Staff` + `AppFuture`
++ `Snapshots` + `Broadcast` = **1384 tests / 5993 assertions / 2 skipped**, only the three pre-existing
+`L16DriverNoShow` failures. Whole-tree Pint **PASS 840 files**. `app/Events/` now holds exactly one file
+(`UserVerified`, whose listener is the one wired chain and which names no ride).
+
+**Next for the `Ride` move.** Kernel files still naming `Ride`: `Console/Commands/BackfillBookingMoneySnapshot.php`
+and `ExpireStaleBookingsCommand.php` (entrypoints - rules C requires the allowlist stay empty, so they need ports),
+`Http/Resources/ScoreTransactionResource.php` (a Ride-owned payload in the kernel), `Http/Resources/RideResource`
+and `BookingResource`, and the four kernel models' relations (`Booking`, `Complaint`, `NoshowReport`,
+`ProfileComment`). On the module side, **Money names `Ride` in eleven files** - five of its own Contracts take it
+as a parameter type - which is the largest single blocker and the same shape as the sec-289 rollback.
