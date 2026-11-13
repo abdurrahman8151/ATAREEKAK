@@ -206,6 +206,22 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 PHOTO: first ratchet movement (audit sec 331), commit
+  `Stage 2 C2: driver dashboard reads documents through Identity`.** `AdminDriverDashboardService` dropped its
+  `App\Models\Photo` import and its `$driver->photos` read: documents now come from
+  `PhotoRepositoryInterface::documentsFor([$driver->id])`, the public `asset()` URL still built here.
+  **Allowlist: `['Photo','Profile','UserRating']` -> `['Profile','UserRating']`.** Query count unchanged (one
+  eager load -> one port query); `admin/driver-dashboard` (budget 17) byte-identical.
+  **PHOTO THREAD STATUS:** `Console -> Photo` imports now 3 files (`AdminDashboardActivityService`,
+  `AdminDriverQueryService`, `AdminDriverService`); `User::photos()` down to 23. The rest is NOT the same shape:
+  **six `whereHas('photos', ...)` inside larger `users` queries** (some `orWhereHas`) need an EMBEDDABLE existence
+  expression from the port, or the statements change; two single-row eager loads (same one-query swap as this
+  step); and the `kyc:migrate-disk` entrypoint command.
+  **GATE:** AppFuture+Snapshots+Admin = 369/2795; wider Admin+Staff+Snapshots+Verification+Documents+Review+
+  AppFuture = 1310/5796 with only the 3 pre-existing `L16DriverNoShow` failures; Pint PASS 852 files.
+  **INFRA:** the first attempt died with `Windows Job runner exited with exit code 1073807364` (machine suspended
+  ~9.5h, MySQL down again); restarted MySQL once and re-ran the same selection - green. A killed run proves
+  nothing, so it was re-run.
 - **STAGE 2 - C2 PHOTO GROUNDWORK (audit sec 330), commit
   `Stage 2 C2: verification queues stop reading User::photos`.** `PhotoRepositoryInterface` grew
   `documentsFor(array $userIds): array` (ONE `whereIn` query, rows `id`/`type`/`path` keyed by user id,

@@ -20180,3 +20180,37 @@ what has to reach zero before the relation - and with it the model - can move.
 **Verification.** `AppFuture` + `Admin` + `Staff` + `Snapshots` + `Verification` + `Documents` + `Review` =
 **1310 tests / 5796 assertions / 2 skipped**, only the three pre-existing `L16DriverNoShow` failures - the two
 queue payloads are byte-identical. Whole-tree Pint **PASS**.
+
+---
+
+### 331. Stage 2 C2: the driver dashboard stops importing `Photo` - first ratchet movement on the Photo thread
+
+**The visible step.** `AdminDriverDashboardService` was on the per-file allowlist as `['Photo','Profile','UserRating']`.
+It imported `App\Models\Photo` and read `$driver->photos` after eager-loading the relation. Both are gone: the
+documents arrive from Identity's port (`documentsFor([$driver->id])`, the batched read added in sec 330) and the
+public `asset('storage/...')` URL is still built here. **Allowlist entry: `['Profile','UserRating']`** - Photo is
+off it.
+
+**Query count unchanged**: the removed eager load was one query and the port call is one query. The dashboard
+snapshot (`admin/driver-dashboard`, budget 17) is byte-identical, which is the actual proof.
+
+**Where the Photo thread stands after this.** The import pair `Console -> Photo` is now three files
+(`AdminDashboardActivityService`, `AdminDriverQueryService`, `AdminDriverService`), and the relation count
+`User::photos()` is down to 23. The remaining work is NOT the same shape as this step:
+- **six `whereHas('photos', ...)` sites** inside larger `users` queries (`AdminDashboardActivityService` x5,
+  `AdminDriverQueryService` x2, `AdminUserService` x2 - some are `orWhereHas`). Those need the port to publish an
+  EMBEDDABLE existence expression, not a result set, or they change the statements they sit inside (and their
+  query counts).
+- `AdminDriverQueryService:150` and `Identity\PassengerProfileQueryService:34` still eager-load `photos` for a
+  single row - each is the same one-query swap done here.
+- the `kyc:migrate-disk` entrypoint command still names the model and would need a console-side port.
+
+**Verification.** `AppFuture` + `Snapshots` + `Admin` = **369 tests / 2795 assertions OK**; wider `Admin` + `Staff`
++ `Snapshots` + `Verification` + `Documents` + `Review` + `AppFuture` = **1310 tests / 5796 assertions / 2
+skipped**, only the three pre-existing `L16DriverNoShow` failures. Whole-tree Pint **PASS**.
+
+**Infrastructure note.** The first attempt at this step's verification died with
+`subprocess-local: Windows Job runner exited with exit code 1073807364` before producing any result, and the
+scratch MySQL was down again afterwards (the machine had been suspended for ~9.5 hours, and the volume was at
+17.9 GB free). Restarted MySQL once and re-ran the same selection: green. A killed run proves nothing, so it was
+re-run rather than reported.

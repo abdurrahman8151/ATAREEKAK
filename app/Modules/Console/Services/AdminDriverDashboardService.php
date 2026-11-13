@@ -3,9 +3,9 @@
 namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Money\Contracts\DriverEarningsReader;
 use App\Modules\Ride\Contracts\BookingRevenueAggregates;
@@ -36,7 +36,8 @@ final class AdminDriverDashboardService
      */
     public function getDriverDashboard(int $driverId): array
     {
-        $driver = User::with(['profile', 'photos'])->findOrFail($driverId);
+        // Stage 2 C2: photos is Identity's table; the rows arrive from its port below (one query).
+        $driver = User::with(['profile'])->findOrFail($driverId);
         $profile = $driver->profile;
 
         // ── Rating ────────────────────────────────────────────────────────────
@@ -112,9 +113,12 @@ final class AdminDriverDashboardService
 
     private function dashboardDocuments(User $driver)
     {
-        return $driver->photos->map(fn ($photo) => [
-            'type' => $photo->type,
-            'file_url' => asset('storage/'.$photo->path),
+        // Stage 2 C2: Identity owns the documents; the URL stays this screen's format.
+        $rows = app(PhotoRepositoryInterface::class)->documentsFor([$driver->id])[$driver->id] ?? [];
+
+        return collect($rows)->map(fn ($row) => [
+            'type' => $row['type'],
+            'file_url' => asset('storage/'.$row['path']),
         ]);
     }
 
