@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Documents;
 
-use App\Models\Photo;
 use App\Models\User;
+use App\Modules\Identity\Models\Photo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;

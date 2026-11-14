@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Models\Photo;
 use App\Modules\Identity\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

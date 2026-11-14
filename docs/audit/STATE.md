@@ -1,4 +1,15 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 PHOTO: `Photo` MOVES INTO IDENTITY; THE THREAD IS CLOSED (audit sec 338),
+  commit `Stage 2 C2: Photo moves into Identity; two dead document eager loads go`.** Deleted `User::photos()`
+  and the two dead eager loads (`AdminDriverQueryService` `admin/drivers` 9 -> 8; `PassengerProfileQueryService`
+  `admin/passenger-full-profile` 20 -> 19 - both are budget CEILINGS, so the run only prints the shrink notice;
+  `query-budgets.json` deliberately NOT lowered because `tests/Snapshots` is frozen). `git mv
+  app/Models/Photo.php app/Modules/Identity/Models/Photo.php` with the explicit `$table='photos'` kept; 23
+  test/seeder imports updated mechanically. **Ratchets: `KERNEL_MODEL_IMPORTS` 20 -> 19 (`Identity -> Photo`
+  gone); `TABLE_OWNERS` gains `photos => Identity`.** Gates: AppFuture+Admin+Documents+Unit 723/1613,
+  Snapshots 186/2069 byte-identical, Review+Rides+Verification+Profile+Staff 1033/3223 with only the three
+  pre-existing `L16DriverNoShow` failures, Pint PASS 32. `composer dump-autoload` is required after the move and
+  must run with `APP_ENV=testing` or the `.env` OTP testing modes trip the boot guard.
 - Done recently: **STAGE 2 - C2 PROFILE: CONSOLE NAMES NO `Profile` (audit sec 337), commit
   `Stage 2 C2: Console names no Profile - the last two readers go through Identity`.** `ProfileDirectory`
   grew `recentVehicleUpdates(int): array` (same two statements; the vanished-user skip preserved through

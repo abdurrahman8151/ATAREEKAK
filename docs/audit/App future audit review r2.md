@@ -20505,3 +20505,50 @@ three OTP snapshots fail for environment reasons): `AppFuture` **61 tests / 461 
 265 OK**; `Snapshots` **186 / 2069 OK** in default order, only the three pre-existing `wallet/*` budget notices;
 `Staff` + `L8StaffUserProfileCharacterizationTest` **243 / 587 OK**. Pint **PASS** on all changed files. The
 `[model-ownership] baseline can shrink` hint is ABSENT, so both baselines match the measured pairs exactly.
+
+---
+
+### 338. Stage 2 C2: `Photo` moves into Identity - the two dead eager loads go with it, and the thread closes
+
+**The one question sec 334 left was answered by the evidence, not by a preference.** The last thing holding
+`Photo` in `App\Models` was `User::photos()`, kept alive only by two eager loads that nothing reads
+(`AdminDriverQueryService::getDrivers()` and `PassengerProfileQueryService::profileBundle()`, both proven dead by
+byte-identical snapshots). Sec 334/336 offered two shapes: drop the wasted queries, or replace them 1:1 with the
+port read. **Taken: drop them**, under REFACTORING MODE's pre-approval for deleting code the refactor made dead,
+because (a) the response is byte-identical, (b) the query store is a CEILING - `assertLessThanOrEqual` - so a
+shrink passes and only PRINTS `[query-budget] ... lower the committed baseline`, which means no frozen file had to
+be touched, and (c) keeping a statement whose only purpose is to defend a number is the opposite of what this
+phase removes. Measured after the change: `admin/drivers` **8 < 9**, `admin/passenger-full-profile` **19 < 20**,
+and `tests/Snapshots/query-budgets.json` is deliberately left at 9 and 20: `tests/Snapshots` is frozen, so the two
+ceilings stay one query loose until the owner chooses to regenerate the corpus. That loosening is recorded here,
+not hidden.
+
+**What changed.**
+- `app/Models/User.php`: `photos()` deleted (with a comment saying why, like `rides()`/`bookings()` before it).
+- `AdminDriverQueryService`: `with(['profile:...','photos'])` -> `with(['profile:...'])`.
+- `PassengerProfileQueryService::profileBundle()`: `with(['profile','photos'])` -> `with(['profile'])`.
+- `app/Models/Photo.php` -> `app/Modules/Identity/Models/Photo.php` (`git mv`), namespace changed, explicit
+  `protected $table = 'photos'` KEPT (a move must never be able to change which table a row lands in). Its only
+  relation is `belongsTo(User)` - the shared principal, which a module model is allowed - so no other relation
+  had to travel.
+- Identity's three imports (`PhotoRepository`, `VerificationSubmissionService`, `DocumentVerificationService`)
+  updated; 23 test/seeder imports updated mechanically, one line each.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **20 -> 19 pairs** - `Identity -> Photo` is gone and the module now names
+`Identity\Models\Photo`, which it owns. `TABLE_OWNERS` gains `'photos' => 'Identity'`, so ratchet 3 (raw
+`DB::table`) now polices that table from every other module; `AppFuture` is green, so no module reaches it that
+way. `ModelOwnershipTest`'s can-shrink hint is ABSENT, so the pair baseline matches the measured pairs exactly.
+`CrossContextBoundaryTest` stays at 0 (no new import crossed a context). `ModuleBoundaryTest` floors are untouched:
+they are minimums (Identity measures 73 files against a floor of 55), not per-file counters.
+
+**Verification.** `AppFuture` + `Admin` + `Documents` + `Unit/Models` + `Unit/Services` = **723 tests / 1613
+assertions OK**; `Snapshots` = **186 / 2069 OK**, responses byte-identical, five budget notices (the two new drops
+above plus the three pre-existing `wallet/*` ones); `Review` + `Rides` + `Verification` + `Profile` + `Staff` =
+**1033 / 3223 with exactly the three pre-existing `L16DriverNoShowSettlementCharacterizationTest` failures, by
+name** and 2 skipped, i.e. the recorded red set and no new name. Pint **PASS (32 changed files)**.
+
+**Infrastructure note.** `composer dump-autoload` is REQUIRED after a class move because `composer.json` sets
+`optimize-autoloader`, and it must run with `APP_ENV=testing` in the environment: `.env` is
+`APP_ENV=production` while also carrying `WALLET_OTP_MODE=testing` and `OTP_BYPASS_ENABLED=true`, so
+`BootGuards::guardOtpTestingModes()` refuses to boot and the post-autoload `artisan package:discover` hook fails
+with a misleading stack trace. With the testing env set, the dump completed and wrote no new `laravel.log` entry.

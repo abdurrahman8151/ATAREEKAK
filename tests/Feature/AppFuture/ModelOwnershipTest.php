@@ -92,6 +92,8 @@ final class ModelOwnershipTest extends TestCase
         // Stage 2 C1: the first two Ride tables whose class moved into the module.
         'score_transactions' => 'Ride',
         'user_scores' => 'Ride',
+        // Stage 2 C2: the `photos` table's model moved into Identity.
+        'photos' => 'Identity',
     ];
 
     /**
@@ -110,7 +112,6 @@ final class ModelOwnershipTest extends TestCase
         'Console -> WalletRequest' => 'wallet_requests',
         'Identity -> Complaint' => 'complaints',
         'Identity -> Employee' => 'employees',
-        'Identity -> Photo' => 'photos',
         'Identity -> Profile' => 'profiles',
         'Identity -> ProfileComment' => 'profile_comments',
         'Identity -> UserRating' => 'user_ratings',

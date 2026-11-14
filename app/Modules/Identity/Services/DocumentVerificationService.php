@@ -3,9 +3,9 @@
 namespace App\Modules\Identity\Services;
 
 use App\Exceptions\Domain\BusinessRuleViolation;
-use App\Models\Photo;
 use App\Models\User;
 use App\Modules\Identity\Contracts\DocumentVerificationInterface;
+use App\Modules\Identity\Models\Photo;
 
 /**
  * Document Verification Service

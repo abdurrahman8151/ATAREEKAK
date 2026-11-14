@@ -158,10 +158,10 @@ class User extends Authenticatable
     // kernel relation pointing at a model that is moving into the Ride module (the cross-module edge
     // the ownership ratchets forbid). The two remaining mentions in tests are comments.
 
-    public function photos(): HasMany
-    {
-        return $this->hasMany(Photo::class);
-    }
+    // Stage 2 C2: `photos()` (hasMany Photo) is REMOVED - Identity owns the `photos` table and the
+    // model moved into its module. Its last two readers were dead eager loads whose screens never read
+    // a document (byte-identical `admin/drivers` and `admin/passenger-full-profile` snapshots); both
+    // lines are gone, so no kernel relation points at the moved class.
 
     // Stage 2 C2: `bookings()` (hasMany Booking) is REMOVED - it had no consumer at all. Every
     // `->bookings` in the tree belongs to a Ride (Ride::bookings), to the RideCancelled event's own

@@ -3,8 +3,8 @@
 namespace Tests\Feature\Admin;
 
 use App\Events\UserVerified;
-use App\Models\Photo;
 use App\Models\User;
+use App\Modules\Identity\Models\Photo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\Support\Concerns\ActsAsStaff;

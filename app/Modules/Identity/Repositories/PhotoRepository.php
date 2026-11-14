@@ -2,8 +2,8 @@
 
 namespace App\Modules\Identity\Repositories;
 
-use App\Models\Photo;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Models\Photo;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -34,7 +34,7 @@ class PhotoRepository implements PhotoRepositoryInterface
 
     /**
      * Decision 1b: single-document lookup for the staff streaming route. Kept here (not in the
-     * controller) so the HTTP layer never imports App\Models\Photo - see the interface note.
+     * controller) so the HTTP layer never imports Identity\Models\Photo - see the interface note.
      */
     public function findById(int $photoId)
     {

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Photo;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Modules\Identity\Models\Photo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\Support\Concerns\SeedsSystemWallets;

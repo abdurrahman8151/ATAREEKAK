@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Models;
 
-use App\Models\Photo;
 use App\Models\User;
+use App\Modules\Identity\Models\Photo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

@@ -28,10 +28,13 @@ final class PassengerProfileQueryService
         private readonly WalletTransactionRecorder $transactionRecorder,
     ) {}
 
-    /** The full-profile bundle: profile, wallet and photos in one query. */
+    /** The full-profile bundle: the user with its profile, in one query. */
     public function profileBundle(int $userId): User
     {
-        return User::with(['profile', 'photos'])->findOrFail($userId);
+        // Stage 2 C2: the `photos` eager load was DEAD WEIGHT - the full-profile screen never reads a
+        // document, which the byte-identical snapshot proves. Identity owns the table, so the relation
+        // went with the model instead of leaving a kernel edge to it.
+        return User::with(['profile'])->findOrFail($userId);
     }
 
     /** The stats bundle. `findOrFail` is kept, so the controller still answers 404. */

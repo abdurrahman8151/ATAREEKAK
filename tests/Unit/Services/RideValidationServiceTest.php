@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Services;
 
-use App\Models\Photo;
 use App\Models\User;
+use App\Modules\Identity\Models\Photo;
 use App\Modules\Identity\Services\DocumentVerificationService;
 use App\Modules\Ride\Services\RideValidationService;
 use Carbon\Carbon;
