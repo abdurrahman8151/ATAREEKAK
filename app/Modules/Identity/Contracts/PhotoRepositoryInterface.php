@@ -2,8 +2,19 @@
 
 namespace App\Modules\Identity\Contracts;
 
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+
 interface PhotoRepositoryInterface
 {
+    /**
+     * The document types that make a user a driver: a licence or a mechanic card.
+     *
+     * Named once, here, because the definition is read at both ends of this port - the subqueries
+     * below and the callers that classify an already-fetched row.
+     */
+    public const DRIVER_DOCUMENT_TYPES = ['license', 'mechanic_card'];
+
     public function storeDocument($userId, $type, $path);
 
     public function deleteDocumentsByType($userId, $type);
@@ -36,4 +47,28 @@ interface PhotoRepositoryInterface
      * @return array<int, array<int, array{id: int, type: string|null, path: string|null}>>
      */
     public function documentsFor(array $userIds): array;
+
+    /**
+     * The ids of the users that own at least one driver document, as an EMBEDDABLE subquery.
+     *
+     * Stage 2 C2: Console's user queries asked this question with `whereHas('photos', ...)`, and a
+     * `whereHas` cannot be replaced by a result set - the ids are not known until the query runs. The
+     * owner therefore publishes the SUBQUERY and the caller embeds it with `whereIn('users.id', ...)`
+     * (or `orWhereIn`, or the negated `whereNotIn`). A subquery is part of the caller's own statement,
+     * so the endpoint's query count does not move - which is why this is not a Reader returning rows.
+     *
+     * Returned without `distinct()` on purpose: `whereIn` treats a repeated id the same as a single
+     * one, so the deduplication would only add work. `photos.user_id` is NOT NULL (a cascade FK), so
+     * the `whereNotIn` direction cannot be poisoned by a NULL in the set.
+     */
+    public function driverDocumentUserIdsSubquery(): Builder;
+
+    /**
+     * The same subquery restricted to documents CREATED inside the window.
+     *
+     * This is the "incoming verifications" half of the admin verification-efficiency widget, which
+     * used `whereHas('photos', ... ->whereBetween('created_at', ...))`. The window belongs to the
+     * caller; which document types count belongs here.
+     */
+    public function driverDocumentUserIdsCreatedBetweenSubquery(Carbon $start, Carbon $end): Builder;
 }

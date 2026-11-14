@@ -4,6 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Contracts\RideQueryExpressions;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -44,6 +45,14 @@ final class AdminDriverQueryService
     ): LengthAwarePaginator {
         $query = User::with([
             'profile:user_id,profile_photo,type_of_car,color_of_car',
+            // PARKED (Stage 2 C2): this eager load is DEAD WEIGHT - nothing on the driver-list screen
+            // reads a document, which the byte-identical `admin/drivers` snapshot proves. Replacing it
+            // with Identity's batched `documentsFor()` read, or dropping it, takes the endpoint from 9
+            // queries to 8. This phase forbids a query-count change, so the line is left exactly as it
+            // was and the reduction is recorded as Parked for the owner (with the budget lowering that
+            // `tests/Snapshots/query-budgets.json` would need, which the frozen corpus forbids here).
+            // It is the last `User::photos()` reference in Console and therefore also the last thing
+            // blocking the Photo model move, next to Identity's two own-relation reads.
             'photos',
         ])
             // Stage 0.6 item 1: two per-row lookups moved into this one query.
@@ -69,14 +78,15 @@ final class AdminDriverQueryService
                 $q->where('is_verified_driver', true)
                     ->orWhere(function ($q2) {
                         $q2->whereIn('verification_status', ['pending', 'rejected'])
-                            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']));
+                            ->whereIn('users.id', app(PhotoRepositoryInterface::class)
+                                ->driverDocumentUserIdsSubquery());
                     });
             });
 
         match ($filter) {
             'verified' => $query->where('is_verified_driver', true),
             'pending' => $query->where('verification_status', 'pending')
-                ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
+                ->whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery()),
             'suspended' => $query->bannedNow(),
             default => null,
         };
@@ -116,8 +126,10 @@ final class AdminDriverQueryService
         return [
             ...$this->presenter->driverProfileIdentity($driver),
             'vehicle' => $this->presenter->driverProfileVehicle($driver->profile),
-            'documents' => $driver->photos->mapWithKeys(
-                fn ($p) => [$p->type => asset('storage/'.$p->path)]
+            'documents' => collect(
+                app(PhotoRepositoryInterface::class)->documentsFor([$driver->id])[$driver->id] ?? []
+            )->mapWithKeys(
+                fn ($p) => [$p['type'] => asset('storage/'.$p['path'])]
             ),
             'rating' => $this->presenter->driverProfileRating($ratingStats),
             'stats' => [
@@ -130,13 +142,14 @@ final class AdminDriverQueryService
     }
 
     /**
-     * The driver row the profile view is built from: profile, photos, and the uncapped ride count.
+     * The driver row the profile view is built from: profile and the uncapped ride count.
      *
      * Stage 2 C2: the recent-rides page and the ride count used to come from the `User::rides()`
      * relation (eager-loaded with `limit(5)` for the page, `withCount('rides')` for the total). That
      * relation is gone, so the count is written as the same correlated subquery `withCount` used to
      * generate - part of the SAME statement, so the query count for this endpoint does not move - and
-     * the page is queried by the presenter from Ride directly.
+     * the page is queried by the presenter from Ride directly. The documents are no longer loaded with
+     * the relation either: `getDriverProfile` reads them from Identity's port in one query.
      */
     private function findDriverWithProfileData(int $driverId): User
     {
@@ -147,7 +160,7 @@ final class AdminDriverQueryService
             ->addSelect([
                 'rides_count' => app(RideQueryExpressions::class)->rideCountSubquery('users.id'),
             ])
-            ->with(['profile', 'photos'])
+            ->with(['profile'])
             ->findOrFail($driverId);
     }
 }

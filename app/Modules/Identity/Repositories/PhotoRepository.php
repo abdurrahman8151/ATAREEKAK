@@ -4,6 +4,8 @@ namespace App\Modules\Identity\Repositories;
 
 use App\Models\Photo;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 
 class PhotoRepository implements PhotoRepositoryInterface
 {
@@ -58,5 +60,23 @@ class PhotoRepository implements PhotoRepositoryInterface
                 'path' => $photo->path,
             ])->values()->all())
             ->all();
+    }
+
+    /**
+     * Stage 2 C2: the existence predicate Console used to express with `whereHas('photos', ...)`,
+     * published as a subquery it can embed. See the interface note for why it is not a result set.
+     */
+    public function driverDocumentUserIdsSubquery(): Builder
+    {
+        return Photo::query()
+            ->select('user_id')
+            ->whereIn('type', self::DRIVER_DOCUMENT_TYPES);
+    }
+
+    /** The same subquery for documents created inside the window (the "incoming" count). */
+    public function driverDocumentUserIdsCreatedBetweenSubquery(Carbon $start, Carbon $end): Builder
+    {
+        return $this->driverDocumentUserIdsSubquery()
+            ->whereBetween('created_at', [$start, $end]);
     }
 }

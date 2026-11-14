@@ -2,8 +2,6 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Photo;
-use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 

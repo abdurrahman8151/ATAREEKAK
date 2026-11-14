@@ -20214,3 +20214,79 @@ skipped**, only the three pre-existing `L16DriverNoShow` failures. Whole-tree Pi
 scratch MySQL was down again afterwards (the machine had been suspended for ~9.5 hours, and the volume was at
 17.9 GB free). Restarted MySQL once and re-ran the same selection: green. A killed run proves nothing, so it was
 re-run rather than reported.
+
+---
+
+### 332. Stage 2 C2: Console stops naming `Photo` - the relation becomes an embeddable subquery, and one
+### dead eager load is PARKED rather than dropped
+
+**What the last `Console -> Photo` coupling actually was.** Four Console services held it, in three shapes, and
+only one shape was an import:
+
+ 1. **Two DEAD imports.** `AdminDriverService` carried `use App\Models\Photo;` *and* `use App\Models\Profile;`,
+    neither of them named anywhere in the file - its collaborators do the work and it delegates. Both lines went,
+    which takes the file off the per-file allowlist **entirely** (it has no foreign kernel model left).
+    `AdminDashboardActivityService` carried `use App\Models\Photo;`, also never named: `Profile` is the only live
+    kernel model there. **Allowlist: `['Photo','Profile','UserRating']` -> `['Profile','UserRating']`.** The three
+    remaining claims (`UserRating` in two files, `Booking` in one) are descriptive over-claims - the ratchet's scan
+    only ENFORCES growth, so they are left alone rather than tidied into noise.
+ 2. **Six `whereHas('photos', ...)` sites** across three services: five plain, one `orWhereHas` nested inside a
+    `whereHas('user')` (`profileUpdateActivityEvents`), and one negated `whereDoesntHave` (`AdminUserService`'s
+    passenger filter). **A `whereHas` cannot be replaced by a result set** - the predicate is part of the caller's
+    own statement and the ids are not known before it runs - so the port publishes a SUBQUERY
+    (`driverDocumentUserIdsSubquery()`) and the caller EMBEDS it: `whereIn('users.id', ...)`, `orWhereIn(...)` for
+    the nested form, `whereNotIn('users.id', ...)` for the negated one. `whereExists(select * from photos where
+    photos.user_id = users.id and type in (?,?))` becomes `users.id in (select user_id from photos where type in
+    (?,?))` - the same semi-join, the same rows, the same statement count. The efficiency widget's window variant
+    (`driverDocumentUserIdsCreatedBetweenSubquery($start, $end)`) carries `whereBetween('created_at', ...)`, so the
+    widget keeps the window and the owner keeps the definition of which documents count. `photos.user_id` is a
+    cascade FK (NOT NULL), which is why the `whereNotIn` direction cannot be poisoned by a NULL in the set; this is
+    written down in the interface because it is the one non-obvious safety property of the swap.
+ 3. **Three eager loads of the relation.** `AdminUserService`'s page (`'photos:id,user_id,type'`) and
+    `AdminDriverQueryService`'s profile (`with(['profile','photos'])`) are each replaced 1:1 by Identity's batched
+    `documentsFor()` read (sec 330) - one query in, one query out, and the profile's `documents` map is still a
+    **Collection**, so `json_encode` emits the same object. The page keeps its column-trimmed read through the port
+    and classifies each row with `PhotoRepositoryInterface::DRIVER_DOCUMENT_TYPES`, so the type list
+    (`['license','mechanic_card']`) is now stated ONCE, at the boundary, instead of five times in Console.
+
+**The third eager load is PARKED, and this is the interesting part.** `AdminDriverQueryService::getDrivers()` also
+eager-loaded `'photos'` for the whole page - and **nothing on that screen reads a document**: the removed load
+produced a byte-identical `admin/drivers` snapshot, and the endpoint's query count fell from 9 to 8 (the budget
+test printed `admin/drivers: 8 < 9 - lower the committed baseline`). That is precisely the case the standing rule
+names: *anything that changes a query count is Parked with the reason.* So the line is restored **verbatim to
+HEAD** and the reduction is recorded here instead of taken: dropping the dead load (or replacing it with the port
+read) would take the endpoint to 8 **only together with lowering `query-budgets.json`**, and `tests/Snapshots` is
+frozen for this phase. **Owner decision on request: may the driver list drop the wasted query?** It is the last
+`User::photos()` reference in Console, so it is also what still blocks the `Photo` model move from that side.
+
+**Ratchet movement (all measured, none raised).** `KERNEL_MODEL_IMPORTS`: **22 -> 21** entries (`Console -> Photo`
+removed). Per-file Console allowlist: **24 -> 23** entries. No Console PHP file contains the string `App\Models\Photo`
+any more - and that is the exact test the ratchet applies (it matches the literal text, comments included, which is
+why the notes added here say "Identity's photos table" and never the FQCN). `ModuleGraphTest` is UNCHANGED: Console
+still reaches Identity through **7** ports, because `PhotoRepositoryInterface` was already a counted port (the staff
+document route names it); this step added methods to a port, not a port.
+
+**What is left on the Photo thread, precisely.**
+ - two relation reads in Identity itself (`PassengerProfileQueryService:34`'s `with(['profile','photos'])`, whose
+   `photos` half is dead for the same byte-identical-snapshot reason, and `VerificationApprovalService:45-46`'s
+   `$user->photos->pluck('type')`), each a 1:1 swap for `documentsFor()`;
+ - the kernel entrypoint `kyc:migrate-disk` (`MigrateKycDocumentsCommand`), which counts and iterates the model -
+   `ModuleBoundaryTest` rule D exempts `Console/Commands/` from the kernel-contracts ceiling, so it may take an
+   Identity port (`countAll()` + a streamed row reader) without breaking rule B or C;
+ - `AdminDriverQueryService`'s parked line above;
+ - then `User::photos()` can go and `Photo` can move to `App\Modules\Identity\Models` (with the explicit
+   `protected $table = 'photos'`), which is what unblocks the actual C1 move.
+
+**Verification.** Scoped gate after the parked line was restored: `AppFuture` + `Admin` + `Snapshots` + the three
+`AdminUserService`-referencing Review files = **390 tests / 2868 assertions OK** (the `admin/drivers` budget nag is
+gone, only the three pre-existing `wallet/*` notices remain). Wide gate, **both orders**, `AppFuture` + `Admin` +
+`Snapshots` + `Review` + `Staff` + `Verification` + `Documents` + `Profile` + `Console` + `Complaints` + `T3Batch` +
+`T4Batch`:
+**default order 1455 tests / 6647 assertions / 3 failures / 2 skipped** and **reverse order 1455 tests / 6647
+assertions / 3 failures / 2 skipped** - the same three pre-existing `L16DriverNoShowSettlementCharacterizationTest`
+failures by name in both orders, and not one assertion-count difference between them. Whole-tree Pint **PASS (852
+files)**.
+
+**Infrastructure note.** The first reverse-order attempt was killed at 83% (1220/1455) by the Windows job runner
+(`exit code 1073807364`) with the machine suspended ~8 hours and the scratch MySQL down again; MySQL was restarted
+once and the same selection re-run to completion. A killed run proves nothing, so nothing was concluded from it.

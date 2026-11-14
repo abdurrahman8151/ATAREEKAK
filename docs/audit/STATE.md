@@ -206,6 +206,26 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 PHOTO: CONSOLE NAMES NO `Photo` AT ALL (audit sec 332), commit
+  `Stage 2 C2: Console stops naming Photo - relation becomes an embeddable subquery`.** Six `whereHas('photos')`
+  sites became an EMBEDDABLE subquery from the port (`driverDocumentUserIdsSubquery()`, plus a created-between
+  variant for the efficiency widget) embedded as `whereIn/orWhereIn/whereNotIn('users.id', ...)` - same statements,
+  same rows, same counts. Two page/profile eager loads became Identity's batched `documentsFor()`; the document-type
+  list is now one constant on the port. Two DEAD imports went (`AdminDriverService`'s `Photo` **and** `Profile`, so
+  that file left the allowlist entirely; `AdminDashboardActivityService`'s `Photo`).
+  **RATCHETS: `KERNEL_MODEL_IMPORTS` 22 -> 21 entries; Console per-file allowlist 24 -> 23 entries;
+  `ModuleGraphTest` unchanged (Console -> Identity stays 7 - methods on an existing port are not a new port).**
+  **GATE (both orders, same selection): default AND reverse = 1455 tests / 6647 assertions / 3 failures / 2 skipped
+  - the same three pre-existing `L16DriverNoShow` failures by name, zero assertion-count difference; scoped re-run
+  after the parked line: 390/2868 OK; Pint PASS 852 files.**
+  **PARKED (needs one owner word): `AdminDriverQueryService::getDrivers()` eager-loads `'photos'` and NOTHING on
+  that screen reads a document** (byte-identical `admin/drivers` snapshot). Removing it takes the endpoint 9 -> 8
+  queries, which the hard rule forbids without lowering `query-budgets.json` - and `tests/Snapshots` is frozen. The
+  line is restored verbatim to HEAD; it is also the last `User::photos()` in Console and blocks the Photo move.
+  **PHOTO STILL NEEDS:** Identity's own two relation reads (`PassengerProfileQueryService:34`,
+  `VerificationApprovalService:45-46` - each a 1:1 `documentsFor()` swap), the `kyc:migrate-disk` entrypoint
+  command (`Console/Commands/` is exempt from the kernel-contracts ceiling, so it may take an Identity port), the
+  parked line above; then `User::photos()` can go and `Photo` moves to `App\Modules\Identity\Models`.
 - **STAGE 2 - C2 PHOTO: first ratchet movement (audit sec 331), commit
   `Stage 2 C2: driver dashboard reads documents through Identity`.** `AdminDriverDashboardService` dropped its
   `App\Models\Photo` import and its `$driver->photos` read: documents now come from

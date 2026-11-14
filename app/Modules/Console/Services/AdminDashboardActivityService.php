@@ -2,9 +2,9 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Photo;
 use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use Carbon\Carbon;
 
@@ -43,17 +43,23 @@ final class AdminDashboardActivityService
      */
     public function getStats(): array
     {
+        // Stage 2 C2: `photos` is Identity's table, so the "has driver documents" predicate is
+        // Identity's too. It arrives as an embeddable subquery because it cannot be a result set -
+        // these are COUNT statements and the ids are not known before they run. Still one statement
+        // per card, so the query count does not move.
+        $documentUserIds = app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery();
+
         $totalDrivers = User::where('is_verified_driver', true)
-            ->orWhere(function ($q) {
+            ->orWhere(function ($q) use ($documentUserIds) {
                 $q->whereIn('verification_status', ['pending', 'rejected'])
-                    ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']));
+                    ->whereIn('users.id', $documentUserIds);
             })
             ->count();
 
         $activeDrivers = User::where('is_verified_driver', true)->count();
 
         $pendingVerifications = User::where('verification_status', 'pending')
-            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            ->whereIn('users.id', $documentUserIds)
             ->count();
 
         // RV-19 item 5: this was `$suspendedDrivers = 0; // not implemented yet`, so the dashboard
@@ -106,7 +112,7 @@ final class AdminDashboardActivityService
     private function verificationActivityEvents(int $limit): array
     {
         $recentVerifications = User::with('profile:user_id,profile_photo')
-            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            ->whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery())
             ->whereIn('verification_status', ['pending', 'approved', 'rejected'])
             ->orderByDesc('updated_at')
             ->limit($limit)
@@ -149,9 +155,13 @@ final class AdminDashboardActivityService
     /** ── 2. Vehicle / profile updates by drivers ─────────────────────────── */
     private function profileUpdateActivityEvents(int $limit): array
     {
+        // Stage 2 C2: the nested `orWhereHas('photos', ...)` on the driver's user row becomes the
+        // embedded subquery; the constraint is unchanged and still part of this statement.
+        $documentUserIds = app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery();
+
         $recentProfileUpdates = Profile::with('user:id,first_name,last_name')
             ->whereHas('user', fn ($q) => $q->where('is_verified_driver', true)
-                ->orWhereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+                ->orWhereIn('users.id', $documentUserIds)
             )
             ->whereNotNull('type_of_car')
             ->orderByDesc('updated_at')
@@ -247,16 +257,16 @@ final class AdminDashboardActivityService
 
     private function countIncomingVerifications(Carbon $start, Carbon $end): int
     {
-        return User::whereHas('photos', function ($q) use ($start, $end) {
-            $q->whereIn('type', ['license', 'mechanic_card'])
-                ->whereBetween('created_at', [$start, $end]);
-        })->count();
+        // The window belongs to this widget; "which documents count" belongs to the port.
+        return User::whereIn('users.id', app(PhotoRepositoryInterface::class)
+            ->driverDocumentUserIdsCreatedBetweenSubquery($start, $end))
+            ->count();
     }
 
     private function countProcessedVerifications(Carbon $start, Carbon $end): int
     {
         return User::whereIn('verification_status', ['approved', 'rejected'])
-            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+            ->whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery())
             ->whereBetween('updated_at', [$start, $end])
             ->count();
     }

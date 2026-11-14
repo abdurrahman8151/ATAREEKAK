@@ -4,6 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use Carbon\Carbon;
 
 /**
@@ -33,6 +34,10 @@ use Carbon\Carbon;
  */
 final class AdminUserService
 {
+    public function __construct(
+        private readonly PhotoRepositoryInterface $photos,
+    ) {}
+
     // =========================================================================
     // MAIN — single merged response
     // =========================================================================
@@ -61,8 +66,15 @@ final class AdminUserService
             $search
         )->paginate($perPage, ['*'], 'page', $page);
 
+        // Stage 2 C2: `photos` is Identity's table. The page's document rows arrive here in ONE
+        // batched read, replacing the `photos:id,user_id,type` eager load `buildQuery` used to
+        // carry - same one query, and the query still runs after the page is fetched.
+        $documents = $this->photos->documentsFor(
+            $paginator->getCollection()->pluck('id')->all()
+        );
+
         $rows = $paginator->getCollection()
-            ->map(fn (User $user) => $this->formatUser($user))
+            ->map(fn (User $user) => $this->formatUser($user, $documents[$user->id] ?? []))
             ->values();
 
         return [
@@ -93,7 +105,7 @@ final class AdminUserService
             'total_registered' => User::count(),
             'active_drivers' => User::where('is_verified_driver', true)->count(),
             'pending_drivers' => User::where('verification_status', 'pending')
-                ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']))
+                ->whereIn('users.id', $this->photos->driverDocumentUserIdsSubquery())
                 ->count(),
             'passengers' => User::where('is_verified_passenger', true)
                 ->where('is_verified_driver', false)
@@ -131,7 +143,6 @@ final class AdminUserService
     ) {
         $query = User::with([
             'profile:user_id,profile_photo',
-            'photos:id,user_id,type',
         ]);
 
         $this->applyTypeFilter($query, $typeFilter);
@@ -154,13 +165,13 @@ final class AdminUserService
                 $q->where('is_verified_driver', true)
                     ->orWhere(function ($q2) {
                         $q2->where('verification_status', 'pending')
-                            ->whereHas('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card']));
+                            ->whereIn('users.id', $this->photos->driverDocumentUserIdsSubquery());
                     });
             }),
 
             'passenger' => $query
                 ->where('is_verified_driver', false)
-                ->whereDoesntHave('photos', fn ($p) => $p->whereIn('type', ['license', 'mechanic_card'])),
+                ->whereNotIn('users.id', $this->photos->driverDocumentUserIdsSubquery()),
 
             default => null,   // 'all' — no constraint
         };
@@ -226,7 +237,7 @@ final class AdminUserService
     // PRIVATE — FORMAT
     // =========================================================================
 
-    private function formatUser(User $user): array
+    private function formatUser(User $user, array $documents): array
     {
         return [
             'id' => $user->id,
@@ -235,21 +246,26 @@ final class AdminUserService
             'profile_photo' => $user->profile?->profile_photo
                 ? asset('storage/'.$user->profile->profile_photo)
                 : null,
-            'type' => $this->resolveUserType($user),
+            'type' => $this->resolveUserType($user, $documents),
             'status' => $this->resolveUserStatus($user),
             'joined_at' => $user->created_at->toIso8601String(),
             'joined_label' => $user->created_at->format('d M Y'),
         ];
     }
 
-    private function resolveUserType(User $user): string
+    /**
+     * @param  array<int, array{id: int, type: string|null, path: string|null}>  $documents  this user's rows
+     */
+    private function resolveUserType(User $user, array $documents): string
     {
         if ($user->is_verified_driver) {
             return 'driver';
         }
 
-        $hasDriverDocs = $user->photos
-            ->whereIn('type', ['license', 'mechanic_card'])
+        // Stage 2 C2: the type list is Identity's definition, read from the port's constant so the
+        // query side and this side cannot drift apart.
+        $hasDriverDocs = collect($documents)
+            ->whereIn('type', PhotoRepositoryInterface::DRIVER_DOCUMENT_TYPES)
             ->isNotEmpty();
 
         return $hasDriverDocs ? 'driver' : 'passenger';
