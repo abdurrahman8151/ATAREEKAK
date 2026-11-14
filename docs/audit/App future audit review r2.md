@@ -20331,3 +20331,38 @@ migration stream. Left before the move: Identity's two relation reads
 1:1 `documentsFor()` swap, one of which is the parked query-count reduction), the two parked dead eager loads
 (sec 332's `getDrivers` line and `profileBundle`), and `User::photos()` itself - at which point the model moves to
 `App\Modules\Identity\Models` with `protected $table = 'photos'`.
+
+---
+
+### 334. Stage 2 C2: the verification approval reads documents through the port - `User::photos()` down to two parked sites
+
+**The last LIVE `User::photos()` read in the tree.** `VerificationApprovalService::approve()` decided
+driver-vs-passenger from the submitted documents, and read them off the relation:
+`User::with('photos')->findOrFail($userId)` then `$user->photos->pluck('type')->toArray()`. That is one eager load
+(a second statement) and one `$user->photos` lazy-safe read on a real money-adjacent path (the approval that
+unlocks a driver account). It is now `User::findOrFail($userId)` plus
+`array_column($this->photos->documentsFor([$userId])[$userId] ?? [], 'type')` - **one statement in, one statement
+out**, so `profile/verify-driver`'s budget is untouched.
+
+**Two details worth recording.** (1) The lookup is kept even though its result is no longer used: `findOrFail` is
+what turns "approve a user that does not exist" into the `ModelNotFoundException` the two controllers translate
+into their 404, and dropping it would silently change that path - so it carries a comment saying exactly that.
+(2) The driver test now reads the pair from `PhotoRepositoryInterface::DRIVER_DOCUMENT_TYPES` via `array_intersect`
+instead of two `in_array('license'|'mechanic_card', ...)` calls - same membership test, one definition, and the last
+copy of the type literals outside the port's own file.
+
+**Where the relation stands now: TWO sites, both PARKED on the same owner question (query count).**
+ - `AdminDriverQueryService:56` (`getDrivers`' page eager load) - sec 332; it loads documents nothing on that screen
+   reads, and removing it takes `admin/drivers` from 9 queries to 8.
+ - `PassengerProfileQueryService:34` (`profileBundle`'s `with(['profile','photos'])`) - the `photos` half is dead
+   for the same reason (`formatUser()` reads only the profile, and the `admin/passenger-full-profile` snapshot is
+   byte-identical), and it is the last relation read in Identity itself.
+Both are 1:1 replaceable by `documentsFor()` **without any change to the query count** - that is what this step
+demonstrates - so the owner's one word can unblock the `Photo` move either way (drop the wasted query, or keep the
+count and take the read). `User::photos()` itself (the definition at `User.php:161`) can go the moment those two
+lines and Identity's own three `App\Models\Photo` imports move with the model.
+
+**Verification.** `NationalIdVerificationTest` (the approval path's own file) + `Verification` + `Staff` +
+`Documents` + `AppFuture` + `Snapshots`: **528 tests / 3159 assertions OK in default order and again with
+`--order-by=reverse`**, with only the three pre-existing `wallet/*` budget notices. Whole-tree Pint **PASS (852
+files)**.

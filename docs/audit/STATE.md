@@ -206,6 +206,28 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 PHOTO: the approval path reads documents through the port (audit sec 334), commit
+  `Stage 2 C2: verification approval reads documents through Identity`.** `VerificationApprovalService::approve()`
+  no longer uses `User::with('photos')`/`$user->photos`: `User::findOrFail($userId)` (kept FOR ITS 404, documented)
+  + `array_column($this->photos->documentsFor([$userId])[$userId] ?? [], 'type')` - one statement in, one out, so
+  `profile/verify-driver`'s budget is untouched - and the driver test uses the port's `DRIVER_DOCUMENT_TYPES`
+  instead of two literal `in_array` calls. **GATE: 528 tests / 3159 assertions OK in BOTH orders; Pint PASS 852.**
+
+  **OWNER DECISION NEEDED - ONE WORD UNBLOCKS THE `Photo` MOVE.** `User::photos()` now has exactly TWO readers
+  left, both of them loading rows nothing reads (byte-identical snapshots prove it):
+  `Console\AdminDriverQueryService:56` (page eager load; `admin/drivers` 9 -> 8 queries if dropped) and
+  `Identity\PassengerProfileQueryService:34` (`profileBundle`'s `photos` half; `admin/passenger-full-profile`
+  drops one query). Both are 1:1 replaceable by `documentsFor()` with NO query-count change. **Ask: may those two
+  endpoints drop the wasted query (lowering `tests/Snapshots/query-budgets.json`, which this phase froze), or
+  should the dead load be replaced 1:1 by the port read so the count stays exactly 9 and N?** Then
+  `User::photos()` (`User.php:161`) can be deleted and `Photo` moves to `App\Modules\Identity\Models` with
+  `protected $table = 'photos'` (Identity's own three `App\Models\Photo` imports move with it).
+
+  **NEXT UNBLOCKED (no owner word needed):** the `Profile` thread (slate item 5: "not started") - ~45
+  `User::profile()` sites plus Console's `Profile` allowlist entries; `ProfileComment` (its `ride()` relation was
+  already removed in sec 321) and `Complaint`/`ComplaintAttachment` are the other not-started C1 movers. Blocked:
+  Ride/Booking (`RV23ComplaintContextTest:82-84`), `UserRating` (`UntangleBatchTest:68`), Money (secs 291/293),
+  `Employee` (auth change).
 - **STAGE 2 - C2 PHOTO: NO KERNEL FILE NAMES `Photo` ANY MORE (audit sec 333), commit
   `Stage 2 C2: the kyc:migrate-disk entrypoint streams its rows through Identity`.** The kernel entrypoint
   `MigrateKycDocumentsCommand` dropped its `App\Models\Photo` import: the port grew `countAllDocuments(): int` and
