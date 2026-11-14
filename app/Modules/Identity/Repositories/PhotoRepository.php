@@ -79,4 +79,26 @@ class PhotoRepository implements PhotoRepositoryInterface
         return $this->driverDocumentUserIdsSubquery()
             ->whereBetween('created_at', [$start, $end]);
     }
+
+    /** Stage 2 C2: the count the `kyc:migrate-disk` entrypoint reports before it moves anything. */
+    public function countAllDocuments(): int
+    {
+        return Photo::query()->count();
+    }
+
+    /**
+     * Stage 2 C2: the streamed row set for the disk migration. Chunked by id, so a large document
+     * table is never held in memory - and the chunk size matches the `each()` default this replaces.
+     */
+    public function eachDocument(callable $callback, int $chunkSize = 1000): void
+    {
+        Photo::query()
+            ->orderBy('id')
+            ->select('id', 'path')
+            ->chunkById($chunkSize, function ($rows) use ($callback): void {
+                foreach ($rows as $photo) {
+                    $callback(['id' => $photo->id, 'path' => $photo->path]);
+                }
+            });
+    }
 }

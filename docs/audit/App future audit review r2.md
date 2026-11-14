@@ -20290,3 +20290,44 @@ files)**.
 **Infrastructure note.** The first reverse-order attempt was killed at 83% (1220/1455) by the Windows job runner
 (`exit code 1073807364`) with the machine suspended ~8 hours and the scratch MySQL down again; MySQL was restarted
 once and the same selection re-run to completion. A killed run proves nothing, so nothing was concluded from it.
+
+---
+
+### 333. Stage 2 C2: the kernel stops naming `Photo` entirely - `kyc:migrate-disk` streams its rows through Identity
+
+**What the command needed, and what it must keep.** `MigrateKycDocumentsCommand` is a kernel ENTRYPOINT
+(`app/Console/Commands/`), and it used the model for exactly three things: a count
+(`Photo::query()->count()`), a streamed walk (`Photo::query()->orderBy('id')->each(...)`) and the two columns that
+walk read (`$photo->id`, `$photo->path`). Everything else it does - the copy, the size verification, the source
+delete, the missing-file report, the counts table - is a DISK operation, not a table read, and had to stay where it
+is. So the port grew two methods rather than the command growing a repository: `countAllDocuments(): int` and
+`eachDocument(callable $callback, int $chunkSize = 1000): void`, the second streaming
+`['id' => int, 'path' => string|null]` in id order via `chunkById`, selecting only those two columns.
+
+**Why the chunk size is part of the contract.** `Builder::each()` defaults to 1000 and chunks internally, so a run
+against N documents issues the same statements as before - `eachDocument()` keeps that default, which is what
+makes this swap statement-count-neutral for the command as well as for every HTTP endpoint. The command takes the
+port by METHOD injection on `handle(PhotoRepositoryInterface $documents)`, which the container resolves, so nothing
+about the command's registration or signature-for-the-operator changed (`kyc:migrate-disk`, its options, its exit
+codes and every line of its output are untouched).
+
+**Why no ratchet moved, and why that is the point.** `ModuleBoundaryTest` exempts `Console/Commands/` from the
+kernel-contracts ceiling (rule D) and from rule B, and rule C counts only NON-Contracts references - so a command
+naming a port is exactly the sanctioned shape. What this step actually bought is measurable elsewhere: **no kernel
+file names `App\Models\Photo` any more** (it was the last one), and `User::photos()` lost its last kernel reader
+outside Identity. The remaining references to the model are Identity's own three files
+(`PhotoRepository`, `VerificationSubmissionService`, `DocumentVerificationService`), which move WITH it.
+
+**Verification.** `RV01KycDiskMigrationTest` (the seven-item characterization of the move: copy-then-delete,
+idempotence, dry run, missing-file reporting, same-disk refusal, undefined-disk refusal, every KYC type, empty
+table) plus the three other disk/kyc Review tests, `AppFuture`, `Documents`, `Verification` and `Staff`:
+**360 tests / 1141 assertions OK in default order and again with `--order-by=reverse`**. Whole-tree Pint
+**PASS (852 files)**.
+
+**Photo thread, state after this step.** Done: Console (sec 332) and the kernel (here) name no `Photo`; the port
+carries the page read (`documentsFor`), the existence predicate (two subqueries), the type list and now the
+migration stream. Left before the move: Identity's two relation reads
+(`PassengerProfileQueryService:34`'s dead `photos` half, `VerificationApprovalService:45-46`'s live one - each a
+1:1 `documentsFor()` swap, one of which is the parked query-count reduction), the two parked dead eager loads
+(sec 332's `getDrivers` line and `profileBundle`), and `User::photos()` itself - at which point the model moves to
+`App\Modules\Identity\Models` with `protected $table = 'photos'`.

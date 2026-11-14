@@ -71,4 +71,24 @@ interface PhotoRepositoryInterface
      * caller; which document types count belongs here.
      */
     public function driverDocumentUserIdsCreatedBetweenSubquery(Carbon $start, Carbon $end): Builder;
+
+    /**
+     * How many document rows there are - the count `kyc:migrate-disk` reports before it moves anything.
+     */
+    public function countAllDocuments(): int;
+
+    /**
+     * Every document row, one at a time, in id order - `['id' => int, 'path' => string|null]`.
+     *
+     * Stage 2 C2: the `kyc:migrate-disk` entrypoint used to walk the model itself
+     * (`Photo::query()->orderBy('id')->each(...)`). It is a KERNEL command, so once the model moves into
+     * this module it may not name it - but it is the DISK migration, not a table read: the row set has to
+     * be streamed in chunks (a document table is large) and the file copy, the size verification and the
+     * source delete all stay in the command, because those are storage operations, not this module's
+     * business. Only the two columns the move needs are selected.
+     *
+     * The chunk size mirrors what `Builder::each()` used to default to, so the statement count of a run
+     * is unchanged.
+     */
+    public function eachDocument(callable $callback, int $chunkSize = 1000): void;
 }

@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Photo;
+use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 
@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Storage;
  * **Why it is needed BEFORE the documented switch, not after.** `config/filesystems.php:114` says
  * setting `DOCUMENTS_DISK=minio` is "the one-line deploy change that moves identity documents off the
  * public disk", and `StaffDocumentController:85` reads through the same key. So flipping that env var
- * without moving the bytes first makes `$disk->exists($photo->path)` false for EVERY existing row -
+ * without moving the bytes first makes `$disk->exists($document['path'])` false for EVERY existing row -
  * every staff KYC view 404s. The switch is currently unsafe; this command is what makes it safe.
  *
  * **Safety properties, in order of importance.**
@@ -34,6 +34,13 @@ use Illuminate\Support\Facades\Storage;
  * It moves the `photos` table only - KYC identity documents, which are the rows with a privacy problem
  * and the rows `StaffDocumentController` serves. Profile photos, chat images and complaint attachments
  * live on `uploads_disk` and are AF-5's concern, not this row's.
+ *
+ * **Stage 2 C2: the row set now arrives from Identity.** This is a kernel entrypoint, so it may not name
+ * the model once `photos` belongs to a module - and the count/stream it needs are that module's table
+ * read. `PhotoRepositoryInterface::countAllDocuments()` and `eachDocument()` supply them (chunked in id
+ * order, only the `id` and `path` columns the move needs), while the COPY / VERIFY / DELETE sequence
+ * stays here: it moves FILES between disks, which is not a table operation at all. The command's
+ * behaviour, its exit codes and its statement count are unchanged.
  */
 class MigrateKycDocumentsCommand extends Command
 {
@@ -45,7 +52,7 @@ class MigrateKycDocumentsCommand extends Command
 
     protected $description = 'Move existing KYC documents from one disk to another (RV-01 storage half)';
 
-    public function handle(): int
+    public function handle(PhotoRepositoryInterface $documents): int
     {
         $from = (string) ($this->option('from') ?: 'public');
 
@@ -64,7 +71,7 @@ class MigrateKycDocumentsCommand extends Command
             return self::FAILURE;
         }
 
-        $total = Photo::query()->count();
+        $total = $documents->countAllDocuments();
 
         if ($total === 0) {
             $this->info('No KYC documents found. Nothing to move.');
@@ -82,8 +89,10 @@ class MigrateKycDocumentsCommand extends Command
 
         $counts = ['moved' => 0, 'skipped' => 0, 'missing' => 0, 'failed' => 0];
 
-        Photo::query()->orderBy('id')->each(function (Photo $photo) use ($from, $to, $dryRun, &$counts): void {
-            $this->migratePhoto($photo, $from, $to, $dryRun, $counts);
+        // Stage 2 C2: the row set is streamed by Identity (the table's owner); the copy / verify / delete
+        // sequence below stays here, because it moves FILES, not rows.
+        $documents->eachDocument(function (array $document) use ($from, $to, $dryRun, &$counts): void {
+            $this->migratePhoto($document, $from, $to, $dryRun, $counts);
         });
 
         $this->renderReport($dryRun, $counts, $to);
@@ -118,11 +127,13 @@ class MigrateKycDocumentsCommand extends Command
     }
 
     /**
-     * One `photos` row through the copy / verify / delete sequence, updating $counts in place.
+     * One document row through the copy / verify / delete sequence, updating $counts in place.
+     *
+     * The row arrives as `['id' => int, 'path' => string|null]` from Identity's streamed reader.
      */
-    private function migratePhoto(Photo $photo, string $from, string $to, bool $dryRun, array &$counts): void
+    private function migratePhoto(array $document, string $from, string $to, bool $dryRun, array &$counts): void
     {
-        $path = $photo->path;
+        $path = $document['path'];
 
         // Already on the target: this is what makes a re-run after an interruption safe.
         if (Storage::disk($to)->exists($path)) {
@@ -135,35 +146,35 @@ class MigrateKycDocumentsCommand extends Command
         // exactly as it was so an operator can investigate it.
         if (! Storage::disk($from)->exists($path)) {
             $counts['missing']++;
-            $this->warn("  missing (on neither disk, row left alone): id={$photo->id} {$path}");
+            $this->warn("  missing (on neither disk, row left alone): id={$document['id']} {$path}");
 
             return;
         }
 
         if ($dryRun) {
             $counts['moved']++;
-            $this->line("  would move: id={$photo->id} {$path}");
+            $this->line("  would move: id={$document['id']} {$path}");
 
             return;
         }
 
-        $this->copyAndRemoveSource($photo, $from, $to, $counts);
+        $this->copyAndRemoveSource($document, $from, $to, $counts);
     }
 
     /**
      * COPY, VERIFY, THEN DELETE: the source is removed only once the target copy exists at the
      * matching byte size.
      */
-    private function copyAndRemoveSource(Photo $photo, string $from, string $to, array &$counts): void
+    private function copyAndRemoveSource(array $document, string $from, string $to, array &$counts): void
     {
-        $path = $photo->path;
+        $path = $document['path'];
         $sourceSize = Storage::disk($from)->size($path);
 
         try {
             Storage::disk($to)->put($path, Storage::disk($from)->get($path));
         } catch (\Throwable $e) {
             $counts['failed']++;
-            $this->error("  copy failed: id={$photo->id} {$path} - {$e->getMessage()}");
+            $this->error("  copy failed: id={$document['id']} {$path} - {$e->getMessage()}");
 
             return;
         }
@@ -172,7 +183,7 @@ class MigrateKycDocumentsCommand extends Command
         // original rather than trading a good file for a bad one.
         if (! Storage::disk($to)->exists($path) || Storage::disk($to)->size($path) !== $sourceSize) {
             $counts['failed']++;
-            $this->error("  size mismatch after copy, source kept: id={$photo->id} {$path}");
+            $this->error("  size mismatch after copy, source kept: id={$document['id']} {$path}");
 
             return;
         }
@@ -182,7 +193,7 @@ class MigrateKycDocumentsCommand extends Command
         } catch (\Throwable $e) {
             // The copy is good; a failed delete only leaves a duplicate, which is the safe
             // direction to fail in. Report it rather than pretending it is done.
-            $this->warn("  copied but source delete failed (duplicate left): id={$photo->id} {$path}");
+            $this->warn("  copied but source delete failed (duplicate left): id={$document['id']} {$path}");
         }
 
         $counts['moved']++;

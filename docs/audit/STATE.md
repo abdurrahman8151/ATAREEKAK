@@ -206,6 +206,19 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 PHOTO: NO KERNEL FILE NAMES `Photo` ANY MORE (audit sec 333), commit
+  `Stage 2 C2: the kyc:migrate-disk entrypoint streams its rows through Identity`.** The kernel entrypoint
+  `MigrateKycDocumentsCommand` dropped its `App\Models\Photo` import: the port grew `countAllDocuments(): int` and
+  `eachDocument(callable, int $chunkSize = 1000): void` (id-ordered `chunkById`, only `id`+`path` selected, the same
+  1000-row default `Builder::each()` used, so a run's statement count is unchanged), taken by method injection on
+  `handle(PhotoRepositoryInterface $documents)`. The copy/verify/delete sequence, the outputs and the exit codes are
+  untouched. **No ratchet moved and that is correct** (`Console/Commands/` is exempt from rules B/C/D for
+  non-Contracts references), but the measurement that matters is: **kernel files naming `App\Models\Photo` = 0**.
+  **GATE: 360 tests / 1141 assertions OK in default order AND with `--order-by=reverse`; Pint PASS 852 files.**
+  **PHOTO STILL NEEDS:** Identity's own three model imports (move with the model), Identity's two relation reads
+  (`PassengerProfileQueryService:34` dead half, `VerificationApprovalService:45-46` live half - 1:1 `documentsFor()`
+  swaps), the two PARKED dead eager loads (sec 332's `getDrivers` line + `profileBundle`), and `User::photos()`;
+  then `Photo` moves to `App\Modules\Identity\Models` with `protected $table = 'photos'`.
 - **STAGE 2 - C2 PHOTO: CONSOLE NAMES NO `Photo` AT ALL (audit sec 332), commit
   `Stage 2 C2: Console stops naming Photo - relation becomes an embeddable subquery`.** Six `whereHas('photos')`
   sites became an EMBEDDABLE subquery from the port (`driverDocumentUserIdsSubquery()`, plus a created-between
