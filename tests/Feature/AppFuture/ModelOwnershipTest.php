@@ -60,7 +60,6 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Repositories/ComplaintRepository.php' => ['Complaint'],
         'app/Modules/Console/Repositories/EmployeeRepository.php' => ['Employee'],
         'app/Modules/Console/Services/AdminAuthService.php' => ['Employee'],
-        'app/Modules/Console/Services/AdminDashboardActivityService.php' => ['Profile', 'UserRating'],
         'app/Modules/Console/Services/AdminReportService.php' => ['Complaint'],
         'app/Modules/Console/Services/AdminWalletRequestService.php' => ['Wallet', 'WalletRequest'],
         'app/Modules/Console/Services/AdminWalletService.php' => ['Wallet'],
@@ -72,7 +71,6 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Services/EmployeeManagementService.php' => ['Employee'],
         'app/Modules/Console/Services/ReviewModerationService.php' => ['ProfileComment'],
         'app/Modules/Console/Services/StaffComplaintService.php' => ['Complaint', 'Employee'],
-        'app/Modules/Console/Services/StaffUserProfileService.php' => ['Profile', 'UserRating'],
         'app/Modules/Console/Services/SupportAgentRoutingService.php' => ['Employee'],
     ];
 
@@ -107,7 +105,6 @@ final class ModelOwnershipTest extends TestCase
         'Console -> Complaint' => 'complaints',
         'Console -> ComplaintAttachment' => 'complaint_attachments',
         'Console -> Employee' => 'employees',
-        'Console -> Profile' => 'profiles',
         'Console -> ProfileComment' => 'profile_comments',
         'Console -> Wallet' => 'wallets',
         'Console -> WalletRequest' => 'wallet_requests',

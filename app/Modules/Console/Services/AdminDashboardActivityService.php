@@ -2,7 +2,6 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileDirectory;
@@ -156,26 +155,19 @@ final class AdminDashboardActivityService
     /** ── 2. Vehicle / profile updates by drivers ─────────────────────────── */
     private function profileUpdateActivityEvents(int $limit): array
     {
-        // Stage 2 C2: the nested `orWhereHas('photos', ...)` on the driver's user row becomes the
-        // embedded subquery; the constraint is unchanged and still part of this statement.
-        $documentUserIds = app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery();
-
-        $recentProfileUpdates = Profile::with('user:id,first_name,last_name')
-            ->whereHas('user', fn ($q) => $q->where('is_verified_driver', true)
-                ->orWhereIn('users.id', $documentUserIds)
-            )
-            ->whereNotNull('type_of_car')
-            ->orderByDesc('updated_at')
-            ->limit($limit)
-            ->get();
+        // Stage 2 C2: `profiles` is Identity's table, so the page query lives behind its port and
+        // arrives as scalars. Two statements in, two out - the eager load the caller used to run is
+        // kept inside the port, so the frozen admin dashboard query budget does not move.
+        $recentProfileUpdates = app(ProfileDirectory::class)->recentVehicleUpdates($limit);
 
         $events = [];
 
         foreach ($recentProfileUpdates as $profile) {
-            if (! $profile->user) {
+            // A profile whose user row is gone is skipped exactly as `if (! $profile->user)` did.
+            if ($profile['user_id'] === null) {
                 continue;
             }
-            $name = trim("{$profile->user->first_name} {$profile->user->last_name}");
+            $name = trim("{$profile['first_name']} {$profile['last_name']}");
 
             $events[] = [
                 'type' => 'vehicle_update',
@@ -183,9 +175,9 @@ final class AdminDashboardActivityService
                 'color' => 'purple',
                 'message' => "Vehicle details updated for \"{$name}\"",
                 'actor' => $name,
-                'user_id' => $profile->user_id,
-                'occurred_at' => $profile->updated_at->toIso8601String(),
-                'human_time' => $this->presenter->humanTime($profile->updated_at),
+                'user_id' => $profile['user_id'],
+                'occurred_at' => $profile['updated_at']->toIso8601String(),
+                'human_time' => $this->presenter->humanTime($profile['updated_at']),
             ];
         }
 

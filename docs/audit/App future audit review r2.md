@@ -20463,3 +20463,45 @@ with it. Communication is parked above.
 **Verification.** `AppFuture` + `Admin` + `Snapshots` = **369 tests / 2795 assertions OK in default order and again
 with `--order-by=reverse`**; only the three pre-existing `wallet/*` budget notices. Whole-tree Pint **PASS (854
 files)**.
+
+---
+
+### 337. Stage 2 C2: Console names no `Profile` - the last two readers go through `ProfileDirectory`
+
+**Two files left, two different shapes, one port.** `AdminDashboardActivityService::profileUpdateActivityEvents`
+ran the vehicle-update page query against `App\Models\Profile` (`with('user:id,first_name,last_name')`,
+`whereHas('user', is_verified_driver OR has driver documents)`, `whereNotNull('type_of_car')`,
+`orderByDesc('updated_at')`, `limit`); `StaffUserProfileService` ran
+`Profile::with(['user','comments.commenter:id,first_name,last_name'])->where('user_id',...)->firstOrFail()`
+and then read `->comments` to shape the response. `ProfileDirectory` grew one method per caller, both returning
+data rather than the model:
+
+- `recentVehicleUpdates(int $limit): array` - **the same TWO statements** (the profiles page, then the users eager
+  load). `user_id` comes from the related user, not from the profile column, so a profile whose `users` row is gone
+  still maps to `null` and the Console loop keeps its old `if (! $profile->user) continue;` skip. The
+  driver-document predicate now uses Identity's own `PhotoRepositoryInterface` inside the module (Identity owns both
+  tables), so Console no longer builds that subquery for this screen.
+- `staffProfile(int $userId): array` - **the same FOUR statements** (profile, user, comments, commenters), flattened
+  to the columns the response prints. `firstOrFail` is kept FOR ITS 404: a user without a profile still throws
+  `ModelNotFoundException` and the endpoint still answers 404, not a 200 with empty fields. It carries the `User`
+  principal (the shared kernel type the score service needs), never the `Profile` model.
+
+Console keeps everything that is its own: the `asset('storage/...')` formatting, the `trim()` name join, the
+`humanTime()` call, the event envelope and the comments reshape.
+
+**Ratchets.** `CONSOLE_FOREIGN_MODEL_FILES` **19 -> 17 entries** (both files leave it entirely; the two old entries
+were stale on `UserRating`, which neither file imports any more). `KERNEL_MODEL_IMPORTS` **21 -> 20 pairs** -
+`Console -> Profile` is gone; `Console -> ProfileComment` remains because `ReviewModerationService` still names that
+model. `CrossContextBoundaryTest` baselines stay at 0 (the new calls are contract calls, not concrete imports);
+`ModuleGraphTest` is unchanged (two methods on an existing port are not a new port); `ModuleBoundaryTest` unchanged.
+
+**Profile thread status.** The model cannot move yet. Remaining readers: `Communication\ChatMessageHandler`
+(PARKED since sec 336 - Communication may not name Identity; the owner must choose), the kernel
+(`app/Models/User.php::profile()` and `app/DTOs/Auth/CachedUser.php`, which rule B will force once the model moves),
+and Identity's own four imports, which travel with the model. Every Console reader is now gone.
+
+**Verification.** With the scratch DB and `EMAIL_OTP_MODE=testing` (sec 307's recorded requirement - without it the
+three OTP snapshots fail for environment reasons): `AppFuture` **61 tests / 461 assertions OK**; `Admin` **122 /
+265 OK**; `Snapshots` **186 / 2069 OK** in default order, only the three pre-existing `wallet/*` budget notices;
+`Staff` + `L8StaffUserProfileCharacterizationTest` **243 / 587 OK**. Pint **PASS** on all changed files. The
+`[model-ownership] baseline can shrink` hint is ABSENT, so both baselines match the measured pairs exactly.

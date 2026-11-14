@@ -1,4 +1,13 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 PROFILE: CONSOLE NAMES NO `Profile` (audit sec 337), commit
+  `Stage 2 C2: Console names no Profile - the last two readers go through Identity`.** `ProfileDirectory`
+  grew `recentVehicleUpdates(int): array` (same two statements; the vanished-user skip preserved through
+  `user_id`) and `staffProfile(int): array` (same four statements; `firstOrFail` kept for the 404, carries
+  the `User` principal only). Console allowlist **19 -> 17**; `KERNEL_MODEL_IMPORTS` **21 -> 20**
+  (`Console -> Profile` gone). Gates: AppFuture 61/461, Admin 122/265, Snapshots 186/2069 (with
+  `EMAIL_OTP_MODE=testing`, sec 307), Staff + L8 243/587, Pint PASS. **Profile model still cannot move**:
+  Communication `ChatMessageHandler` is PARKED on an owner call, the kernel `User::profile()` +
+  `CachedUser` DTO and Identity's own four imports remain.
 - **RV-14 `??`-inside-the-guard quirk - the last code item on that row.** Fix in
   `RideController::createRideWithRoute` + new `tests/Feature/Review/RV14DegenerateRouteFieldsTest.php`.
   **NOTE for the next task touching this file:** it carries the OWNER's uncommitted RV-38 edits, so

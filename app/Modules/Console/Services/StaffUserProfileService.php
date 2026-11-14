@@ -2,10 +2,11 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Profile;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Contracts\ScoreServiceInterface;
 use App\Modules\Ride\Contracts\UserRideStatsInterface;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -23,6 +24,7 @@ final class StaffUserProfileService
     public function __construct(
         private readonly ScoreServiceInterface $scoreService,
         private readonly UserRideStatsInterface $rideStats,
+        private readonly ProfileDirectory $profiles,
     ) {}
 
     /**
@@ -32,9 +34,12 @@ final class StaffUserProfileService
      */
     public function build(int $userId): array
     {
-        $profile = $this->loadProfile($userId);
+        // Stage 2 C2: `profiles` and `profile_comments` are Identity's tables, so the four reads this
+        // screen needs (profile, user, comments, commenters) run behind the port. The response shape
+        // below is still built here.
+        $profile = $this->profiles->staffProfile($userId);
 
-        $user = $profile->user;
+        $user = $profile['user'];
 
         // ── Score ──────────────────────────────────────────────────────────
         $userScore = $this->scoreService->getScore($user);
@@ -46,7 +51,7 @@ final class StaffUserProfileService
         $rideHistory = $this->buildRideHistory($userId);
 
         // ── Comments received ──────────────────────────────────────────────
-        $comments = $this->buildComments($profile);
+        $comments = $this->buildComments($profile['comments']);
 
         return [
             'id' => $user->id,
@@ -59,10 +64,10 @@ final class StaffUserProfileService
             'is_verified_passenger' => (bool) $user->is_verified_passenger,
             'account_status' => $user->isBannedNow() ? 'suspended' : 'active',
             'joined_at' => $user->created_at->toIso8601String(),
-            'profile_photo' => $profile->profile_photo
-                ? asset("storage/{$profile->profile_photo}")
+            'profile_photo' => $profile['profile_photo']
+                ? asset("storage/{$profile['profile_photo']}")
                 : null,
-            'description' => $profile->description,
+            'description' => $profile['description'],
             'score' => [
                 'score' => $userScore->score,
                 'tier' => $userScore->tier,
@@ -77,19 +82,6 @@ final class StaffUserProfileService
             'ride_history' => $rideHistory,
             'comments_received' => $comments,
         ];
-    }
-
-    /**
-     * The profile row and the relations the response needs.
-     *
-     * @throws ModelNotFoundException when the user has no profile.
-     */
-    private function loadProfile(int $userId): Profile
-    {
-        return Profile::with([
-            'user',
-            'comments.commenter:id,first_name,last_name',
-        ])->where('user_id', $userId)->firstOrFail();
     }
 
     /**
@@ -140,18 +132,19 @@ final class StaffUserProfileService
     /**
      * Comments received, reshaped for the public response.
      *
+     * @param  array<int, array{id: int, comment: string|null, commenter_id: int|null, commenter_first_name: string|null, commenter_last_name: string|null, created_at: Carbon}>  $comments
      * @return array<int, array<string, mixed>>
      */
-    private function buildComments(Profile $profile): array
+    private function buildComments(array $comments): array
     {
-        return $profile->comments->map(fn ($c) => [
-            'id' => $c->id,
-            'comment' => $c->comment,
+        return array_map(fn ($c) => [
+            'id' => $c['id'],
+            'comment' => $c['comment'],
             'commenter' => [
-                'id' => $c->commenter?->id,
-                'name' => trim(($c->commenter?->first_name ?? '').' '.($c->commenter?->last_name ?? '')),
+                'id' => $c['commenter_id'],
+                'name' => trim(($c['commenter_first_name'] ?? '').' '.($c['commenter_last_name'] ?? '')),
             ],
-            'created_at' => $c->created_at->toIso8601String(),
-        ])->values()->all();
+            'created_at' => $c['created_at']->toIso8601String(),
+        ], $comments);
     }
 }
