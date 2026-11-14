@@ -20420,3 +20420,46 @@ with `--order-by=reverse`** - the same gate the sec-331 step passed, so the driv
 JSON and every query budget are unchanged (only the three pre-existing `wallet/*` notices). After the final
 allowlist prune, `AppFuture` alone: **61 tests / 461 assertions OK**. Whole-tree Pint **PASS (854 files** - the two
 new files are counted).
+
+---
+
+### 336. Stage 2 C2: the last two admin-photo copies collapse into `ProfileDirectory`; the Communication copy is PARKED with its reason
+
+**Three copies of one lookup.** `Profile::where('user_id', $id)->first()` then `?->profile_photo` then
+`asset('storage/...')` existed in three Console services (`AdminUserService`, `AdminDashboardActivityService`,
+`AdminReportService`). Sec 335 ported the first; this step ports the other two through
+`ProfileDirectory::photoPathForUser()` - each swap is one statement in, one statement out, and each caller keeps its
+own URL formatting and its own `null` semantics (null user, no profile row, or empty photo all still answer
+`null`). `AdminReportService`'s allowlist entry shrinks `['Complaint','Profile'] -> ['Complaint']`; the Console
+allowlist stays at **19 entries** but with one fewer model claim. `KERNEL_MODEL_IMPORTS` unchanged (21).
+
+**PARKED, and it is a genuine architectural blocker, not a missing port: `Communication\ChatMessageHandler`.**
+It is the LAST Communication file naming `App\Models\Profile` (so it is all that keeps the `Communication -> Profile`
+pair alive), and it reads the sender's photo to answer `getFormattedMessages`. It is deliberately NOT ported:
+`ProfileDirectory` lives in Identity, and **Communication may not name Identity** - `ModuleGraphTest` records that
+the `Communication -> Identity` edge and the `Communication <-> Identity` cycle were CUT in phase 1.5 (the
+`OtpMailInterface` binding moved to Identity's provider). Porting this read would re-create both, which is a design
+regression the phase already paid for. The alternatives were each checked and rejected:
+ - **`DB::table('profiles')`** from Communication - reaching into another module's table with no contract at all;
+   strictly worse than the import it replaces.
+ - **`$user->profile()`** (the kernel relation's own builder) - it would silence the IMPORT ratchet while leaving the
+   same table read in place, which is exactly the "imports-only" blind spot sec 304 already flagged. Papering over a
+   coupling is not removing it.
+ - **`$user->loadMissing('profile')`** - query counts identical, but it MUTATES the passed `$user`, so a later
+   serialisation of that model would grow a relation key; a response-shape risk with no need for it.
+ - **dropping the fallback and using only the already-loaded relation** - removes a query and silently returns `null`
+   for older messages, i.e. a response change.
+So the honest options for this file are "leave it" or "let Communication reach Identity again", and the second is the
+owner's call. Its own code keeps the zero-query fast path (`relationLoaded('profile')` first) and one fallback
+query otherwise - the same behaviour it has today.
+
+**Where the `Profile` thread stands.** Console: `AdminDashboardActivityService` (`profileUpdateActivityEvents`'
+`Profile::with('user:...')->whereHas('user', ...)` - the only statement-level profile QUERY left anywhere in Console)
+and `StaffUserProfileService` (`Profile::with([...])` plus `$profile->comments`, which needs a comment reader and is
+also the `ProfileComment` thread). Plus the kernel DTO `app/DTOs/Auth/CachedUser.php`, which rule B of
+`ModuleBoundaryTest` will force to stop naming the model once it moves, and Identity's own three files, which travel
+with it. Communication is parked above.
+
+**Verification.** `AppFuture` + `Admin` + `Snapshots` = **369 tests / 2795 assertions OK in default order and again
+with `--order-by=reverse`**; only the three pre-existing `wallet/*` budget notices. Whole-tree Pint **PASS (854
+files)**.

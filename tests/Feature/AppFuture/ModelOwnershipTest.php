@@ -61,7 +61,7 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Repositories/EmployeeRepository.php' => ['Employee'],
         'app/Modules/Console/Services/AdminAuthService.php' => ['Employee'],
         'app/Modules/Console/Services/AdminDashboardActivityService.php' => ['Profile', 'UserRating'],
-        'app/Modules/Console/Services/AdminReportService.php' => ['Complaint', 'Profile'],
+        'app/Modules/Console/Services/AdminReportService.php' => ['Complaint'],
         'app/Modules/Console/Services/AdminWalletRequestService.php' => ['Wallet', 'WalletRequest'],
         'app/Modules/Console/Services/AdminWalletService.php' => ['Wallet'],
         'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment', 'Employee'],

@@ -5,6 +5,7 @@ namespace App\Modules\Console\Services;
 use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use Carbon\Carbon;
 
@@ -248,11 +249,11 @@ final class AdminDashboardActivityService
             return null;
         }
 
-        $profile = Profile::where('user_id', $adminUserId)->first();
+        // Stage 2 C2: `profiles` is Identity's table. One statement either way; the URL format stays
+        // here. This was the second copy of the same lookup - see `ProfileDirectory`.
+        $photo = app(ProfileDirectory::class)->photoPathForUser($adminUserId);
 
-        return ($profile && $profile->profile_photo)
-            ? asset('storage/'.$profile->profile_photo)
-            : null;
+        return $photo ? asset('storage/'.$photo) : null;
     }
 
     private function countIncomingVerifications(Carbon $start, Carbon $end): int

@@ -5,8 +5,8 @@ namespace App\Modules\Console\Services;
 use App\Domain\ValueObjects\Money;
 use App\Enums\ComplaintStatus;
 use App\Models\Complaint;
-use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Money\Contracts\LedgerAggregates;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Ride\Contracts\BookingActivityFeed;
@@ -34,6 +34,7 @@ final class AdminReportService
 {
     public function __construct(
         private readonly AdminWalletService $walletService,
+        private readonly ProfileDirectory $profiles,
     ) {}
 
     // =========================================================================
@@ -54,9 +55,11 @@ final class AdminReportService
     {
         $photoUrl = null;
         if ($adminUserId) {
-            $profile = Profile::where('user_id', $adminUserId)->first();
-            if ($profile && $profile->profile_photo) {
-                $photoUrl = asset('storage/'.$profile->profile_photo);
+            // Stage 2 C2: `profiles` is Identity's table; ONE statement either way, and the URL format
+            // stays this screen's. Third and last copy of this lookup - see `ProfileDirectory`.
+            $photo = $this->profiles->photoPathForUser($adminUserId);
+            if ($photo) {
+                $photoUrl = asset('storage/'.$photo);
             }
         }
 
