@@ -82,7 +82,13 @@ class ModuleGraphTest extends TestCase
     private const EDGES = [
         'Communication -> Console' => 2,
         'Console -> Communication' => 4,
-        'Console -> Identity' => 7,
+        'Console -> Identity' => 8,
+        // Stage 2 C2: the eighth port is `ProfileDirectory`. Console's admin screens read a driver's
+        // profile row and the admin's profile photo, and `profiles` moves into Identity, so those reads
+        // became one port method returning the stored path. A new port on an EDGE THAT ALREADY EXISTED
+        // (staff auth, the employee record port, the rating reader and the photo read were already here),
+        // not a new edge - and it removes seven Console files' worth of `App\Models\Profile` coupling
+        // one file at a time, which is why it is a port and not a wider one-shot allowance.
         // Stage 2 C2: the admin charge and wallet-request paths record their transaction through
         // Money's WalletTransactionRecorder port instead of inserting the row themselves.
         // Stage 2 C2: the admin driver dashboard's earnings sum is Money's query, run by Money.

@@ -3,7 +3,6 @@
 namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Ride\Contracts\DriverRideReads;
 use Carbon\Carbon;
@@ -80,7 +79,13 @@ final class AdminDriverPresenter
         ];
     }
 
-    public function driverProfileVehicle(?Profile $profile): array
+    /**
+     * Stage 2 C2: the parameter is the driver's profile row, but the type hint is GONE - `profiles` is
+     * Identity's table, and this screen only READS fields off a value it was handed. The untyped
+     * parameter is this codebase's established way to hold another module's model (the same choice as
+     * Money's ride parameters, sec 322); every `$profile?->...` read below is untouched.
+     */
+    public function driverProfileVehicle($profile): array
     {
         return [
             'type' => $profile?->type_of_car,
@@ -118,7 +123,7 @@ final class AdminDriverPresenter
      */
     public function formatDriverDashboard(
         User $driver,
-        ?Profile $profile,
+        $profile,
         $ratingStats,
         array $stats,
         array $money,
@@ -176,7 +181,7 @@ final class AdminDriverPresenter
     /**
      * Identity and rating keys of the dashboard payload, in their original order.
      */
-    public function dashboardIdentityBlock(User $driver, ?Profile $profile, $ratingStats): array
+    public function dashboardIdentityBlock(User $driver, $profile, $ratingStats): array
     {
         return [
             'id' => $driver->id,

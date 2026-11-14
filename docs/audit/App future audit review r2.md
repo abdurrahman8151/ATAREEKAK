@@ -20366,3 +20366,57 @@ lines and Identity's own three `App\Models\Photo` imports move with the model.
 `Documents` + `AppFuture` + `Snapshots`: **528 tests / 3159 assertions OK in default order and again with
 `--order-by=reverse`**, with only the three pre-existing `wallet/*` budget notices. Whole-tree Pint **PASS (852
 files)**.
+
+---
+
+### 335. Stage 2 C2: the `Profile` thread opens - `ProfileDirectory` is born and FOUR Console files leave the allowlist
+
+**Why `Profile` next.** The decision slate (sec 329) listed `Profile` as "not started", and it is the largest
+remaining C1 mover that nothing blocks: ~45 `User::profile()` sites plus **seven** Console files and one
+Communication file that name the model. This step takes the four Console files that needed NO new query - two dead
+imports and three type hints - and one that needed a single scalar port, so that the ones left are exactly the
+statement-level reads.
+
+**The port.** `Identity\Contracts\ProfileDirectory` + `Services\ProfileDirectoryReader` + binding. Its first method,
+`photoPathForUser(int $userId): ?string`, returns the STORED `profile_photo` (raw, because both admin screens build
+their own `asset('storage/...')` URL - that formatting is their response, not this module's) via a single
+`SELECT profile_photo ... LIMIT 1`. Callers get a scalar, never the model, and the interface says so: it grows by
+METHOD as each caller is converted, which is how the Ride and Money ports grew.
+
+**The five removals.**
+ - `AdminUserService::getAdminPhoto()` - was `Profile::where('user_id', ...)->first()` then `?->profile_photo`. Now
+   the port. **One statement in, one out.** With that gone the file has no foreign kernel model at all, so it
+   leaves the allowlist **entirely**.
+ - `AdminDriverPresenter` - three `?Profile` parameter hints (`driverProfileVehicle`, `formatDriverDashboard`,
+   `dashboardIdentityBlock`). Dropped, not moved: the screens only READ fields off a value they are handed, and an
+   untyped parameter is this codebase's established way to hold another module's model (the same choice as Money's
+   ride parameters, sec 322). Every `$profile?->...` line is untouched. Leaves the allowlist.
+ - `AdminDriverDashboardService` and `AdminDriverQueryService` - both carried `use App\Models\Profile;` and never
+   named the class (the second one had already lost its `Photo` import in sec 332). Dead imports removed; **both
+   leave the allowlist.**
+
+**Ratchets.** Per-file Console allowlist: **23 -> 19** entries (two removed wholesale, two shrunk, one dropped for
+`AdminUserService`, and the two files above taken off after the test itself reported them stale:
+`[model-ownership] Console allowlist can shrink - remove: ...`). `KERNEL_MODEL_IMPORTS` is UNCHANGED at 21: the
+`Console -> Profile` pair still exists, through `AdminDashboardActivityService`, `AdminReportService` and
+`StaffUserProfileService`.
+**`ModuleGraphTest` moved for the first time in this phase: `Console -> Identity` 7 -> 8**, because
+`ProfileDirectory` is a NEW PORT on an edge that already existed. That is the one declared change the test's own
+docblock permits - "a new edge, a new port on an existing edge, or a new cycle fails this test and must be argued
+for in the commit that adds it" - and the argument is written into `EDGES` next to the number. It is **not** a
+`BoundaryDependencyTest` baseline (those are shrink-only and were not touched); the graph is a declaration of what
+the tree does, and four earlier ports were added to it the same way.
+
+**What is left on the `Profile` thread, precisely.** Statement-level, in order of difficulty:
+`AdminDashboardActivityService` (`getAdminPhoto()`, a literal duplicate of the one just ported, plus
+`profileUpdateActivityEvents`' `Profile::with('user:...')->whereHas('user', ...)` query),
+`AdminReportService`, `StaffUserProfileService` (`Profile::with([...])` + `$profile->comments`, so it needs a
+COMMENT read too - that is the `ProfileComment` thread as well), Communication's `ChatMessageHandler`, the kernel
+DTO `app/DTOs/Auth/CachedUser.php` (a kernel file naming a model that is about to be a module's - rule B of
+`ModuleBoundaryTest` will require it to stop), and Identity's own three files, which move WITH the model.
+
+**Verification.** `AppFuture` + `Admin` + `Snapshots`: **369 tests / 2795 assertions OK in default order and again
+with `--order-by=reverse`** - the same gate the sec-331 step passed, so the driver/users screens, their frozen
+JSON and every query budget are unchanged (only the three pre-existing `wallet/*` notices). After the final
+allowlist prune, `AppFuture` alone: **61 tests / 461 assertions OK**. Whole-tree Pint **PASS (854 files** - the two
+new files are counted).

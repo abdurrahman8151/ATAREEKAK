@@ -2,9 +2,9 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use Carbon\Carbon;
 
 /**
@@ -36,6 +36,7 @@ final class AdminUserService
 {
     public function __construct(
         private readonly PhotoRepositoryInterface $photos,
+        private readonly ProfileDirectory $profiles,
     ) {}
 
     // =========================================================================
@@ -124,11 +125,11 @@ final class AdminUserService
             return null;
         }
 
-        $profile = Profile::where('user_id', $adminUserId)->first();
+        // Stage 2 C2: `profiles` is Identity's table. ONE statement either way, and the URL format is
+        // still this screen's - the port returns the raw stored path.
+        $photo = $this->profiles->photoPathForUser($adminUserId);
 
-        return ($profile?->profile_photo)
-            ? asset('storage/'.$profile->profile_photo)
-            : null;
+        return $photo ? asset('storage/'.$photo) : null;
     }
 
     // =========================================================================

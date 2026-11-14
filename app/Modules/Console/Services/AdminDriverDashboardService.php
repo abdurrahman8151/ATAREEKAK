@@ -3,7 +3,6 @@
 namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\UserRatingReader;

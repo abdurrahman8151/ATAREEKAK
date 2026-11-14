@@ -206,6 +206,22 @@
   - verify later), 12 (moot), un6 (no change).
 
 ## In progress
+- **STAGE 2 - C2 PROFILE THREAD OPENS (audit sec 335), commit
+  `Stage 2 C2: ProfileDirectory is born; four Console files leave the allowlist`.** New Identity port
+  `ProfileDirectory` + `ProfileDirectoryReader` + binding, first method `photoPathForUser(int): ?string` (raw
+  stored path, one `SELECT ... LIMIT 1`); `AdminUserService::getAdminPhoto` uses it (one statement in, one out);
+  `AdminDriverPresenter` dropped THREE `?Profile` parameter hints (the established "untyped foreign value" pattern);
+  dead `App\Models\Profile` imports removed from `AdminDriverDashboardService` and `AdminDriverQueryService`.
+  **RATCHETS: Console per-file allowlist 23 -> 19 entries; `KERNEL_MODEL_IMPORTS` unchanged at 21 (`Console ->
+  Profile` still via 3 files); `ModuleGraphTest` `Console -> Identity` 7 -> 8 - a NEW PORT on an EXISTING edge,
+  argued in `EDGES` as that test's own docblock requires (it is not a `BoundaryDependencyTest` baseline, and no
+  baseline was raised).** **GATE: AppFuture+Admin+Snapshots = 369 tests / 2795 assertions OK in BOTH orders;
+  AppFuture alone after the final prune = 61/461 OK; Pint PASS 854 files.**
+  **PROFILE STILL NEEDS (statement-level, no owner decision):** `AdminDashboardActivityService`
+  (`getAdminPhoto()` duplicate + `profileUpdateActivityEvents`' `Profile::with('user:...')->whereHas('user')`),
+  `AdminReportService`, `StaffUserProfileService` (`Profile::with([...])` + `$profile->comments` - that is also the
+  `ProfileComment` thread), Communication's `ChatMessageHandler`, kernel DTO `app/DTOs/Auth/CachedUser.php` (rule B
+  will demand it stop naming the model), and Identity's own three files (move with the model).
 - **STAGE 2 - C2 PHOTO: the approval path reads documents through the port (audit sec 334), commit
   `Stage 2 C2: verification approval reads documents through Identity`.** `VerificationApprovalService::approve()`
   no longer uses `User::with('photos')`/`$user->photos`: `User::findOrFail($userId)` (kept FOR ITS 404, documented)

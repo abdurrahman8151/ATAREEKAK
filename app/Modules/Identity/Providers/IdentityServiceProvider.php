@@ -9,6 +9,7 @@ use App\Modules\Identity\Contracts\OtpMailInterface;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\ProfileRepositoryInterface;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
 use App\Modules\Identity\Contracts\StaffTokenCleanupInterface;
@@ -32,6 +33,7 @@ use App\Modules\Identity\Services\DocumentVerificationService;
 use App\Modules\Identity\Services\EmailOtpService;
 use App\Modules\Identity\Services\EmployeeAuthService;
 use App\Modules\Identity\Services\JwtService;
+use App\Modules\Identity\Services\ProfileDirectoryReader;
 use App\Modules\Identity\Services\ProfileInteractionService;
 use App\Modules\Identity\Services\ProfileUpdateService;
 use App\Modules\Identity\Services\StaffJwtService;
@@ -80,6 +82,8 @@ final class IdentityServiceProvider extends ServiceProvider
         $this->app->bind(UserRatingReader::class, UserRatingReaderService::class);
         $this->app->bind(UserRatingRecorder::class, UserRatingRecorderService::class);
         $this->app->bind(ProfileRepositoryInterface::class, ProfileRepository::class);
+        // Stage 2 C2: the profile reads other modules may make - data, not the model.
+        $this->app->bind(ProfileDirectory::class, ProfileDirectoryReader::class);
         $this->app->bind(EmailOtpServiceInterface::class, EmailOtpService::class);
         $this->app->bind(OtpRepositoryInterface::class, OtpRepository::class);
         $this->app->bind(PhotoRepositoryInterface::class, PhotoRepository::class);
