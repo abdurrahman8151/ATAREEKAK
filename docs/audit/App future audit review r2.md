@@ -21004,3 +21004,46 @@ create-with-route responses). Pint **PASS** on the seven changed files.
 `ChatMessageHandler::resolvePhotoPath()` (the two zero-query auth-cache sites from sec 342), the search and
 create-with-route eager loads above (public JSON - not removable without a response change), and
 `app/DTOs/Auth/CachedUser.php` (rule B).
+
+---
+
+### 350. Stage 2 C2: the `Profile` thread's convertible work is finished - the remainder is now a closed, measured list
+
+**Where the relation still exists, and why each one stays.** After secs 337-349 the app has exactly four
+non-Identity `User::profile` reads and three eager loads:
+
+1. `App\Http\Resources\RideResource::driverPayload()` and `BookingResource::avatarFor()` - the TRANSITIONAL
+   relation fallback for a resource built without a map. It is not dead code: `RideSearchServiceTest:333`
+   builds `(new RideResource($ride->fresh(['driver','driver.profile',...])))->toArray(request())` and asserts
+   the row, so the fallback is a characterized behaviour. It can only be deleted in the commit that also
+   changes that path.
+2. `Communication\ChatMessageHandler::resolvePhotoPath()` - the loaded-relation fast path kept in sec 340. The
+   auth user arrives from `CachedUser` with the relation attached, so this costs ZERO queries today; converting
+   it to the port costs +1 on `chat/messages-store` (budget 5).
+3. `Ride\Services\RideValidationService::validateDriverCanCreateRide()` - `loadMissing('profile')` (a no-op for
+   the cached user) plus `if (! $driver->profile)`. A port existence check costs +1 on `rides/create`
+   (budget 22).
+4. `app/DTOs/Auth/CachedUser.php` - rehydrates the relation by constructing the model; a kernel file naming the
+   moved class is exactly what `ModuleBoundaryTest` rule B forbids.
+5. `RideSearchService`'s two queries, `RideService::createRide`'s `fresh(['driver.profile'])` and
+   `RideRepository::getUpcomingRides` (no consumer) - these responses SERIALIZE THE RAW MODEL, and the committed
+   snapshots contain the nested `"profile"` object. Dropping the eager load changes public JSON.
+
+**The honest consequence.** The `Profile` class cannot move to `Identity\Models` until (2) and (3) are given +1
+query each (owner decision on two budget CEILINGS, which the mode forbids raising) and (4) is redesigned, and
+until (5) and (1) are either accepted as a public-response change or left with a kernel relation that rule B
+forbids. There is no remaining conversion that is behaviour-preserving AND query-neutral: every reader that
+could be swapped 1:1 has been swapped (secs 337-349), and what is left is exactly the set that is not.
+
+**Recorded for the next attempt, with the measurements it needs.** The three owner questions this thread now
+ends on:
+- may `rides/create` and `chat/messages-store` each cost ONE more query (or may the auth cache carry the
+  already-known "has profile" / photo path so they do not)?
+- may the ride search and create-with-route responses lose the nested `profile` object (a public-response
+  change), or must `User::profile()` stay until the client is updated?
+- where does the auth cache's profile rehydration live once `Profile` is not a kernel class (a kernel DTO that
+  Identity hydrates, or a different carrier for the cached attributes)?
+
+**Verification of this record.** No code changes; the numbers above are the current tree's. The last green gate
+for this thread is sec 349's **187 tests / 830 assertions** with every ride and booking snapshot byte-identical,
+and sec 347's **361 / 1300**.

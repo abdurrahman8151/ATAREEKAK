@@ -1,4 +1,13 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 PROFILE THREAD: convertible work FINISHED; remainder is a closed, measured
+  list (audit sec 350).** Exactly four non-Identity `User::profile` reads and three eager loads remain, and each
+  one is there for a reason: the resources' TRANSITIONAL fallback (characterized by
+  `RideSearchServiceTest:333`, so deleting it is a test change), `ChatMessageHandler::resolvePhotoPath()`
+  (`+1` on `chat/messages-store` 5), `RideValidationService::validateDriverCanCreateRide()` (`+1` on
+  `rides/create` 22), `CachedUser` (rule B), and the search / create-with-route / getUpcomingRides eager loads
+  whose responses serialize the RAW model with a nested `profile` object. **The Profile class move is therefore
+  gated on three owner questions** (two budget ceilings of +1; whether those two public responses may lose the
+  nested `profile`; where the auth cache rehydrates the profile). No code changed - docs only.
 - Done recently: **STAGE 2 - C2: every ride/booking response handler passes the batched photo map (audit
   sec 349), commit `Stage 2 C2: booking handlers pass the photo map`.** All NINE resource construction sites
   now supply maps (RideLifecycleHandler create/index/myBookings; the booking/accept/reject/cancel handlers via
