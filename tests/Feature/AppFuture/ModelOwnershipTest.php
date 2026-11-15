@@ -102,7 +102,6 @@ final class ModelOwnershipTest extends TestCase
      * @var array<string, string>
      */
     private const KERNEL_MODEL_IMPORTS = [
-        'Communication -> Profile' => 'profiles',
         'Console -> Complaint' => 'complaints',
         'Console -> ComplaintAttachment' => 'complaint_attachments',
         'Console -> Employee' => 'employees',

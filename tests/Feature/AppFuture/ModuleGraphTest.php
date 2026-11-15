@@ -20,8 +20,8 @@ use Tests\TestCase;
  *   Communication      -       -      -        -          2
  *   Money              1       1      2        -          -
  *   Ride               1       5      1        1          -
- *   Identity           1       4      3        -          1
- *   Console            4       9     11        7          -
+ *   Identity           2       4      3        -          1
+ *   Console            4       9     11        9          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -113,7 +113,14 @@ class ModuleGraphTest extends TestCase
         // projections are a sixth; the recent-activity feed is a seventh; the staff bookings list is
         // an eighth; the staff booking-cancel path's lookup and write are a ninth.
         'Console -> Ride' => 11,
-        'Identity -> Communication' => 1,
+        'Identity -> Communication' => 2,
+        // Stage 2 C2: the second port is `ProfilePhotoDirectory`, and it is declared by the CONSUMER.
+        // Communication's chat read path needs the senders' stored `profile_photo`; Identity owns
+        // `profiles` but phase 1.5 deliberately cut `Communication -> Identity`, so re-declaring it from
+        // Identity's own `ProfileDirectory` would re-create that edge AND the `Communication <-> Identity`
+        // cycle this table does not declare. Instead Communication publishes the narrow port it needs and
+        // Identity implements and binds it. The graph grows on the EXISTING `Identity -> Communication`
+        // edge (the `NotificationPort` was already here), no new edge and no new cycle.
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so
         // Identity calls Console's EmployeeTokenVersion port instead of running the increment itself.
         'Identity -> Console' => 2,

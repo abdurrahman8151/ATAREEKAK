@@ -120,12 +120,13 @@ class ChatRepository implements ChatRepositoryInterface
     public function getMessages(int $conversationId, int $limit = 50, int $offset = 0): Collection
     {
         return Message::where('conversation_id', $conversationId)
-            // Stage 0.6 item 1: `sender.profile`, not just `sender`. ChatMessageHandler::
-            // formatMessage() reads the sender and its profile photo for EVERY row, and its
-            // getUserProfilePhoto() falls back to `Profile::where('user_id', ...)` when the profile
-            // relation is not loaded - so a three-message page paid three sender loads plus three
-            // profile loads on top of this select. Both are now batched.
-            ->with('sender.profile')
+            // Stage 0.6 item 1: `sender` is batched for the page.
+            // Stage 2 C2: `sender.profile` is GONE - the photo now arrives from Identity's
+            // ProfilePhotoDirectory as ONE batched query in ChatMessageHandler::getFormattedMessages(),
+            // which is the same query the eager load cost. `sender` must stay eager-loaded: `Message`
+            // arms the lazy-loading guard, so a lazy `->sender` is a hard error, and that is exactly the
+            // 500 the previous attempt produced.
+            ->with('sender')
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->offset($offset)

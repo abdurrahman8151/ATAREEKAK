@@ -2,10 +2,10 @@
 
 namespace App\Modules\Communication\Services;
 
-use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Communication\Contracts\ProfilePhotoDirectory;
 use App\Modules\Communication\Models\Conversation;
 use App\Modules\Communication\Models\Message;
 use App\Services\File\FileUploadService;
@@ -27,15 +27,18 @@ use Illuminate\Support\Facades\Cache;
  *
  * OPTIMIZATIONS APPLIED:
  * - Conversation cached in Redis (saves ~50ms per message)
- * - sender.profile eager loaded in one query (eliminates 2 lazy N+1 queries)
- * - getUserProfilePhoto uses already-loaded relationship (zero extra DB query)
+ * - sender eager loaded in one query; the sender's photo is resolved in ONE batched port query
+ *   for a whole page, or read off the already-loaded profile relation on the single-message path
+ * - getUserProfilePhoto no longer falls back to the Profile MODEL: the fallback is Identity's
+ *   ProfilePhotoDirectory (stage 2 C2), one query either way
  */
 final class ChatMessageHandler implements ChatMessageHandlerInterface
 {
     public function __construct(
         private readonly ChatRepositoryInterface $chatRepository,
         private readonly MessageTypeFactory $messageTypeFactory,
-        private readonly FileUploadService $fileUploadService
+        private readonly FileUploadService $fileUploadService,
+        private readonly ProfilePhotoDirectory $profilePhotos,
     ) {}
 
     /**
@@ -94,6 +97,8 @@ final class ChatMessageHandler implements ChatMessageHandlerInterface
         // OPTIMIZED: Eager load sender + profile in ONE query right after save.
         // Without this, formatMessage() lazy-loads sender and profile separately
         // — 2 extra DB queries per message (~100ms wasted).
+        // Kept UNCHANGED in stage 2 C2: the broadcast payload carries this relation, and the single-message
+        // path reads the loaded profile with zero extra queries.
         $message->setRelation('sender', $sender->loadMissing('profile'));
 
         return $message;
@@ -137,29 +142,43 @@ final class ChatMessageHandler implements ChatMessageHandlerInterface
 
     /**
      * Get messages with formatted data
+     *
+     * Stage 2 C2: the senders' photos are resolved with ONE Identity query for the whole page (the
+     * `sender.profile` eager load this replaces was also exactly one query), and the resolved map is handed
+     * to `formatMessage` so no row can fall back to a per-message lookup.
      */
     public function getFormattedMessages(int $conversationId, int $limit = 50, int $offset = 0): array
     {
         $messages = $this->chatRepository->getMessages($conversationId, $limit, $offset);
 
-        return $messages->map(function ($message) {
-            return $this->formatMessage($message);
+        $photoPaths = $this->profilePhotos->photoPathsFor(
+            $messages->pluck('sender_id')->unique()->values()->all()
+        );
+
+        return $messages->map(function ($message) use ($photoPaths) {
+            return $this->formatMessage($message, $photoPaths);
         })->toArray();
     }
 
     /**
      * Format message for API response
+     *
+     * @param  array<int, string|null>|null  $photoPaths  the batch resolved by `getFormattedMessages`, keyed
+     *                                                    by user id. Null (the single-message path) means
+     *                                                    "resolve this one sender now".
      */
-    public function formatMessage(Message $message): array
+    public function formatMessage(Message $message, ?array $photoPaths = null): array
     {
-        $profilePhoto = $this->getUserProfilePhoto($message->sender);
+        $storedPhoto = $photoPaths !== null
+            ? ($photoPaths[$message->sender_id] ?? null)
+            : $this->resolvePhotoPath($message->sender);
 
         return [
             'id' => $message->id,
             'sender' => [
                 'id' => $message->sender->id,
                 'name' => $message->sender->first_name.' '.$message->sender->last_name,
-                'profile_photo' => $profilePhoto,
+                'profile_photo' => $this->photoUrl($storedPhoto),
             ],
             'type' => $message->type,
             'content' => $message->type === 'image'
@@ -172,28 +191,39 @@ final class ChatMessageHandler implements ChatMessageHandlerInterface
     }
 
     /**
-     * Get user profile photo
+     * The STORED path for one sender's photo.
      *
-     * OPTIMIZED: Uses already eager-loaded profile relationship when available.
-     * Zero extra DB query when called after sendMessage() which eager loads sender.profile.
-     * Falls back to a direct DB query only when relationship is not loaded
-     * (e.g. when called from getFormattedMessages on older messages).
+     * The fast path is the already-loaded `profile` relation (the send path loads it once, and the
+     * authenticated user arrives from the auth cache with it attached), so it costs no query. Otherwise the
+     * fallback is Identity's port - one query, the same one the removed `Profile::where(...)->first()`
+     * fallback cost.
      */
-    private function getUserProfilePhoto(User $user): ?string
+    private function resolvePhotoPath(User $user): ?string
     {
-        $profile = $user->relationLoaded('profile')
-            ? $user->profile
-            : Profile::where('user_id', $user->id)->first();
+        if ($user->relationLoaded('profile')) {
+            return $user->profile?->profile_photo;
+        }
 
-        if (! $profile || ! $profile->profile_photo) {
+        return $this->profilePhotos->photoPathsFor([$user->id])[$user->id] ?? null;
+    }
+
+    /**
+     * The public URL for a stored path, or null when there is nothing to link to.
+     *
+     * Unchanged from the previous implementation: an empty path and a file the upload service cannot see
+     * both answer null, and the URL formatting stays here, not in Identity.
+     */
+    private function photoUrl(?string $storedPhoto): ?string
+    {
+        if (! $storedPhoto) {
             return null;
         }
 
-        if (! $this->fileUploadService->exists($profile->profile_photo)) {
+        if (! $this->fileUploadService->exists($storedPhoto)) {
             return null;
         }
 
-        return $this->fileUploadService->url($profile->profile_photo);
+        return $this->fileUploadService->url($storedPhoto);
     }
 
     /**

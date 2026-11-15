@@ -3,6 +3,7 @@
 namespace App\Modules\Identity\Services;
 
 use App\Models\Profile;
+use App\Modules\Communication\Contracts\ProfilePhotoDirectory;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileDirectory;
 
@@ -10,8 +11,12 @@ use App\Modules\Identity\Contracts\ProfileDirectory;
  * Stage 2 C2: Identity's profile reads for other modules. One method, one statement (or the same small
  * fixed set of statements the caller ran), no model across the boundary - see the interface for why it
  * publishes scalars and arrays.
+ *
+ * It also implements Communication's `ProfilePhotoDirectory`: that port is declared by the CONSUMER so the
+ * chat path never has to name Identity (the phase-1.5 cut of `Communication -> Identity`), and the owner of
+ * `profiles` supplies the one query it asks for.
  */
-final class ProfileDirectoryReader implements ProfileDirectory
+final class ProfileDirectoryReader implements ProfileDirectory, ProfilePhotoDirectory
 {
     public function __construct(
         private readonly PhotoRepositoryInterface $photos,
@@ -27,6 +32,23 @@ final class ProfileDirectoryReader implements ProfileDirectory
         return Profile::query()
             ->where('user_id', $userId)
             ->value('profile_photo');
+    }
+
+    /**
+     * Communication's batched read: ONE `whereIn` for the whole page of senders, keyed by user id. The
+     * values are the raw stored paths (null when the column is null), which is what its caller needs to
+     * keep its own `exists()` check and URL formatting.
+     */
+    public function photoPathsFor(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        return Profile::query()
+            ->whereIn('user_id', $userIds)
+            ->pluck('profile_photo', 'user_id')
+            ->all();
     }
 
     /**

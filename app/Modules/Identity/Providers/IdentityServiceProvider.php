@@ -2,6 +2,7 @@
 
 namespace App\Modules\Identity\Providers;
 
+use App\Modules\Communication\Contracts\ProfilePhotoDirectory;
 use App\Modules\Identity\Contracts\DocumentVerificationInterface;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
 use App\Modules\Identity\Contracts\EmployeeAuthInterface;
@@ -86,6 +87,10 @@ final class IdentityServiceProvider extends ServiceProvider
         $this->app->bind(ProfileRepositoryInterface::class, ProfileRepository::class);
         // Stage 2 C2: the profile reads other modules may make - data, not the model.
         $this->app->bind(ProfileDirectory::class, ProfileDirectoryReader::class);
+        // Stage 2 C2: Communication's consumer-declared photo port. It is bound HERE, by the module that
+        // owns `profiles`, so the chat path names only its own contract and the phase-1.5 cut of
+        // `Communication -> Identity` stays cut.
+        $this->app->bind(ProfilePhotoDirectory::class, ProfileDirectoryReader::class);
         // Stage 2 C2: the staff review-moderation screen's page and delete of Identity's comments.
         $this->app->bind(ProfileCommentDirectory::class, ProfileCommentDirectoryService::class);
         $this->app->bind(EmailOtpServiceInterface::class, EmailOtpService::class);

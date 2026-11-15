@@ -1,4 +1,19 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 COMMUNICATION/`Profile` CLOSED (audit sec 340), commit
+  `Stage 2 C2: chat reads sender photos through a consumer-declared port`.** NEW
+  `Communication\Contracts\ProfilePhotoDirectory` (`photoPathsFor`, ONE batched query) is DECLARED BY THE
+  CONSUMER and implemented+bound by Identity on `ProfileDirectoryReader`, so the phase-1.5 cut of
+  `Communication -> Identity` stays cut and the graph grows only on the existing `Identity -> Communication`
+  edge (1 -> 2). `ChatRepository` keeps `with('sender')` and drops `sender.profile`; the photo batch is one
+  query for the page; the single-message path keeps the loaded-profile fast path. **The sec-280 500 is
+  explained: the previous fix dropped the `sender` eager load, and `Message` guards lazy loading, so
+  `$message->sender` threw and the controller answered 500.** **Ratchets: `KERNEL_MODEL_IMPORTS` 18 -> 17
+  (`Communication -> Profile` gone; Communication names no foreign model).** New probe
+  `tests/Feature/Review/ChatMessagePhotoBatchTest.php` pins the 3-query page. Gates: 129 tests/750 assertions
+  OK; chat budgets 8/5/13 unchanged, snapshots byte-identical; Pint PASS 8. Infra: scratch MySQL died, one
+  restart, re-run green.
+  **Profile is now blocked ONLY by the kernel:** `User::profile()` + `CachedUser` + Identity's own imports,
+  plus the ~25 `->profile` relation reads in Ride/Money/Console/Identity.
 - Done recently: **STAGE 2 - C2 PROFILE COMMENT: CONSOLE NAMES NO `ProfileComment` EITHER (audit sec 339),
   commit `Stage 2 C2: review moderation pages Identity's comments through a port`.** New Identity
   `ProfileCommentDirectory` port (`page()` + `deleteOrFail()`) keeps the same three eager loads, filters and

@@ -20590,3 +20590,61 @@ untouched, and taking the row from the port means the test cannot drift from the
 **Console's remaining foreign models:** `Complaint`, `ComplaintAttachment`, `Employee`, `Wallet`,
 `WalletRequest` - all individually gated (the first two and `Employee` by the relations/ownership questions in
 sec 329, the wallet pair by the Money response-shape decision).
+
+---
+
+### 340. Stage 2 C2: `Communication -> Profile` is GONE - the consumer declares the port, and the sec-280 500 is explained
+
+**The rolled-back pair is closed, and the design objection that parked it is answered.** Sec 280 built an
+Identity-owned photo port, hit an N+1 plus an undiagnosed 500, and rolled back; sec 336 recorded the remaining
+options as "leave it" or "let Communication reach Identity again", the second being a regression the phase had
+already paid for. This step takes neither: **the consumer publishes the narrow port it needs**, and Identity
+implements and binds it.
+
+- NEW `Communication\Contracts\ProfilePhotoDirectory` - ONE method, `photoPathsFor(array $userIds): array`,
+  returning stored paths keyed by user id. Communication's file names only its OWN contract, so the
+  phase-1.5 cut of `Communication -> Identity` (and with it the cycle) stays cut.
+- Identity implements it on the existing `ProfileDirectoryReader` (one `whereIn` / `pluck`), and
+  `IdentityServiceProvider` binds it. Identity already reaches Communication through `NotificationPort`, so
+  the graph grows by ONE PORT on an existing edge - not a new edge and not a new cycle.
+- `ChatMessageHandler` no longer imports `App\Models\Profile`.
+
+**The sec-280 500 is now diagnosed, not guessed (its prerequisite 4).** `App\Modules\Communication\Models\Message`
+uses `GuardsLazyLoading` and `AppServiceProvider` arms `Model::preventLazyLoading()`. The rollback's fix attempt
+dropped the WHOLE `sender.profile` eager load, so `$message->sender` in `formatMessage()` lazy-loaded under the
+guard, threw `LazyLoadingViolationException`, and the controller's catch-all answered 500 ("Failed to fetch
+messages"). The fix is to keep the `sender` eager load and batch only the photo.
+
+**The N+1 is fixed by batching, not by per-row reads (prerequisites 1 and 2).**
+- `ChatRepository::getMessages()`: `with('sender.profile')` -> `with('sender')`, with a comment saying why
+  `sender` must stay.
+- `getFormattedMessages()`: resolves every sender photo with ONE port query and hands the map to
+  `formatMessage(Message, ?array $photoPaths)`; a `null` map (the single-message path) keeps the loaded-profile
+  fast path (zero queries) and falls back to the port (one query - the same query the removed
+  `Profile::where(...)->first()` cost). The public one-argument `formatMessage()` call sites are unchanged.
+- `sendMessage()` is untouched: `setRelation('sender', $sender->loadMissing('profile'))` stays, so the
+  `MessageSent` broadcast payload carries exactly the relations it carried before.
+
+**A characterization test is the probe the plan asked for.** `tests/Feature/Review/ChatMessagePhotoBatchTest.php`
+pins that a three-message, two-sender page costs exactly THREE queries (message select + `sender` batch + ONE
+photo batch) and still emits `sender.profile_photo`. It passes on the pre-change code as well (the eager load
+was also one query), so it is a characterization, and it fails on BOTH recorded failure modes: a lazy `sender`
+throws, and a per-row photo read shows up as a fourth query.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **18 -> 17 pairs** - `Communication -> Profile` is gone, and Communication
+now names no foreign model at all. `ModuleGraphTest` `Identity -> Communication` **1 -> 2 ports** (new port on
+an existing edge, argued in `EDGES`; the docblock matrix was corrected 1 -> 2 and its stale `Console -> Identity`
+7 -> 9). No new edge, no new mutual pair, `DERIVED_CYCLES` unchanged, `UNCUT_CYCLES` unchanged.
+`CrossContextBoundaryTest` stays at 0.
+
+**Verification.** `AppFuture` + `Chat` + `Notifications` + the new probe + `EngagementSnapshotTest` +
+`StaffSnapshotTest` = **129 tests / 750 assertions OK**; the three chat budgets did NOT move
+(`chat/messages-index` 8, `chat/messages-store` 5, `staff/chat-messages` 13 - no shrink notice either, so they
+are exactly the previous counts) and every chat snapshot is byte-identical. Pint **PASS** on the eight changed
+files. **Infra:** the scratch MySQL died before the first run (78 connection-refused errors, no test result);
+it was restarted once with the documented command and the same selection re-run green.
+
+**Profile-thread status after this.** Communication is no longer a blocker: the remaining holders of
+`User::profile()` / `App\Models\Profile` are the kernel (`app/Models/User.php::profile()`, the
+`app/DTOs/Auth/CachedUser.php` hydration) and Identity's own four imports, which travel with the model. The
+~25 relation reads across Ride/Money/Console/Identity are what remains before the class can move.
