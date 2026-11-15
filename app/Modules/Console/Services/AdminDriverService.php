@@ -83,6 +83,16 @@ final class AdminDriverService
         return $this->drivers->formatDriver($driver);
     }
 
+    /**
+     * Delegates to AdminDriverQueryService - shapes a whole page in one batched profile read.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function formatDrivers(LengthAwarePaginator $paginator): array
+    {
+        return $this->drivers->formatDrivers($paginator);
+    }
+
     /** Delegates to AdminDriverQueryService. */
     public function getDriverProfile(int $driverId): array
     {

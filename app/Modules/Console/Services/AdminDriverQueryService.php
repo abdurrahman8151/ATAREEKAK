@@ -4,6 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Contracts\RideQueryExpressions;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -30,6 +31,24 @@ final class AdminDriverQueryService
     }
 
     /**
+     * Shape a whole page of drivers. The profile columns come from Identity in ONE query for the page -
+     * the same single query the removed `profile` eager load cost - and the presenter only reads the map.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function formatDrivers(LengthAwarePaginator $drivers): array
+    {
+        $profiles = app(ProfileDirectory::class)->vehicleProfilesForUsers(
+            $drivers->getCollection()->pluck('id')->all()
+        );
+
+        return $drivers->getCollection()
+            ->map(fn (User $driver) => $this->presenter->formatDriver($driver, $profiles[$driver->id] ?? []))
+            ->values()
+            ->all();
+    }
+
+    /**
      * Returns a paginated, filterable list of drivers for the admin table.
      *
      * @param  string  $filter  all | verified | pending | suspended
@@ -42,9 +61,7 @@ final class AdminDriverQueryService
         int $page = 1,
         ?string $search = null
     ): LengthAwarePaginator {
-        $query = User::with([
-            'profile:user_id,profile_photo,type_of_car,color_of_car',
-        ])
+        $query = User::query()
             // Stage 0.6 item 1: two per-row lookups moved into this one query.
             //
             //  1. avg_rating used to be set by a transform() that ran `UserRating::where(...)->avg()`
@@ -106,6 +123,10 @@ final class AdminDriverQueryService
     {
         $driver = $this->findDriverWithProfileData($driverId);
 
+        // Stage 2 C2: `profiles` is Identity's - the five vehicle-card columns arrive from its port in ONE
+        // query, replacing the `profile` eager load 1:1 (the profile endpoint's budget does not move).
+        $profile = app(ProfileDirectory::class)->vehicleProfilesForUsers([$driverId])[$driverId] ?? [];
+
         // Stage 2 C1/C2: Identity owns `user_ratings`; the unification on ROUND(..., 2) is invisible
         // because the presenter rounds and casts before emitting.
         $ratingStats = app(UserRatingReader::class)->statsFor($driverId);
@@ -114,8 +135,8 @@ final class AdminDriverQueryService
         $completedRides = app(RideQueryExpressions::class)->completedRidesForDriver($driverId);
 
         return [
-            ...$this->presenter->driverProfileIdentity($driver),
-            'vehicle' => $this->presenter->driverProfileVehicle($driver->profile),
+            ...$this->presenter->driverProfileIdentity($driver, $profile),
+            'vehicle' => $this->presenter->driverProfileVehicle($profile),
             'documents' => collect(
                 app(PhotoRepositoryInterface::class)->documentsFor([$driver->id])[$driver->id] ?? []
             )->mapWithKeys(
@@ -150,7 +171,6 @@ final class AdminDriverQueryService
             ->addSelect([
                 'rides_count' => app(RideQueryExpressions::class)->rideCountSubquery('users.id'),
             ])
-            ->with(['profile'])
             ->findOrFail($driverId);
     }
 }

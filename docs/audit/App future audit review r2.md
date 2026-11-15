@@ -20775,3 +20775,39 @@ list/profile (`AdminDriverQueryService`, `AdminDriverPresenter::formatDriver`/`d
 `AdminTripService` (3 sites), `AdminUserService` (1), `StaffChatController` (1), the kernel resources
 `RideResource`/`BookingResource`, `Ride\RideSearchReadHandler`, `Ride\RideValidationService` (the zero-query
 auth-cache read recorded in sec 342), `Communication\ChatController`, and `app/DTOs/Auth/CachedUser.php`.
+
+---
+
+### 344. Stage 2 C2: the driver list and driver profile screens stop reading `User::profile`
+
+**The page swaps in ONE query, the profile screen in one.** Both Console driver screens read the same five
+vehicle-card columns, so both use `ProfileDirectory::vehicleProfilesForUsers()` (sec 343), and both replace an
+eager load 1:1:
+
+- `AdminDriverQueryService::getDrivers()` - `User::with(['profile:user_id,profile_photo,type_of_car,color_of_car'])`
+  -> `User::query()`. The page is shaped by a NEW `formatDrivers(LengthAwarePaginator): array`, which resolves
+  the whole page's profiles in ONE port query and hands each driver its row; `AdminDriverService::formatDrivers()`
+  delegates and `AdminDriverController::index()` calls it instead of mapping `formatDriver()` per item. The
+  controller keeps the envelope and the meta block.
+- `getDriverProfile()` - `findDriverWithProfileData()` lost its `with(['profile'])`; the profile arrives from the
+  port in one query and is passed to `driverProfileIdentity()` and `driverProfileVehicle()`, both of which now
+  read arrays.
+
+**The direct-call fallback is what keeps the unit tests honest.** `AdminDriverPresenter::formatDriver()` and
+`driverProfileIdentity()` take `?array $profile = null`; when null they resolve that ONE driver through the same
+port (`vehicleProfileFor()`), which is exactly the single query the removed `loadMissing('profile')` cost. So
+`AdminDriverServiceTest`'s dozens of `formatDriver($driver)` assertions on a freshly reloaded model still see the
+real photo and vehicle, and the batched page path stays at one query.
+
+**Why the query counts do not move, measured.** One eager load out, one batched port query in:
+`admin/drivers` (already 8 from sec 338) and `admin/driver-profile` (budget 12) both printed no NEW notice, and
+the driver list and driver profile snapshots are byte-identical.
+
+**Verification.** `AppFuture` + `Admin` + `Unit/Services/Admin/AdminDriverServiceTest` +
+`AdminSnapshotTest` = **364 tests / 1264 assertions OK**, only the three previously recorded budget notices,
+Pint **PASS** on the four changed files.
+
+**Still on the relation in Console:** `AdminTripService` (3 sites), `AdminUserService` (1), `StaffChatController`
+(1) - each the same "eager load feeding one column" shape and each the same swap. Then the kernel resources
+(`RideResource`, `BookingResource`), `Ride\RideSearchReadHandler`, `Communication\ChatController`, and the two
+zero-query auth-cache sites recorded in sec 342.

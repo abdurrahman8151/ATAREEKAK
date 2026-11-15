@@ -159,9 +159,7 @@ final class AdminDriverController extends Controller
         try {
             $paginator = $this->driverService->getDrivers($filter, $perPage, $page, $search);
 
-            $data = $paginator->getCollection()
-                ->map(fn ($driver) => $this->driverService->formatDriver($driver))
-                ->values();
+            $data = $this->driverService->formatDrivers($paginator);
 
             return response()->json([
                 'status' => 'success',

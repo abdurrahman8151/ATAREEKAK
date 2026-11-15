@@ -4,6 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Ride\Contracts\DriverRideReads;
 use Carbon\Carbon;
 
@@ -22,18 +23,18 @@ final class AdminDriverPresenter
      * Shape a single User (driver) model into the table-row array
      * that the controller returns to the frontend.
      */
-    public function formatDriver(User $driver): array
+    public function formatDriver(User $driver, ?array $profile = null): array
     {
-        // RV-37 / un9: this is called once per driver in list/format paths; the profile is read
-        // unconditionally below, so load it once explicitly instead of per driver (N+1).
-        $driver->loadMissing('profile');
-        $profile = $driver->profile;
+        // Stage 2 C2: the profile's five vehicle-card columns are Identity's and arrive from its port.
+        // A caller shaping a page passes the batched map in (zero extra queries); a direct call resolves
+        // this one driver - the same single query the removed `loadMissing('profile')` fallback cost.
+        $profile ??= $this->vehicleProfileFor($driver->id);
 
         $vehicleLabel = null;
-        if ($profile?->type_of_car) {
-            $vehicleLabel = $profile->type_of_car;
-            if ($profile->color_of_car) {
-                $vehicleLabel .= ' | '.$profile->color_of_car;
+        if ($profile['type_of_car'] ?? null) {
+            $vehicleLabel = $profile['type_of_car'];
+            if ($profile['color_of_car'] ?? null) {
+                $vehicleLabel .= ' | '.$profile['color_of_car'];
             }
         }
 
@@ -41,8 +42,8 @@ final class AdminDriverPresenter
             'id' => $driver->id,
             'driver_ref' => '#DR-'.$driver->id,
             'full_name' => trim("{$driver->first_name} {$driver->last_name}"),
-            'profile_photo' => $profile?->profile_photo
-                ? asset('storage/'.$profile->profile_photo)
+            'profile_photo' => ($profile['profile_photo'] ?? null)
+                ? asset('storage/'.$profile['profile_photo'])
                 : null,
             'phone' => $this->driverPhone($driver),
             'vehicle' => $vehicleLabel,
@@ -57,17 +58,17 @@ final class AdminDriverPresenter
     }
 
     /** Identity, contact and verification keys of the driver profile payload, in their order. */
-    public function driverProfileIdentity(User $driver): array
+    public function driverProfileIdentity(User $driver, ?array $profile = null): array
     {
-        $profile = $driver->profile;
+        $profile ??= $this->vehicleProfileFor($driver->id);
 
         return [
             'id' => $driver->id,
             'driver_ref' => '#DR-'.$driver->id,
             'full_name' => trim("{$driver->first_name} {$driver->last_name}"),
             'email' => $driver->email,
-            'profile_photo' => $profile?->profile_photo
-                ? asset('storage/'.$profile->profile_photo)
+            'profile_photo' => ($profile['profile_photo'] ?? null)
+                ? asset('storage/'.$profile['profile_photo'])
                 : null,
             'phone' => $this->resolveDriverPhone($driver->id),
             'address' => $driver->address,
@@ -88,11 +89,12 @@ final class AdminDriverPresenter
     public function driverProfileVehicle($profile): array
     {
         return [
-            'type' => $profile?->type_of_car,
-            'color' => $profile?->color_of_car,
-            'seats' => $profile?->number_of_seats,
-            'photo' => $profile?->car_pic
-                ? asset('storage/'.$profile->car_pic)
+            // Stage 2 C2: the caller passes the port's array; the labels and URLs stay here.
+            'type' => $profile['type_of_car'] ?? null,
+            'color' => $profile['color_of_car'] ?? null,
+            'seats' => $profile['number_of_seats'] ?? null,
+            'photo' => ($profile['car_pic'] ?? null)
+                ? asset('storage/'.$profile['car_pic'])
                 : null,
         ];
     }
@@ -105,6 +107,17 @@ final class AdminDriverPresenter
                 : null,
             'total_ratings' => (int) $ratingStats->total,
         ];
+    }
+
+    /**
+     * The five vehicle-card columns for ONE driver, from Identity's port - the single-driver fallback for
+     * the presenter methods whose callers hand in a batched map. Empty array when the driver has no profile.
+     *
+     * @return array{profile_photo?: string|null, type_of_car?: string|null, color_of_car?: string|null, number_of_seats?: int|null, car_pic?: string|null}
+     */
+    private function vehicleProfileFor(int $userId): array
+    {
+        return app(ProfileDirectory::class)->vehicleProfilesForUsers([$userId])[$userId] ?? [];
     }
 
     /**

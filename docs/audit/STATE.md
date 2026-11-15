@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2: driver LIST and PROFILE screens stop reading `User::profile` (audit sec 344),
+  commit `Stage 2 C2: driver list and profile read profiles through Identity`.** `getDrivers()` drops the
+  `profile` eager load and a NEW `formatDrivers(LengthAwarePaginator)` resolves the page's five vehicle-card
+  columns in ONE port query (`AdminDriverService` delegates; the controller calls it);
+  `getDriverProfile()` resolves its one profile from the port and passes arrays to
+  `driverProfileIdentity()`/`driverProfileVehicle()`. `formatDriver()`/`driverProfileIdentity()` keep a
+  single-driver port fallback when no map is passed, so the unit tests that call them directly still see real
+  photos and vehicles. Net zero: no new budget notice, driver list/profile snapshots byte-identical.
+  Gate: AppFuture + Admin + AdminDriverServiceTest + AdminSnapshotTest = **364/1264 OK**; Pint PASS 4.
+  **Console sites left on the relation: `AdminTripService` (3), `AdminUserService` (1), `StaffChatController` (1).**
 - Done recently: **STAGE 2 - C2: driver dashboard stops reading `User::profile` (audit sec 343), commit
   `Stage 2 C2: driver dashboard profile arrives from Identity`.** `ProfileDirectory::vehicleProfilesForUsers()`
   (ONE `whereIn` over the five vehicle-card columns) replaces the eager load 1:1 - net zero, no new budget
