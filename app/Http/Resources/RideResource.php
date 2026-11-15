@@ -13,9 +13,34 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * - driver
  * - driver.profile
  * - withCount(['bookings as total_booked_seats' => ...])
+ *
+ * Stage 2 C2: `driver.profile` is Identity's and is being retired. A producer that has already resolved the
+ * drivers' stored photo paths (ONE batched query in the Ride module) passes them as the second constructor
+ * argument, keyed by user id; the resource then reads no relation at all. Without a map it keeps the previous
+ * relation read, so the conversion can proceed one producer at a time. The resource deliberately names NO
+ * module contract: the kernel's port-usage ceiling is a hard number, and a plain `array` is what keeps this
+ * file out of it.
  */
 class RideResource extends JsonResource
 {
+    /** @var array<int, string|null>|null stored paths keyed by user id */
+    private ?array $profilePhotos = null;
+
+    /**
+     * Supply the batched stored photo paths for this resource's users.
+     *
+     * A fluent setter rather than a constructor argument on purpose: Laravel's `collection()` calls
+     * `new static($item, $key)`, so a second constructor parameter would receive the collection KEY.
+     *
+     * @param  array<int, string|null>|null  $profilePhotos
+     */
+    public function withProfilePhotos(?array $profilePhotos): static
+    {
+        $this->profilePhotos = $profilePhotos;
+
+        return $this;
+    }
+
     public function toArray($request): array
     {
         return [
@@ -63,11 +88,16 @@ class RideResource extends JsonResource
      */
     private function driverPayload(): array
     {
+        // Stage 2 C2: the batched map when the producer supplied one, otherwise the relation (transitional).
+        $storedPhoto = $this->profilePhotos !== null
+            ? ($this->profilePhotos[$this->driver->id] ?? null)
+            : $this->driver->profile?->profile_photo;
+
         return [
             'id' => $this->driver->id,
             'name' => trim($this->driver->first_name.' '.$this->driver->last_name),
-            'avatar' => $this->driver->profile?->profile_photo
-                ? asset('storage/'.$this->driver->profile->profile_photo)
+            'avatar' => $storedPhoto
+                ? asset('storage/'.$storedPhoto)
                 : $this->driver->avatar,
             // AF-4: `driver_rating` is not a column on users; it evaluated
             // to null and `?? 0` silently returned a rating of 0 for EVERY

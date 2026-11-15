@@ -19,7 +19,7 @@ use Tests\TestCase;
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          2
  *   Money              1       1      2        2          -
- *   Ride               1       5      1        1          -
+ *   Ride               1       5      1        2          -
  *   Identity           2       4      3        -          3
  *   Console            4       9     11        9          -
  *
@@ -147,7 +147,12 @@ class ModuleGraphTest extends TestCase
         // Stage 2 C2: Ride's no-show conflict opens a support complaint, which Console owns.
         'Ride -> Console' => 1,
         'Ride -> Communication' => 1,
-        'Ride -> Identity' => 1,
+        'Ride -> Identity' => 2,
+        // Stage 2 C2: the second port is `ProfileDirectory`. Ride's ride views render the driver's (and, on
+        // the driver's passenger list, every passenger's) stored photo, which used to come from the
+        // `driver.profile` / `user.profile` eager loads; the paths now arrive batched from Identity, and the
+        // kernel resources take a plain array so they stay outside the kernel port ceiling. A new port on the
+        // existing `Ride -> Identity` edge (`DocumentVerificationInterface` was already here).
         'Ride -> Money' => 5,
     ];
 

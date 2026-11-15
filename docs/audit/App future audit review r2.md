@@ -20922,3 +20922,42 @@ files.
 
 The last two cost +1 query each to convert, so they still need the owner's word on those two budgets (or a change
 to what the auth cache carries).
+
+---
+
+### 348. Stage 2 C2: the ride/booking resources take a batched photo map, and the ride read handler stops eager-loading profiles
+
+**Why the resources take an array and not a port.** `RideResource` and `BookingResource` are KERNEL files, and
+the kernel's use of module Contracts is capped by a HARD ceiling (`ModuleBoundaryTest::KERNEL_CONTRACTS_CEILING`
+= 5, shrink-only). Adding `ProfileDirectory` to either resource - or to a new shared kernel trait - would have
+raised it. So the producers, which live in the Ride module and may name Identity's port, resolve the stored paths
+in ONE batched query and hand the resources a plain `array<int, string|null>` keyed by user id. A resource with
+no map keeps its previous relation read, so producers convert one at a time.
+
+**The setter is fluent on purpose.** The first attempt used a second constructor parameter and blew up on every
+collection response: Laravel's `JsonResource::collection()` calls `new static($item, $key)`, so the parameter
+received the collection KEY and the TypeError turned `bookings/index` and the passenger booking list into 500s.
+`withProfilePhotos(?array): static` has no such collision. (Caught by the gate - the four red tests named it.)
+
+**Converted here: `RideSearchReadHandler`** (the ride `show` and the driver's passenger view), which had two
+local eager loads to swap:
+- `show()`: `load(['driver','driver.profile'])` -> `load(['driver'])` + ONE `photoPathsForUsers([$driver_id])`,
+  passed to the resource (net zero queries).
+- `driverView()`: `loadDriverViewRelations()` drops `driver.profile` AND `bookings.user.profile`; ONE batched
+  read covers the driver and every passenger on the page, feeding both the resource and `driverViewBooking()`
+  (`rides/passengers` 14 -> 13, its only notice).
+
+**Ratchets.** `ModuleGraphTest` `Ride -> Identity` **1 -> 2 ports** (new port on an existing edge - the
+`DocumentVerificationInterface` was already there - argued in `EDGES`; the docblock matrix cell 1 -> 2). No new
+edge, no new cycle. `KERNEL_MODEL_IMPORTS` unchanged at 16 (relation reads are not imports), and the ceiling that
+shaped the design was NOT touched.
+
+**Verification.** `AppFuture` + `Rides` + `Bookings` + `RidesSnapshotTest` + `BookingsSnapshotTest` = **187 tests
+/ 830 assertions OK**, `bookings/index`, `rides/show`, `rides/passengers` and every other ride/booking snapshot
+byte-identical, one intended budget shrink (`rides/passengers` 14 -> 13). Pint **PASS** on the three files.
+
+**Producers still on the fallback (queued):** `RideLifecycleHandler` (index/my-rides/driver-bookings),
+`RideBookingHandler` / `RideBookingResponseHandler` / `RideCancellationHandler` (the single-booking responses),
+and the `driver.profile` eager loads in `RideRepository`, `RideSearchService`, `BookingService` and
+`RideService::createRide`'s `fresh(['driver.profile'])` - each of those queries must be checked for other readers
+before it is dropped.

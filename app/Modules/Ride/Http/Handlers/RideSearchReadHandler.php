@@ -3,6 +3,7 @@
 namespace App\Modules\Ride\Http\Handlers;
 
 use App\Http\Resources\RideResource;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RouteCalculationService;
@@ -28,6 +29,7 @@ class RideSearchReadHandler
         private readonly RideService $rideService,
         private readonly GeocodingService $geocodingService,
         private readonly RouteCalculationService $routeService,
+        private readonly ProfileDirectory $profiles,
     ) {}
 
     public function searchRides(Request $request): JsonResponse
@@ -145,9 +147,11 @@ class RideSearchReadHandler
     {
         try {
             $ride = $this->rideService->getRideById($rideId);
-            // RV-38: getRideById does not eager-load the driver, but RideResource reads it
-            // (and driver.profile) — load them so rendering costs no lazy query.
-            $ride->load(['driver', 'driver.profile']);
+            // RV-38: getRideById does not eager-load the driver, but RideResource reads it.
+            // Stage 2 C2: `driver.profile` is Identity's and arrives from its port in ONE query - the same
+            // single query the retired eager load cost.
+            $ride->load(['driver']);
+            $photoPaths = $this->profiles->photoPathsForUsers([$ride->driver_id]);
 
             // Only aggregate seat totals — no booking rows, no passenger data
             $seatsByStatus = $ride->bookings()
@@ -160,7 +164,7 @@ class RideSearchReadHandler
 
             return response()->json([
                 'success' => true,
-                'data' => new RideResource($ride),
+                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths),
                 'seat_summary' => [
                     'total_capacity' => $ride->available_seats + $confirmedSeats + $pendingSeats,
                     'available' => $ride->available_seats,
@@ -193,15 +197,26 @@ class RideSearchReadHandler
 
             $this->loadDriverViewRelations($ride);
 
+            // Stage 2 C2: ONE batched Identity read covers the driver AND every passenger on the page -
+            // the query the two retired `*.profile` eager loads cost, paid once.
+            $photoPaths = $this->profiles->photoPathsForUsers(
+                collect([$ride->driver_id])
+                    ->merge($ride->bookings->pluck('user_id'))
+                    ->unique()
+                    ->filter()
+                    ->values()
+                    ->all()
+            );
+
             // ── Seat summary (in-memory, bookings already loaded) ─────────────
             [$confirmedSeats, $pendingSeats, $seatsByStatus] = $this->driverViewSeatSummary($ride);
 
             // ── Build passenger list ──────────────────────────────────────────
-            $bookingList = $ride->bookings->map(fn ($booking) => $this->driverViewBooking($booking))->values();
+            $bookingList = $ride->bookings->map(fn ($booking) => $this->driverViewBooking($booking, $photoPaths))->values();
 
             return response()->json([
                 'success' => true,
-                'data' => new RideResource($ride),
+                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths),
                 'bookings' => [
                     'total_bookings' => $ride->bookings->count(),
                     'seat_summary' => [
@@ -239,12 +254,12 @@ class RideSearchReadHandler
     {
         // ── Eager-load bookings with passenger profile ────────────────────
         $ride->load([
-            'driver',           // RV-38: RideResource reads driver + driver.profile
-            'driver.profile',
+            'driver',           // RV-38: RideResource reads driver
+            // Stage 2 C2: `driver.profile` and `user.profile` are GONE - the caller resolves the same
+            // columns from Identity's port in ONE batched read after this load.
             'bookings' => fn ($q) => $q
                 ->with([
                     'user:id,first_name,last_name',
-                    'user.profile:user_id,profile_photo',
                 ])
                 ->orderBy('created_at'),
         ]);
@@ -270,12 +285,13 @@ class RideSearchReadHandler
 
     /**
      * Shape one booking row for the driver passenger list.
+     *
+     * @param  array<int, string|null>  $photoPaths  stored profile paths keyed by user id
      */
-    private function driverViewBooking($booking): array
+    private function driverViewBooking($booking, array $photoPaths): array
     {
-        $avatar = $booking->user?->profile?->profile_photo
-            ? asset('storage/'.$booking->user->profile->profile_photo)
-            : null;
+        $storedPhoto = $booking->user ? ($photoPaths[$booking->user->id] ?? null) : null;
+        $avatar = $storedPhoto ? asset('storage/'.$storedPhoto) : null;
 
         return [
             'id' => $booking->id,

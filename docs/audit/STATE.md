@@ -1,4 +1,16 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2: ride/booking resources take a batched photo map; ride read handler converted
+  (audit sec 348), commit `Stage 2 C2: ride resources take a batched photo map`.** `RideResource` and
+  `BookingResource` gained a fluent `withProfilePhotos(?array)` (NOT a constructor arg - Laravel's
+  `collection()` passes the item KEY as the second constructor argument, which made every collection response a
+  500 until the gate caught it). `RideSearchReadHandler` `show()`/`driverView()` resolve ONE batched
+  `photoPathsForUsers()` covering driver + passengers and pass it in; `driver.profile` and
+  `bookings.user.profile` eager loads are gone (`rides/passengers` 14 -> 13, the only notice).
+  `ModuleGraphTest` `Ride -> Identity` 1 -> 2. Gate: AppFuture + Rides + Bookings + Rides/Bookings snapshots =
+  **187/830 OK**, snapshots byte-identical; Pint PASS 3.
+  **STILL QUEUED:** `RideLifecycleHandler` (index/my-rides/driver bookings), the three booking handlers
+  (`RideBookingHandler`, `RideBookingResponseHandler`, `RideCancellationHandler`) and the `driver.profile` eager
+  loads in `RideRepository`/`RideSearchService`/`BookingService`/`RideService::createRide`.
 - Done recently: **STAGE 2 - C2: chat conversation lists + staff message header leave `participants.profile`
   (audit sec 347), commit `Stage 2 C2: chat conversations read photos through the ports`.** The chat
   repository's `participants.profile` eager load is gone from BOTH `getUserConversations()` and
