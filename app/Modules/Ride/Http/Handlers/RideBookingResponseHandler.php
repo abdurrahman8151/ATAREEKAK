@@ -51,7 +51,7 @@ class RideBookingResponseHandler
 
             return response()->json([
                 'success' => true,
-                'data' => new BookingResource($booking),
+                'data' => (new BookingResource($booking))->withProfilePhotos($this->bookingService->profilePhotosFor($booking)),
                 'message' => 'Booking accepted successfully',
             ]);
 
@@ -93,7 +93,7 @@ class RideBookingResponseHandler
 
             return response()->json([
                 'success' => true,
-                'data' => new BookingResource($booking),
+                'data' => (new BookingResource($booking))->withProfilePhotos($this->bookingService->profilePhotosFor($booking)),
                 'message' => 'Booking rejected successfully',
             ]);
 

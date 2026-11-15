@@ -7,6 +7,7 @@ use App\Exceptions\Domain\DomainException;
 use App\Http\Requests\CreateRideRequest;
 use App\Http\Resources\BookingResource;
 use App\Http\Resources\RideResource;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Ride\Http\Controllers\ScoreController;
 use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\GeocodingService;
@@ -35,6 +36,7 @@ class RideLifecycleHandler
         private readonly GeocodingService $geocodingService,
         private readonly RouteCalculationService $routeService,
         private readonly ScoreService $scoreService,
+        private readonly ProfileDirectory $profiles,
     ) {}
 
     public function create(CreateRideRequest $request): JsonResponse
@@ -42,15 +44,17 @@ class RideLifecycleHandler
         try {
             $dto = CreateRideDTO::fromRequest($request->validated(), $request->user()->id);
             $ride = $this->rideService->createRide($dto, $request->user());
-            // RV-38: RideResource reads $this->driver (and ->driver->profile). Eager-load them
-            // here — a freshly created ride carries no relation, so rendering it lazy-loaded the
-            // driver (one extra query per response, and a lazy-load violation under strictness).
-            $ride->load(['driver', 'driver.profile']);
+            // RV-38: RideResource reads $this->driver. Eager-load it here - a freshly created ride
+            // carries no relation, so rendering it lazy-loaded the driver (one extra query per
+            // response, and a lazy-load violation under strictness).
+            // Stage 2 C2: the driver's photo is Identity's and arrives from its port in ONE query.
+            $ride->load(['driver']);
+            $photoPaths = $this->profiles->photoPathsForUsers([$ride->driver_id]);
             $score = $this->scoreService->getScore($request->user());
 
             return response()->json([
                 'success' => true,
-                'data' => new RideResource($ride),
+                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths),
                 'message' => 'Ride created successfully',
                 'driver_score' => ScoreController::formatScore($score),
             ], 201);
@@ -195,25 +199,43 @@ class RideLifecycleHandler
     public function index(Request $request): JsonResponse
     {
         $rides = $this->rideService->getUserRides($request->user()->id);
-        $rides->load(['driver', 'driver.profile'])
+        $rides->load(['driver'])
             ->loadCount(['bookings as total_booked_seats' => function ($query) {
                 $query->select(DB::raw('COALESCE(SUM(seats), 0)'));
             }]);
 
+        // Stage 2 C2: ONE batched Identity read for the page's drivers, replacing `driver.profile`.
+        $ridePhotos = $this->profiles->photoPathsForUsers($rides->pluck('driver_id')->all());
+
         return response()->json([
             'success' => true,
-            'data' => RideResource::collection($rides),
+            'data' => RideResource::collection(
+                $rides->map(fn ($ride) => (new RideResource($ride))->withProfilePhotos($ridePhotos))
+            ),
         ]);
     }
 
     public function myBookings(Request $request): JsonResponse
     {
         $bookings = $this->bookingService->getUserBookings($request->user()->id);
-        $bookings->load(['user', 'user.profile', 'ride', 'ride.driver', 'ride.driver.profile']);
+        $bookings->load(['user', 'ride', 'ride.driver']);
+
+        // Stage 2 C2: ONE batched Identity read covering every passenger AND every ride's driver,
+        // replacing `user.profile` + `ride.driver.profile` on the whole page.
+        $bookingPhotos = $this->profiles->photoPathsForUsers(
+            $bookings->pluck('user_id')
+                ->merge($bookings->pluck('ride.driver_id'))
+                ->unique()
+                ->filter()
+                ->values()
+                ->all()
+        );
 
         return response()->json([
             'success' => true,
-            'data' => BookingResource::collection($bookings),
+            'data' => BookingResource::collection(
+                $bookings->map(fn ($booking) => (new BookingResource($booking))->withProfilePhotos($bookingPhotos))
+            ),
         ]);
     }
 

@@ -81,9 +81,10 @@ final class BookingCancellationService
             ]);
 
             // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
-            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
-            // per booking. Re-load the relations the response path needs.
-            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
+            // (`$booking->user`, `$booking->ride->driver`) were always lazy - one query each, per
+            // booking. Re-load the relations the response path needs. Stage 2 C2: the profile relations
+            // are NOT here any more; the handler resolves the photo paths from Identity's port.
+            return $booking->refresh()->load(['user', 'ride.driver']);
         }, attempts: 3);
     }
 

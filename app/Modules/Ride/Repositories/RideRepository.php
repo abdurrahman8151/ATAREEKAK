@@ -205,7 +205,10 @@ class RideRepository implements RideRepositoryInterface
     {
         Log::info('RideRepository: Fetch ride by ID', ['ride_id' => $rideId]);
 
-        return Ride::with(['driver.profile', 'bookings.user'])->findOrFail($rideId);
+        // Stage 2 C2: `driver.profile` is GONE - the response handlers resolve the driver photo from
+        // Identity's port and hand it to the resource. `driver` STAYS: the no-show reporter reads it for a
+        // notification, and the ride views read its name.
+        return Ride::with(['driver', 'bookings.user'])->findOrFail($rideId);
     }
 
     /**

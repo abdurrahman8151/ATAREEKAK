@@ -20961,3 +20961,46 @@ byte-identical, one intended budget shrink (`rides/passengers` 14 -> 13). Pint *
 and the `driver.profile` eager loads in `RideRepository`, `RideSearchService`, `BookingService` and
 `RideService::createRide`'s `fresh(['driver.profile'])` - each of those queries must be checked for other readers
 before it is dropped.
+
+---
+
+### 349. Stage 2 C2: ride/booking response handlers pass the photo map - the resource fallback is now unused on every live path
+
+**All nine resource construction sites now supply the batched map**, so `RideResource`/`BookingResource` read
+no profile relation on any wired endpoint:
+- `RideLifecycleHandler`: `create()` (batch one driver), `index()` (ONE batch for the page's drivers, mapped into
+  pre-built resources passed to `RideResource::collection()`), `myBookings()` (ONE batch covering every
+  passenger AND every ride's driver).
+- `RideBookingHandler`, `RideBookingResponseHandler` (accept + reject), `RideCancellationHandler`: a new
+  `BookingService::profilePhotosFor(Booking)` resolves the passenger's and the ride driver's photos in ONE query.
+- `RideSearchReadHandler` was already converted in sec 348.
+
+**The eager loads behind them are gone**, with two deliberate exceptions:
+- `BookingService`: `bookRide`'s ride load drops `driver.profile` (keeps `driver` for the notification path),
+  the three `refresh()->load()` returns become `load(['user','ride.driver'])`, `getUserBookings` drops
+  `ride.driver.profile`, and the idempotent-replay return matches.
+- `BookingCancellationService` carries the same `refresh()->load()` return for the cancel path - the first run
+  caught it: the handler's new map query was ADDED while that copy still loaded both profiles, so
+  `bookings/cancel` rose 50 -> 51 and the budget failed. Fixed in the same commit.
+- `RideRepository::getRideById`: `with(['driver.profile','bookings.user'])` -> `with(['driver','bookings.user'])`.
+  `driver` must stay explicit: the no-show reporter reads it for a notification.
+
+**KEPT ON PURPOSE, because the response is the raw serialized model, not a resource:**
+`RideSearchService`'s two search queries and `RideService::createRide`'s `fresh(['driver.profile'])`
+(`create-with-route` returns `'ride' => $ride` directly). The committed snapshots contain the nested
+`"profile"` object; dropping those eager loads would CHANGE the public JSON, which this mode forbids.
+`RideRepository::getUpcomingRides` also keeps it and has no consumer at all (recorded, not touched).
+
+**Measured shrinks (no rise anywhere):** `rides/show` 9 -> 8, `rides/book` 47 -> 45, `rides/driver-no-show`
+26 -> 24, `rides/passengers` 14 -> 12, `bookings/index` 13 -> 11, `bookings/accept` 44 -> 42,
+`bookings/reject` 31 -> 29, `bookings/cancel` 50 -> 48. Every frozen budget was left as-is (the notices are the
+record).
+
+**Verification.** `AppFuture` + `Rides` + `Bookings` + `RidesSnapshotTest` + `BookingsSnapshotTest` = **187 tests
+/ 830 assertions OK**, every ride and booking snapshot byte-identical (including the raw-model search and
+create-with-route responses). Pint **PASS** on the seven changed files.
+
+**What is left app-wide on `User::profile`:** `RideValidationService::validateDriverCanCreateRide()` and
+`ChatMessageHandler::resolvePhotoPath()` (the two zero-query auth-cache sites from sec 342), the search and
+create-with-route eager loads above (public JSON - not removable without a response change), and
+`app/DTOs/Auth/CachedUser.php` (rule B).

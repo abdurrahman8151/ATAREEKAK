@@ -11,6 +11,7 @@ use App\Models\Booking;
 use App\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
@@ -69,11 +70,13 @@ final class BookingService
                 return $replay;
             }
             // 3. Load and lock ride row to prevent race conditions on seat count.
-            // RV-37 / un9: eager-load `driver` (and its profile) here rather than lazily at the
+            // RV-37 / un9: eager-load `driver` here rather than lazily at the
             // notification/cash-fee call sites below — those read `$ride->driver` on a booking that
             // is about to be notified, which is one query per passenger booking today and an N+1
             // under the armed lazy-loading guard.
-            $ride = Ride::lockForUpdate()->with(['driver', 'driver.profile'])->findOrFail($dto->rideId);
+            // Stage 2 C2: `driver.profile` is GONE - the response's driver photo comes from Identity's
+            // batched port read in the handler that renders BookingResource.
+            $ride = Ride::lockForUpdate()->with(['driver'])->findOrFail($dto->rideId);
 
             // 4. Business rule validations
             $this->assertBookingRules($dto, $ride, $passenger);
@@ -100,9 +103,10 @@ final class BookingService
             $this->logBookingCreated($booking, $ride, $passenger, $initialStatus);
 
             // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
-            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
-            // per booking. Re-load the relations the response path needs.
-            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
+            // (`$booking->user`, `$booking->ride->driver`) were always lazy - one query each, per
+            // booking. Re-load the relations the response path needs. Stage 2 C2: the profile relations
+            // are NOT here any more; the handler resolves the photo paths from Identity's port.
+            return $booking->refresh()->load(['user', 'ride.driver']);
         }, attempts: 3);
     }
 
@@ -168,9 +172,10 @@ final class BookingService
             ]);
 
             // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
-            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
-            // per booking. Re-load the relations the response path needs.
-            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
+            // (`$booking->user`, `$booking->ride->driver`) were always lazy - one query each, per
+            // booking. Re-load the relations the response path needs. Stage 2 C2: the profile relations
+            // are NOT here any more; the handler resolves the photo paths from Identity's port.
+            return $booking->refresh()->load(['user', 'ride.driver']);
         }, attempts: 3);
     }
 
@@ -218,9 +223,10 @@ final class BookingService
             ]);
 
             // RV-37 / un9: `refresh()` discards every loaded relation, so BookingResource's reads
-            // reads (`$booking->ride`, `$booking->ride->driver`) were always lazy - one query each,
-            // per booking. Re-load the relations the response path needs.
-            return $booking->refresh()->load(['user.profile', 'ride.driver.profile']);
+            // (`$booking->user`, `$booking->ride->driver`) were always lazy - one query each, per
+            // booking. Re-load the relations the response path needs. Stage 2 C2: the profile relations
+            // are NOT here any more; the handler resolves the photo paths from Identity's port.
+            return $booking->refresh()->load(['user', 'ride.driver']);
         }, attempts: 3);
     }
 
@@ -270,11 +276,26 @@ final class BookingService
             'ride',
             'user.receivedRatings', // AF-4: batch the passenger rating for BookingResource
             'ride.driver',
-            'ride.driver.profile',
+            // Stage 2 C2: `ride.driver.profile` is gone - the handler batches it from Identity's port.
         ])
             ->where('user_id', $userId)
             ->orderByDesc('created_at')
             ->get();
+    }
+
+    /**
+     * Stage 2 C2: the stored profile photos a single BookingResource renders - the passenger's and the
+     * ride's driver's - in ONE Identity query. The response handlers hand the result to the resource
+     * (`withProfilePhotos()`), so the resource itself never names a module port.
+     *
+     * @return array<int, string|null>
+     */
+    public function profilePhotosFor(Booking $booking): array
+    {
+        return app(ProfileDirectory::class)->photoPathsForUsers(array_values(array_filter([
+            $booking->user_id,
+            $booking->ride?->driver_id,
+        ])));
     }
 
     // =========================================================================
@@ -308,8 +329,9 @@ final class BookingService
         ]);
 
         // RV-37 / un9: the idempotent-replay return goes straight into BookingResource, which
-        // reads user.profile and ride.driver.profile - load the same set as a fresh booking.
-        return $existing->load(['user.profile', 'ride.driver.profile']);
+        // reads `user` and `ride.driver` - load the same set as a fresh booking. Stage 2 C2: the
+        // profile relations are the handler's batched port read now.
+        return $existing->load(['user', 'ride.driver']);
     }
 
     /**

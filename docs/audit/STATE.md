@@ -1,4 +1,19 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2: every ride/booking response handler passes the batched photo map (audit
+  sec 349), commit `Stage 2 C2: booking handlers pass the photo map`.** All NINE resource construction sites
+  now supply maps (RideLifecycleHandler create/index/myBookings; the booking/accept/reject/cancel handlers via
+  new `BookingService::profilePhotosFor()`). Eager loads dropped in `BookingService` (4 returns + bookRide +
+  getUserBookings), `BookingCancellationService` (the cancel path - the first run caught this copy and
+  `bookings/cancel` rose 50 -> 51 until it was fixed in the same commit) and
+  `RideRepository::getRideById` (`driver.profile` -> `driver`). **KEPT because the response is the raw
+  serialized model: `RideSearchService` and `RideService::createRide`'s `fresh(['driver.profile'])`
+  (`create-with-route` returns the ride directly) - removing them changes public JSON.** Shrinks only:
+  rides/show 9->8, rides/book 47->45, rides/driver-no-show 26->24, rides/passengers 14->12, bookings/index
+  13->11, accept 44->42, reject 31->29, cancel 50->48. Gate: AppFuture + Rides + Bookings + Rides/Bookings
+  snapshots = **187/830 OK**, snapshots byte-identical; Pint PASS 7.
+  **LEFT ON `User::profile`:** `RideValidationService` and `ChatMessageHandler::resolvePhotoPath()` (the two
+  zero-query auth-cache sites - +1 query each, need the owner's word on `rides/create` and
+  `chat/messages-store`), the search/create-with-route eager loads (public JSON) and `CachedUser` (rule B).
 - Done recently: **STAGE 2 - C2: ride/booking resources take a batched photo map; ride read handler converted
   (audit sec 348), commit `Stage 2 C2: ride resources take a batched photo map`.** `RideResource` and
   `BookingResource` gained a fluent `withProfilePhotos(?array)` (NOT a constructor arg - Laravel's

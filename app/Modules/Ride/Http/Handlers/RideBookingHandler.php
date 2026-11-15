@@ -31,7 +31,7 @@ class RideBookingHandler
 
             return response()->json([
                 'success' => true,
-                'data' => new BookingResource($booking),
+                'data' => (new BookingResource($booking))->withProfilePhotos($this->bookingService->profilePhotosFor($booking)),
                 'message' => 'Ride booked successfully',
             ], 201);
 
