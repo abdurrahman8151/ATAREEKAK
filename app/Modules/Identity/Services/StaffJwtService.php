@@ -2,7 +2,7 @@
 
 namespace App\Modules\Identity\Services;
 
-use App\Models\Employee;
+use App\DTOs\Auth\StaffTokenSubject;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeTokenVersion;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
@@ -34,10 +34,10 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
 
     // ── Token generation ──────────────────────────────────────────────────────
 
-    public function generateTokenPair(Employee $employee): array
+    public function generateTokenPair(StaffTokenSubject $subject): array
     {
-        $accessToken = $this->generateAccessToken($employee);
-        $refreshEntry = $this->generateRefreshToken($employee);
+        $accessToken = $this->generateAccessToken($subject);
+        $refreshEntry = $this->generateRefreshToken($subject);
 
         return [
             'access_token' => $accessToken,
@@ -146,17 +146,19 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
         }
 
         // Stage 2 C2: `employees` is Console's table, so the lookup goes through its repository rather
-        // than a relation declared on a token model Identity owns. One query either way.
-        $employee = $this->employees->findById((int) $tokenRecord->employee_id);
+        // than a relation declared on a token model Identity owns. One query either way, and the
+        // repository answers the WHOLE question (missing OR inactive -> null), so this module never
+        // names the model.
+        $subject = $this->employees->activeTokenSubjectById((int) $tokenRecord->employee_id);
 
-        if (! $employee || ! $employee->is_active) {
+        if (! $subject) {
             return null;
         }
 
         // Rotate: revoke old, issue new pair.
         $tokenRecord->update(['revoked' => true]);
 
-        return $this->generateTokenPair($employee);
+        return $this->generateTokenPair($subject);
     }
 
     // ── Revocation ────────────────────────────────────────────────────────────
@@ -196,17 +198,17 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function generateAccessToken(Employee $employee): string
+    private function generateAccessToken(StaffTokenSubject $subject): string
     {
         $now = time();
 
         $payload = [
             'iss' => config('app.name'),
-            'sub' => $employee->id,
+            'sub' => $subject->id,
             'sub_type' => self::SUB_TYPE,
-            'role' => $employee->role->value,
+            'role' => $subject->role,
             'type' => 'access',
-            'ver' => $employee->token_version,
+            'ver' => $subject->tokenVersion,
             'iat' => $now,
             'exp' => $now + $this->accessTtlSeconds(),
         ];
@@ -214,7 +216,7 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
         return JWT::encode($payload, $this->secret(), self::ALGORITHM);
     }
 
-    private function generateRefreshToken(Employee $employee): array
+    private function generateRefreshToken(StaffTokenSubject $subject): array
     {
         $token = Str::random(64);
 
@@ -224,7 +226,7 @@ final class StaffJwtService implements StaffJwtInterface, StaffTokenCleanupInter
         // tokens, so a database disclosure must not hand over usable sessions.
         // The raw value is returned to the client and is never persisted.
         $record = StaffRefreshToken::create([
-            'employee_id' => $employee->id,
+            'employee_id' => $subject->id,
             'token' => $this->hashToken($token),
             'expires_at' => now()->addDays(self::REFRESH_TTL_DAYS),
             'revoked' => false,

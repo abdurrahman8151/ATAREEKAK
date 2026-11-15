@@ -4,6 +4,7 @@ namespace Tests\Feature\Review;
 
 use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Models\RefreshToken;
 use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Modules\Identity\Services\JwtService;
@@ -148,11 +149,11 @@ class RV29RefreshReuseDetectionTest extends TestCase
     public function staff_token_replay_also_revokes_the_whole_staff_family(): void
     {
         $emp = $this->employee();
-        $raw = $this->staffJwt->generateTokenPair($emp)['refresh_token'];
+        $raw = $this->staffJwt->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($emp))['refresh_token'];
 
         $rotated = $this->staffJwt->refreshAccessToken($raw);
         $this->assertNotNull($rotated);
-        $other = $this->staffJwt->generateTokenPair($emp)['refresh_token'];
+        $other = $this->staffJwt->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($emp))['refresh_token'];
 
         $this->assertNull(
             $this->staffJwt->refreshAccessToken($raw),
@@ -176,11 +177,11 @@ class RV29RefreshReuseDetectionTest extends TestCase
     public function staff_reuse_bumps_employee_token_version(): void
     {
         $emp = $this->employee();
-        $raw = $this->staffJwt->generateTokenPair($emp)['refresh_token'];
+        $raw = $this->staffJwt->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($emp))['refresh_token'];
         $before = (int) $emp->fresh()->token_version;
 
         $this->staffJwt->refreshAccessToken($raw);
-        $this->staffJwt->generateTokenPair($emp);
+        $this->staffJwt->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($emp));
         $this->staffJwt->refreshAccessToken($raw);   // replay -> reuse
 
         $this->assertGreaterThan(

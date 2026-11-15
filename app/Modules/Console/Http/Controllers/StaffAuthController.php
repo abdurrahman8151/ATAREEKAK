@@ -3,6 +3,7 @@
 namespace App\Modules\Console\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Contracts\EmployeeAuthInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ final class StaffAuthController extends Controller
 {
     public function __construct(
         private readonly EmployeeAuthInterface $authService,
+        private readonly EmployeeRepositoryInterface $employees,
     ) {}
 
     // ── POST /api/staff/login ─────────────────────────────────────────────────
@@ -113,7 +115,10 @@ final class StaffAuthController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'employee' => $this->authService->formatEmployee($employee),
+            // Stage 2 C2: Identity's staff-auth contract takes the kernel `StaffAccount`, and the owner of
+            // `employees` builds it - here from the row the middleware already resolved, with no query and
+            // without this controller naming the model.
+            'employee' => $this->authService->formatEmployee($this->employees->accountFor($employee)),
         ]);
     }
 }

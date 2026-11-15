@@ -2,8 +2,12 @@
 
 namespace App\Modules\Console\Contracts;
 
+use App\DTOs\Auth\StaffAccount;
+use App\DTOs\Auth\StaffCredentials;
+use App\DTOs\Auth\StaffTokenSubject;
 use App\Enums\StaffRole;
 use App\Models\Employee;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
 interface EmployeeRepositoryInterface
@@ -26,4 +30,28 @@ interface EmployeeRepositoryInterface
      * Returns all employees whose role is manageable by the given manager.
      */
     public function listManageableBy(Employee $manager): Collection;
+
+    /**
+     * Stage 2 C2: the login credentials for a username OR email, with the stored hash.
+     *
+     * Identity's staff-auth path used to receive an `Employee` and read `->password`, `->is_active`,
+     * `->role` and `->token_version` off it. These four methods return kernel DTOs instead, so Identity
+     * never names the model Console owns.
+     */
+    public function credentialsFor(string $identifier): ?StaffCredentials;
+
+    /** The account shape (no hash) for one employee, or null. */
+    public function accountById(int $id): ?StaffAccount;
+
+    /** The token subject for an ACTIVE employee, or null - the refresh path's rule. */
+    public function activeTokenSubjectById(int $id): ?StaffTokenSubject;
+
+    /** Build a token subject from a row the caller already holds - no query. */
+    public function tokenSubjectFor(Employee $employee): StaffTokenSubject;
+
+    /** Build the account shape from a row the caller already holds - no query. */
+    public function accountFor(Employee $employee): StaffAccount;
+
+    /** Record a successful login and return the timestamp written (the login response reports it). */
+    public function markLoggedIn(int $id): Carbon;
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature\Staff;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -53,7 +54,7 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_the_stored_token_is_a_sha256_digest_not_the_raw_value(): void
     {
-        $pair = $this->service->generateTokenPair($this->employee);
+        $pair = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee));
         $raw = $pair['refresh_token'];
 
         $stored = StaffRefreshToken::where('employee_id', $this->employee->id)
@@ -72,7 +73,7 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_the_client_still_receives_a_usable_raw_token(): void
     {
-        $raw = $this->service->generateTokenPair($this->employee)['refresh_token'];
+        $raw = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee))['refresh_token'];
 
         // 64 chars, not a hex digest — i.e. the client got the pre-image, the DB
         // the digest. They must differ.
@@ -103,7 +104,7 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_a_refresh_token_presented_in_plaintext_still_refreshes(): void
     {
-        $raw = $this->service->generateTokenPair($this->employee)['refresh_token'];
+        $raw = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee))['refresh_token'];
 
         $new = $this->service->refreshAccessToken($raw);
 
@@ -114,7 +115,7 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_refresh_rotates_and_revokes_the_consumed_row(): void
     {
-        $raw = $this->service->generateTokenPair($this->employee)['refresh_token'];
+        $raw = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee))['refresh_token'];
 
         $this->service->refreshAccessToken($raw);
 
@@ -125,7 +126,7 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_a_consumed_refresh_token_cannot_be_replayed(): void
     {
-        $raw = $this->service->generateTokenPair($this->employee)['refresh_token'];
+        $raw = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee))['refresh_token'];
 
         $this->assertNotNull($this->service->refreshAccessToken($raw));
         // Rotation + single-use: the second use must fail.
@@ -134,7 +135,7 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_an_expired_digest_row_cannot_refresh(): void
     {
-        $raw = $this->service->generateTokenPair($this->employee)['refresh_token'];
+        $raw = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee))['refresh_token'];
         StaffRefreshToken::where('token', hash('sha256', $raw))
             ->update(['expires_at' => now()->subDay()]);
 
@@ -143,7 +144,7 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_an_inactive_employee_cannot_refresh(): void
     {
-        $raw = $this->service->generateTokenPair($this->employee)['refresh_token'];
+        $raw = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee))['refresh_token'];
         $this->employee->update(['is_active' => false]);
 
         $this->assertNull($this->service->refreshAccessToken($raw));
@@ -161,8 +162,8 @@ class StaffRefreshTokenHashingTest extends TestCase
 
     public function test_revoke_all_tokens_still_works_after_hashing(): void
     {
-        $this->service->generateTokenPair($this->employee);
-        $this->service->generateTokenPair($this->employee);
+        $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee));
+        $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee));
 
         $this->service->revokeAllTokens($this->employee->id);
 
@@ -207,7 +208,7 @@ class StaffRefreshTokenHashingTest extends TestCase
         );
         $migration->up();
 
-        $raw = $this->service->generateTokenPair($this->employee)['refresh_token'];
+        $raw = $this->service->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($this->employee))['refresh_token'];
         $this->assertNotNull($this->service->refreshAccessToken($raw));
     }
 }

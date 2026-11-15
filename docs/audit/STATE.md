@@ -1,4 +1,20 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 `Identity -> Employee` GONE (audit sec 351), commit
+  `Stage 2 C2: staff auth stops naming the Employee model`.** The sec-299 architecture decision was made and
+  shipped as the KERNEL DTO option: new `App\DTOs\Auth\{StaffAccount,StaffCredentials,StaffTokenSubject}` (no
+  `fromModel()` - Console builds them), Console's `EmployeeRepositoryInterface` grew `credentialsFor`,
+  `accountById`, `activeTokenSubjectById`, `tokenSubjectFor`, `accountFor` and a `markLoggedIn(): Carbon`,
+  `EmployeeAuthInterface::formatEmployee(StaffAccount)` and `StaffJwtInterface::generateTokenPair(StaffTokenSubject)`
+  are the new signatures, and `refreshAccessToken()` now gets the "missing or inactive -> null" answer from the
+  owner. **TWO real catches:** a private `accountOf(Employee)` helper in `StaffAuthController` tripped
+  `controllers_to_models` (baseline 0) AND the Console allowlist - fixed by moving the mapping to the repository;
+  and `auth/staff-login-success` showed `last_login_at: null` because the DTO predated the update - fixed by
+  `markLoggedIn()` returning the written timestamp + `StaffAccount::withLastLoginAt()`. **Ratchets:
+  `KERNEL_MODEL_IMPORTS` 16 -> 15; Identity names no kernel model but `User`.** Gate: AppFuture + Auth + Staff +
+  Security + Unit/Staff + Unit/Middleware + RV04 + RV29 (both) + StaffTokenAudience + T4Batch auth + Auth/Staff
+  snapshots = **580/1924 OK**, staff auth snapshots byte-identical; Pint PASS 17.
+  **PROCESS TRAP: a bulk PowerShell ReadAllText/WriteAllText rewrite corrupted five test files (`$` -> `t`);
+  restored per file and redone with the edit tool. No bulk PowerShell rewrites here.**
 - Done recently: **STAGE 2 - C2 PROFILE THREAD: convertible work FINISHED; remainder is a closed, measured
   list (audit sec 350).** Exactly four non-Identity `User::profile` reads and three eager loads remain, and each
   one is there for a reason: the resources' TRANSITIONAL fallback (characterized by

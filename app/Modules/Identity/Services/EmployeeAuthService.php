@@ -2,7 +2,7 @@
 
 namespace App\Modules\Identity\Services;
 
-use App\Models\Employee;
+use App\DTOs\Auth\StaffAccount;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Contracts\EmployeeAuthInterface;
 use Illuminate\Support\Facades\Hash;
@@ -39,9 +39,11 @@ final class EmployeeAuthService implements EmployeeAuthInterface
      */
     public function authenticate(string $identifier, string $password): ?array
     {
-        $employee = $this->resolveEmployee($identifier);
+        // Stage 2 C2: `employees` is Console's, so the row arrives as a `StaffCredentials` DTO (account +
+        // stored hash) from its repository - this module never names the model.
+        $credentials = $this->employeeRepository->credentialsFor($identifier);
 
-        if (! $employee) {
+        if (! $credentials) {
             // RV-29 (timing oracle): when the identifier is unknown we used to return BEFORE
             // any Hash::check, so the ~100ms bcrypt work only happened for an EXISTING
             // account. That let an attacker distinguish "no such user" from "wrong password"
@@ -55,30 +57,34 @@ final class EmployeeAuthService implements EmployeeAuthInterface
             return null;
         }
 
-        if (! Hash::check($password, $employee->password)) {
-            Log::warning('Staff login: bad password', ['employee_id' => $employee->id]);
+        $account = $credentials->account;
+
+        if (! Hash::check($password, $credentials->passwordHash)) {
+            Log::warning('Staff login: bad password', ['employee_id' => $account->id]);
 
             return null;
         }
 
-        if (! $employee->is_active) {
-            Log::warning('Staff login: inactive account', ['employee_id' => $employee->id]);
+        if (! $account->isActive) {
+            Log::warning('Staff login: inactive account', ['employee_id' => $account->id]);
 
             return null;
         }
 
-        $employee->update(['last_login_at' => now()]);
+        // The response reports the timestamp this call writes: the old code mutated the model in memory
+        // and then formatted it, so `last_login_at` was the NEW value, never the stale one.
+        $loggedInAt = $this->employeeRepository->markLoggedIn($account->id);
 
-        $tokens = $this->jwtService->generateTokenPair($employee);
+        $tokens = $this->jwtService->generateTokenPair($account->tokenSubject());
 
         Log::info('Staff login successful', [
-            'employee_id' => $employee->id,
-            'role' => $employee->role->value,
+            'employee_id' => $account->id,
+            'role' => $account->role->value,
         ]);
 
         return [
             'tokens' => $tokens,
-            'employee' => $this->formatEmployee($employee),
+            'employee' => $this->formatEmployee($account->withLastLoginAt($loggedInAt)),
         ];
     }
 
@@ -99,27 +105,18 @@ final class EmployeeAuthService implements EmployeeAuthInterface
 
     // ── Profile ───────────────────────────────────────────────────────────────
 
-    public function formatEmployee(Employee $employee): array
+    public function formatEmployee(StaffAccount $account): array
     {
         return [
-            'id' => $employee->id,
-            'username' => $employee->username,
-            'email' => $employee->email,
-            'full_name' => $employee->fullName(),
-            'role' => $employee->role->value,
-            'role_label' => $employee->role->label(),
-            'is_active' => $employee->is_active,
-            'last_login_at' => $employee->last_login_at?->toIso8601String(),
-            'created_at' => $employee->created_at->toIso8601String(),
+            'id' => $account->id,
+            'username' => $account->username,
+            'email' => $account->email,
+            'full_name' => $account->fullName(),
+            'role' => $account->role->value,
+            'role_label' => $account->role->label(),
+            'is_active' => $account->isActive,
+            'last_login_at' => $account->lastLoginAt?->toIso8601String(),
+            'created_at' => $account->createdAt->toIso8601String(),
         ];
-    }
-
-    // ── Private ───────────────────────────────────────────────────────────────
-
-    private function resolveEmployee(string $identifier): ?Employee
-    {
-        // Try username first, then email.
-        return $this->employeeRepository->findByUsername($identifier)
-            ?? $this->employeeRepository->findByEmail($identifier);
     }
 }

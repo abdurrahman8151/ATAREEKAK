@@ -4,6 +4,7 @@ namespace Tests\Feature\Review;
 
 use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Services\JwtService;
 use App\Modules\Identity\Services\StaffJwtService;
 use Database\Factories\UserFactory;
@@ -58,7 +59,7 @@ class RV04TokenAudienceTest extends TestCase
         $employee->forceFill(['id' => $user->id])->save();
         $employee = $employee->fresh();
 
-        $token = $this->staffJwt->generateTokenPair($employee)['access_token'];
+        $token = $this->staffJwt->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($employee))['access_token'];
 
         $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/user');
@@ -101,7 +102,7 @@ class RV04TokenAudienceTest extends TestCase
     {
         $employee = $this->makeEmployee();
 
-        $payload = $this->decode($this->staffJwt->generateTokenPair($employee)['access_token']);
+        $payload = $this->decode($this->staffJwt->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($employee))['access_token']);
 
         $this->assertSame(
             'employee',

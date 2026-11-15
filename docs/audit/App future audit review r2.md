@@ -21047,3 +21047,65 @@ ends on:
 **Verification of this record.** No code changes; the numbers above are the current tree's. The last green gate
 for this thread is sec 349's **187 tests / 830 assertions** with every ride and booking snapshot byte-identical,
 and sec 347's **361 / 1300**.
+
+---
+
+### 351. Stage 2 C2: `Identity -> Employee` is GONE - the kernel DTO that sec 299 parked, chosen and shipped
+
+**The decision sec 299 parked.** Two Identity contracts still named `App\Models\Employee`:
+`EmployeeAuthInterface::formatEmployee(Employee)` and `StaffJwtInterface::generateTokenPair(Employee)`, plus the
+two services behind them. Sec 299 called the fix "an architecture decision (kernel DTO vs moving the middleware
+lookup behind a Console reader)". **Chosen: the kernel DTO.** It needs no middleware change, no change to the
+`staffEmployee` request attribute every staff controller already reads, and no extra query on any endpoint - the
+middleware option would have changed what that attribute carries for every staff controller.
+
+**Three kernel DTOs, all built by the OWNER of `employees` (Console), never by a kernel factory.**
+- `App\DTOs\Auth\StaffAccount` - id, username, email, names, `StaffRole`, is_active, token_version,
+  last_login_at, created_at, plus `fullName()`, `tokenSubject()` and `withLastLoginAt()`.
+- `App\DTOs\Auth\StaffCredentials` - a `StaffAccount` plus the stored hash. The hash is deliberately kept OUT of
+  `StaffAccount`, which is what the login response and `/staff/me` are formatted from.
+- `App\DTOs\Auth\StaffTokenSubject` - exactly the three scalars a staff access token is minted from (`sub`,
+  `role`, `ver`).
+None has a `fromModel(Employee)` factory on purpose: a kernel file naming the moved model would break rule B the
+moment `Employee` leaves `app/Models`, so **Console constructs them** through five new
+`EmployeeRepositoryInterface` methods (`credentialsFor`, `accountById`, `activeTokenSubjectById`,
+`tokenSubjectFor`, `accountFor`) plus `markLoggedIn()`.
+
+**What moved.**
+- `EmployeeAuthService::authenticate()`: one `credentialsFor()` call replaces `findByUsername() ?? findByEmail()`,
+  `Hash::check` runs against the DTO's hash, `markLoggedIn()` writes the column, and the token subject comes from
+  the account. Identity names no model.
+- `StaffJwtService`: `generateTokenPair(StaffTokenSubject)`; `refreshAccessToken()` asks
+  `activeTokenSubjectById()`, so the "missing OR inactive -> null" rule now lives with the row's owner.
+- Console: `AdminAuthService` takes the repository and passes `tokenSubjectFor($employee)`;
+  `StaffAuthController` takes the repository and formats `accountFor($employee)` from the row the middleware
+  already resolved.
+
+**TWO failures caught the first version, and both were real design smells, not test noise.**
+1. `BoundaryDependencyTest` (`controllers_to_models`, baseline 0) AND the Console per-file allowlist fired
+   together: my first cut put a private `accountOf(Employee $employee)` helper in `StaffAuthController`, so a
+   CONTROLLER named a model. Fixed by moving the mapping into the repository (`accountFor`) and injecting the
+   repository - the controller now names no model, and no baseline or allowlist was touched.
+2. `auth/staff-login-success` came back with `last_login_at: null`: the DTO was built BEFORE the update, while
+   the old code mutated the model in memory and then formatted it. Fixed by having `markLoggedIn()` return the
+   timestamp it wrote and the login path format
+   `$account->withLastLoginAt($loggedInAt)` - byte-identical again.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **16 -> 15 pairs** - `Identity -> Employee` is gone, and Identity now names
+NO kernel model but `User` (the principal). No new port or edge: `Identity -> Console` stays at 2 ports and
+`Console -> Identity` at 9. The kernel port ceiling is untouched (Console's contract names the model; the
+controllers do not).
+
+**Verification.** `AppFuture` + `Auth` + `Staff` + `Security` + `Unit/Services/Staff` + `Unit/Middleware` +
+`RV04TokenAudienceTest` + `RV29RefreshReuseDetectionTest` + `RV29AuthTimingEqualizationTest` +
+`StaffTokenAudienceTest` + `T4Batch/MoneyAndAuthPathBatchTest` + `AuthSnapshotTest` + `StaffSnapshotTest` =
+**580 tests / 1924 assertions OK**, including the staff login / refresh / me snapshots byte-identical. Pint
+**PASS** on the seventeen changed files. Eighteen test call sites were adapted mechanically (the subject comes
+from Console's repository), with no assertion changed.
+
+**INCIDENT (mine, recorded as a process trap).** A bulk PowerShell rewrite
+(`[System.IO.File]::ReadAllText` / `WriteAllText`) of those five test files CORRUPTED them: every `$` became `t`
+(614 insertions / 470 deletions in `git diff --stat`, and the intended replacement text never matched). Detected
+immediately by the numstat, restored **per file** with `git checkout -- <the five paths>` (never whole-tree -
+sec 305's lesson), and redone with the `edit` tool. **Rule: no bulk text rewrites through PowerShell in this
+repository; use the per-file edit tool, and read `git diff --numstat` before believing a mechanical rewrite.**

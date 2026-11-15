@@ -2,7 +2,7 @@
 
 namespace App\Modules\Identity\Contracts;
 
-use App\Models\Employee;
+use App\DTOs\Auth\StaffAccount;
 
 /**
  * Port over the employee (staff) authentication surface.
@@ -14,8 +14,8 @@ use App\Models\Employee;
  * cross-context import. This port is the boundary that keeps both sides honest: Identity owns the
  * implementation, Console injects the contract.
  *
- * The methods and signatures below are the service's own, unchanged - this is a naming change at the
- * injection sites and nothing else.
+ * Stage 2 C2: `formatEmployee()` takes the kernel `StaffAccount` DTO, not the `Employee` model - Identity does
+ * not name the row Console owns. Console constructs the account from the row it already holds.
  */
 interface EmployeeAuthInterface
 {
@@ -28,5 +28,5 @@ interface EmployeeAuthInterface
     public function logout(int $employeeId): void;
 
     /** @return array<string, mixed> */
-    public function formatEmployee(Employee $employee): array;
+    public function formatEmployee(StaffAccount $account): array;
 }

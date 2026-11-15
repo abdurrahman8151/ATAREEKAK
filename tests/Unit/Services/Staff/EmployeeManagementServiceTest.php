@@ -4,6 +4,7 @@ namespace Services\Staff;
 
 use App\Enums\StaffRole;
 use App\Models\Employee;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Console\Services\EmployeeManagementService;
 use App\Modules\Identity\Services\EmployeeAuthService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -195,7 +196,7 @@ class EmployeeManagementServiceTest extends TestCase
         $agent = $this->make(StaffRole::SUPPORT_AGENT, 'fmt_agent', 'fmt@s.test');
 
         // The public formatter lives on EmployeeAuthService (the profile shape).
-        $result = app(EmployeeAuthService::class)->formatEmployee($agent);
+        $result = app(EmployeeAuthService::class)->formatEmployee(app(EmployeeRepositoryInterface::class)->accountById($agent->id));
 
         foreach (['id', 'username', 'role', 'is_active', 'full_name'] as $key) {
             $this->assertArrayHasKey($key, $result, "Missing key: {$key}");
@@ -206,7 +207,7 @@ class EmployeeManagementServiceTest extends TestCase
     {
         $agent = $this->make(StaffRole::SUPPORT_AGENT, 'fmt_agent2', 'fmt2@s.test');
 
-        $result = app(EmployeeAuthService::class)->formatEmployee($agent);
+        $result = app(EmployeeAuthService::class)->formatEmployee(app(EmployeeRepositoryInterface::class)->accountById($agent->id));
 
         $this->assertArrayNotHasKey('password', $result);
     }

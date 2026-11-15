@@ -5,6 +5,7 @@ namespace Tests\Feature\T4Batch;
 use App\Models\Employee;
 use App\Models\Ride;
 use App\Models\User;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -205,7 +206,7 @@ class MoneyAndAuthPathBatchTest extends TestCase
 
         config(['jwt.staff_ttl' => 90]);
 
-        $pair = app(StaffJwtService::class)->generateTokenPair($employee);
+        $pair = app(StaffJwtService::class)->generateTokenPair(app(EmployeeRepositoryInterface::class)->tokenSubjectFor($employee));
 
         $this->assertSame(90 * 60, $pair['expires_in'], 'expires_in must follow jwt.staff_ttl (minutes → seconds)');
 

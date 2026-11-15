@@ -3,6 +3,7 @@
 namespace App\Modules\Console\Services;
 
 use App\Models\Employee;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -33,6 +34,7 @@ final class AdminAuthService
 
     public function __construct(
         private readonly StaffJwtInterface $jwtService,
+        private readonly EmployeeRepositoryInterface $employees,
     ) {}
 
     // =========================================================================
@@ -81,7 +83,8 @@ final class AdminAuthService
 
         return [
             'admin' => $this->formatAdmin($employee),
-            'tokens' => $this->jwtService->generateTokenPair($employee),
+            // Stage 2 C2: Identity's token contract takes the kernel subject, not the model Console owns.
+            'tokens' => $this->jwtService->generateTokenPair($this->employees->tokenSubjectFor($employee)),
         ];
     }
 
