@@ -2,8 +2,8 @@
 
 namespace App\Modules\Identity\Services;
 
-use App\Models\Complaint;
 use App\Models\User;
+use App\Modules\Console\Contracts\ComplaintDirectory;
 use App\Modules\Money\Contracts\WalletChargeHistory;
 use App\Modules\Money\Contracts\WalletTransactionRecorder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -26,6 +26,7 @@ final class PassengerProfileQueryService
     public function __construct(
         private readonly WalletChargeHistory $chargeHistory,
         private readonly WalletTransactionRecorder $transactionRecorder,
+        private readonly ComplaintDirectory $complaints,
     ) {}
 
     /** The full-profile bundle: the user with its profile, in one query. */
@@ -51,23 +52,14 @@ final class PassengerProfileQueryService
 
     /**
      * This passenger's complaints, filtered by status/type ("all" means no filter).
+     *
+     * Stage 2 C2: `complaints` is Console's table, so the page comes from its port. The eager loads and the
+     * filters live there now; this method only forwards, so the endpoint's query count and JSON are
+     * unchanged.
      */
     public function complaintsFor(int $userId, string $status, string $type, int $perPage, int $page): LengthAwarePaginator
     {
-        $query = Complaint::with(['assignedAgent:id,first_name,last_name', 'attachments'])
-            ->where('user_id', $userId);
-
-        if ($status !== 'all') {
-            $query->where('status', $status);
-        }
-
-        if ($type !== 'all') {
-            $query->where('type', $type);
-        }
-
-        return $query
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'page', $page);
+        return $this->complaints->pageForUser($userId, $status, $type, $perPage, $page);
     }
 
     /**

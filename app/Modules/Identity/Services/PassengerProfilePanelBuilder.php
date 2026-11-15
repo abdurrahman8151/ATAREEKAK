@@ -3,12 +3,10 @@
 namespace App\Modules\Identity\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Enums\ComplaintStatus;
-use App\Enums\ComplaintType;
-use App\Models\Complaint;
 use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserRating;
+use App\Modules\Console\Contracts\ComplaintDirectory;
 use App\Modules\Money\Contracts\WalletChargeHistory;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Ride\Contracts\PassengerBookingHistory;
@@ -34,6 +32,7 @@ final class PassengerProfilePanelBuilder
     public function __construct(
         private readonly WalletChargeHistory $chargeHistory,
         private readonly WalletDirectory $wallets,
+        private readonly ComplaintDirectory $complaints,
     ) {}
 
     public function buildStats(User $user, $wallet = null): array
@@ -117,23 +116,12 @@ final class PassengerProfilePanelBuilder
      */
     public function buildComplaints(int $userId, string $status = 'all', string $type = 'all'): array
     {
-        $query = Complaint::with(['assignedAgent:id,first_name,last_name'])
-            ->where('user_id', $userId);
-
-        if ($status !== 'all') {
-            $query->where('status', $status);
-        }
-        if ($type !== 'all') {
-            $query->where('type', $type);
-        }
-
-        return $query
-            ->orderByDesc('created_at')
-            ->limit(20)
-            ->get()
-            ->map(fn ($c) => $this->formatComplaint($c))
-            ->values()
-            ->all();
+        // Stage 2 C2: `complaints` is Console's table, so the rows (and their assigned-agent names) come from
+        // its port. The labels and the response keys below stay here.
+        return array_map(
+            fn (array $complaint) => $this->formatComplaint($complaint),
+            $this->complaints->recentForUser($userId, $status, $type, 20)
+        );
     }
 
     /**
@@ -189,7 +177,7 @@ final class PassengerProfilePanelBuilder
         ];
     }
 
-    public function formatComplaint(Complaint $c): array
+    public function formatComplaint(array $c): array
     {
         $typeLabels = [
             'trip_safety' => 'أمان الرحلة',
@@ -203,31 +191,24 @@ final class PassengerProfilePanelBuilder
             'other' => 'أخرى',
         ];
 
-        $typeValue = $c->type instanceof ComplaintType
-            ? $c->type->value : (string) $c->type;
+        // Stage 2 C2: the port already normalises the enum-vs-string difference, so this only picks a label.
+        $typeValue = $c['type'];
 
-        $statusValue = $c->status instanceof ComplaintStatus
-            ? $c->status->value : (string) $c->status;
+        $statusValue = $c['status'];
 
         return [
-            'id' => $c->id,
+            'id' => $c['id'],
             'type' => $typeValue,
             'type_label' => $typeLabels[$typeValue] ?? $typeValue,
             'status' => $statusValue,
-            'created_at' => $c->created_at->toDateString(),
-            'assigned_to' => $c->assignedAgent
-                ? trim("{$c->assignedAgent->first_name} {$c->assignedAgent->last_name}")
-                : null,
+            'created_at' => $c['created_at']->toDateString(),
+            'assigned_to' => $c['assigned_to'],
         ];
     }
 
     public function complaintCounts(int $userId): array
     {
-        $rows = Complaint::where('user_id', $userId)
-            ->selectRaw('status, COUNT(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status')
-            ->toArray();
+        $rows = $this->complaints->statusCounts($userId);
 
         return [
             'all' => array_sum($rows),

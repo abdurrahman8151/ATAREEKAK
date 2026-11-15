@@ -1,4 +1,18 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 `Identity -> Complaint` GONE (audit sec 341), commit
+  `Stage 2 C2: Identity reads complaints through Console's port`.** New Console-owned `ComplaintDirectory`
+  (`pageForUser`, `recentForUser`, `statusCounts`) runs the three passenger-panel queries verbatim - same
+  eager loads (incl. the `attachments` one, kept to hold the frozen budget), filters, ordering, limit and
+  GROUP BY - and returns scalars; Identity keeps the Arabic labels, the date format and the response keys, and
+  the enum-vs-string normalisation moved to the owner. **Ratchets: `KERNEL_MODEL_IMPORTS` 17 -> 16
+  (`Identity -> Complaint`); Console per-file allowlist +1 (`ComplaintDirectoryService`; the contract's
+  docblock was reworded so the dumb FQCN scanner does not read a comment); `ModuleGraphTest`
+  `Identity -> Console` 2 -> 3.** Gates: AppFuture+Admin+Profile+MoneyRounding+AdminSnapshot = 239/1010 OK;
+  admin/passenger-complaints and admin/passenger-full-profile byte-identical; Pint PASS 7.
+  **REMAINING 16 PAIRS:** `Identity -> Employee` (sec 299's EmployeeSummary/kernel-middleware decision),
+  `Identity -> Profile`/`ProfileComment` (Profile class move; now blocked only by the kernel `User::profile()`
+  + `CachedUser` + ~25 relation reads), `Identity -> UserRating` (`User::receivedRatings()`), and the
+  own-model moves for Console/Money/Ride, each with its recorded owner decision.
 - Done recently: **STAGE 2 - C2 COMMUNICATION/`Profile` CLOSED (audit sec 340), commit
   `Stage 2 C2: chat reads sender photos through a consumer-declared port`.** NEW
   `Communication\Contracts\ProfilePhotoDirectory` (`photoPathsFor`, ONE batched query) is DECLARED BY THE

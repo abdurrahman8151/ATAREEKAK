@@ -3,6 +3,7 @@
 namespace App\Modules\Console\Providers;
 
 use App\Modules\Console\Contracts\BanLifterInterface;
+use App\Modules\Console\Contracts\ComplaintDirectory;
 use App\Modules\Console\Contracts\ComplaintRecorder;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeManagementInterface;
@@ -19,6 +20,7 @@ use App\Modules\Console\Services\AdminTripService;
 use App\Modules\Console\Services\AdminUserService;
 use App\Modules\Console\Services\AdminWalletService;
 use App\Modules\Console\Services\BanService;
+use App\Modules\Console\Services\ComplaintDirectoryService;
 use App\Modules\Console\Services\ComplaintRecorderService;
 use App\Modules\Console\Services\ComplaintService;
 use App\Modules\Console\Services\EmployeeManagementService;
@@ -63,6 +65,8 @@ final class ConsoleServiceProvider extends ServiceProvider
         // Ports.
         $this->app->bind(EmployeeRepositoryInterface::class, EmployeeRepository::class);
         $this->app->bind(ComplaintRepositoryInterface::class, ComplaintRepository::class);
+        // Stage 2 C2: Identity's passenger-profile panels read complaints through this, never the model.
+        $this->app->bind(ComplaintDirectory::class, ComplaintDirectoryService::class);
         $this->app->bind(EmployeeManagementInterface::class, EmployeeManagementService::class);
         $this->app->bind(SupportAgentRoutingInterface::class, SupportAgentRoutingService::class);
         $this->app->bind(BanLifterInterface::class, BanService::class);

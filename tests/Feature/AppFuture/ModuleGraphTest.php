@@ -20,7 +20,7 @@ use Tests\TestCase;
  *   Communication      -       -      -        -          2
  *   Money              1       1      2        -          -
  *   Ride               1       5      1        1          -
- *   Identity           2       4      3        -          1
+ *   Identity           2       4      3        -          3
  *   Console            4       9     11        9          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
@@ -123,7 +123,12 @@ class ModuleGraphTest extends TestCase
         // edge (the `NotificationPort` was already here), no new edge and no new cycle.
         // Stage 2 C2: staff-session invalidation writes Console's employees.token_version, so
         // Identity calls Console's EmployeeTokenVersion port instead of running the increment itself.
-        'Identity -> Console' => 2,
+        'Identity -> Console' => 3,
+        // Stage 2 C2: the third port is `ComplaintDirectory`. Identity's passenger-profile panels read a
+        // user's complaints, and `complaints` is Console's table, so the page, the recent list and the
+        // status counts run in Console and Identity keeps the Arabic labels and the response keys. A new
+        // port on the existing `Identity -> Console` edge (staff auth and the employee-record port were
+        // already here), not a new edge - and the `Console <-> Identity` pair is already declared uncut.
         'Identity -> Money' => 4,
         // Stage 2 C2: Identity's admin passenger profile reads the passenger's booking history
         // through Ride's PassengerBookingHistory port.

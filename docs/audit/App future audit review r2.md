@@ -20648,3 +20648,48 @@ it was restarted once with the documented command and the same selection re-run 
 `User::profile()` / `App\Models\Profile` are the kernel (`app/Models/User.php::profile()`, the
 `app/DTOs/Auth/CachedUser.php` hydration) and Identity's own four imports, which travel with the model. The
 ~25 relation reads across Ride/Money/Console/Identity are what remains before the class can move.
+
+---
+
+### 341. Stage 2 C2: Identity reads complaints through Console's port - the passenger panels stop naming the model
+
+**The last unblocked pair.** `Identity -> Complaint` was held by two files: `PassengerProfileQueryService`
+(paged complaint list) and `PassengerProfilePanelBuilder` (the full-profile panel list, the row formatter and the
+tab counts). `complaints` is Console's table, so a new **Console-owned** `ComplaintDirectory` port
+(`pageForUser`, `recentForUser`, `statusCounts`) runs those queries and returns scalars; Identity forwards and
+keeps the presentation.
+
+**Statements, not just rows.** The port is a line-for-line copy of the three queries: the same
+`assignedAgent` eager load, the same `attachments` eager load on the paginated one (kept deliberately - it is
+dead weight for the current formatter, but dropping it would move a frozen query budget for no functional gain,
+so this step does NOT touch it), the same `all` handling, the same `orderByDesc('created_at')`, the `limit(20)`
+and the `GROUP BY status`. Query counts are therefore unchanged and `admin/passenger-complaints` plus
+`admin/passenger-full-profile` came back byte-identical.
+
+**Where the enum-vs-string normalisation lives.** The model casts `type`/`status`, so the port normalises
+`instanceof ComplaintType ? ->value : (string)` once, at the owner, and Identity only looks up its Arabic label.
+Identity drops the `Complaint`, `ComplaintStatus` and `ComplaintType` imports. **The Arabic label literals were
+not touched** - the diff shows no change inside that map, which matters because mojibake has been introduced by
+retyping these exact strings before (sec 90/120).
+
+**One per-file ratchet fired, correctly.** `ModelOwnershipTest`'s Console allowlist named the new
+`ComplaintDirectoryService` (it imports the model) - added to the list, like `ComplaintService` and
+`ComplaintRecorderService` before it. The CONTRACT was flagged too, and that one was fixed instead of listed:
+its docblock spelled the model's FQCN, and the scanner is a dumb substring match that reads comments. Reworded
+to say "the `Complaint` model", so the contract - which names no model in code - stays off the allowlist.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **17 -> 16 pairs** - `Identity -> Complaint` is gone.
+`ModuleGraphTest` `Identity -> Console` **2 -> 3 ports** (new port on an existing edge, argued in `EDGES`; the
+docblock matrix was corrected 1 -> 3 for that cell). The `Console <-> Identity` pair was already declared uncut,
+so `UNCUT_CYCLES` and `DERIVED_CYCLES` are unchanged. `CrossContextBoundaryTest` stays at 0.
+
+**Verification.** `AppFuture` + `Admin` + `Profile` + `MoneyRoundingIsDecidedInOnePlaceTest` +
+`AdminSnapshotTest` = **239 tests / 1010 assertions OK**; no new query-budget notice (only the two recorded in
+sec 338). Pint **PASS** on the seven changed files.
+
+**What is left in the model-ownership ratchet (16 pairs).** `Identity -> Employee` needs the EmployeeSummary /
+kernel-middleware decision recorded in sec 299. `Identity -> Profile` and `Identity -> ProfileComment` need the
+`Profile` class move, which now waits only on the kernel (`User::profile()`, `CachedUser`) and the ~25 relation
+reads; `Identity -> UserRating` needs `User::receivedRatings()`. The rest are modules naming models they will
+own: Console (`Complaint`, `ComplaintAttachment`, `Employee`, `Wallet`, `WalletRequest`), Money (its four) and
+Ride (`Ride`, `Booking`, `NoshowReport`), each gated by the moves and their recorded owner decisions.
