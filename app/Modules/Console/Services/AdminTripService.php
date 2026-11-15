@@ -3,6 +3,7 @@
 namespace App\Modules\Console\Services;
 
 use App\Models\User;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Ride\Contracts\AdminTripQueries;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -176,19 +177,24 @@ final class AdminTripService
                 'finished_rides.driver_id', '=', 'users.id'
             )
             ->where('users.is_verified_driver', true)
-            ->with('profile:user_id,profile_photo')
             ->groupBy('users.id', 'users.first_name', 'users.last_name')
             ->orderByRaw('AVG(user_ratings.rating) DESC')
             ->limit($limit)
             ->get();
 
-        return $drivers->values()->map(function (User $driver, int $index): array {
+        // Stage 2 C2: `profiles` is Identity's. The photo column arrives in ONE batched read, replacing the
+        // `profile:user_id,profile_photo` eager load 1:1 - same one query, and the ranking is untouched.
+        $photoPaths = app(ProfileDirectory::class)->photoPathsForUsers($drivers->pluck('id')->all());
+
+        return $drivers->values()->map(function (User $driver, int $index) use ($photoPaths): array {
+            $storedPhoto = $photoPaths[$driver->id] ?? null;
+
             return [
                 'rank' => $index + 1,
                 'id' => $driver->id,
                 'name' => trim("{$driver->first_name} {$driver->last_name}"),
-                'profile_photo' => $driver->profile?->profile_photo
-                    ? asset('storage/'.$driver->profile->profile_photo)
+                'profile_photo' => $storedPhoto
+                    ? asset('storage/'.$storedPhoto)
                     : null,
                 'avg_rating' => $driver->avg_rating !== null
                     ? round((float) $driver->avg_rating, 1)

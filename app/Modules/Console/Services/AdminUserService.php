@@ -74,8 +74,19 @@ final class AdminUserService
             $paginator->getCollection()->pluck('id')->all()
         );
 
+        // Stage 2 C2: `profiles` is Identity's too. The page's photo column arrives in ONE batched read,
+        // replacing the `profile:user_id,profile_photo` eager load `buildQuery` used to carry - same one
+        // query, still after the page is fetched.
+        $photoPaths = $this->profiles->photoPathsForUsers(
+            $paginator->getCollection()->pluck('id')->all()
+        );
+
         $rows = $paginator->getCollection()
-            ->map(fn (User $user) => $this->formatUser($user, $documents[$user->id] ?? []))
+            ->map(fn (User $user) => $this->formatUser(
+                $user,
+                $documents[$user->id] ?? [],
+                $photoPaths[$user->id] ?? null
+            ))
             ->values();
 
         return [
@@ -142,9 +153,7 @@ final class AdminUserService
         string $dateFilter,
         ?string $search
     ) {
-        $query = User::with([
-            'profile:user_id,profile_photo',
-        ]);
+        $query = User::query();
 
         $this->applyTypeFilter($query, $typeFilter);
         $this->applyStatusFilter($query, $statusFilter);
@@ -238,14 +247,14 @@ final class AdminUserService
     // PRIVATE — FORMAT
     // =========================================================================
 
-    private function formatUser(User $user, array $documents): array
+    private function formatUser(User $user, array $documents, ?string $storedPhoto = null): array
     {
         return [
             'id' => $user->id,
             'full_name' => trim("{$user->first_name} {$user->last_name}"),
             'email' => $user->email,
-            'profile_photo' => $user->profile?->profile_photo
-                ? asset('storage/'.$user->profile->profile_photo)
+            'profile_photo' => $storedPhoto
+                ? asset('storage/'.$storedPhoto)
                 : null,
             'type' => $this->resolveUserType($user, $documents),
             'status' => $this->resolveUserStatus($user),

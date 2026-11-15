@@ -1,4 +1,13 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2: admin feed, users page and top-drivers leave `User::profile` (audit sec 345),
+  commit `Stage 2 C2: three more Console profile readers leave the relation`.** The verification-activity feed's
+  `profile` eager load was DEAD (nothing reads it) - dropped, so `admin/drivers-activity` 8 -> 7 and
+  `admin/drivers-dashboard` 19 -> 18; `AdminUserService`'s users page and `AdminTripService::getTopDrivers()`
+  swap their eager load for ONE batched `photoPathsForUsers()` (net zero, no notice). Gate: AppFuture + Admin +
+  Unit/Services/Admin + AdminSnapshotTest = **381/1331 OK**; Pint PASS 3.
+  **Console STILL on the relation: `AdminTripService::formatTrip()` + `liveTripDriverBlock()` (their eager load
+  is Ride's `AdminTripQueriesService`, so the swap is Ride + Console + 2 controllers) and
+  `StaffChatController::formatConversation()` (Communication's chat queries).**
 - Done recently: **STAGE 2 - C2: driver LIST and PROFILE screens stop reading `User::profile` (audit sec 344),
   commit `Stage 2 C2: driver list and profile read profiles through Identity`.** `getDrivers()` drops the
   `profile` eager load and a NEW `formatDrivers(LengthAwarePaginator)` resolves the page's five vehicle-card

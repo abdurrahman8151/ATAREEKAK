@@ -111,8 +111,7 @@ final class AdminDashboardActivityService
 
     private function verificationActivityEvents(int $limit): array
     {
-        $recentVerifications = User::with('profile:user_id,profile_photo')
-            ->whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery())
+        $recentVerifications = User::whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery())
             ->whereIn('verification_status', ['pending', 'approved', 'rejected'])
             ->orderByDesc('updated_at')
             ->limit($limit)

@@ -20811,3 +20811,37 @@ Pint **PASS** on the four changed files.
 (1) - each the same "eager load feeding one column" shape and each the same swap. Then the kernel resources
 (`RideResource`, `BookingResource`), `Ride\RideSearchReadHandler`, `Communication\ChatController`, and the two
 zero-query auth-cache sites recorded in sec 342.
+
+---
+
+### 345. Stage 2 C2: the admin dashboard feed, users page and top-drivers list leave the relation
+
+**Three more Console readers, one of them dead weight.** All three used `User::profile` for one column or for
+nothing at all:
+
+- `AdminDashboardActivityService::verificationActivityEvents()` - `User::with('profile:user_id,profile_photo')`
+  fed a loop that builds verification events from `first_name`, `last_name`, `verification_status` and
+  `updated_at` and **never reads a profile**. The eager load is gone, so the recent-activity feed costs one
+  query less on both endpoints that build it: `admin/drivers-activity` 8 -> 7 and `admin/drivers-dashboard`
+  19 -> 18 (budgets unchanged, notices printed as usual).
+- `AdminUserService` - `buildQuery()`'s `profile:user_id,profile_photo` eager load is replaced by ONE
+  `ProfileDirectory::photoPathsForUsers()` over the page, run beside the batched documents read the service
+  already did; `formatUser()` takes the resolved stored path. One query out, one in: `admin/users` printed no
+  notice.
+- `AdminTripService::getTopDrivers()` - the ranking query (a `GROUP BY` with two joined aggregates) loses its
+  `profile` eager load and the photo arrives in one batched port read before the map; the rank, average and
+  counts are untouched. `admin/drivers-top` printed no notice.
+
+**Ratchets.** No new pair or port: Console already reaches Identity through `ProfileDirectory`, and these are
+relation reads, which `KERNEL_MODEL_IMPORTS` does not count. `AppFuture` is green, so no ratchet moved and none
+was raised.
+
+**Verification.** `AppFuture` + `Admin` + `Unit/Services/Admin` + `AdminSnapshotTest` = **381 tests / 1331
+assertions OK**; the only new budget notices are the two intended drops above (plus the four recorded earlier);
+all admin snapshots byte-identical; Pint **PASS** on the three changed files.
+
+**Console still on the relation:** `AdminTripService::formatTrip()` and `liveTripDriverBlock()` (the rides list
+and live-trips block - their `driver.profile` eager load lives in Ride's `AdminTripQueriesService`, so the swap
+also touches Ride's two queries and the two controllers that map `formatTrip()`), and
+`StaffChatController::formatConversation()` (whose `participants.profile` eager load lives in Communication's
+chat queries). Then the kernel resources and the two zero-query auth-cache sites from sec 342.
