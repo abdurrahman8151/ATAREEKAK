@@ -1,4 +1,15 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 PROFILE READS: first three left the relation (audit sec 342), commit
+  `Stage 2 C2: three profile readers leave the User relation`.** `ProfileDirectory` grew
+  `photoPathsForUsers()` (ONE `whereIn`, implemented by delegating to the existing batch method).
+  `StaffVerificationQueueService` and Money's `WalletChargeHistoryReader` swap their `profile` eager load for
+  the batch (1 query in, 1 out, no notice); `AdminVerificationQueueService` drops a DEAD `profile` eager load
+  (`admin/verifications` 9 -> 8, notice only, budget not lowered). Ratchets: `Money -> Identity` 1 -> 2 ports;
+  `KERNEL_MODEL_IMPORTS` stays 16 (relation reads are not imports). Gates: 473/1372 + 72/445 snapshots
+  byte-identical; Pint PASS 6. **PROFILE MOVE BLOCKER NOW MEASURED:** the remaining reads are either
+  1:1-swappable eager loads OR zero-query reads off the auth cache (`RideValidationService:29` on
+  `rides/create` budget 22; the single-message chat path on `chat/messages-store` budget 5), and budgets are
+  shrink-only - those two need an owner decision on the counts, plus `CachedUser` (rule B) is the kernel site.
 - Done recently: **STAGE 2 - C2 `Identity -> Complaint` GONE (audit sec 341), commit
   `Stage 2 C2: Identity reads complaints through Console's port`.** New Console-owned `ComplaintDirectory`
   (`pageForUser`, `recentForUser`, `statusCounts`) runs the three passenger-panel queries verbatim - same

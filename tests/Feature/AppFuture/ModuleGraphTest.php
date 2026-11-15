@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          2
- *   Money              1       1      2        -          -
+ *   Money              1       1      2        2          -
  *   Ride               1       5      1        1          -
  *   Identity           2       4      3        -          3
  *   Console            4       9     11        9          -
@@ -139,7 +139,11 @@ class ModuleGraphTest extends TestCase
         // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through Ride.
         'Money -> Ride' => 2,
         'Money -> Communication' => 1,
-        'Money -> Identity' => 1,
+        'Money -> Identity' => 2,
+        // Stage 2 C2: the second port is `ProfileDirectory`. The admin wallet-charge rows carry the
+        // charging admin's photo, which Money used to read by eager-loading `User::profile`; the column now
+        // arrives batched from Identity (the same ONE query for the page), and `profiles` stays Identity's.
+        // A new port on the existing `Money -> Identity` edge, not a new edge.
         // Stage 2 C2: Ride's no-show conflict opens a support complaint, which Console owns.
         'Ride -> Console' => 1,
         'Ride -> Communication' => 1,

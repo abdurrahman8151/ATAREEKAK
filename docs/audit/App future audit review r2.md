@@ -20693,3 +20693,55 @@ kernel-middleware decision recorded in sec 299. `Identity -> Profile` and `Ident
 reads; `Identity -> UserRating` needs `User::receivedRatings()`. The rest are modules naming models they will
 own: Console (`Complaint`, `ComplaintAttachment`, `Employee`, `Wallet`, `WalletRequest`), Money (its four) and
 Ride (`Ride`, `Booking`, `NoshowReport`), each gated by the moves and their recorded owner decisions.
+
+---
+
+### 342. Stage 2 C2: the first three `User::profile` readers leave the relation - and the Profile move's real blocker is now measured
+
+**Why these three.** With `Communication -> Profile` closed (sec 340) the `Profile` class move is held by the
+kernel relation `User::profile()` and its readers. Every swap must be query-neutral, because the query budgets
+are shrink-only. Three readers qualified: two eager loads that existed only to read one column (one query in,
+one query out) and one eager load that nothing read at all.
+
+**The port.** `ProfileDirectory` grew `photoPathsForUsers(array $userIds): array` - one `whereIn`, keyed by user
+id - implemented by `ProfileDirectoryReader` delegating to the batch method it already had for Communication, so
+there is exactly ONE implementation of that query. Identity still publishes data, never the model.
+
+**The three sites.**
+- `Console\StaffVerificationQueueService::pendingVerificationList()` - `User::with(['profile'])` ->
+  `User::where(...)`, plus `photoPathsForUsers($users->pluck('id'))`. Same one query for the photo; no budget
+  notice, i.e. `staff/verifications-pending` is exactly where it was.
+- `Console\AdminVerificationQueueService::pendingVerifications()` - the `profile` eager load was **dead**: the
+  response is built from `user_id/name/email/type/documents/submitted_at` and no row ever reads a profile. It is
+  gone, so `admin/verifications` drops 9 -> 8. The budget is NOT lowered (`tests/Snapshots` is frozen); the run
+  prints the shrink notice, exactly as for the two drops in sec 338.
+- `Money\WalletChargeHistoryReader` - `user.profile:user_id,profile_photo` dropped from both the recent and the
+  paginated query; the admin ids of the page are resolved with one `photoPathsForUsers` call and the stored path
+  is passed to `row()`. One query in, one query out; no notice on any wallet-charge endpoint. It takes
+  `ProfileDirectory` by constructor.
+
+**Ratchets.** `ModuleGraphTest` `Money -> Identity` **1 -> 2 ports** - a new port on an edge that already existed
+(`EmailOtpServiceInterface` was there), argued in `EDGES`; the docblock matrix cell `-` -> `2`. Console was
+already a consumer of `ProfileDirectory`, so its port count does not move. No new edge, no new cycle,
+`UNCUT_CYCLES`/`DERIVED_CYCLES` unchanged, `CrossContextBoundaryTest` still 0, `KERNEL_MODEL_IMPORTS` unchanged
+at 16 (this step removes relation READS, which that ratchet does not count).
+
+**Verification.** `AppFuture` + `Admin` + `Staff` + `Verification` + `Wallet` = **473 tests / 1372 assertions
+OK**; `AdminSnapshotTest` + `StaffSnapshotTest` + `WalletSnapshotTest` = **72 / 445 OK** with byte-identical
+responses and one new budget notice (`admin/verifications` 8 < 9) beside the recorded ones. Pint **PASS** on the
+six changed files.
+
+**THE BLOCKER NOW, MEASURED RATHER THAN ASSUMED.** The remaining relation reads fall into two classes:
+1. **Eager loads that feed one column** (`AdminDriverQueryService`, `AdminDriverPresenter`,
+   `AdminDriverDashboardService`, `AdminTripService`, `AdminUserService`, `StaffChatController`,
+   `RideResource`, `BookingResource`, `RideSearchReadHandler`, `RideLifecycleHandler`). Each swaps 1:1 for a
+   batched port call - the same pattern as this section. Work, but no budget movement.
+2. **Reads that cost ZERO queries today** because the authenticated user arrives from the auth cache with the
+   relation already attached (`CachedUser::toUser()` sets it). Two named sites make a port cost +1:
+   `Ride\Services\RideValidationService::validateDriverCanCreateRide()` (`loadMissing('profile')` is a no-op for
+   the cached user, and `rides/create` is budgeted at 22) and the single-message chat path
+   (`chat/messages-store` is budgeted at 5; sec 340's fast path reads the loaded relation too). **The budgets are
+   shrink-only, so these two cannot be converted without an owner decision on those two counts or a change to
+   what the auth cache carries - that is the Profile move's real blocker, and it is written here so the next
+   attempt starts from it instead of rediscovering it.** `app/DTOs/Auth/CachedUser.php` itself is the other hard
+   site: it rehydrates the relation and rule B forbids a kernel file naming the moved class.

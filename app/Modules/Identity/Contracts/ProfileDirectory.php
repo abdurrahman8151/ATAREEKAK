@@ -31,6 +31,18 @@ interface ProfileDirectory
     public function photoPathForUser(int $userId): ?string;
 
     /**
+     * The STORED `profile_photo` path for each of the given users, keyed by user id - ONE query for a page.
+     *
+     * Added for the callers that used to eager-load `User::profile` only to read this one column: the swap
+     * is one query in, one query out, so their budgets do not move. A user with no profile row is absent;
+     * a user whose column is null is present with `null`.
+     *
+     * @param  array<int, int>  $userIds
+     * @return array<int, string|null>
+     */
+    public function photoPathsForUsers(array $userIds): array;
+
+    /**
      * The recent-activity feed's "vehicle / profile update" rows, newest first.
      *
      * The 1:1 replacement for

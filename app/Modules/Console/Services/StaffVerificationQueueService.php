@@ -4,6 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -29,18 +30,21 @@ final class StaffVerificationQueueService
     public function pendingVerificationList(): array
     {
         return Cache::remember('staff.pending-verifications', now()->addMinutes(2), function () {
-            // Stage 2 C2: the document rows are Identity's and arrive batched for the whole page.
-            $users = User::with(['profile'])
-                ->where('verification_status', 'pending')
+            // Stage 2 C2: the document rows are Identity's and arrive batched for the whole page; the
+            // `profile` eager load is gone and the one column it fed arrives from the same module's port,
+            // so this is one query in, one query out.
+            $users = User::where('verification_status', 'pending')
                 ->orderByDesc('updated_at')
                 ->get();
 
             $documents = app(PhotoRepositoryInterface::class)->documentsFor($users->pluck('id')->all());
+            $photoPaths = app(ProfileDirectory::class)->photoPathsForUsers($users->pluck('id')->all());
 
-            return $users->map(function (User $u) use ($documents) {
+            return $users->map(function (User $u) use ($documents, $photoPaths) {
                 $rows = $documents[$u->id] ?? [];
                 $docTypes = array_column($rows, 'type');
                 $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
+                $storedPhoto = $photoPaths[$u->id] ?? null;
 
                 return [
                     'user_id' => $u->id,
@@ -49,8 +53,8 @@ final class StaffVerificationQueueService
                     'gender' => $u->gender,
                     'address' => $u->address,
                     'type' => $isDriver ? 'driver' : 'passenger',
-                    'profile_photo' => $u->profile?->profile_photo
-                        ? asset('storage/'.$u->profile->profile_photo)
+                    'profile_photo' => $storedPhoto
+                        ? asset('storage/'.$storedPhoto)
                         : null,
                     'documents' => collect($rows)->map(fn ($row) => [
                         'type' => $row['type'],

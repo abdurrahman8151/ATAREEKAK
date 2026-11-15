@@ -52,6 +52,15 @@ final class ProfileDirectoryReader implements ProfileDirectory, ProfilePhotoDire
     }
 
     /**
+     * The same read, published under Identity's own `ProfileDirectory` for Console and Money. It delegates so
+     * there is exactly one implementation of the query, and so both ports keep their own spelling.
+     */
+    public function photoPathsForUsers(array $userIds): array
+    {
+        return $this->photoPathsFor($userIds);
+    }
+
+    /**
      * The same two statements the Console feed ran: the `profiles` page (with the driver predicate and
      * the ordering/limit in ONE statement) and the `users` eager load for the names it prints.
      *

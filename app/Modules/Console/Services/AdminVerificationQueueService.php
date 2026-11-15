@@ -24,9 +24,10 @@ final class AdminVerificationQueueService
      */
     public function pendingVerifications(): JsonResponse
     {
-        // Stage 2 C2: photos is Identity's table; the rows arrive batched for the whole page.
-        $pending = User::with(['profile'])
-            ->where('verification_status', 'pending')
+        // Stage 2 C2: photos is Identity's table; the rows arrive batched for the whole page. The
+        // `profile` eager load went with `User::profile()`: NOTHING on this screen ever read it, so it is
+        // one query fewer on `admin/verifications` (the budget is a ceiling, so the run prints the shrink).
+        $pending = User::where('verification_status', 'pending')
             ->get();
 
         $documents = app(PhotoRepositoryInterface::class)->documentsFor($pending->pluck('id')->all());
