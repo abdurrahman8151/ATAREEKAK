@@ -5,6 +5,7 @@ namespace App\Modules\Console\Services;
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Money\Contracts\DriverEarningsReader;
 use App\Modules\Ride\Contracts\BookingRevenueAggregates;
@@ -36,8 +37,11 @@ final class AdminDriverDashboardService
     public function getDriverDashboard(int $driverId): array
     {
         // Stage 2 C2: photos is Identity's table; the rows arrive from its port below (one query).
-        $driver = User::with(['profile'])->findOrFail($driverId);
-        $profile = $driver->profile;
+        $driver = User::findOrFail($driverId);
+        // Stage 2 C2: `profiles` is Identity's too - the five vehicle-card columns arrive from the same
+        // module's port in ONE query, replacing the `profile` eager load 1:1 (the driver-dashboard budget
+        // does not move).
+        $profile = app(ProfileDirectory::class)->vehicleProfilesForUsers([$driverId])[$driverId] ?? null;
 
         // ── Rating ────────────────────────────────────────────────────────────
         $ratingStats = $this->dashboardRatingStats($driverId);

@@ -20745,3 +20745,33 @@ six changed files.
    what the auth cache carries - that is the Profile move's real blocker, and it is written here so the next
    attempt starts from it instead of rediscovering it.** `app/DTOs/Auth/CachedUser.php` itself is the other hard
    site: it rehydrates the relation and rule B forbids a kernel file naming the moved class.
+
+---
+
+### 343. Stage 2 C2: the driver dashboard's profile eager load becomes a port read
+
+**One more 1:1 swap, this time on the busiest driver screen.** `AdminDriverDashboardService::getDriverDashboard()`
+ran `User::with(['profile'])->findOrFail($id)` and then read exactly five columns off the relation. Those five
+now arrive from Identity: `ProfileDirectory::vehicleProfilesForUsers(array $userIds): array` - one `whereIn`
+selecting `user_id, profile_photo, type_of_car, color_of_car, number_of_seats, car_pic`, keyed by user id.
+
+**Net zero, measured.** One eager load out, one port query in: `admin/driver-dashboard` (budget 17) printed no
+shrink notice, and the dashboard snapshot is byte-identical. The presenter was already untyped for this value
+(`formatDriverDashboard(User $driver, $profile, ...)`), so only the property reads changed:
+`$profile?->type_of_car` -> `$profile['type_of_car'] ?? null` in the vehicle block and the identity block. The
+URL formatting (`asset('storage/...')`) and every key and fallback stay in Console.
+
+**Scope held deliberately.** `driverProfileVehicle()` and `driverProfileIdentity()` - the driver LIST and driver
+PROFILE screens - still read the relation through their own eager load; they need the same swap plus a batched
+map threaded through `AdminDriverQueryService::getDrivers()` and the controller's `map()`, which is a larger
+change than this round should bundle. The port method added here is already the one they need.
+
+**Verification.** `AppFuture` + `Admin` + `AdminSnapshotTest` = **222 tests / 964 assertions OK**, snapshot
+corpus byte-identical, only the three previously recorded budget notices. Pint **PASS** on the four changed
+files.
+
+**Profile-reader inventory after this round (outside Identity, still on the relation):** the Console driver
+list/profile (`AdminDriverQueryService`, `AdminDriverPresenter::formatDriver`/`driverProfileIdentity`),
+`AdminTripService` (3 sites), `AdminUserService` (1), `StaffChatController` (1), the kernel resources
+`RideResource`/`BookingResource`, `Ride\RideSearchReadHandler`, `Ride\RideValidationService` (the zero-query
+auth-cache read recorded in sec 342), `Communication\ChatController`, and `app/DTOs/Auth/CachedUser.php`.

@@ -1,4 +1,10 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2: driver dashboard stops reading `User::profile` (audit sec 343), commit
+  `Stage 2 C2: driver dashboard profile arrives from Identity`.** `ProfileDirectory::vehicleProfilesForUsers()`
+  (ONE `whereIn` over the five vehicle-card columns) replaces the eager load 1:1 - net zero, no new budget
+  notice, dashboard snapshot byte-identical; the presenter reads the array (it was already untyped for this
+  value). The driver LIST/PROFILE screens still read the relation via `AdminDriverQueryService`; the same port
+  method is what they need next.
 - Done recently: **STAGE 2 - C2 PROFILE READS: first three left the relation (audit sec 342), commit
   `Stage 2 C2: three profile readers leave the User relation`.** `ProfileDirectory` grew
   `photoPathsForUsers()` (ONE `whereIn`, implemented by delegating to the existing batch method).

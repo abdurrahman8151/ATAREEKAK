@@ -151,11 +151,13 @@ final class AdminDriverPresenter
             ],
 
             'vehicle' => [
-                'type' => $profile?->type_of_car,
-                'color' => $profile?->color_of_car,
-                'seats' => $profile?->number_of_seats,
-                'photo_url' => $profile?->car_pic
-                    ? asset('storage/'.$profile->car_pic)
+                // Stage 2 C2: this block's five columns arrive as an ARRAY from Identity's port (the
+                // presenter used to take the `Profile` model); the labels and URLs stay here.
+                'type' => $profile['type_of_car'] ?? null,
+                'color' => $profile['color_of_car'] ?? null,
+                'seats' => $profile['number_of_seats'] ?? null,
+                'photo_url' => ($profile['car_pic'] ?? null)
+                    ? asset('storage/'.$profile['car_pic'])
                     : null,
             ],
 
@@ -196,8 +198,8 @@ final class AdminDriverPresenter
             'is_verified' => (bool) $driver->is_verified_driver,
             'verification_status' => $driver->verification_status,
 
-            'profile_photo' => $profile?->profile_photo
-                ? asset('storage/'.$profile->profile_photo)
+            'profile_photo' => ($profile['profile_photo'] ?? null)
+                ? asset('storage/'.$profile['profile_photo'])
                 : null,
 
             'rating' => [

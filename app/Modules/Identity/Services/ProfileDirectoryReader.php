@@ -61,6 +61,30 @@ final class ProfileDirectoryReader implements ProfileDirectory, ProfilePhotoDire
     }
 
     /**
+     * The five vehicle-card columns for a page of users, in ONE query. Same table, same module, same
+     * "scalars only" rule as the photo read.
+     */
+    public function vehicleProfilesForUsers(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        return Profile::query()
+            ->whereIn('user_id', $userIds)
+            ->get(['user_id', 'profile_photo', 'type_of_car', 'color_of_car', 'number_of_seats', 'car_pic'])
+            ->keyBy('user_id')
+            ->map(fn (Profile $profile) => [
+                'profile_photo' => $profile->profile_photo,
+                'type_of_car' => $profile->type_of_car,
+                'color_of_car' => $profile->color_of_car,
+                'number_of_seats' => $profile->number_of_seats,
+                'car_pic' => $profile->car_pic,
+            ])
+            ->all();
+    }
+
+    /**
      * The same two statements the Console feed ran: the `profiles` page (with the driver predicate and
      * the ordering/limit in ONE statement) and the `users` eager load for the names it prints.
      *

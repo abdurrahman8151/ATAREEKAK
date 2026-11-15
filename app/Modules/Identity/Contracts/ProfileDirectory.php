@@ -43,6 +43,18 @@ interface ProfileDirectory
     public function photoPathsForUsers(array $userIds): array;
 
     /**
+     * The vehicle-card columns of a user's profile, keyed by user id - ONE query.
+     *
+     * Added for the admin driver screens, which eager-loaded `User::profile` for exactly these five columns.
+     * A user with no profile row is absent; a present row carries every key (values may be null), so callers
+     * can read `['type_of_car'] ?? null` without an isset dance.
+     *
+     * @param  array<int, int>  $userIds
+     * @return array<int, array{profile_photo: string|null, type_of_car: string|null, color_of_car: string|null, number_of_seats: int|null, car_pic: string|null}>
+     */
+    public function vehicleProfilesForUsers(array $userIds): array;
+
+    /**
      * The recent-activity feed's "vehicle / profile update" rows, newest first.
      *
      * The 1:1 replacement for
