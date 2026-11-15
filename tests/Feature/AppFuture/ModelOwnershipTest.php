@@ -69,7 +69,6 @@ final class ModelOwnershipTest extends TestCase
         // Stage 2 C2: Ride's no-show conflict opens its complaint through this Console file.
         'app/Modules/Console/Services/ComplaintRecorderService.php' => ['Complaint'],
         'app/Modules/Console/Services/EmployeeManagementService.php' => ['Employee'],
-        'app/Modules/Console/Services/ReviewModerationService.php' => ['ProfileComment'],
         'app/Modules/Console/Services/StaffComplaintService.php' => ['Complaint', 'Employee'],
         'app/Modules/Console/Services/SupportAgentRoutingService.php' => ['Employee'],
     ];
@@ -107,7 +106,6 @@ final class ModelOwnershipTest extends TestCase
         'Console -> Complaint' => 'complaints',
         'Console -> ComplaintAttachment' => 'complaint_attachments',
         'Console -> Employee' => 'employees',
-        'Console -> ProfileComment' => 'profile_comments',
         'Console -> Wallet' => 'wallets',
         'Console -> WalletRequest' => 'wallet_requests',
         'Identity -> Complaint' => 'complaints',

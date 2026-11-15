@@ -5,6 +5,7 @@ namespace Staff;
 use App\Models\ProfileComment;
 use App\Models\User;
 use App\Modules\Console\Services\ReviewModerationService;
+use App\Modules\Identity\Contracts\ProfileCommentDirectory;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -129,7 +130,7 @@ class ReviewModerationServiceTest extends TestCase
         $result = $this->service->getComments(null, null, 'last_7_days', 15, 1);
 
         $this->assertEquals(1, $result->total());
-        $this->assertEquals($recent->id, $result->items()[0]->id);
+        $this->assertEquals($recent->id, $result->items()[0]['id']);
     }
 
     // ─── format ───────────────────────────────────────────────────────────────
@@ -137,7 +138,7 @@ class ReviewModerationServiceTest extends TestCase
     public function test_format_returns_array_with_required_keys(): void
     {
         $comment = $this->makeComment('A test comment');
-        $formatted = $this->service->format($comment->load('commenter'));
+        $formatted = $this->service->format($this->portRow());
 
         foreach (['id', 'comment', 'commenter', 'created_at'] as $key) {
             $this->assertArrayHasKey($key, $formatted, "Missing key: {$key}");
@@ -147,7 +148,7 @@ class ReviewModerationServiceTest extends TestCase
     public function test_format_includes_correct_comment_text(): void
     {
         $comment = $this->makeComment('Specific text here');
-        $formatted = $this->service->format($comment->load('commenter'));
+        $formatted = $this->service->format($this->portRow());
 
         $this->assertEquals('Specific text here', $formatted['comment']);
     }
@@ -155,7 +156,7 @@ class ReviewModerationServiceTest extends TestCase
     public function test_format_includes_commenter_id_and_name(): void
     {
         $comment = $this->makeComment('Test');
-        $formatted = $this->service->format($comment->load('commenter'));
+        $formatted = $this->service->format($this->portRow());
 
         $this->assertArrayHasKey('id', $formatted['commenter']);
         $this->assertArrayHasKey('name', $formatted['commenter']);
@@ -165,14 +166,16 @@ class ReviewModerationServiceTest extends TestCase
     public function test_format_id_matches_comment_id(): void
     {
         $comment = $this->makeComment('Test');
-        $formatted = $this->service->format($comment->load('commenter'));
+        $formatted = $this->service->format($this->portRow());
 
         $this->assertEquals($comment->id, $formatted['id']);
     }
 
     public function test_format_created_at_is_present_and_not_null(): void
     {
-        $formatted = $this->service->format($this->makeComment('Test')->load('commenter'));
+        $this->makeComment('Test');
+
+        $formatted = $this->service->format($this->portRow());
 
         $this->assertNotNull($formatted['created_at']);
     }
@@ -206,6 +209,18 @@ class ReviewModerationServiceTest extends TestCase
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+    /**
+     * The row shape Identity's `ProfileCommentDirectory` publishes, taken from the port itself so this
+     * file cannot drift from the real shaping. `format()` has taken an array since stage 2 C2.
+     *
+     * @return array<string, mixed>
+     */
+    private function portRow(): array
+    {
+        return app(ProfileCommentDirectory::class)
+            ->page(null, null, null, 15, 1)
+            ->items()[0];
+    }
 
     private function makeComment(
         string $text,

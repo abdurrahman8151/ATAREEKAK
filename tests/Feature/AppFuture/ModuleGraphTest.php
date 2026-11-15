@@ -82,7 +82,12 @@ class ModuleGraphTest extends TestCase
     private const EDGES = [
         'Communication -> Console' => 2,
         'Console -> Communication' => 4,
-        'Console -> Identity' => 8,
+        'Console -> Identity' => 9,
+        // Stage 2 C2: the ninth port is `ProfileCommentDirectory`. The staff review-moderation screen
+        // browsed and deleted Identity's `profile_comments` through the model; the page, its filters and
+        // the delete now run in Identity and Console keeps the response shape. A new port on an edge
+        // that already existed, not a new edge - and it is the last Console file that named
+        // `ProfileComment`.
         // Stage 2 C2: the eighth port is `ProfileDirectory`. Console's admin screens read a driver's
         // profile row and the admin's profile photo, and `profiles` moves into Identity, so those reads
         // became one port method returning the stored path. A new port on an EDGE THAT ALREADY EXISTED

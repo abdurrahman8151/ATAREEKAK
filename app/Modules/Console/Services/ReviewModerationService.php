@@ -2,7 +2,8 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\ProfileComment;
+use App\Modules\Identity\Contracts\ProfileCommentDirectory;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -11,9 +12,17 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  *
  * UC-ADM-03: Support agents browse user-to-user comments and
  * delete any that violate platform policies.
+ *
+ * Stage 2 C2: `profile_comments` is Identity's table, so the filtered page and the delete live behind
+ * `ProfileCommentDirectory`. This service keeps the HTTP-facing shape: the pinning of the response keys
+ * and the name join are still Console's.
  */
 final class ReviewModerationService
 {
+    public function __construct(
+        private readonly ProfileCommentDirectory $comments,
+    ) {}
+
     /**
      * Paginated list of all comments with optional filters.
      *
@@ -28,38 +37,7 @@ final class ReviewModerationService
         int $perPage = 15,
         int $page = 1,
     ): LengthAwarePaginator {
-        $query = ProfileComment::with([
-            'commenter:id,first_name,last_name',
-            'profile:id,user_id',
-            'profile.user:id,first_name,last_name',
-        ]);
-
-        if ($userId) {
-            $query->where(function ($q) use ($userId) {
-                // Either the author or the recipient matches
-                $q->where('user_id', $userId)
-                    ->orWhereHas('profile', fn ($p) => $p->where('user_id', $userId));
-            });
-        }
-
-        if ($search) {
-            $query->where('comment', 'like', "%{$search}%");
-        }
-
-        if ($date) {
-            $cutoff = match ($date) {
-                'last_7_days' => now()->subDays(7),
-                'last_30_days' => now()->subDays(30),
-                default => null,
-            };
-            if ($cutoff) {
-                $query->where('created_at', '>=', $cutoff);
-            }
-        }
-
-        return $query
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'page', $page);
+        return $this->comments->page($userId, $search, $date, $perPage, $page);
     }
 
     /**
@@ -69,40 +47,32 @@ final class ReviewModerationService
      */
     public function deleteComment(int $commentId): void
     {
-        ProfileComment::findOrFail($commentId)->delete();
+        $this->comments->deleteOrFail($commentId);
     }
 
-    /** Shape a single comment for the API response. */
-    public function format(ProfileComment $comment): array
+    /**
+     * Shape a single comment for the API response.
+     *
+     * @param  array{id: int, comment: string|null, created_at: Carbon, commenter: array{id: int|null, first_name: string|null, last_name: string|null}, recipient: array{id: int|null, first_name: string|null, last_name: string|null}}  $comment
+     * @return array<string, mixed>
+     */
+    public function format(array $comment): array
     {
-        // R2 sec 121: this method was only safe when its caller happened to eager-load. `getComments`
-        // does (`:31-35`), but `format()` is public, and any caller passing a bare model - as the
-        // tests do - lazy-loaded `commenter` and `profile.user` per row. Under
-        // Model::preventLazyLoading() that is a hard error; in production it is an N+1, two extra
-        // queries for every comment on the page. `loadMissing` keeps the eager-load win on the list
-        // path (nothing is loaded, they are already there) and makes the single-model path correct
-        // on its own.
-        $comment->loadMissing([
-            'commenter:id,first_name,last_name',
-            'profile:id,user_id',
-            'profile.user:id,first_name,last_name',
-        ]);
-
-        $commenter = $comment->commenter;
-        $recipient = $comment->profile?->user;
+        $commenter = $comment['commenter'];
+        $recipient = $comment['recipient'];
 
         return [
-            'id' => $comment->id,
-            'comment' => $comment->comment,
+            'id' => $comment['id'],
+            'comment' => $comment['comment'],
             'commenter' => [
-                'id' => $commenter?->id,
-                'name' => trim(($commenter?->first_name ?? '').' '.($commenter?->last_name ?? '')),
+                'id' => $commenter['id'],
+                'name' => trim(($commenter['first_name'] ?? '').' '.($commenter['last_name'] ?? '')),
             ],
             'recipient' => [
-                'id' => $recipient?->id,
-                'name' => trim(($recipient?->first_name ?? '').' '.($recipient?->last_name ?? '')),
+                'id' => $recipient['id'],
+                'name' => trim(($recipient['first_name'] ?? '').' '.($recipient['last_name'] ?? '')),
             ],
-            'created_at' => $comment->created_at->toIso8601String(),
+            'created_at' => $comment['created_at']->toIso8601String(),
         ];
     }
 }

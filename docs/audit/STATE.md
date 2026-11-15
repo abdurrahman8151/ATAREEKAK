@@ -1,4 +1,12 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 PROFILE COMMENT: CONSOLE NAMES NO `ProfileComment` EITHER (audit sec 339),
+  commit `Stage 2 C2: review moderation pages Identity's comments through a port`.** New Identity
+  `ProfileCommentDirectory` port (`page()` + `deleteOrFail()`) keeps the same three eager loads, filters and
+  ordering, so `staff/reviews` stays at 11 queries and its snapshot is byte-identical; Console's service keeps
+  the response keys. **Ratchets: `KERNEL_MODEL_IMPORTS` 19 -> 18 (`Console -> ProfileComment` gone); Console
+  allowlist 17 -> 16; `ModuleGraphTest` `Console -> Identity` 8 -> 9 ports (argued in EDGES).** Gates: AppFuture
+  + StaffReview + StaffSnapshot 96/637, full Staff 233/555, Pint PASS 7. `ReviewModerationServiceTest` adapted to
+  take the row from the port; no assertion changed.
 - Done recently: **STAGE 2 - C2 PHOTO: `Photo` MOVES INTO IDENTITY; THE THREAD IS CLOSED (audit sec 338),
   commit `Stage 2 C2: Photo moves into Identity; two dead document eager loads go`.** Deleted `User::photos()`
   and the two dead eager loads (`AdminDriverQueryService` `admin/drivers` 9 -> 8; `PassengerProfileQueryService`

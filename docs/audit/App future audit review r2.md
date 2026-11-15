@@ -20552,3 +20552,41 @@ name** and 2 skipped, i.e. the recorded red set and no new name. Pint **PASS (32
 `APP_ENV=production` while also carrying `WALLET_OTP_MODE=testing` and `OTP_BYPASS_ENABLED=true`, so
 `BootGuards::guardOtpTestingModes()` refuses to boot and the post-autoload `artisan package:discover` hook fails
 with a misleading stack trace. With the testing env set, the dump completed and wrote no new `laravel.log` entry.
+
+---
+
+### 339. Stage 2 C2: Console's review-moderation screen pages and deletes Identity's comments through a port
+
+**The last Console file naming `ProfileComment`.** `ReviewModerationService` built its list query and its
+`format()` around `App\Models\ProfileComment`, and handed the model to the controller. `profile_comments` is
+Identity's table, so the page, its three filters, the ordering and the delete moved into Identity behind a new
+`ProfileCommentDirectory` port (`page()` + `deleteOrFail()`), and the service keeps what is Console's: the
+response keys and the name join. The controller is unchanged.
+
+**The port preserves the statements, not just the rows.** `page()` keeps the same three eager loads
+(`commenter`, `profile`, `profile.user`), the same `user_id`-or-recipient filter, the same `LIKE` and the same
+`last_7_days`/`last_30_days` cutoffs, then flattens each row with `through()` AFTER pagination - so the query
+count is unchanged (`staff/reviews` stays at its committed 11, `staff/reviews-destroy` at 8) and the frozen
+`staff/reviews` snapshot is byte-identical. `deleteOrFail()` is the same `findOrFail(...)->delete()`, so an
+unknown id still throws `ModelNotFoundException` and the endpoint still answers 404.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **19 -> 18 pairs** - `Console -> ProfileComment` is gone, so Console now
+names no `Profile` and no `ProfileComment` at all. The per-file Console allowlist shrinks **17 -> 16 entries**
+(`ReviewModerationService` leaves it entirely). `ModuleGraphTest`'s `Console -> Identity` goes **8 -> 9 ports** -
+a new port on an edge that already existed, argued in the test's own `EDGES` comment as that file requires; no
+new edge and no new cycle. `CrossContextBoundaryTest` stays at 0.
+
+**One test file adapted, no assertion changed.** `ReviewModerationServiceTest` called
+`format($comment->load('commenter'))` with a model and read `items()[0]->id`; the first run after the port
+produced exactly 6 errors (`format(): Argument #1 ($comment) must be of type array, ProfileComment given`, plus
+one warning-as-error on the array item). The test now takes the row from the port itself
+(`app(ProfileCommentDirectory::class)->page(...)->items()[0]`) and reads `items()[0]['id']`; the assertions are
+untouched, and taking the row from the port means the test cannot drift from the real shaping.
+
+**Verification.** `AppFuture` + `Staff/StaffReviewControllerTest` + `Snapshots/StaffSnapshotTest` = **96 tests /
+637 assertions OK** (the staff-reviews list and destroy snapshots included); the full `Staff` area = **233 /
+555 OK**. Pint **PASS** on all seven changed files.
+
+**Console's remaining foreign models:** `Complaint`, `ComplaintAttachment`, `Employee`, `Wallet`,
+`WalletRequest` - all individually gated (the first two and `Employee` by the relations/ownership questions in
+sec 329, the wallet pair by the Money response-shape decision).
