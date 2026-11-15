@@ -25,7 +25,9 @@ final class AdminTripQueriesService implements AdminTripQueries
 
         $query = Ride::with([
             'driver:id,first_name,last_name',
-            'driver.profile:user_id,profile_photo',
+            // Stage 2 C2: `driver.profile` is GONE - the console row formatter resolves the photo from
+            // Identity's port in ONE batched read for the page. `driver` must stay eager-loaded: it is
+            // read for id/first/last name on every row.
             // Only load booked seats that count toward capacity
             'bookings' => fn ($q) => $q
                 ->select('id', 'ride_id', 'user_id', 'seats', 'status')
@@ -62,7 +64,8 @@ final class AdminTripQueriesService implements AdminTripQueries
     {
         return Ride::with([
             'driver:id,first_name,last_name',
-            'driver.profile:user_id,profile_photo',
+            // Stage 2 C2: the photo no longer comes from the `driver.profile` relation - the console
+            // formatter batches it from Identity's port.
             'bookings' => fn ($q) => $q
                 ->where('status', 'confirmed')
                 ->with('user:id,first_name,last_name'),

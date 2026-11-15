@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2: trip screens stop reading `driver.profile` (audit sec 346), commit
+  `Stage 2 C2: trip screens read driver photos through Identity`.** Ride's `AdminTripQueriesService` drops
+  `driver.profile` from the paginated and live trip queries; Console's `AdminTripService` gains
+  `formatTrips(LengthAwarePaginator)` (ONE batched port read per page; `AdminTripController` and
+  `StaffOperationsController` call it), batches `getLiveTrips()` once, and `formatTrip()` keeps a single-driver
+  port fallback. Net zero: no new budget notice on `admin/trips`, `admin/trips-live`, `staff/trips`; snapshots
+  byte-identical. Gate: AppFuture + Admin + Staff + Admin/Staff snapshots = **477/1653 OK**; Pint PASS 4.
+  **Console now has ONE relation read left: `StaffChatController::formatConversation()` (Communication's chat
+  query eager-loads `participants.profile`).** Then the kernel resources, `RideSearchReadHandler`,
+  `RideValidationService` (zero-query auth-cache site) and `CachedUser`.
 - Done recently: **STAGE 2 - C2: admin feed, users page and top-drivers leave `User::profile` (audit sec 345),
   commit `Stage 2 C2: three more Console profile readers leave the relation`.** The verification-activity feed's
   `profile` eager load was DEAD (nothing reads it) - dropped, so `admin/drivers-activity` 8 -> 7 and

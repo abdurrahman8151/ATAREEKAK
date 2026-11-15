@@ -51,6 +51,22 @@ final class AdminTripService
     }
 
     /**
+     * Shape a whole page of trips. The drivers' photos come from Identity in ONE query for the page - the
+     * same single query the removed `driver.profile` eager load cost.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function formatTrips(LengthAwarePaginator $trips): array
+    {
+        $photos = $this->driverPhotosFor($trips->getCollection()->pluck('driver_id')->all());
+
+        return $trips->getCollection()
+            ->map(fn ($ride) => $this->formatTrip($ride, ['profile_photo' => $photos[$ride->driver_id] ?? null]))
+            ->values()
+            ->all();
+    }
+
+    /**
      * Shape a single Ride model into the array the controller will return.
      * Kept separate so the controller loop stays one-liner.
      *
@@ -58,10 +74,17 @@ final class AdminTripService
      * may not do to another module, and an untyped parameter is this codebase's established way to hold a
      * value from another module. The body is unchanged.
      */
-    public function formatTrip($ride): array
+    public function formatTrip($ride, ?array $driverProfile = null): array
     {
         $now = Carbon::now();
         $driver = $ride->driver;
+
+        // Stage 2 C2: the driver photo is Identity's (`profiles`). A caller shaping a page passes the
+        // batched map in as `['profile_photo' => ?string]`; a direct call resolves this one driver - the
+        // same single query the removed `driver.profile` eager load cost.
+        $storedPhoto = $driverProfile !== null
+            ? ($driverProfile['profile_photo'] ?? null)
+            : ($driver ? $this->driverPhotoFor($driver->id) : null);
 
         $bookedSeats = $ride->bookings->sum('seats');
         $totalSeats = $ride->available_seats + $bookedSeats;
@@ -73,8 +96,8 @@ final class AdminTripService
             'driver' => [
                 'id' => $driver?->id,
                 'name' => trim(($driver?->first_name ?? '').' '.($driver?->last_name ?? '')),
-                'profile_photo' => $driver?->profile?->profile_photo
-                    ? asset('storage/'.$driver->profile->profile_photo)
+                'profile_photo' => $storedPhoto
+                    ? asset('storage/'.$storedPhoto)
                     : null,
             ],
 
@@ -219,9 +242,32 @@ final class AdminTripService
     {
         $now = Carbon::now();
 
-        return app(AdminTripQueries::class)->liveTrips($now)
-            ->map(fn ($ride) => $this->formatLiveTrip($ride, $now))
+        $rides = app(AdminTripQueries::class)->liveTrips($now);
+
+        // Stage 2 C2: one batched photo read for the whole live map, replacing the `driver.profile` eager
+        // load on the ride query 1:1.
+        $photos = $this->driverPhotosFor($rides->pluck('driver_id')->all());
+
+        return $rides
+            ->map(fn ($ride) => $this->formatLiveTrip($ride, $now, $photos[$ride->driver_id] ?? null))
             ->all();
+    }
+
+    /**
+     * @param  array<int, int|null>  $driverIds
+     * @return array<int, string|null>
+     */
+    private function driverPhotosFor(array $driverIds): array
+    {
+        $ids = array_values(array_unique(array_filter($driverIds, fn ($id) => $id !== null)));
+
+        return app(ProfileDirectory::class)->photoPathsForUsers($ids);
+    }
+
+    /** The single-driver fallback for a direct `formatTrip()` call. */
+    private function driverPhotoFor(int $driverId): ?string
+    {
+        return app(ProfileDirectory::class)->photoPathsForUsers([$driverId])[$driverId] ?? null;
     }
 
     // =========================================================================
@@ -231,7 +277,7 @@ final class AdminTripService
     /**
      * Shape one live trip for the map view / contact-driver panel.
      */
-    private function formatLiveTrip($ride, Carbon $now): array
+    private function formatLiveTrip($ride, Carbon $now, ?string $driverPhoto = null): array
     {
         $minutesElapsed = (int) $ride->departure_time->diffInMinutes($now);
         $durationMins = $ride->duration ? (int) round($ride->duration / 60) : null;
@@ -243,7 +289,7 @@ final class AdminTripService
             'id' => $ride->id,
             'trip_ref' => '#TR-'.$ride->id,
 
-            'driver' => $this->liveTripDriverBlock($ride),
+            'driver' => $this->liveTripDriverBlock($ride, $driverPhoto),
 
             'route' => $this->liveTripRouteBlock($ride),
 
@@ -264,13 +310,14 @@ final class AdminTripService
         ];
     }
 
-    private function liveTripDriverBlock($ride): array
+    private function liveTripDriverBlock($ride, ?string $driverPhoto = null): array
     {
         return [
             'id' => $ride->driver?->id,
             'name' => trim(($ride->driver?->first_name ?? '').' '.($ride->driver?->last_name ?? '')),
-            'profile_photo' => $ride->driver?->profile?->profile_photo
-                ? asset('storage/'.$ride->driver->profile->profile_photo)
+            // Stage 2 C2: the stored path arrives from Identity's batched port read.
+            'profile_photo' => $driverPhoto
+                ? asset('storage/'.$driverPhoto)
                 : null,
             'communication_number' => $ride->communication_number,
         ];

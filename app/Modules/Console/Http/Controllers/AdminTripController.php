@@ -84,9 +84,7 @@ final class AdminTripController extends Controller
         try {
             $paginator = $this->tripService->getFilteredTrips($filter, $perPage, $page);
 
-            $data = $paginator->getCollection()
-                ->map(fn ($ride) => $this->tripService->formatTrip($ride))
-                ->values();
+            $data = $this->tripService->formatTrips($paginator);
 
             return response()->json([
                 'status' => 'success',

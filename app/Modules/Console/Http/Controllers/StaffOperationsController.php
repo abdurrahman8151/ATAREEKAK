@@ -159,9 +159,7 @@ final class StaffOperationsController extends Controller
 
             $paginator = $this->tripService->getFilteredTrips($filter, $perPage, $page);
 
-            $data = $paginator->getCollection()
-                ->map(fn ($ride) => $this->tripService->formatTrip($ride))
-                ->values();
+            $data = $this->tripService->formatTrips($paginator);
 
             return response()->json([
                 'status' => 'success',

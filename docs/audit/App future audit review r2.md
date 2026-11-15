@@ -20845,3 +20845,37 @@ and live-trips block - their `driver.profile` eager load lives in Ride's `AdminT
 also touches Ride's two queries and the two controllers that map `formatTrip()`), and
 `StaffChatController::formatConversation()` (whose `participants.profile` eager load lives in Communication's
 chat queries). Then the kernel resources and the two zero-query auth-cache sites from sec 342.
+
+---
+
+### 346. Stage 2 C2: the trip screens (admin + staff) stop reading `driver.profile`
+
+**The eager load was Ride's, the reader was Console's, and the batch keeps it one query.** Ride's
+`AdminTripQueriesService` carried `driver.profile:user_id,profile_photo` on both trip queries - the paginated
+`admin/trips`/`staff/trips` list and the `admin/trips-live` map. Both are gone; `driver:id,first_name,last_name`
+stays because every row reads the driver's name.
+
+Console's `AdminTripService` now resolves the photos itself, from Identity's port:
+- `formatTrips(LengthAwarePaginator): array` - ONE `photoPathsForUsers()` for the page's `driver_id`s, then
+  `formatTrip($ride, ['profile_photo' => ?string])` per row. `AdminTripController::index()` and
+  `StaffOperationsController`'s trip list both call it instead of mapping `formatTrip()` themselves.
+- `getLiveTrips()` - ONE batched read for the whole live map, threaded through `formatLiveTrip()` into
+  `liveTripDriverBlock()`.
+- `formatTrip($ride, ?array $driverProfile = null)` keeps a single-driver port fallback when no map is passed,
+  so any direct call behaves exactly as it did (the same one query the removed eager load cost).
+
+**Net zero, measured.** One eager load out, one batched port query in, on every affected endpoint:
+`admin/trips`, `admin/trips-live` and `staff/trips` all printed NO new budget notice, and the admin and staff
+trip snapshots are byte-identical (route geometry, passengers, timing and driver blocks included).
+
+**Ratchets.** Nothing moved and nothing was raised: Ride's query stopped naming a relation, Console already
+reaches Identity through `ProfileDirectory`, and relation reads are not counted by `KERNEL_MODEL_IMPORTS`.
+`AppFuture` is green.
+
+**Verification.** `AppFuture` + `Admin` + `Staff` + `AdminSnapshotTest` + `StaffSnapshotTest` = **477 tests /
+1653 assertions OK**; only the five previously recorded budget notices; Pint **PASS** on the four changed files.
+
+**Console is now down to one relation read:** `StaffChatController::formatConversation()`, whose
+`participants.profile` eager load lives in Communication's chat queries. Then the kernel resources
+(`RideResource`, `BookingResource`), `Ride\RideSearchReadHandler`, `Ride\RideValidationService` (the zero-query
+auth-cache read from sec 342) and `app/DTOs/Auth/CachedUser.php`.
