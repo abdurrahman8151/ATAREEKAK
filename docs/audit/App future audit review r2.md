@@ -20879,3 +20879,46 @@ reaches Identity through `ProfileDirectory`, and relation reads are not counted 
 `participants.profile` eager load lives in Communication's chat queries. Then the kernel resources
 (`RideResource`, `BookingResource`), `Ride\RideSearchReadHandler`, `Ride\RideValidationService` (the zero-query
 auth-cache read from sec 342) and `app/DTOs/Auth/CachedUser.php`.
+
+---
+
+### 347. Stage 2 C2: the chat conversation lists and staff message header stop reading `participants.profile`
+
+**The last `User::profile` reader in Console, and the two chat repository eager loads behind it.** The chat
+repository carried `participants.profile` on BOTH queries:
+- `getUserConversations()` (user inbox + staff inbox) -- its only reader was each controller's
+  `formatConversation()`, which prints the other participant's photo.
+- `findConversation()` (conversation lookup for messages/send) -- read by the staff messages screen's
+  conversation header. The method's own comment already said it only needed `participants` "for
+  `isParticipant()` checks"; the profile eager load was the exception.
+
+Both are gone. The photo now comes from the port, batched where a list is rendered:
+- Communication's `ChatController::getConversations()` batches every participant id across the page through its
+  own `ProfilePhotoDirectory` (ONE query) and passes the map to `formatConversation()`.
+- Console's `StaffChatController::conversations()` does the same through Identity's `ProfileDirectory`;
+  `messages()` resolves that one conversation's participants (ONE query) for the header.
+- Both `formatConversation()` methods take `?array $photoPaths = null` and keep a single-participant port
+  fallback when called without a map.
+
+**Net effect measured.** `chat/conversations-index`, `staff/chat-conversations` and `staff/chat-messages` show
+NO budget change (one eager load out, one batch in). Dropping the eager load from the shared `findConversation()`
+shrinks the paths that never read it: `chat/messages-index` 8 -> 7 and `staff/chat-send` 19 -> 17. All shrinks -
+no budget rose, and the frozen `query-budgets.json` was not touched; the notices are the record.
+
+**Verification.** `AppFuture` + `Chat` + `Notifications` + `Staff` + `EngagementSnapshotTest` +
+`StaffSnapshotTest` = **361 tests / 1300 assertions OK**; every chat and staff-chat snapshot is byte-identical
+(the inbox rows, the conversation header and the message pages included). Pint **PASS** on the three changed
+files.
+
+**Where the Profile move stands now.** Console has no `User::profile` reader left. What remains app-wide:
+- the kernel resources `RideResource` and `BookingResource`, whose `driver.profile` eager loads live in
+  `RideRepository`, `RideSearchService` and `BookingService` (a batched map threaded into the resources is the
+  shape, and every `new RideResource(...)` site moves with it);
+- `Ride\RideSearchReadHandler` (one booking-row avatar);
+- `Communication\ChatMessageHandler::resolvePhotoPath()` - the loaded-relation fast path kept in sec 340, which
+  is one of the two zero-query/auth-cache sites recorded in sec 342 (`chat/messages-store`);
+- `Ride\RideValidationService::validateDriverCanCreateRide()` - the other one (`rides/create`);
+- `app/DTOs/Auth/CachedUser.php`, which rehydrates the relation and which rule B forbids naming the moved class.
+
+The last two cost +1 query each to convert, so they still need the owner's word on those two budgets (or a change
+to what the auth cache carries).

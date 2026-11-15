@@ -54,7 +54,10 @@ class ChatRepository implements ChatRepositoryInterface
      */
     public function findConversation(int $conversationId): ?Conversation
     {
-        return Conversation::with('participants.profile', 'latestMessage.sender')->find($conversationId);
+        // Stage 2 C2: `participants.profile` is GONE. `profiles` is Identity's, and the only reader of a
+        // participant's photo - the staff messages screen's conversation block - now resolves it from
+        // Identity's batched port. This method's callers only need `isParticipant()`.
+        return Conversation::with('participants', 'latestMessage.sender')->find($conversationId);
     }
 
     public function findPrivateConversation(User $user1, User $user2): ?Conversation
@@ -77,7 +80,9 @@ class ChatRepository implements ChatRepositoryInterface
     {
         return Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $user->id))
             ->with([
-                'participants.profile',
+                // Stage 2 C2: the participants' photos come from Identity's port in ONE batched read by
+                // the two list controllers, not from a `participants.profile` eager load here.
+                'participants',
                 'latestMessage.sender',
             ])
             ->latest('updated_at')

@@ -4,6 +4,7 @@ namespace App\Modules\Communication\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
+use App\Modules\Communication\Contracts\ProfilePhotoDirectory;
 use App\Modules\Communication\Events\MessageSent;
 use App\Modules\Communication\Services\ChatMessageHandler;
 use App\Support\Logging\SafeExceptionLog;
@@ -26,7 +27,8 @@ class ChatController extends Controller
 {
     public function __construct(
         private readonly ChatRepositoryInterface $chatRepository,
-        private readonly ChatMessageHandler $messageHandler
+        private readonly ChatMessageHandler $messageHandler,
+        private readonly ProfilePhotoDirectory $profilePhotos,
     ) {}
 
     /**
@@ -37,10 +39,16 @@ class ChatController extends Controller
         try {
             $conversations = $this->chatRepository->getUserConversations($request->user());
 
+            // Stage 2 C2: the participants' photos arrive in ONE batched Identity read for the whole list,
+            // replacing the `participants.profile` eager load the query used to carry.
+            $photoPaths = $this->profilePhotos->photoPathsFor(
+                $conversations->flatMap(fn ($c) => $c->participants->pluck('id'))->unique()->values()->all()
+            );
+
             return response()->json([
                 'success' => true,
-                'data' => $conversations->map(function ($conversation) use ($request) {
-                    return $this->formatConversation($conversation, $request->user());
+                'data' => $conversations->map(function ($conversation) use ($request, $photoPaths) {
+                    return $this->formatConversation($conversation, $request->user(), $photoPaths);
                 }),
             ]);
         } catch (\Exception $e) {
@@ -251,7 +259,7 @@ class ChatController extends Controller
     /**
      * Format conversation for API response
      */
-    private function formatConversation($conversation, $currentUser): array
+    private function formatConversation($conversation, $currentUser, ?array $photoPaths = null): array
     {
         // Zero DB queries — uses the already eager-loaded participants collection
         $otherParticipant = $conversation->participants
@@ -260,10 +268,17 @@ class ChatController extends Controller
         // Zero DB queries — uses the already eager-loaded latestMessage relation
         $lastMessage = $conversation->latestMessage;
 
-        // Zero DB queries — profile already loaded via participants.profile
+        // Stage 2 C2: the stored photo path comes from Identity's `ProfilePhotoDirectory`. A list caller
+        // passes the batched map in; a direct caller resolves this one participant (one query).
+        $storedPhoto = $photoPaths !== null
+            ? ($photoPaths[$otherParticipant?->id] ?? null)
+            : ($otherParticipant
+                ? ($this->profilePhotos->photoPathsFor([$otherParticipant->id])[$otherParticipant->id] ?? null)
+                : null);
+
         // Storage::exists() removed — return URL directly, let client handle missing image
-        $profilePhoto = $otherParticipant?->profile?->profile_photo
-            ? asset('storage/'.$otherParticipant->profile->profile_photo)
+        $profilePhoto = $storedPhoto
+            ? asset('storage/'.$storedPhoto)
             : null;
 
         return [

@@ -1,4 +1,19 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2: chat conversation lists + staff message header leave `participants.profile`
+  (audit sec 347), commit `Stage 2 C2: chat conversations read photos through the ports`.** The chat
+  repository's `participants.profile` eager load is gone from BOTH `getUserConversations()` and
+  `findConversation()`; Communication's `ChatController::getConversations()` batches the inbox through its own
+  `ProfilePhotoDirectory`, Console's `StaffChatController::conversations()` batches through Identity's
+  `ProfileDirectory`, and `messages()` resolves that one conversation's participants for the header. Both
+  `formatConversation()` methods keep a single-participant port fallback. Shrinks only:
+  `chat/messages-index` 8 -> 7, `staff/chat-send` 19 -> 17; no budget rose and the frozen file was not touched.
+  Gate: AppFuture + Chat + Notifications + Staff + Engagement/Staff snapshots = **361/1300 OK**, snapshots
+  byte-identical; Pint PASS 3.
+  **CONSOLE HAS NO `User::profile` READER LEFT.** Remaining app-wide: `RideResource`/`BookingResource` (their
+  eager loads live in `RideRepository`/`RideSearchService`/`BookingService`), `RideSearchReadHandler`,
+  `ChatMessageHandler::resolvePhotoPath()` (auth-cache fast path, `chat/messages-store`),
+  `RideValidationService` (`rides/create`) and `CachedUser` - the last three are the budget-gated kernel sites
+  recorded in sec 342.
 - Done recently: **STAGE 2 - C2: trip screens stop reading `driver.profile` (audit sec 346), commit
   `Stage 2 C2: trip screens read driver photos through Identity`.** Ride's `AdminTripQueriesService` drops
   `driver.profile` from the paginated and live trip queries; Console's `AdminTripService` gains

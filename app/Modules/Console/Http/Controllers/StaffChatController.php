@@ -7,6 +7,7 @@ use App\Modules\Communication\Contracts\ChatMessageHandlerInterface;
 use App\Modules\Communication\Contracts\ChatRepositoryInterface;
 use App\Modules\Communication\Contracts\MessageBroadcaster;
 use App\Modules\Console\Services\EmployeeManagementService;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ final class StaffChatController extends Controller
         private readonly ChatRepositoryInterface $chatRepo,
         private readonly ChatMessageHandlerInterface $messageHandler,
         private readonly EmployeeManagementService $managementService,
+        private readonly ProfileDirectory $profilePhotos,
     ) {}
 
     // =========================================================================
@@ -62,11 +64,17 @@ final class StaffChatController extends Controller
         try {
             $conversations = $this->chatRepo->getUserConversations($agentUser);
 
+            // Stage 2 C2: the participants' photos arrive in ONE batched Identity read for the whole
+            // inbox, replacing the `participants.profile` eager load the chat query used to carry.
+            $photoPaths = $this->profilePhotos->photoPathsForUsers(
+                $conversations->flatMap(fn ($c) => $c->participants->pluck('id'))->unique()->values()->all()
+            );
+
             return response()->json([
                 'status' => 'success',
                 'total' => $conversations->count(),
                 'data' => $conversations
-                    ->map(fn ($c) => $this->formatConversation($c, $agentUser))
+                    ->map(fn ($c) => $this->formatConversation($c, $agentUser, $photoPaths))
                     ->values(),
             ]);
         } catch (\Exception $e) {
@@ -124,9 +132,15 @@ final class StaffChatController extends Controller
                 $offset
             );
 
+            // Stage 2 C2: `findConversation()` no longer eager-loads `participants.profile`, so this
+            // screen's conversation block resolves the participants' photos from Identity in ONE query.
+            $photoPaths = $this->profilePhotos->photoPathsForUsers(
+                $conversation->participants->pluck('id')->all()
+            );
+
             return response()->json([
                 'status' => 'success',
-                'conversation' => $this->formatConversation($conversation, $agentUser),
+                'conversation' => $this->formatConversation($conversation, $agentUser, $photoPaths),
                 'data' => $messages,
                 'meta' => [
                     'page' => $page,
@@ -239,7 +253,7 @@ final class StaffChatController extends Controller
      * "sent_by_agent" on the last_message block lets the UI show the correct
      * alignment (right = agent, left = user).
      */
-    private function formatConversation($conversation, $agentUser): array
+    private function formatConversation($conversation, $agentUser, ?array $photoPaths = null): array
     {
         // Zero DB queries — uses the already eager-loaded participants collection
         $otherUser = $conversation->participants
@@ -248,9 +262,16 @@ final class StaffChatController extends Controller
         // Zero DB queries — uses the already eager-loaded latestMessage relation
         $lastMessage = $conversation->latestMessage;
 
-        // Zero DB queries — profile already loaded via participants.profile
-        $profilePhoto = $otherUser?->profile?->profile_photo
-            ? asset('storage/'.$otherUser->profile->profile_photo)
+        // Stage 2 C2: the stored photo path comes from Identity's `ProfileDirectory`. A list caller passes
+        // the batched map in; a direct caller resolves this one participant (one query).
+        $storedPhoto = $photoPaths !== null
+            ? ($photoPaths[$otherUser?->id] ?? null)
+            : ($otherUser
+                ? ($this->profilePhotos->photoPathsForUsers([$otherUser->id])[$otherUser->id] ?? null)
+                : null);
+
+        $profilePhoto = $storedPhoto
+            ? asset('storage/'.$storedPhoto)
             : null;
 
         return [
