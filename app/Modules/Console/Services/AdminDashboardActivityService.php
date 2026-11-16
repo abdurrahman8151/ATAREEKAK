@@ -2,9 +2,8 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\User;
-use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use Carbon\Carbon;
 
@@ -43,39 +42,14 @@ final class AdminDashboardActivityService
      */
     public function getStats(): array
     {
-        // Stage 2 C2: `photos` is Identity's table, so the "has driver documents" predicate is
-        // Identity's too. It arrives as an embeddable subquery because it cannot be a result set -
-        // these are COUNT statements and the ids are not known before they run. Still one statement
-        // per card, so the query count does not move.
-        $documentUserIds = app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery();
-
-        $totalDrivers = User::where('is_verified_driver', true)
-            ->orWhere(function ($q) use ($documentUserIds) {
-                $q->whereIn('verification_status', ['pending', 'rejected'])
-                    ->whereIn('users.id', $documentUserIds);
-            })
-            ->count();
-
-        $activeDrivers = User::where('is_verified_driver', true)->count();
-
-        $pendingVerifications = User::where('verification_status', 'pending')
-            ->whereIn('users.id', $documentUserIds)
-            ->count();
-
-        // RV-19 item 5: this was `$suspendedDrivers = 0; // not implemented yet`, so the dashboard
-        // card reported zero suspended drivers no matter how many there were - while the driver
-        // TABLE on the same screen could list them, because its `suspended` filter is
-        // `where('status', 0)` and `resolveDriverStatus()` maps `status == 0` to 'suspended'.
-        // The two halves of one screen contradicted each other. Counted the same way the filter
-        // counts, so the card and the table can no longer disagree.
-        //
-        // RV-42a: agreeing with each other was not enough - BOTH halves were wrong about WHICH
-        // accounts were suspended. `status = 0` is LOGGED_OUT (every self-registration starts
-        // there, and `unban()` writes it back), so "suspended" counted every signed-out and every
-        // unbanned driver. "Suspended" is what the user is told when login is refused
-        // (`LoginController:83`, `ACCOUNT_BANNED`), which is `status = -1`. Both halves now go
-        // through `User::bannedNow()`.
-        $suspendedDrivers = User::bannedNow()->count();
+        // Stage 2 C3: every card is a COUNT over `users` (plus Identity's own `photos` for the "submitted
+        // documents" predicate), so Identity runs the statements and this screen keeps the labels and the
+        // rounding. RV-19 item 5 / RV-42a live in the owner now: `suspended` goes through the same
+        // `bannedNow` rule the driver TABLE's filter uses, so the card and the table cannot disagree.
+        $totalDrivers = app(UserDirectory::class)->countDrivers();
+        $activeDrivers = app(UserDirectory::class)->countVerifiedDrivers();
+        $pendingVerifications = app(UserDirectory::class)->countPendingDrivers();
+        $suspendedDrivers = app(UserDirectory::class)->countSuspended();
 
         // Stage 2 C1/C2: `user_ratings` is Identity's table; the verified-driver filter walks two of its
         // tables, so the module implements it and this card only rounds what it returns.
@@ -111,17 +85,14 @@ final class AdminDashboardActivityService
 
     private function verificationActivityEvents(int $limit): array
     {
-        $recentVerifications = User::whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery())
-            ->whereIn('verification_status', ['pending', 'approved', 'rejected'])
-            ->orderByDesc('updated_at')
-            ->limit($limit)
-            ->get();
+        // Stage 2 C3: the rows come from Identity as summaries; the event words stay here.
+        $recentVerifications = app(UserDirectory::class)->recentVerificationUsers($limit);
 
         $events = [];
 
         foreach ($recentVerifications as $user) {
-            $name = trim("{$user->first_name} {$user->last_name}");
-            $status = $user->verification_status;
+            $name = $user->fullName();
+            $status = $user->verificationStatus;
 
             $events[] = [
                 'type' => 'verification_'.$status,
@@ -143,8 +114,8 @@ final class AdminDashboardActivityService
                 },
                 'actor' => $status === 'pending' ? $name : 'Admin',
                 'user_id' => $user->id,
-                'occurred_at' => $user->updated_at->toIso8601String(),
-                'human_time' => $this->presenter->humanTime($user->updated_at),
+                'occurred_at' => $user->updatedAt->toIso8601String(),
+                'human_time' => $this->presenter->humanTime($user->updatedAt),
             ];
         }
 
@@ -249,18 +220,14 @@ final class AdminDashboardActivityService
 
     private function countIncomingVerifications(Carbon $start, Carbon $end): int
     {
-        // The window belongs to this widget; "which documents count" belongs to the port.
-        return User::whereIn('users.id', app(PhotoRepositoryInterface::class)
-            ->driverDocumentUserIdsCreatedBetweenSubquery($start, $end))
-            ->count();
+        // Stage 2 C3: the window belongs to this widget; the statement (and "which documents count") belongs
+        // to Identity, which owns both `users` and `photos`.
+        return app(UserDirectory::class)->countUsersWithDriverDocumentsCreatedBetween($start, $end);
     }
 
     private function countProcessedVerifications(Carbon $start, Carbon $end): int
     {
-        return User::whereIn('verification_status', ['approved', 'rejected'])
-            ->whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery())
-            ->whereBetween('updated_at', [$start, $end])
-            ->count();
+        return app(UserDirectory::class)->countProcessedVerifications($start, $end);
     }
 
     /**

@@ -148,6 +148,56 @@ final class UserDirectoryReader implements UserDirectory
     }
 
     /**
+     * Stage 2 C3: the dashboard's "total drivers" card - verified drivers, plus the pending/rejected ones who
+     * have submitted documents. The document predicate is Identity's own `photos` table.
+     */
+    public function countDrivers(): int
+    {
+        return User::query()
+            ->where('is_verified_driver', true)
+            ->orWhere(function ($q) {
+                $q->whereIn('verification_status', ['pending', 'rejected'])
+                    ->whereIn('users.id', $this->photos->driverDocumentUserIdsSubquery());
+            })
+            ->count();
+    }
+
+    /**
+     * Stage 2 C3: the recent-activity feed's verification rows - users with documents whose verification moved,
+     * newest first, capped at `$limit`.
+     *
+     * @return array<int, UserSummary>
+     */
+    public function recentVerificationUsers(int $limit): array
+    {
+        return User::query()
+            ->whereIn('users.id', $this->photos->driverDocumentUserIdsSubquery())
+            ->whereIn('verification_status', ['pending', 'approved', 'rejected'])
+            ->orderByDesc('updated_at')
+            ->limit($limit)
+            ->get(self::COLUMNS)
+            ->map(fn (User $user) => $this->toSummary($user))
+            ->values()
+            ->all();
+    }
+
+    public function countUsersWithDriverDocumentsCreatedBetween(Carbon $start, Carbon $end): int
+    {
+        return User::query()
+            ->whereIn('users.id', $this->photos->driverDocumentUserIdsCreatedBetweenSubquery($start, $end))
+            ->count();
+    }
+
+    public function countProcessedVerifications(Carbon $start, Carbon $end): int
+    {
+        return User::query()
+            ->whereIn('verification_status', ['approved', 'rejected'])
+            ->whereIn('users.id', $this->photos->driverDocumentUserIdsSubquery())
+            ->whereBetween('updated_at', [$start, $end])
+            ->count();
+    }
+
+    /**
      * Stage 2 C3: the users dashboard's filtered, paginated list. The filters are the ones Console ran -
      * including the driver-document predicate, which is Identity's own `photos` table now - and the page is
      * returned as summaries so the caller renders rows without touching a model.

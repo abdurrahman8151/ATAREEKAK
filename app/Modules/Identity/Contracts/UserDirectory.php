@@ -70,6 +70,20 @@ interface UserDirectory
     public function countSuspended(): int;
 
     /**
+     * Stage 2 C3: the admin dashboard's driver cards and recent-activity feed. Same rule as above - the
+     * statements are over `users` (plus Identity's own `photos` for the "submitted documents" predicate), so
+     * they run here even though the words are the dashboard's.
+     */
+    public function countDrivers(): int;
+
+    /** @return array<int, UserSummary> newest verification updates first, capped at $limit */
+    public function recentVerificationUsers(int $limit): array;
+
+    public function countUsersWithDriverDocumentsCreatedBetween(Carbon $start, Carbon $end): int;
+
+    public function countProcessedVerifications(Carbon $start, Carbon $end): int;
+
+    /**
      * Stage 2 C3: the users dashboard's filtered, paginated list, as summaries.
      *
      * The filters are the screen's own - type (driver/passenger, including the driver-document predicate),

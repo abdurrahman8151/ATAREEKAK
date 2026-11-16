@@ -21574,3 +21574,33 @@ the DTO did not soften it. `Console -> Identity` is unchanged (methods on an exi
 **Verification.** `AppFuture` + `Admin` + `RV42aSuspendedMeansBannedTest` + `UserDirectoryContractTest` +
 `AdminSnapshotTest` = **237 tests / 1007 assertions OK**, only the recorded budget notices, Pint **PASS** on the
 four changed files.
+
+---
+
+### 364. Stage 2 C3: the admin dashboard's `users` reads move to the directory - the file stops naming `User` and `PhotoRepositoryInterface`
+
+**The slice.** `AdminDashboardActivityService` made six reads against `users`, each embedding the
+"has driver documents" predicate as a subquery from Identity's photo port. All six are now methods on the
+directory, where the predicate can use Identity's own `photos` table directly:
+
+- cards: `countDrivers()` (the verified-or-pending/rejected-with-documents rule), and the existing
+  `countVerifiedDrivers()` / `countPendingDrivers()` / `countSuspended()`;
+- the recent-activity feed: `recentVerificationUsers(int $limit)` - documents present, verification in
+  `pending/approved/rejected`, newest `updated_at` first, capped - returned as summaries;
+- the efficiency widget: `countUsersWithDriverDocumentsCreatedBetween(start, end)` and
+  `countProcessedVerifications(start, end)`.
+
+**Console keeps the words.** The event envelope (`type`/`icon`/`color`/`message`), the Arabic labels, the
+"Admin" actor rule, the human times and the rating rounding all stay in the service; it renders from summaries
+by property. `App\Models\User` AND `PhotoRepositoryInterface` are now unused in that file and removed - the
+document predicate no longer needs to be published for this screen at all.
+
+**Measured.** One statement per read either way, so `admin/dashboard`, `admin/drivers-dashboard`,
+`admin/dashboard-recent`, `admin/drivers-stats` and `admin/drivers-verification-efficiency` print NO new budget
+notice, and the driver-dashboard snapshot is byte-identical. RV-19 item 5 / RV-42a semantics ride along inside
+the owner: `countSuspended()` is the same `bannedNow` rule as before, so the card and the table still agree.
+`Console -> Identity` is unchanged (methods on an existing port).
+
+**Verification.** `AppFuture` + `Admin` + `RV19AdminStatsTest` + `UserDirectoryContractTest` +
+`AdminSnapshotTest` = **233 tests / 992 assertions OK**, only the recorded budget notices, Pint **PASS** on the
+three changed files.

@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 slice 6: the admin dashboard's `users` reads moved to the directory (audit
+  sec 364), commit `Stage 2 C3: dashboard cards and feed read users through the directory`.** NEW
+  `UserDirectory::countDrivers()`, `recentVerificationUsers($limit)`, `countUsersWithDriverDocumentsCreatedBetween()`,
+  `countProcessedVerifications()` (reusing the sec-363/362 counters); the document predicates now run inside
+  Identity against its own `photos`. `AdminDashboardActivityService` keeps the event words/labels/rounding and no
+  longer names `User` or `PhotoRepositoryInterface` (both imports removed). Net zero on
+  dashboard/drivers-dashboard/recent/stats/efficiency; snapshots byte-identical; RV19AdminStats green.
+  Gate: AppFuture + Admin + RV19 + UserDirectoryContract + AdminSnapshot **233/992 OK**; Pint PASS 3.
+  **C3 NEXT: `AdminDriverQueryService`'s two `users` reads (the driver list + the driver-profile finder, which
+  also carries a Ride count) - the last Console screen that queries `users` directly.**
 - Done recently: **STAGE 2 - C3 slice 5 (largest): the users dashboard moved behind `UserDirectory` (audit
   sec 363), commit `Stage 2 C3: users dashboard reads users through the directory`.** NEW
   `UserDirectory::adminUserPage(type,status,date,search,perPage,page)` (the four filters verbatim, including the
