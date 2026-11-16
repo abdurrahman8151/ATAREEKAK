@@ -1,4 +1,17 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- **BLOCKED ON OWNER (audit sec 357): all 14 remaining pairs need one of five sentences, and the first is now
+  provably tiny.**
+  **1. DELETE `Complaint::ride()` + `RV23ComplaintContextTest:82-83`?** Measured: the relation has NO production
+  reader (`git grep "complaint->ride"` = nothing); the only consumer is those two test lines; the `ride_id` /
+  `complained_id` persistence assertions above them stay valid. Answer = **delete them** -> unlocks 5 pairs
+  (Ride+Booking+NoshowReport, then Complaint+ComplaintAttachment in the forced order).
+  **2/3. MONEY** (secs 291/293): narrow the two admin wallet response payloads, and move the wallet-request
+  approval workflow into Money -> 6 pairs.
+  **4. PROFILE** (sec 350): +1 query on two endpoints? lose the nested `profile` in two raw-model responses?
+  where does the auth cache rehydrate? -> 2 pairs.
+  **5. USERRATING**: delete the `UntangleBatchTest:68` mechanism assertion and replace `User::receivedRatings()`
+  -> 1 pair.
+  C3 `UserDirectory` migration is NOT gated and remains the only other open code item (sec 298's measurement).
 - Done recently: **STAGE 2 - C2 `Employee` MOVES INTO CONSOLE - the sec-352 rollback now lands (audit sec 356),
   commit `Stage 2 C2: Employee moves into Console`.** After sec 355 removed the `Complaint` wall, the move
   needed only the entrypoint conversion the rollback had designed: `EmployeeManagementInterface::findEmployeeById`

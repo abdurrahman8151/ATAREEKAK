@@ -21339,3 +21339,50 @@ record the class as moved, and the readiness tool no longer lists it.
 already-recorded budget notices and byte-identical staff-auth snapshots; the twelve changed `Review` files =
 **67 / 185 OK**. Pint **PASS** on the 53 changed files. Nothing was edited to make a test pass: the 47 import
 rewrites are one line each and no assertion changed.
+
+---
+
+### 357. Stage 2 C2: the RV23 decision is now provably TWO TEST LINES - and the full owner slate, priced
+
+**The measurement.** The Ride cluster is the next move the forced order allows, and its only kernel-side wall is
+`Complaint::ride()`. I checked for production readers this round and found **none**:
+
+    $ git grep -n "complaint->ride|complaint?->ride"  ->  no matches
+    $ git grep -rn "load\['ride'" tests/              ->  RV23ComplaintContextTest.php:82 ONLY
+
+So the relation's only consumer in the whole tree is the test block that pins it:
+
+    tests/Feature/Review/RV23ComplaintContextTest.php:82   $fresh->load(['ride', 'complainedUser']);
+    tests/Feature/Review/RV23ComplaintContextTest.php:83   $this->assertTrue($fresh->ride->is($ride));
+
+Everything above them - the `ride_id` and `complained_id` persistence assertions - stays valid without the
+relation. Deleting the relation plus those two lines is what sec 329 asked about and is still unanswered because
+it is an assertion deletion.
+
+**What that one sentence unlocks, priced from the sec-354 measurement.** Five of the fourteen remaining pairs:
+
+- `Ride -> Ride`, `Ride -> Booking`, `Ride -> NoshowReport` (the cluster moves together: every FOREIGN relation is
+  internal to it, 66 app import rewrites + 102 test files, 0 outside bare uses once `Complaint::ride` is gone)
+- then, in the forced order, `Console -> Complaint` and `Console -> ComplaintAttachment` (2 pairs; 9 app imports
+  + 12 test files; `Complaint`'s only FOREIGN relation after this is the one just removed).
+
+**The complete owner slate, in unlock order, so a single reply can release the rest.**
+1. **Delete `Complaint::ride()` + the two test lines?** (evidence above; the relation has NO production reader)
+   -> unlocks 5 pairs.
+2. **Money payloads (sec 291):** narrow `showWalletTransactions`' `wallet` key and the wallet-request review
+   list to documented shapes, or keep the full rows and allowlist the pairs?
+3. **Money approval workflow (sec 293):** move the approve/reject workflow (guard + balance write + transaction
+   row + external leg + status change) into Money, or keep it in Console?
+   -> 2 and 3 together unlock 6 pairs (`Money -> Wallet/WalletRequest/WalletTransaction/LedgerEntry` and
+   `Console -> Wallet/WalletRequest`).
+4. **Profile (sec 350):** (a) may `rides/create` and `chat/messages-store` each cost +1 query; (b) may the ride
+   search and create-with-route responses lose the nested `profile` object; (c) where does the auth cache
+   rehydrate a profile once the class is not in the kernel?
+   -> unlocks 2 pairs (`Identity -> Profile`, `Identity -> ProfileComment`).
+5. **UserRating:** may the `UntangleBatchTest:68` mechanism assertion go (it pins `receivedRatings` as a
+   loaded relation) and `User::receivedRatings()` be replaced by a batched reader? -> unlocks 1 pair.
+
+**Nothing else is mechanically blocked-free.** Every non-owner item this session could find has been done: the
+ratchets are green, the readiness tool measures the rest, and the remaining fourteen pairs each sit behind one of
+the five sentences above. The C3 `UserDirectory` migration (sec 298) is the only other open code item and it is
+NOT owner-gated - it is unstarted by choice, with its measurement recorded.
