@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 slice 2: Money's admin charge history reads the admin through the directory
+  (audit sec 360), commit `Stage 2 C3: wallet charge history reads the admin through the directory`.** The
+  `user:id,first_name,last_name` eager load is gone; ONE `UserDirectory::summariesFor()` per page beside the
+  existing photo read; `row()` reads id/fullName/stored-path by property; null semantics identical.
+  **The query budget caught MY OWN N+1 first** (the two port calls were inside the `map` closure ->
+  `admin/passenger-full-profile` 20 -> 23; hoisted above the map -> back to 19 < 20) - the second time the
+  budgets caught a per-row port read introduced while removing an eager load (first: sec 280). `Money ->
+  Identity` 2 -> 3 ports. Gate: AppFuture + Wallet + Unit/Admin + Admin + Admin/Wallet snapshots **427/1465 OK**,
+  snapshots byte-identical; Pint PASS 2.
+  **C3 QUEUE (sec 358): next = Ride's six booking `user` eager loads (largest; response parity per endpoint).**
 - Done recently: **STAGE 2 - C3 slice 1: staff complaint lists stop eager-loading the complainant (audit
   sec 359), commit `Stage 2 C3: complaint lists read complainants through the directory`.** `WITH_LIST` (no
   `user`) for `listAll`/`listEscalated`; `preloadUsers()` batches Identity's `UserDirectory::summariesFor()`

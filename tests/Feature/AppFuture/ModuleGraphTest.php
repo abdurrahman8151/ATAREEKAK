@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          2
- *   Money              1       1      2        2          -
+ *   Money              1       1      2        3          -
  *   Ride               1       5      1        2          -
  *   Identity           2       4      3        -          3
  *   Console            4       9     11        9          -
@@ -143,7 +143,10 @@ class ModuleGraphTest extends TestCase
         // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through Ride.
         'Money -> Ride' => 2,
         'Money -> Communication' => 1,
-        'Money -> Identity' => 2,
+        'Money -> Identity' => 3,
+        // Stage 2 C3: the third port is `UserDirectory`. The admin wallet-charge history eager-loaded the
+        // charging admin's `users` row for a name; Identity's directory now supplies it in the same ONE query,
+        // read by property. A new port on the existing `Money -> Identity` edge, not a new edge.
         // Stage 2 C2: the second port is `ProfileDirectory`. The admin wallet-charge rows carry the
         // charging admin's photo, which Money used to read by eager-loading `User::profile`; the column now
         // arrives batched from Identity (the same ONE query for the page), and `profiles` stays Identity's.

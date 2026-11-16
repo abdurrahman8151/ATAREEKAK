@@ -4,6 +4,7 @@ namespace App\Modules\Money\Services;
 
 use App\Models\WalletTransaction;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Money\Contracts\WalletChargeHistory;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
@@ -26,16 +27,22 @@ final class WalletChargeHistoryReader implements WalletChargeHistory
 {
     public function __construct(
         private readonly ProfileDirectory $profiles,
+        private readonly UserDirectory $users,
     ) {}
 
     public function recentForWallet(int $walletId, int $limit = 20): array
     {
         $transactions = $this->query($walletId)->limit($limit)->get();
 
-        $photos = $this->photosFor($transactions->pluck('user_id')->unique()->values()->all());
+        $userIds = $transactions->pluck('user_id')->unique()->values()->all();
+
+        // BE CAREFUL: the two port reads happen ONCE for the page, never inside the map below - a per-row
+        // call is the N+1 this phase's budgets exist to catch (it was, for one run).
+        $photos = $this->profiles->photoPathsForUsers($userIds);
+        $summaries = $this->users->summariesFor($userIds);
 
         return $transactions
-            ->map(fn (WalletTransaction $tx) => $this->row($tx, $photos))
+            ->map(fn (WalletTransaction $tx) => $this->row($tx, $photos, $summaries))
             ->all();
     }
 
@@ -43,12 +50,15 @@ final class WalletChargeHistoryReader implements WalletChargeHistory
     {
         $paginator = $this->query($walletId)->paginate($perPage, ['*'], 'page', $page);
 
-        $photos = $this->photosFor(
-            $paginator->getCollection()->pluck('user_id')->unique()->values()->all()
-        );
+        $userIds = $paginator->getCollection()->pluck('user_id')->unique()->values()->all();
+
+        // Stage 2 C3: the charging admin's name comes from Identity's directory - ONE query for the page,
+        // replacing the `user:id,first_name,last_name` eager load 1:1.
+        $photos = $this->profiles->photoPathsForUsers($userIds);
+        $summaries = $this->users->summariesFor($userIds);
 
         $paginator->setCollection(
-            $paginator->getCollection()->map(fn (WalletTransaction $tx) => $this->row($tx, $photos))
+            $paginator->getCollection()->map(fn (WalletTransaction $tx) => $this->row($tx, $photos, $summaries))
         );
 
         return $paginator;
@@ -56,31 +66,23 @@ final class WalletChargeHistoryReader implements WalletChargeHistory
 
     private function query(int $walletId)
     {
-        return WalletTransaction::with([
-            'user:id,first_name,last_name',
-        ])
+        // Stage 2 C3: no `user` eager load - the administrative actor's name arrives from Identity's
+        // directory in the same single query the eager load cost.
+        return WalletTransaction::query()
             ->where('wallet_id', $walletId)
             ->where('type', 'admin_charge')
             ->orderByDesc('created_at');
     }
 
     /**
-     * @param  array<int, int>  $userIds
-     * @return array<int, string|null>
-     */
-    private function photosFor(array $userIds): array
-    {
-        return $this->profiles->photoPathsForUsers($userIds);
-    }
-
-    /**
      * @param  array<int, string|null>  $photos  keyed by user id
+     * @param  array<int, object>  $summaries  Identity's `UserSummary`, keyed by user id, read by property
      * @return array<string, mixed>
      */
-    private function row(WalletTransaction $tx, array $photos): array
+    private function row(WalletTransaction $tx, array $photos, array $summaries): array
     {
-        $admin = $tx->user;
-        $storedPhoto = $admin ? ($photos[$admin->id] ?? null) : null;
+        $actor = $tx->user_id ? ($summaries[(int) $tx->user_id] ?? null) : null;
+        $storedPhoto = $tx->user_id ? ($photos[(int) $tx->user_id] ?? null) : null;
 
         return [
             'id' => $tx->id,
@@ -92,10 +94,8 @@ final class WalletChargeHistoryReader implements WalletChargeHistory
             'notes' => $tx->description,
             'date' => $tx->created_at->toDateString(),
             'created_at' => $tx->created_at->toIso8601String(),
-            'processed_by_id' => $admin?->id,
-            'processed_by_name' => $admin
-                ? trim("{$admin->first_name} {$admin->last_name}")
-                : null,
+            'processed_by_id' => $actor?->id,
+            'processed_by_name' => $actor !== null ? $actor->fullName() : null,
             'processed_by_photo' => $storedPhoto
                 ? asset('storage/'.$storedPhoto)
                 : null,

@@ -21454,3 +21454,31 @@ new cycle. Nothing in `KERNEL_MODEL_IMPORTS` moves: this removes a RELATION read
 `AdminSnapshotTest` = **450 tests / 1523 assertions OK**; NO new budget notice on any complaint list (eager load
 out, directory query in - net zero) and the staff complaint / escalated-complaint snapshots are byte-identical.
 Pint **PASS** on the four changed files.
+
+---
+
+### 360. Stage 2 C3: Money's admin charge history stops eager-loading the admin's row - and the budgets caught MY N+1 again
+
+**The slice.** `WalletChargeHistoryReader` (Money) eager-loaded `user:id,first_name,last_name` on every
+`admin_charge` row to print `processed_by_id` / `processed_by_name`, and asked Identity's `ProfileDirectory` for
+the photo. The eager load is gone: the same page's user ids now go to `UserDirectory::summariesFor()` (ONE
+query) beside the existing photo read (ONE query), and `row()` reads `id` / `fullName()` off the summary and the
+stored path off the photo map - both by property, never naming the DTO class. `null` semantics preserved: a
+transaction whose user row is gone yields `processed_by_id = null`, `processed_by_name = null`,
+`processed_by_photo = null`, exactly as the missing relation did.
+
+**THE BUDGET CAUGHT MY OWN N+1, and that is the second time this phase has proved the point.** My first version
+passed the two port calls INSIDE the `->map()` closure - one photo query and one directory query PER ROW - and
+`admin/passenger-full-profile` went from the recorded `19 < 20` to **23 issued against a budget of 20**. The
+failure named the case and the count; hoisting both calls above the `map` restored `19 < 20`. The first instance
+was sec 280's chat-photo port; both were introduced while REMOVING an eager load, and both were caught by the
+query budget rather than by review. The reader now carries a comment saying so.
+
+**Ratchets.** `ModuleGraphTest` `Money -> Identity` **2 -> 3 ports** (`UserDirectory` is Money's second Identity
+read port, after `ProfileDirectory`), argued in `EDGES`; no new edge, no new cycle. `KERNEL_MODEL_IMPORTS`
+unchanged - this removes a relation read, not an import.
+
+**Verification.** `AppFuture` + `Wallet` + `Unit/Services/Admin` + `Admin` + `AdminSnapshotTest` +
+`WalletSnapshotTest` = **427 tests / 1465 assertions OK**; the passenger wallet-charge and admin wallet screens
+are byte-identical and the only notices are the previously recorded ones (`admin/passenger-full-profile` back to
+`19 < 20`). Pint **PASS** on the two changed files.
