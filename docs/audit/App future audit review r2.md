@@ -21109,3 +21109,51 @@ from Console's repository), with no assertion changed.
 immediately by the numstat, restored **per file** with `git checkout -- <the five paths>` (never whole-tree -
 sec 305's lesson), and redone with the `edit` tool. **Rule: no bulk text rewrites through PowerShell in this
 repository; use the per-file edit tool, and read `git diff --numstat` before believing a mechanical rewrite.**
+
+---
+
+### 352. Stage 2 C2: the `Employee` model move ATTEMPTED and ROLLED BACK (VERIFIED ROLLBACK) - `Complaint::assignedAgent()` is the wall
+
+**What was attempted, and how far it got.** `git mv app/Models/Employee.php app/Modules/Console/Models/Employee.php`
+with the explicit `$table = 'employees'`, its dead `refreshTokens()` relation removed (it pointed at Identity's
+`staff_refresh_tokens`; its only reference was a `method_exists` test, removed with its subject like sec 297), and
+49 files' imports rewritten. The kernel entrypoints had to be converted FIRST, and the ratchets caught both:
+- `app/DTOs/Auth/StaffAccount.php` (a kernel DTO) was flagged by rule B because its DOCBLOCK mentioned the new
+  module namespace - the scanner is a dumb substring match; reworded.
+- `Http/Middleware/StaffJwtMiddleware` and `Console/Commands/RotateAdminPasswordCommand` then named
+  `App\Modules\Console\Models\Employee` and appeared in rule C's measured entrypoint list, which is shrink-only
+  and at zero. Fixed properly, not by adding an exemption: `EmployeeManagementInterface` grew
+  `findEmployeeById(int): ?Employee` (so the middleware keeps its EMPLOYEE_NOT_FOUND / ACCOUNT_INACTIVE branches
+  and its `ensureShadowUser` call), and the command now reads/writes through `EmployeeRepositoryInterface`
+  (`findByUsername` + `update`) with untyped values, naming no implementation class.
+
+**THE WALL: `app/Models/Complaint.php:58`.** The moment `Employee` leaves `app/Models`, that kernel model's
+relation resolves by namespace adjacency to a class that no longer exists:
+
+    return $this->belongsTo(Employee::class, 'assigned_to');   // no `use` line - it never needed one
+
+Result: **33 errors / 23 failures**, every one `Class "App\Models\Employee" not found`. The three ways out were
+each checked and rejected:
+1. `use App\Modules\Console\Models\Employee;` in a kernel model - rule B (kernel files may not name module
+   implementation), and the entrypoint exemption does not cover models.
+2. Delete the relation - it HAS readers: Console's `ComplaintService` and `ComplaintDirectoryService` eager-load
+   `assignedAgent`, and Identity's complaint panels rendered the assignee name through it.
+3. Move `Complaint` first - `Complaint::ride()` points at `App\Models\Ride`, and `RV23ComplaintContextTest:82-84`
+   asserts that relation resolves; that is the owner-gated item from sec 329.
+
+**So the move order is forced: `Ride`/`Booking` (owner sentence) -> `Complaint` -> `Employee`.** The
+`Console -> Employee` pair therefore cannot be retired before `Complaint` moves, and `Complaint` cannot move
+before the RV23 assertion question is answered.
+
+**Rollback, per-file and proven.** `git reset` (to unstage the rename) -> `git checkout -- app tests database docs`
+(HEAD is this session's own commit, d976cde, and no owner work lives in those paths) -> verified the untracked
+`app/Modules/Console/Models/` held only `Employee.php` -> removed it -> **`composer dump-autoload` with
+`APP_ENV=testing`**, which was NECESSARY: the classmap had been regenerated for the moved path and no longer
+listed `App\Models\Employee`. `git diff --stat` for app/tests/database/docs is now empty and the gate
+(`AppFuture` + `Unit/Models` + `Unit/Middleware` + `Staff`) is **513 tests / 1315 assertions OK**.
+
+**RULE, now at its third instance: after every model move, grep the OLD namespace for the class, not just for
+`use` lines.** `git grep "Employee::class"` found the wall in one command. Sec 301 missed
+`RefreshToken::user()`, sec 304 missed `User`'s two UserRating relations, and this one missed
+`Complaint::assignedAgent()` - a `use`-line measurement cannot see a same-namespace reference, and only the
+suite says so.

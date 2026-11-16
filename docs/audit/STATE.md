@@ -1,4 +1,17 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 `Employee` MODEL MOVE: ATTEMPTED AND ROLLED BACK (VERIFIED ROLLBACK, audit
+  sec 352).** The move was prepared properly (kernel entrypoints converted to Console contracts first:
+  `EmployeeManagementInterface::findEmployeeById` for the middleware, `EmployeeRepositoryInterface` for the
+  rotate-password command; a kernel DTO docblock mentioning the module namespace reworded) and then hit a WALL:
+  **`app/Models/Complaint.php:58` declares `belongsTo(Employee::class, 'assigned_to')` with NO `use` line** -
+  namespace adjacency - so 56 tests died with `Class "App\Models\Employee" not found`. Importing the Console
+  class into a kernel model violates rule B; deleting the relation is impossible (Console's complaint services
+  and Identity's panels eager-load it); and `Complaint` cannot move first because of `Complaint::ride()` +
+  `RV23ComplaintContextTest:82-84`. **Forced order: Ride/Booking (owner sentence) -> Complaint -> Employee.**
+  Rolled back per-file (`git reset` + `git checkout -- app tests database docs`, untracked moved file removed,
+  `composer dump-autoload` restored the classmap) and verified **513/1315 OK**. **RULE (third instance): after
+  every model move, `git grep "<Model>::class"` - a `use`-line measurement cannot see a same-namespace
+  reference.** Tree matches `d976cde`.
 - Done recently: **STAGE 2 - C2 `Identity -> Employee` GONE (audit sec 351), commit
   `Stage 2 C2: staff auth stops naming the Employee model`.** The sec-299 architecture decision was made and
   shipped as the KERNEL DTO option: new `App\DTOs\Auth\{StaffAccount,StaffCredentials,StaffTokenSubject}` (no
