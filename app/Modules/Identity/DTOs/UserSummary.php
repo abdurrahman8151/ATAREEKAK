@@ -33,6 +33,10 @@ final class UserSummary
         public readonly ?string $address = null,
         public readonly ?string $verificationStatus = null,
         public readonly ?Carbon $updatedAt = null,
+        // Added for the users dashboard: the row's creation time, and the ban ANSWER rather than the ban
+        // columns - the rule stays with the owner, the caller gets a boolean.
+        public readonly ?Carbon $createdAt = null,
+        public readonly bool $isBannedNow = false,
     ) {}
 
     /**

@@ -21543,3 +21543,34 @@ port, so the module graph is unchanged (a new METHOD, not a new port or edge).
 **Verification.** `AppFuture` + `Admin` + `RV19AdminStatsTest` + `T49MojibakeRepairTest` +
 `UserDirectoryContractTest` + `AdminSnapshotTest` = **241 tests / 1006 assertions OK**, only the recorded budget
 notices, Pint **PASS** on the three changed files.
+
+---
+
+### 363. Stage 2 C3: the whole users dashboard moves behind `UserDirectory` - the largest slice, and it stops naming `User`
+
+**What moved.** `AdminUserService` was the biggest remaining reader of the `users` table: a filtered,
+paginated list plus five card counters. All of it is now the table owner's:
+
+- `UserDirectory::adminUserPage(type, status, date, search, perPage, page): LengthAwarePaginator` - the four
+  filters verbatim (driver/passenger including the driver-document predicate, verified/pending/suspended,
+  the four date windows, the name/email search) and `orderByDesc('created_at')`, returned as summaries. The
+  document predicate is Identity's own `photos` table, evaluated inside the owner instead of through a port.
+- `countVerifiedDrivers()`, `countPendingDrivers()`, `countVerifiedPassengers()`, `countSuspended()`; the fifth
+  card reuses `countAll()` from sec 362.
+
+**`UserSummary` grew the two fields the rows need** - `createdAt`, and `isBannedNow` (the ban ANSWER, not the
+ban columns: the rule stays with the owner). `COLUMNS` gained the ban inputs (`ban_type`, `ban_expires_at`) and
+`created_at`, so every summary answers the question truthfully whichever call produced it.
+
+**Console keeps only presentation.** `AdminUserService` renders `id`/`fullName()`/`email`/storage URL/`type`
+word/`status` word/`joined_at`/`joined_label` from the summaries, read by property - it may not name the DTO.
+Its `buildQuery` and the four `apply*Filter` methods are deleted, and `App\Models\User` is gone from the file.
+
+**Measured and pinned.** The statements are the same ones, so `admin/users` keeps its budget **16** with NO new
+notice, and the `admin/users` snapshot is byte-identical. `RV42aSuspendedMeansBannedTest` - the test that pins
+"suspended means BANNED, not logged out" - passes unchanged, which is the proof that moving the ban rule behind
+the DTO did not soften it. `Console -> Identity` is unchanged (methods on an existing port).
+
+**Verification.** `AppFuture` + `Admin` + `RV42aSuspendedMeansBannedTest` + `UserDirectoryContractTest` +
+`AdminSnapshotTest` = **237 tests / 1007 assertions OK**, only the recorded budget notices, Pint **PASS** on the
+four changed files.

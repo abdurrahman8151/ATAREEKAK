@@ -4,6 +4,7 @@ namespace App\Modules\Identity\Contracts;
 
 use App\Modules\Identity\DTOs\UserSummary;
 use Carbon\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
  * Stage 2 C3: the read surface for user data, owned by IDENTITY.
@@ -55,4 +56,35 @@ interface UserDirectory
      * @return array<int, array{address: string, count: int}>
      */
     public function addressDistribution(int $limit): array;
+
+    /**
+     * Stage 2 C3: the users dashboard's four cards. Each is one COUNT over `users`; `countAll()` above is the
+     * fifth. The driver-document predicate is Identity's own `photos` table, so it is evaluated here.
+     */
+    public function countVerifiedDrivers(): int;
+
+    public function countPendingDrivers(): int;
+
+    public function countVerifiedPassengers(): int;
+
+    public function countSuspended(): int;
+
+    /**
+     * Stage 2 C3: the users dashboard's filtered, paginated list, as summaries.
+     *
+     * The filters are the screen's own - type (driver/passenger, including the driver-document predicate),
+     * status (verified/pending/suspended), date window and free-text search - and they are applied here
+     * because every one of them is a predicate on `users`. The caller renders rows from the summaries and
+     * never queries the table.
+     *
+     * @return LengthAwarePaginator<int, UserSummary>
+     */
+    public function adminUserPage(
+        string $type,
+        string $status,
+        string $date,
+        ?string $search,
+        int $perPage,
+        int $page,
+    ): LengthAwarePaginator;
 }

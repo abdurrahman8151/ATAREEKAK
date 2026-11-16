@@ -1,4 +1,17 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 slice 5 (largest): the users dashboard moved behind `UserDirectory` (audit
+  sec 363), commit `Stage 2 C3: users dashboard reads users through the directory`.** NEW
+  `UserDirectory::adminUserPage(type,status,date,search,perPage,page)` (the four filters verbatim, including the
+  driver-document predicate now evaluated against Identity's own `photos`) + `countVerifiedDrivers`,
+  `countPendingDrivers`, `countVerifiedPassengers`, `countSuspended` (total via `countAll`). `UserSummary` gained
+  `createdAt` and `isBannedNow` (the ANSWER, not the ban columns; COLUMNS gained the ban inputs).
+  `AdminUserService` no longer names `User`: it renders rows from summaries and keeps the type/status words, the
+  URL and the keys; `buildQuery` + four `apply*Filter` methods deleted. `admin/users` budget unchanged at 16,
+  snapshot byte-identical, **RV42aSuspendedMeansBannedTest green** (the ban rule survived the move).
+  Gate: AppFuture + Admin + RV42a + UserDirectoryContract + AdminSnapshot **237/1007 OK**; Pint PASS 4.
+  **C3 NEXT: the remaining `User::` reads (Console `StaffCancellationService`'s notification lookup needs the
+  model; `EmployeeManagementService`'s shadow-user bridge writes) and Ride's booking `user` eager loads, which
+  stay coupled to the owner-gated UserRating item.**
 - Done recently: **STAGE 2 - C3 slice 4: the admin report's `users` aggregates moved into Identity (audit
   sec 362), commit `Stage 2 C3: report aggregates read users through the directory`.** NEW
   `UserDirectory::countAll()`, `countPendingVerifications()`, `countCreatedBetween(start, end)` and
