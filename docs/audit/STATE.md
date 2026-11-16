@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 slice 3: the verification queues' `users` query moved into Identity (audit
+  sec 361), commit `Stage 2 C3: verification queues read users through the directory`.** NEW
+  `UserDirectory::pendingVerificationUsers(bool $newestFirst)` (filter + ordering owned by Identity) and
+  `UserSummary` grew `gender`, `address`, `verificationStatus`, `updatedAt` (nullable, additive - the first
+  callers needing more than a name). Both Console queues map summaries by property into the identical response;
+  `User` remains only for the mutation paths. Net zero on both endpoints, snapshots byte-identical,
+  `Console -> Identity` still 10 ports (a new METHOD, not a new port). Gate: AppFuture + Admin + Staff +
+  Verification + UserDirectoryContractTest + Admin/Staff snapshots **507/1709 OK**; Pint PASS 5.
+  **C3 NEXT IS COUPLED TO AN OWNER DECISION:** Ride's booking `user` eager loads also feed `BookingResource`'s
+  `average_rating`, which reads `User::receivedRatings()` - the gated UserRating item. Recorded, not attempted.
 - Done recently: **STAGE 2 - C3 slice 2: Money's admin charge history reads the admin through the directory
   (audit sec 360), commit `Stage 2 C3: wallet charge history reads the admin through the directory`.** The
   `user:id,first_name,last_name` eager load is gone; ONE `UserDirectory::summariesFor()` per page beside the

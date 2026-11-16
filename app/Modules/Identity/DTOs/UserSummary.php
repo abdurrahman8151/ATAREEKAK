@@ -2,6 +2,8 @@
 
 namespace App\Modules\Identity\DTOs;
 
+use Carbon\Carbon;
+
 /**
  * Stage 2 C3: what another module may know about a user.
  *
@@ -25,6 +27,12 @@ final class UserSummary
         public readonly ?string $status,
         public readonly bool $isVerifiedPassenger,
         public readonly bool $isVerifiedDriver,
+        // Stage 2 C3: added for the verification queues, which are the first callers that need the profile
+        // columns and the row's own timestamp. Additive with defaults, so every existing construction stands.
+        public readonly ?string $gender = null,
+        public readonly ?string $address = null,
+        public readonly ?string $verificationStatus = null,
+        public readonly ?Carbon $updatedAt = null,
     ) {}
 
     /**

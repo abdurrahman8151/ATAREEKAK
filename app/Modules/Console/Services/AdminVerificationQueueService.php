@@ -4,6 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
+use App\Modules\Identity\Contracts\UserDirectory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -24,33 +25,33 @@ final class AdminVerificationQueueService
      */
     public function pendingVerifications(): JsonResponse
     {
-        // Stage 2 C2: photos is Identity's table; the rows arrive batched for the whole page. The
-        // `profile` eager load went with `User::profile()`: NOTHING on this screen ever read it, so it is
-        // one query fewer on `admin/verifications` (the budget is a ceiling, so the run prints the shrink).
-        $pending = User::where('verification_status', 'pending')
-            ->get();
+        // Stage 2 C3: the LIST query over `users` moved to Identity's directory (filter included); the
+        // documents still arrive batched from the photos port, so the endpoint's query count does not move.
+        $pending = app(UserDirectory::class)->pendingVerificationUsers();
 
-        $documents = app(PhotoRepositoryInterface::class)->documentsFor($pending->pluck('id')->all());
+        $documents = app(PhotoRepositoryInterface::class)->documentsFor(
+            array_map(fn ($user) => $user->id, $pending)
+        );
 
-        $pending = $pending->map(function ($u) use ($documents) {
-            $rows = $documents[$u->id] ?? [];
-            $docTypes = array_column($rows, 'type');
+        $rows = array_map(function ($u) use ($documents) {
+            $docs = $documents[$u->id] ?? [];
+            $docTypes = array_column($docs, 'type');
             $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
 
             return [
                 'user_id' => $u->id,
-                'name' => trim("{$u->first_name} {$u->last_name}"),
+                'name' => trim(($u->firstName ?? '').' '.($u->lastName ?? '')),
                 'email' => $u->email,
                 'type' => $isDriver ? 'driver' : 'passenger',
-                'documents' => collect($rows)->map(fn ($row) => [
+                'documents' => collect($docs)->map(fn ($row) => [
                     'type' => $row['type'],
                     'url' => asset("storage/{$row['path']}"),
                 ]),
-                'submitted_at' => $u->updated_at->toIso8601String(),
+                'submitted_at' => $u->updatedAt->toIso8601String(),
             ];
-        });
+        }, $pending);
 
-        return response()->json(['status' => 'success', 'data' => $pending]);
+        return response()->json(['status' => 'success', 'data' => $rows]);
     }
 
     /**

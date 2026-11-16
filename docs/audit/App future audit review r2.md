@@ -21482,3 +21482,38 @@ unchanged - this removes a relation read, not an import.
 `WalletSnapshotTest` = **427 tests / 1465 assertions OK**; the passenger wallet-charge and admin wallet screens
 are byte-identical and the only notices are the previously recorded ones (`admin/passenger-full-profile` back to
 `19 < 20`). Pint **PASS** on the two changed files.
+
+---
+
+### 361. Stage 2 C3: the verification queues' `users` query moves into Identity; `UserSummary` grows four fields
+
+**The first C3 slice where the whole LIST query moves, not just a name read.** Both verification queues ran
+`User::where('verification_status', 'pending')` themselves and then mapped the rows. The query is over `users`,
+so it now lives with the table's owner:
+
+- `UserDirectory::pendingVerificationUsers(bool $newestFirst = false): array` - same filter; the flag
+  reproduces the staff queue's `orderByDesc('updated_at')` while the admin queue keeps the engine's own order, so
+  both row orders (and snapshots) are untouched.
+- `UserSummary` grew `gender`, `address`, `verificationStatus`, `updatedAt` - all nullable with defaults, so every
+  existing construction and the contract test stand. These are the first callers that need more than a name, and
+  the DTO is the one place the extra columns are published.
+
+**Console reads them by property.** `AdminVerificationQueueService` and `StaffVerificationQueueService` now call
+the port (the same `app(...)` pattern the photo and profile ports already used in those files) and map summaries
+into the identical response arrays - admin: `user_id/name/email/type/documents/submitted_at`; staff the same plus
+`gender/address/profile_photo`. `User` is still imported for the MUTATION paths (`rejectVerification`,
+`findUserOrFail`), which are admin writes about a named user, not display reads.
+
+**Measured.** One `users` query either way, and the documents/photos reads are unchanged, so both endpoints are
+**net zero** - `admin/verifications` and `staff/verifications-pending` print no new budget notice and their
+snapshots are byte-identical. `Console -> Identity` is unchanged at 10 ports: the port grew a METHOD, which the
+graph does not count, and no new edge or cycle appears.
+
+**Verification.** `AppFuture` + `Admin` + `Staff` + `Verification` + `UserDirectoryContractTest` +
+`AdminSnapshotTest` + `StaffSnapshotTest` = **507 tests / 1709 assertions OK**, only the previously recorded
+budget notices. Pint **PASS** on the five changed files.
+
+**C3 status.** Three slices landed (chat-start read deleted, complaint lists, wallet-charge history) plus this
+one. The next target in the sec-358 queue is Ride's six booking `user` eager loads - and that one is NOT clean:
+`BookingResource`'s passenger block also reads `average_rating`, which comes off `User::receivedRatings()`, i.e.
+the owner-gated UserRating item. That coupling is now recorded rather than discovered later.

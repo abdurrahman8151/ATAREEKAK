@@ -23,6 +23,10 @@ final class UserDirectoryReader implements UserDirectory
         'status',
         'is_verified_passenger',
         'is_verified_driver',
+        'gender',
+        'address',
+        'verification_status',
+        'updated_at',
     ];
 
     public function summaryFor(int $userId): ?UserSummary
@@ -47,6 +51,28 @@ final class UserDirectoryReader implements UserDirectory
         return $summaries;
     }
 
+    /**
+     * Stage 2 C3: the verification queues' list, owned here because the query is over `users`. The statement
+     * shape is the one Console ran itself - same filter, and `$newestFirst` reproduces the staff queue's
+     * `orderByDesc('updated_at')` while the admin queue keeps the engine's own order, so both responses stay
+     * byte-identical.
+     *
+     * @return array<int, UserSummary>
+     */
+    public function pendingVerificationUsers(bool $newestFirst = false): array
+    {
+        $query = User::query()->where('verification_status', 'pending');
+
+        if ($newestFirst) {
+            $query->orderByDesc('updated_at');
+        }
+
+        return $query->get(self::COLUMNS)
+            ->map(fn (User $user) => $this->toSummary($user))
+            ->values()
+            ->all();
+    }
+
     private function toSummary(User $user): UserSummary
     {
         return new UserSummary(
@@ -57,6 +83,10 @@ final class UserDirectoryReader implements UserDirectory
             status: $user->status,
             isVerifiedPassenger: (bool) $user->is_verified_passenger,
             isVerifiedDriver: (bool) $user->is_verified_driver,
+            gender: $user->gender,
+            address: $user->address,
+            verificationStatus: $user->verification_status,
+            updatedAt: $user->updated_at,
         );
     }
 }

@@ -5,6 +5,7 @@ namespace App\Modules\Console\Services;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserDirectory;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -30,17 +31,16 @@ final class StaffVerificationQueueService
     public function pendingVerificationList(): array
     {
         return Cache::remember('staff.pending-verifications', now()->addMinutes(2), function () {
-            // Stage 2 C2: the document rows are Identity's and arrive batched for the whole page; the
-            // `profile` eager load is gone and the one column it fed arrives from the same module's port,
-            // so this is one query in, one query out.
-            $users = User::where('verification_status', 'pending')
-                ->orderByDesc('updated_at')
-                ->get();
+            // Stage 2 C3: the list query over `users` moved to Identity's directory (filter and ordering
+            // included); the document rows and the photo column still arrive from the photos and profile
+            // ports, one query each, exactly as before.
+            $users = app(UserDirectory::class)->pendingVerificationUsers(true);
+            $userIds = array_map(fn ($user) => $user->id, $users);
 
-            $documents = app(PhotoRepositoryInterface::class)->documentsFor($users->pluck('id')->all());
-            $photoPaths = app(ProfileDirectory::class)->photoPathsForUsers($users->pluck('id')->all());
+            $documents = app(PhotoRepositoryInterface::class)->documentsFor($userIds);
+            $photoPaths = app(ProfileDirectory::class)->photoPathsForUsers($userIds);
 
-            return $users->map(function (User $u) use ($documents, $photoPaths) {
+            return array_map(function ($u) use ($documents, $photoPaths) {
                 $rows = $documents[$u->id] ?? [];
                 $docTypes = array_column($rows, 'type');
                 $isDriver = in_array('license', $docTypes) || in_array('mechanic_card', $docTypes);
@@ -48,7 +48,7 @@ final class StaffVerificationQueueService
 
                 return [
                     'user_id' => $u->id,
-                    'name' => trim("{$u->first_name} {$u->last_name}"),
+                    'name' => trim(($u->firstName ?? '').' '.($u->lastName ?? '')),
                     'email' => $u->email,
                     'gender' => $u->gender,
                     'address' => $u->address,
@@ -63,9 +63,9 @@ final class StaffVerificationQueueService
                         // an IDOR: anyone holding it could download a face ID / licence.
                         'url' => route('staff.documents.show', ['photoId' => $row['id']]),
                     ])->values()->all(),
-                    'submitted_at' => $u->updated_at->toIso8601String(),
+                    'submitted_at' => $u->updatedAt->toIso8601String(),
                 ];
-            })->values()->all();
+            }, $users);
         });
     }
 
