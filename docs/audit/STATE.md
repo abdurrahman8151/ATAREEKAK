@@ -1,4 +1,16 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 NEW RATCHET + a live defect it found (audit sec 353), commit
+  `Stage 2 C2: class-reference ratchet; a dangling Employee relation removed`.** NEW
+  `tests/Feature/AppFuture/ClassReferenceIntegrityTest.php`: every `X::class` in app/ is resolved through the
+  file's own namespace + import table (token-level, so comments/strings cannot hit) and must exist - the hole
+  `DanglingImportTest` cannot see, since that one only reads literal `App\...` text. Floors 400 files / 300
+  references (measured 428 / 332). **FIRST RUN FOUND A LIVE DEFECT:** `app/Models/Employee.php`'s
+  `refreshTokens()` resolved `StaffRefreshToken::class` to a class that sec 301 moved into Identity - dead, no
+  consumer, invisible to `method_exists` and to `DanglingImportTest`. Deleted it + the test method whose whole
+  subject it was (sec 297 precedent). Needle proved (temporary probe -> ratchet failed naming file/short
+  name/FQCN; probe deleted -> green). **RULE: never write a dead FQCN in prose - DanglingImportTest reads
+  comments (it flagged my own new docblocks).** Gates: AppFuture + Unit/Models **220/676 OK**; Staff + Auth +
+  Unit/Services/Staff **367/827 OK**; Pint PASS 3.
 - Done recently: **STAGE 2 - C2 `Employee` MODEL MOVE: ATTEMPTED AND ROLLED BACK (VERIFIED ROLLBACK, audit
   sec 352).** The move was prepared properly (kernel entrypoints converted to Console contracts first:
   `EmployeeManagementInterface::findEmployeeById` for the middleware, `EmployeeRepositoryInterface` for the

@@ -52,10 +52,10 @@ class Employee extends Authenticatable
         return $this->hasMany(Employee::class, 'created_by');
     }
 
-    public function refreshTokens(): HasMany
-    {
-        return $this->hasMany(StaffRefreshToken::class);
-    }
+    // Stage 2 C2: `refreshTokens()` (hasMany StaffRefreshToken) is REMOVED. It had NO consumer, and since
+    // sec 301 moved `StaffRefreshToken` into Identity it had been pointing at a class that no longer exists -
+    // a latent defect nothing called and no test could see, found by the new `ClassReferenceIntegrityTest`
+    // ratchet. Identity's StaffJwtService queries its own table directly.
 
     // ── Role helpers ──────────────────────────────────────────────────────────
 

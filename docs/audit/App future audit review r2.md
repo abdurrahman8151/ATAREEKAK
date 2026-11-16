@@ -21157,3 +21157,43 @@ listed `App\Models\Employee`. `git diff --stat` for app/tests/database/docs is n
 `RefreshToken::user()`, sec 304 missed `User`'s two UserRating relations, and this one missed
 `Complaint::assignedAgent()` - a `use`-line measurement cannot see a same-namespace reference, and only the
 suite says so.
+
+---
+
+### 353. Stage 2 C2: a new ratchet resolves every `X::class` - and it found a live dangling relation on its first run
+
+**Why a FOURTH reference ratchet.** The tree already has `DanglingImportTest` (stage 1.5): it scans raw text for
+literal `App\...` tokens and asserts each resolves. That catches a stale `use App\...` line and even a stale name
+in prose - but it cannot see an UNQUALIFIED `Short::class`, which is exactly how all three adjacency misses
+happened (sec 301 `RefreshToken::user()`, sec 304 `User`'s UserRating relations, sec 352
+`Complaint::assignedAgent()`). The new `ClassReferenceIntegrityTest` closes that hole: it reads `X::class`
+through the PHP tokenizer (so no comment or string can produce a hit), resolves each short name through the
+file's OWN namespace and import table, keeps only `App\...` results, and asserts `class_exists` /
+`interface_exists` / `trait_exists` / `enum_exists`. Floors: 400 files and 300 resolved references (measured
+2026-11-16: **428 files, 332 references**), so a broken scan cannot pass vacuously.
+
+**The ratchet found a LIVE defect the moment it ran.** `app/Models/Employee.php` still declared
+
+    public function refreshTokens(): HasMany { return $this->hasMany(StaffRefreshToken::class); }
+
+with no import, so `StaffRefreshToken` resolved by namespace adjacency to `App\Models\StaffRefreshToken` - a
+class that **sec 301 moved into Identity**. The relation had NO consumer, and two existing gates could not see
+it: `method_exists` returned true (the METHOD exists), and `DanglingImportTest` only reads literal `App\...`
+tokens. **VERIFIED FIX:** the relation is deleted, and `EmployeeTest::test_has_refresh_tokens_relationship` -
+whose entire subject was that relation - is removed with it, the same call sec 297 made for
+`StaffRefreshToken::employee()`. Identity's `StaffJwtService` queries its own table directly, so nothing that
+runs changes.
+
+**Needle proof.** A temporary `app/Models/RefIntegrityNeedleProbe.php` declaring
+`return MovedAwayThing::class;` made the ratchet fail with
+`Models/RefIntegrityNeedleProbe.php -> MovedAwayThing::class -> App\Models\MovedAwayThing`; the probe was then
+deleted (path verified before deletion, `Test-Path` false afterwards) and the ratchet went green -
+`OK (1 test, 5 assertions)`.
+
+**A lesson about prose, caught by the existing gate.** The new test's docblock and the two comments quoted the
+OLD fully-qualified names as examples, and `DanglingImportTest` failed on them - correctly: it scans text, and
+a name written in a comment IS a dangling token. All four were reworded to the short class names. **Rule for
+this repository: never write a dead FQCN in prose; the scanner reads comments.**
+
+**Verification.** `AppFuture` (the new ratchet included) + `Unit/Models` = **220 tests / 676 assertions OK**;
+`Staff` + `Auth` + `Unit/Services/Staff` = **367 / 827 OK**. Pint **PASS** on the three changed files.

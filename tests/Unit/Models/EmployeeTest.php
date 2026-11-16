@@ -74,10 +74,11 @@ class EmployeeTest extends TestCase
         $this->assertTrue(method_exists(Employee::class, 'managedEmployees'));
     }
 
-    public function test_has_refresh_tokens_relationship(): void
-    {
-        $this->assertTrue(method_exists(Employee::class, 'refreshTokens'));
-    }
+    // Stage 2 C2: `test_has_refresh_tokens_relationship` was REMOVED with its subject. The relation it
+    // asserted had been pointing at `StaffRefreshToken` since that class moved into Identity (sec 301) - it
+    // had no consumer, and `method_exists` could not see that its target class was gone. The new
+    // `ClassReferenceIntegrityTest` ratchet found it. Same call the StaffRefreshToken relation test got in
+    // sec 297.
 
     public function test_creator_relationship_points_to_employee(): void
     {
