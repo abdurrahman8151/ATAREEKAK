@@ -16,9 +16,9 @@ final class StaffBookingListService implements StaffBookingList
     public function paginateStaffBookings(array $filters): LengthAwarePaginator
     {
         $query = Booking::with([
-            'user:id,first_name,last_name,email',
+            // Stage 2 C3: the passenger's and the driver's rows are no longer eager-loaded - the console
+            // formatter batches both name/email reads from Identity's directory, ONE query for the page.
             'ride:id,pickup_address,destination_address,departure_time,price_per_seat,status,driver_id',
-            'ride.driver:id,first_name,last_name',
         ]);
 
         $status = $filters['status'] ?? 'all';

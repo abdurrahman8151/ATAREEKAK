@@ -1,4 +1,15 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 slice 7: the staff bookings list reads passengers and drivers through the
+  directory (audit sec 365), commit `Stage 2 C3: staff bookings read passengers through the directory`.**
+  Ride's `StaffBookingListService` dropped `user` and `ride.driver` eager loads;
+  `StaffBookingQueryService::formatPage()` batches ONE `summariesFor()` for both roles and `toRow()` reads the
+  summaries by property. **The endpoint got CHEAPER: `staff/bookings` 11 -> 10** (shrink notice). Response
+  identical, snapshot byte-identical. Gate: AppFuture + Staff + StaffSnapshot + Bookings **328/1170 OK**;
+  Pint PASS 3.
+  **C3 NEXT: `AdminDriverQueryService` (driver list + driver profile) is presenter-coupled - the presenter
+  takes `User` in five methods across four services - so it needs a coordinated presenter refactor, not a
+  one-file swap. The remaining single `User::` reads are notification recipients (the port needs the model) and
+  the shadow-user bridge (writes).**
 - Done recently: **STAGE 2 - C3 slice 6: the admin dashboard's `users` reads moved to the directory (audit
   sec 364), commit `Stage 2 C3: dashboard cards and feed read users through the directory`.** NEW
   `UserDirectory::countDrivers()`, `recentVerificationUsers($limit)`, `countUsersWithDriverDocumentsCreatedBetween()`,

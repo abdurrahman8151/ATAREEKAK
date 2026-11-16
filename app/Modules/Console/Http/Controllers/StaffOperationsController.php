@@ -225,9 +225,9 @@ final class StaffOperationsController extends Controller
 
             $paginator = $this->bookingQueries->paginate($filters);
 
-            $data = $paginator->getCollection()
-                ->map(fn ($booking) => $this->bookingQueries->toRow($booking))
-                ->values();
+            // Stage 2 C3: one batched directory read for the page's passengers AND drivers, replacing the
+            // two eager loads the Ride query used to carry.
+            $data = collect($this->bookingQueries->formatPage($paginator));
 
             return response()->json([
                 'status' => 'success',

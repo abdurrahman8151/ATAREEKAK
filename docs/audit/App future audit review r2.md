@@ -21604,3 +21604,27 @@ the owner: `countSuspended()` is the same `bannedNow` rule as before, so the car
 **Verification.** `AppFuture` + `Admin` + `RV19AdminStatsTest` + `UserDirectoryContractTest` +
 `AdminSnapshotTest` = **233 tests / 992 assertions OK**, only the recorded budget notices, Pint **PASS** on the
 three changed files.
+
+---
+
+### 365. Stage 2 C3: the staff bookings list stops eager-loading the passenger and the driver - and gets CHEAPER
+
+**The slice.** Ride's `StaffBookingListService` eager-loaded `user:id,first_name,last_name,email` and
+`ride.driver:id,first_name,last_name` for the staff bookings table. Both are reads of another user's row for a
+name and an email. They are gone; `StaffBookingQueryService::formatPage()` collects the page's passenger ids AND
+driver ids into ONE `UserDirectory::summariesFor()` call, and `toRow()` reads the summaries by property.
+
+**Result: the endpoint got one query CHEAPER, not merely equal.** Two eager loads became one directory query, so
+`staff/bookings` prints **10 < 11**. That is the good direction and the budget file stays untouched.
+
+**Response identical.** `passenger: {id, name, email}` and `ride.driver: {id, name}` keep their keys and their
+`null`/`''` behaviour for a deleted row (the summary is absent, so `id`/`email` are null and the name is the
+empty string, exactly as the missing relation produced); everything else on the row still comes from the booking
+and its ride. The staff-bookings snapshot is byte-identical.
+
+**Ratchets.** `Console -> Identity` unchanged (10 ports - `UserDirectory` was already counted); `Console -> Ride`
+unchanged (`StaffBookingList` remains the port). Ride itself still eager-loads users where a response needs the
+rating (`BookingResource`), which stays coupled to the owner-gated UserRating item.
+
+**Verification.** `AppFuture` + `Staff` + `StaffSnapshotTest` + `Bookings` = **328 tests / 1170 assertions OK**,
+Pint **PASS** on the three changed files.

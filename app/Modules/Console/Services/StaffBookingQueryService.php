@@ -2,6 +2,7 @@
 
 namespace App\Modules\Console\Services;
 
+use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Ride\Contracts\StaffBookingList;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -15,32 +16,70 @@ use Illuminate\Pagination\LengthAwarePaginator;
  */
 final class StaffBookingQueryService
 {
+    public function __construct(
+        private readonly UserDirectory $users,
+    ) {}
+
     /**
      * @param  array{status?: string, user_id?: int, ride_id?: int, per_page?: int, page?: int}  $filters
      */
     public function paginate(array $filters): LengthAwarePaginator
     {
-        // Stage 2 C2: the query over `bookings` (and its ride/driver/passenger eager loads) is Ride's; the
-        // rows come back here and `toRow()` below still shapes them.
+        // Stage 2 C2: the query over `bookings` (and its ride eager load) is Ride's; the rows come back here
+        // and the formatter below shapes them.
         return app(StaffBookingList::class)->paginateStaffBookings($filters);
+    }
+
+    /**
+     * Stage 2 C3: shape a whole page in one pass - the passengers' and drivers' names/emails arrive from
+     * Identity's directory in ONE query for the page (the two eager loads this replaces cost two).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function formatPage(LengthAwarePaginator $paginator): array
+    {
+        $bookings = $paginator->getCollection();
+
+        $userIds = $bookings
+            ->pluck('user_id')
+            ->merge($bookings->map(fn ($booking) => $booking->ride?->driver_id))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $summaries = $this->users->summariesFor($userIds);
+
+        return $bookings
+            ->map(fn ($booking) => $this->toRow($booking, $summaries))
+            ->values()
+            ->all();
     }
 
     /**
      * Map one booking into the public row shape. Kept identical to the original controller output.
      *
+     * `$summaries` is Identity's map keyed by user id; the values are read by property - this module never
+     * names the DTO class.
+     *
+     * @param  array<int, object>  $summaries
      * @return array<string, mixed>
      */
-    public function toRow($booking): array
+    public function toRow($booking, array $summaries = []): array
     {
+        $passenger = $booking->user_id ? ($summaries[(int) $booking->user_id] ?? null) : null;
+        $driver = $booking->ride?->driver_id ? ($summaries[(int) $booking->ride->driver_id] ?? null) : null;
+
         return [
             'id' => $booking->id,
             'status' => $booking->status,
             'seats' => $booking->seats,
             'communication_number' => $booking->communication_number,
             'passenger' => [
-                'id' => $booking->user?->id,
-                'name' => trim(($booking->user?->first_name ?? '').' '.($booking->user?->last_name ?? '')),
-                'email' => $booking->user?->email,
+                'id' => $passenger?->id,
+                'name' => $passenger !== null ? $passenger->fullName() : '',
+                'email' => $passenger?->email,
             ],
             'ride' => [
                 'id' => $booking->ride?->id,
@@ -50,11 +89,8 @@ final class StaffBookingQueryService
                 'price_per_seat' => $booking->ride?->price_per_seat,
                 'ride_status' => $booking->ride?->status,
                 'driver' => [
-                    'id' => $booking->ride?->driver?->id,
-                    'name' => trim(
-                        ($booking->ride?->driver?->first_name ?? '').' '.
-                        ($booking->ride?->driver?->last_name ?? '')
-                    ),
+                    'id' => $driver?->id,
+                    'name' => $driver !== null ? $driver->fullName() : '',
                 ],
             ],
             'total_price' => $booking->seats * ($booking->ride?->price_per_seat ?? 0),
