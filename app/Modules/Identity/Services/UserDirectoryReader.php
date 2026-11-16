@@ -5,6 +5,8 @@ namespace App\Modules\Identity\Services;
 use App\Models\User;
 use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Identity\DTOs\UserSummary;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Stage 2 C3: the `users` table is Identity's to read; everyone else asks here.
@@ -69,6 +71,35 @@ final class UserDirectoryReader implements UserDirectory
 
         return $query->get(self::COLUMNS)
             ->map(fn (User $user) => $this->toSummary($user))
+            ->values()
+            ->all();
+    }
+
+    public function countAll(): int
+    {
+        return User::query()->count();
+    }
+
+    public function countPendingVerifications(): int
+    {
+        return User::query()->where('verification_status', 'pending')->count();
+    }
+
+    public function countCreatedBetween(Carbon $start, Carbon $end): int
+    {
+        return User::query()->whereBetween('created_at', [$start, $end])->count();
+    }
+
+    public function addressDistribution(int $limit): array
+    {
+        return User::query()
+            ->select('address', DB::raw('COUNT(*) as count'))
+            ->whereNotNull('address')
+            ->groupBy('address')
+            ->orderByDesc('count')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => ['address' => (string) $row->address, 'count' => (int) $row->count])
             ->values()
             ->all();
     }

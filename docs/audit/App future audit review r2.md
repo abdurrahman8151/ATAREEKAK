@@ -21517,3 +21517,29 @@ budget notices. Pint **PASS** on the five changed files.
 one. The next target in the sec-358 queue is Ride's six booking `user` eager loads - and that one is NOT clean:
 `BookingResource`'s passenger block also reads `average_rating`, which comes off `User::receivedRatings()`, i.e.
 the owner-gated UserRating item. That coupling is now recorded rather than discovered later.
+
+---
+
+### 362. Stage 2 C3: the admin report's four `users` aggregates move into Identity; the file stops naming `User`
+
+**The slice.** `AdminReportService` ran four statements against `users` itself - a total count, the pending
+verification count, the new-users-in-window count for the growth chart, and the address-grouped distribution for
+the cities donut. All four are now methods on the table's owner:
+
+- `UserDirectory::countAll()`, `countPendingVerifications()`, `countCreatedBetween(Carbon $start, Carbon $end)`,
+  and `addressDistribution(int $limit): array` (raw `['address' => string, 'count' => int]` rows, most common
+  first, limit applied in SQL - the same statement shape and order as before).
+
+**Presentation stayed in Console.** The Arabic-to-English city name map and the percentage arithmetic are the
+report's, not Identity's; `addressDistribution()` deliberately returns raw rows so the port does not publish a
+formatting rule. The `admin/dashboard-cities` snapshot - which pins those Arabic literals and the rounded
+percentages - is byte-identical.
+
+**Measured.** One query per call either way, so `admin/dashboard`, `admin/dashboard-cities`,
+`admin/dashboard-growth` and `admin/reports` print NO new budget notice. `App\Models\User` and
+`Illuminate\Support\Facades\DB` are now unused in that file and removed; `UserDirectory` is already a Console
+port, so the module graph is unchanged (a new METHOD, not a new port or edge).
+
+**Verification.** `AppFuture` + `Admin` + `RV19AdminStatsTest` + `T49MojibakeRepairTest` +
+`UserDirectoryContractTest` + `AdminSnapshotTest` = **241 tests / 1006 assertions OK**, only the recorded budget
+notices, Pint **PASS** on the three changed files.

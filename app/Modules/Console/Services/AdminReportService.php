@@ -5,15 +5,14 @@ namespace App\Modules\Console\Services;
 use App\Domain\ValueObjects\Money;
 use App\Enums\ComplaintStatus;
 use App\Models\Complaint;
-use App\Models\User;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Money\Contracts\LedgerAggregates;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Ride\Contracts\BookingActivityFeed;
 use App\Modules\Ride\Contracts\BookingRevenueAggregates;
 use App\Modules\Ride\Contracts\RideReportCounts;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * AdminReportService
@@ -94,7 +93,9 @@ final class AdminReportService
         $primaryBalance = $primaryWallet ? (float) $primaryWallet->balance : 0.0;
 
         return [
-            'total_users' => User::count(),
+            // Stage 2 C3: the four `users` aggregates moved to Identity's directory - the table's owner runs
+            // the statements, the report keeps the numbers and their formatting.
+            'total_users' => app(UserDirectory::class)->countAll(),
             // Stage 2 C2: the trip counters are Ride's own table, so Ride counts them.
             'active_trips' => app(RideReportCounts::class)->activeTrips(),
             'completed_trips' => app(RideReportCounts::class)->completedTrips(),
@@ -109,7 +110,7 @@ final class AdminReportService
             // StaffAdminController's per-status counts: "pending" = ComplaintStatus::PENDING
             // only; in_review/escalated are tracked in their own surfaces.
             'pending_complaints' => Complaint::where('status', ComplaintStatus::PENDING->value)->count(),
-            'verification_requests' => User::where('verification_status', 'pending')->count(),
+            'verification_requests' => app(UserDirectory::class)->countPendingVerifications(),
         ];
     }
 
@@ -134,7 +135,7 @@ final class AdminReportService
 
             $completedTrips = app(RideReportCounts::class)->completedTripsBetween($start, $end);
 
-            $newUsers = User::whereBetween('created_at', [$start, $end])->count();
+            $newUsers = app(UserDirectory::class)->countCreatedBetween($start, $end);
 
             $data[] = [
                 'month' => $start->format('M'),        // 'Jan'
@@ -157,8 +158,9 @@ final class AdminReportService
     /**
      * Breakdown of users (and therefore trips) by Syrian governorate.
      *
-     * Uses the User.address field, which is validated against a known
-     * list of Syrian cities at registration, so grouping is clean.
+     * Uses the `users.address` field, which is validated against a known
+     * list of Syrian cities at registration, so grouping is clean. The grouping itself is Identity's
+     * `UserDirectory::addressDistribution()` now; the display names and percentages below are this report's.
      *
      * Returns:
      *   [ { city: 'دمشق', city_en: 'Damascus', count: 450, percentage: 45 }, … ]
@@ -183,21 +185,18 @@ final class AdminReportService
             'دير الزور' => 'Deir ez-Zor',
         ];
 
-        $rows = User::select('address', DB::raw('COUNT(*) as count'))
-            ->whereNotNull('address')
-            ->groupBy('address')
-            ->orderByDesc('count')
-            ->limit(6)
-            ->get();
+        // Stage 2 C3: the grouped `users` query is Identity's; the raw rows come back in the same order and
+        // the same shape, and the display names and percentages below stay this report's.
+        $rows = collect(app(UserDirectory::class)->addressDistribution(6));
 
         $total = $rows->sum('count') ?: 1; // avoid div-by-zero
 
-        return $rows->map(function ($row) use ($nameMap, $total) {
+        return $rows->map(function (array $row) use ($nameMap, $total) {
             return [
-                'city' => $row->address,
-                'city_en' => $nameMap[$row->address] ?? $row->address,
-                'count' => $row->count,
-                'percentage' => (int) round(($row->count / $total) * 100),
+                'city' => $row['address'],
+                'city_en' => $nameMap[$row['address']] ?? $row['address'],
+                'count' => $row['count'],
+                'percentage' => (int) round(($row['count'] / $total) * 100),
             ];
         })->values()->toArray();
     }

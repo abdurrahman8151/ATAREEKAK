@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 slice 4: the admin report's `users` aggregates moved into Identity (audit
+  sec 362), commit `Stage 2 C3: report aggregates read users through the directory`.** NEW
+  `UserDirectory::countAll()`, `countPendingVerifications()`, `countCreatedBetween(start, end)` and
+  `addressDistribution(limit)` (raw address/count rows, same order/limit); Console keeps the Arabic display-name
+  map and the percentages (the cities snapshot is byte-identical). `App\Models\User` and `DB` imports gone from
+  `AdminReportService`; module graph unchanged (new METHODS on an existing port). Net zero on
+  dashboard/cities/growth/reports. Gate: AppFuture + Admin + RV19AdminStats + T49Mojibake +
+  UserDirectoryContract + AdminSnapshot **241/1006 OK**; Pint PASS 3.
+  **C3 NEXT: the users dashboard (`AdminUserService`) - the largest remaining one; it needs the ban/created
+  fields added to `UserSummary` and its filtered list moved into Identity.**
 - Done recently: **STAGE 2 - C3 slice 3: the verification queues' `users` query moved into Identity (audit
   sec 361), commit `Stage 2 C3: verification queues read users through the directory`.** NEW
   `UserDirectory::pendingVerificationUsers(bool $newestFirst)` (filter + ordering owned by Identity) and

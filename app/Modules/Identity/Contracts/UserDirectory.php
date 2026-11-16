@@ -3,6 +3,7 @@
 namespace App\Modules\Identity\Contracts;
 
 use App\Modules\Identity\DTOs\UserSummary;
+use Carbon\Carbon;
 
 /**
  * Stage 2 C3: the read surface for user data, owned by IDENTITY.
@@ -35,4 +36,23 @@ interface UserDirectory
      * @return array<int, UserSummary> a list, not keyed
      */
     public function pendingVerificationUsers(bool $newestFirst = false): array;
+
+    /**
+     * Stage 2 C3: the admin report's three `users` counters. They are aggregates over a table Identity owns,
+     * so the statements live here even though the numbers are the report's.
+     */
+    public function countAll(): int;
+
+    public function countPendingVerifications(): int;
+
+    public function countCreatedBetween(Carbon $start, Carbon $end): int;
+
+    /**
+     * The city distribution the admin dashboard draws: raw `address` rows with their counts, most common
+     * first, capped at `$limit`. The Arabic-to-English display names and the percentages stay in Console -
+     * they are presentation, not data.
+     *
+     * @return array<int, array{address: string, count: int}>
+     */
+    public function addressDistribution(int $limit): array;
 }
