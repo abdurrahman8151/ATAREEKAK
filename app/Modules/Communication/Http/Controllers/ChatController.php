@@ -85,12 +85,14 @@ class ChatController extends Controller
 
         try {
             $currentUser = $request->user();
-            $otherUser = $this->messageHandler->conversationTarget((int) $request->user_id);
+            // Stage 2 C3: the validated `exists:users,id` rule already guarantees the row exists, and the
+            // conversation queries only need the ID - so the other user's row is no longer fetched at all.
+            $otherUserId = (int) $request->user_id;
 
             // Check if conversation already exists
             $existingConversation = $this->chatRepository->findPrivateConversation(
-                $currentUser,
-                $otherUser
+                (int) $currentUser->id,
+                $otherUserId
             );
 
             if ($existingConversation) {
@@ -105,7 +107,7 @@ class ChatController extends Controller
 
             // Create new conversation
             $conversation = $this->chatRepository->createConversation(
-                [$currentUser->id, $otherUser->id],
+                [(int) $currentUser->id, $otherUserId],
                 'private'
             );
 

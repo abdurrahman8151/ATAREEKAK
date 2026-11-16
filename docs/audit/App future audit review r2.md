@@ -21386,3 +21386,41 @@ it is an assertion deletion.
 ratchets are green, the readiness tool measures the rest, and the remaining fourteen pairs each sit behind one of
 the five sentences above. The C3 `UserDirectory` migration (sec 298) is the only other open code item and it is
 NOT owner-gated - it is unstarted by choice, with its measurement recorded.
+
+---
+
+### 358. Stage 2 C3 opens: the chat-start path stops fetching the other user's row at all - and the C3 queue is measured
+
+**The first C3 slice is a deletion, not a port.** `ChatController::startConversation()` called
+`ChatMessageHandler::conversationTarget($id)` - a `User::whereKey($id)->first()` - and used the row for exactly
+one thing: `->id`. The controller had already validated `exists:users,id`, and both conversation queries take ids.
+So the other user's row (name, email, status, every column) was being read to recover a value the request already
+carried.
+
+- `ChatRepositoryInterface::findPrivateConversation(int $user1Id, int $user2Id)` replaces the `(User, User)`
+  signature; the implementation compares `user_id` columns directly.
+- `ChatController` passes `(int) $request->user_id` straight through.
+- `ChatMessageHandler::conversationTarget()` is deleted - its only caller was that line.
+- Nothing else changes: same validation, same 200/201 envelopes, same messages.
+
+**Measured.** `chat/conversations-store` **7 -> 6 queries** (the removed lookup; notice printed, budget file
+untouched) and the `chat/conversations-store` snapshot is byte-identical. This is the cheap half of C3: before
+building a port, check whether the other user's row is needed at all.
+
+**Verification.** `AppFuture` + `Chat` + `Notifications` + `EngagementSnapshotTest` = **107 tests /
+616 assertions OK**, only the two recorded chat budget notices, Pint PASS on the four changed files.
+
+**The C3 queue, measured (rough, comment-inclusive, and labelled as such).** A scan of `app/Modules` finds **47
+files** that either eager-load a `user` relation (**36** occurrences) or run a direct `User::` query (**33**).
+Not all are reads of another user - `$request->user()` and controller parameter types are the principal ADR 0007
+keeps, and the regex also catches docblock examples - but the actionable shapes are clear, and each slice is
+snapshot-verified before the next:
+1. **Console complaint rows** (`StaffComplaintService`): the `user:id,first_name,last_name,email` eager load is
+   exactly `UserSummary`'s fields (id, names, email) -> `UserDirectory::summariesFor()` for the page.
+2. **Money's admin charge history** (`WalletChargeHistoryReader`): the `user:id,first_name,last_name` eager load
+   feeds `processed_by_id/name` only -> the same batched directory; adds `UserDirectory` as a second Identity
+   port on Money's existing edge.
+3. **Ride's booking displays** (six eager loads across `BookingService`, `RideLifecycleHandler`,
+   `BookingActionService`, `BookingActivityFeedService`, `BookingCancellationService`, ...): the largest group;
+   each endpoint needs its own response-parity pass and query-count check.
+`Identity`'s own files are the owner of the table and are not targets.

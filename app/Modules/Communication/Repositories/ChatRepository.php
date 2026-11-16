@@ -60,11 +60,11 @@ class ChatRepository implements ChatRepositoryInterface
         return Conversation::with('participants', 'latestMessage.sender')->find($conversationId);
     }
 
-    public function findPrivateConversation(User $user1, User $user2): ?Conversation
+    public function findPrivateConversation(int $user1Id, int $user2Id): ?Conversation
     {
         return Conversation::where('type', 'private')
-            ->whereHas('participants', fn ($q) => $q->where('user_id', $user1->id))
-            ->whereHas('participants', fn ($q) => $q->where('user_id', $user2->id))
+            ->whereHas('participants', fn ($q) => $q->where('user_id', $user1Id))
+            ->whereHas('participants', fn ($q) => $q->where('user_id', $user2Id))
             ->first();
     }
 

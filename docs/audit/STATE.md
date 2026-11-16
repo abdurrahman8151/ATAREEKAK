@@ -1,4 +1,13 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 OPENS: the chat-start path no longer fetches the other user's row (audit
+  sec 358), commit `Stage 2 C3: chat start takes the validated user id`.** `findPrivateConversation(int, int)`
+  replaces `(User, User)`; the controller passes the validated `request->user_id`; `ChatMessageHandler::
+  conversationTarget()` deleted (its only caller). `chat/conversations-store` 7 -> 6 queries, snapshot
+  byte-identical. Gate: AppFuture + Chat + Notifications + EngagementSnapshot **107/616 OK**; Pint PASS 4.
+  **C3 QUEUE (measured, rough): 47 module files touch a `user` relation/`User::` query.** Next slices:
+  (1) `StaffComplaintService`'s `user:id,first_name,last_name,email` eager load == `UserSummary` fields;
+  (2) `WalletChargeHistoryReader`'s admin name; (3) Ride's six booking `user` eager loads (largest, needs
+  response-parity per endpoint).
 - **BLOCKED ON OWNER (audit sec 357): all 14 remaining pairs need one of five sentences, and the first is now
   provably tiny.**
   **1. DELETE `Complaint::ride()` + `RV23ComplaintContextTest:82-83`?** Measured: the relation has NO production

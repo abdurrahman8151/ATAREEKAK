@@ -233,16 +233,4 @@ final class ChatMessageHandler implements ChatMessageHandlerInterface
     {
         return $this->chatRepository->deleteMessage($messageId, $user->id);
     }
-
-    /**
-     * Resolve the user a private conversation is being opened with.
-     *
-     * Moved here from ChatController (batch 227) so the controller holds no Eloquent
-     * reference. The controller still runs the `exists:users,id` rule first, exactly as
-     * before, so a missing row behaves the same as it did.
-     */
-    public function conversationTarget(int $userId): ?User
-    {
-        return User::whereKey($userId)->first();
-    }
 }

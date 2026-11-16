@@ -24,7 +24,13 @@ interface ChatRepositoryInterface
 
     public function findConversation(int $conversationId): ?Conversation;
 
-    public function findPrivateConversation(User $user1, User $user2): ?Conversation;
+    /**
+     * Find the existing private conversation between two users.
+     *
+     * Stage 2 C3: takes the two IDs, not two `User` rows - the caller only ever needed the ids, and fetching
+     * the other user's row to read `->id` was another user's data read for nothing.
+     */
+    public function findPrivateConversation(int $user1Id, int $user2Id): ?Conversation;
 
     /** Find an existing support conversation between a customer and an agent. */
     public function findSupportConversation(User $user, User $agent): ?Conversation;
