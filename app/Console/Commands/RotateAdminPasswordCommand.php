@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Employee;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Hash;
  *
  * Why a command instead of a UI?
  *   - Restricted accounts cannot be changed via the management API (by design).
- *   - A CLI command requires server access — a much higher bar than a stolen JWT.
+ *   - A CLI command requires server access - a much higher bar than a stolen JWT.
  *   - The command invalidates all active sessions immediately after rotation.
  *
  * Usage:
@@ -22,6 +22,11 @@ use Illuminate\Support\Facades\Hash;
  *
  * In CI/CD (non-interactive):
  *   php artisan admin:rotate-password system_admin --password="${NEW_PASS}" --force
+ *
+ * Stage 2 C2: the `Employee` model moved into the Console module, so this kernel entrypoint reads and writes
+ * through Console's `EmployeeRepositoryInterface` and names no implementation class. The values it handles are
+ * UNTYPED on purpose (the established pattern for a foreign module's row): the visible behaviour - the two
+ * lookups, the role refusal, the prompts and the revocation - is unchanged.
  */
 class RotateAdminPasswordCommand extends Command
 {
@@ -34,6 +39,7 @@ class RotateAdminPasswordCommand extends Command
 
     public function __construct(
         private readonly TokenRevokerInterface $jwtService,
+        private readonly EmployeeRepositoryInterface $employees,
     ) {
         parent::__construct();
     }
@@ -66,11 +72,11 @@ class RotateAdminPasswordCommand extends Command
     /**
      * Load the account and refuse anything that is not a restricted admin role.
      */
-    private function resolveRestrictedEmployee(string $username): ?Employee
+    private function resolveRestrictedEmployee(string $username)
     {
         // ── Load & validate ───────────────────────────────────────────────────
 
-        $employee = Employee::where('username', $username)->first();
+        $employee = $this->employees->findByUsername($username);
 
         if (! $employee) {
             $this->error("No employee found with username: {$username}");
@@ -93,7 +99,7 @@ class RotateAdminPasswordCommand extends Command
     /**
      * Read the new password (prompting when needed) and validate it.
      */
-    private function resolveNewPassword(string $username, Employee $employee): ?string
+    private function resolveNewPassword(string $username, $employee): ?string
     {
         // ── Get new password ──────────────────────────────────────────────────
 
@@ -126,7 +132,7 @@ class RotateAdminPasswordCommand extends Command
     /**
      * Ask for confirmation unless --force was passed.
      */
-    private function confirmRotation(string $username, Employee $employee): bool
+    private function confirmRotation(string $username, $employee): bool
     {
         // ── Confirm (unless --force) ──────────────────────────────────────────
 
@@ -148,15 +154,16 @@ class RotateAdminPasswordCommand extends Command
     /**
      * Write the new hash and invalidate every active session.
      */
-    private function applyRotation(string $username, Employee $employee, string $password): void
+    private function applyRotation(string $username, $employee, string $password): void
     {
         // ── Apply ─────────────────────────────────────────────────────────────
 
-        $employee->password = Hash::make($password);
-        $employee->save();
+        // The repository's update runs the same Eloquent update the command used to call on the model, so the
+        // `hashed` cast still sees an already-hashed value and does not hash it twice.
+        $this->employees->update((int) $employee->id, ['password' => Hash::make($password)]);
 
-        // Bump token_version — this invalidates every JWT issued before now
-        $this->jwtService->revokeAllTokens($employee->id);
+        // Bump token_version - this invalidates every JWT issued before now
+        $this->jwtService->revokeAllTokens((int) $employee->id);
 
         $this->info("✓ Password rotated for {$employee->role->label()} ({$username}).");
         $this->info('✓ All active sessions have been invalidated.');

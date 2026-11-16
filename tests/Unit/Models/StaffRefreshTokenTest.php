@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Models;
 
-use App\Models\Employee;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Models\StaffRefreshToken;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;

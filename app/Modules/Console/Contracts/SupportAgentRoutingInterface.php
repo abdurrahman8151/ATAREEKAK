@@ -2,7 +2,7 @@
 
 namespace App\Modules\Console\Contracts;
 
-use App\Models\Employee;
+use App\Modules\Console\Models\Employee;
 
 /**
  * Port over the support-agent routing rule (batch 233).

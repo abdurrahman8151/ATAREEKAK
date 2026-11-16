@@ -2,8 +2,8 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Employee;
 use App\Modules\Console\Contracts\EmployeeTokenVersion;
+use App\Modules\Console\Models\Employee;
 
 /**
  * Stage 2 C2: Console's implementation of the token-version bump.

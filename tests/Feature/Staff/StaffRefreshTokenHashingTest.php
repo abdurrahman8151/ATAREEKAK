@@ -3,8 +3,8 @@
 namespace Tests\Feature\Staff;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Modules\Identity\Services\StaffJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;

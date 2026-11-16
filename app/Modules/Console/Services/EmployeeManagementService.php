@@ -3,9 +3,9 @@
 namespace App\Modules\Console\Services;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Console\Contracts\EmployeeManagementInterface;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
@@ -54,6 +54,15 @@ class EmployeeManagementService implements EmployeeManagementInterface
     // =========================================================================
     // READ
     // =========================================================================
+
+    /**
+     * Stage 2 C2: the staff middleware's lookup, published on the port so the kernel entrypoint names no
+     * implementation class. One query, exactly what the middleware used to run itself.
+     */
+    public function findEmployeeById(int $id): ?Employee
+    {
+        return Employee::find($id);
+    }
 
     /**
      * All employees visible to the requester.

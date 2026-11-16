@@ -3,11 +3,11 @@
 namespace Tests\Feature\Review;
 
 use App\Models\Booking;
-use App\Models\Employee;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\Console\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;

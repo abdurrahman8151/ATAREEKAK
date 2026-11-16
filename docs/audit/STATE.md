@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 `Employee` MOVES INTO CONSOLE - the sec-352 rollback now lands (audit sec 356),
+  commit `Stage 2 C2: Employee moves into Console`.** After sec 355 removed the `Complaint` wall, the move
+  needed only the entrypoint conversion the rollback had designed: `EmployeeManagementInterface::findEmployeeById`
+  for `StaffJwtMiddleware` (keeps all four refusal branches; untyped value in `bindUserResolver`) and
+  `EmployeeRepositoryInterface` for the rotate-password command. `git mv` + explicit `$table='employees'`, 47
+  import rewrites, two prose mentions of the dead FQCN reworded (`DanglingImportTest` reads comments), classmap
+  regenerated. **Ratchets: `KERNEL_MODEL_IMPORTS` 15 -> 14 (`Console -> Employee` gone); Console per-file
+  allowlist -9 entries / 2 trimmed; `TABLE_OWNERS` gains `employees => Console`; `ENTRYPOINT_ALLOWLIST` stays
+  empty; kernel port ceiling untouched; no cross-context edge.** Docs + readiness tool updated. Gates: 280/764 +
+  505/1246 + 270/1541 + 67/185 OK, staff-auth snapshots byte-identical; Pint PASS 53.
 - Done recently: **STAGE 2 - C2 `Complaint::assignedAgent()` GONE - the Employee-move wall removed (audit
   sec 355), commit `Stage 2 C2: complaints resolve assignees through Console's repository`.** NEW
   `EmployeeRepositoryInterface::accountsFor(array): array` (ONE `whereIn`, `StaffAccount` DTOs keyed by id);

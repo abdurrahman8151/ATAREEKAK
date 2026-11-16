@@ -3,8 +3,8 @@
 namespace Tests\Support\Concerns;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Services\JwtService;
 use Illuminate\Testing\TestResponse;
 

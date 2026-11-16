@@ -3,7 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Console\Services\AdminAuthService;
 use App\Modules\Identity\Services\EmployeeAuthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;

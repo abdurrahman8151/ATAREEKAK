@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Employee;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

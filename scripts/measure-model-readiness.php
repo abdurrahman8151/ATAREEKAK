@@ -22,7 +22,7 @@ $repo = dirname(__DIR__);
 $targets = [
     'Ride' => 'Ride', 'Booking' => 'Ride', 'NoshowReport' => 'Ride',
     'LedgerEntry' => 'Money', 'Wallet' => 'Money', 'WalletRequest' => 'Money', 'WalletTransaction' => 'Money',
-    'Complaint' => 'Console', 'ComplaintAttachment' => 'Console', 'Employee' => 'Console',
+    'Complaint' => 'Console', 'ComplaintAttachment' => 'Console',
     'Profile' => 'Identity', 'ProfileComment' => 'Identity', 'UserRating' => 'Identity',
 ];
 

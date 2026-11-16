@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
+use App\Modules\Console\Models\Employee;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 

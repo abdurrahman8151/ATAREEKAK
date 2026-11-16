@@ -3,8 +3,8 @@
 namespace Tests\Unit\Middleware;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;

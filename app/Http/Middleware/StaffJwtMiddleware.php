@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Employee;
 use App\Modules\Console\Contracts\EmployeeManagementInterface;
 use App\Modules\Identity\Contracts\StaffTokenVerifierInterface;
 use Closure;
@@ -59,7 +58,9 @@ final class StaffJwtMiddleware
         }
 
         // ── 4. Load Employee ──────────────────────────────────────────────────
-        $employee = Employee::find($payload['sub']);
+        // Stage 2 C2: through Console's port - the model lives in that module now, and a kernel entrypoint
+        // may name a module's Contracts, never its implementation.
+        $employee = $this->managementService->findEmployeeById((int) $payload['sub']);
         if (! $employee) {
             return $this->fail('EMPLOYEE_NOT_FOUND', 'Employee account not found.');
         }
@@ -89,8 +90,11 @@ final class StaffJwtMiddleware
 
     /**
      * Step 8: attach the lazy shadow-user resolver to the request.
+     *
+     * `$employee` is deliberately UNTYPED: the model belongs to Console, and this kernel entrypoint reaches it
+     * only through the port that returned it (the codebase's established pattern for a foreign value).
      */
-    private function bindUserResolver(Request $request, Employee $employee): void
+    private function bindUserResolver(Request $request, $employee): void
     {
         // Admin controllers attribute writes to `$request->user()?->id`
         // (wallet_requests.processed_by, users.banned_by, wallet_transactions

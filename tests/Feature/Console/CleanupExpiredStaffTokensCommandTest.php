@@ -3,7 +3,7 @@
 namespace Tests\Feature\Console;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Models\StaffRefreshToken;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;

@@ -54,24 +54,15 @@ final class ModelOwnershipTest extends TestCase
      */
     private const CONSOLE_FOREIGN_MODEL_FILES = [
         'app/Modules/Console/Contracts/ComplaintRepositoryInterface.php' => ['Complaint'],
-        'app/Modules/Console/Contracts/EmployeeManagementInterface.php' => ['Employee'],
-        'app/Modules/Console/Contracts/EmployeeRepositoryInterface.php' => ['Employee'],
-        'app/Modules/Console/Contracts/SupportAgentRoutingInterface.php' => ['Employee'],
         'app/Modules/Console/Repositories/ComplaintRepository.php' => ['Complaint'],
-        'app/Modules/Console/Repositories/EmployeeRepository.php' => ['Employee'],
-        'app/Modules/Console/Services/AdminAuthService.php' => ['Employee'],
         'app/Modules/Console/Services/AdminReportService.php' => ['Complaint'],
         'app/Modules/Console/Services/AdminWalletRequestService.php' => ['Wallet', 'WalletRequest'],
         'app/Modules/Console/Services/AdminWalletService.php' => ['Wallet'],
-        'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment', 'Employee'],
-        // Stage 2 C2: the bumper for Identity's session invalidation - it writes Console's own table.
-        'app/Modules/Console/Services/EmployeeTokenVersionBumper.php' => ['Employee'],
+        'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment'],
         // Stage 2 C2: Ride's no-show conflict opens its complaint through this Console file.
         'app/Modules/Console/Services/ComplaintDirectoryService.php' => ['Complaint'],
         'app/Modules/Console/Services/ComplaintRecorderService.php' => ['Complaint'],
-        'app/Modules/Console/Services/EmployeeManagementService.php' => ['Employee'],
-        'app/Modules/Console/Services/StaffComplaintService.php' => ['Complaint', 'Employee'],
-        'app/Modules/Console/Services/SupportAgentRoutingService.php' => ['Employee'],
+        'app/Modules/Console/Services/StaffComplaintService.php' => ['Complaint'],
     ];
 
     /**
@@ -94,6 +85,8 @@ final class ModelOwnershipTest extends TestCase
         'user_scores' => 'Ride',
         // Stage 2 C2: the `photos` table's model moved into Identity.
         'photos' => 'Identity',
+        // Stage 2 C2: the `employees` table's model moved into Console.
+        'employees' => 'Console',
     ];
 
     /**
@@ -105,7 +98,6 @@ final class ModelOwnershipTest extends TestCase
     private const KERNEL_MODEL_IMPORTS = [
         'Console -> Complaint' => 'complaints',
         'Console -> ComplaintAttachment' => 'complaint_attachments',
-        'Console -> Employee' => 'employees',
         'Console -> Wallet' => 'wallets',
         'Console -> WalletRequest' => 'wallet_requests',
         'Identity -> Profile' => 'profiles',

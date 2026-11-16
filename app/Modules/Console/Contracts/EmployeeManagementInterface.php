@@ -2,8 +2,8 @@
 
 namespace App\Modules\Console\Contracts;
 
-use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Models\Employee;
 
 /**
  * Port over the shadow-user lookup used by the contact form (batch 233).
@@ -16,4 +16,10 @@ interface EmployeeManagementInterface
 {
     /** The `users` row that represents this employee in chat, created on first use. */
     public function ensureShadowUser(Employee $employee): User;
+
+    /**
+     * Stage 2 C2: the staff middleware resolves the employee behind an access token through this port, so the
+     * kernel entrypoint never names the model (the class moved into this module).
+     */
+    public function findEmployeeById(int $id): ?Employee;
 }

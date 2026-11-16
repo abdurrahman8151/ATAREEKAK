@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Services\JwtService;
 use App\Modules\Identity\Services\StaffJwtService;
 use Database\Factories\UserFactory;

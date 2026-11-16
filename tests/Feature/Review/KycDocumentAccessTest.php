@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Employee;
 use App\Models\User;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Models\Photo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;

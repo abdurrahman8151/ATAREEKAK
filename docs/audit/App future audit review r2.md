@@ -21298,3 +21298,44 @@ work for `git mv app/Models/Employee.php app/Modules/Console/Models/Employee.php
 rolled-back attempt already designed and proved (`EmployeeManagementInterface::findEmployeeById()` for
 `StaffJwtMiddleware`, `EmployeeRepositoryInterface` for the rotate-password command) plus the mechanical import
 rewrite. That is the next step.
+
+---
+
+### 356. Stage 2 C2: `Employee` MOVES INTO CONSOLE - the move that rolled back in sec 352 now lands, and `Console -> Employee` is gone
+
+**What was blocking it, and what cleared it.** Sec 352 rolled this move back because `app/Models/Complaint.php`
+declared `belongsTo(Employee::class)` by namespace adjacency; importing a Console model into a kernel model is
+forbidden, and `Complaint` could not move first. Sec 355 removed that relation (Console's complaint services now
+batch assignees through `EmployeeRepositoryInterface::accountsFor()`), so the wall is gone. The move then needed
+only the entrypoint conversion that the rolled-back attempt had already designed and proved:
+
+- `EmployeeManagementInterface::findEmployeeById(int): ?Employee` - `StaffJwtMiddleware` resolves the token's
+  employee through Console's port, keeps its EMPLOYEE_NOT_FOUND / ACCOUNT_INACTIVE / token-version / role
+  branches verbatim, and its `bindUserResolver()` takes the value UNTYPED. The middleware names no model.
+- `RotateAdminPasswordCommand` reads and writes through `EmployeeRepositoryInterface`
+  (`findByUsername` + `update`), with untyped values; its messages, refusals and revocation are unchanged.
+- `Console/Testing/` stays exempt, but its imports were updated with everyone else's so the dev tools still run.
+
+**The move.** `git mv app/Models/Employee.php app/Modules/Console/Models/Employee.php`, namespace changed,
+explicit `protected $table = 'employees'` ADDED (a namespace change must never be able to change which table a
+row lands in), self-relations `creator`/`managedEmployees` still resolve (same class, new namespace), and the
+dead `refreshTokens()` was already removed in sec 353. **47 files** had their imports rewritten mechanically
+(one line each, verified by `git diff --numstat`), the classmap regenerated with
+`composer dump-autoload` (`APP_ENV=testing`), and two prose mentions of the old fully-qualified name reworded -
+`DanglingImportTest` reads comments and the new tool's docblock was flagged until it stopped quoting the dead
+name.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **15 -> 14 pairs**: `Console -> Employee` is gone, and Console now names
+`Console\Models\Employee`, which it owns. The per-file Console allowlist loses every Employee-only entry and
+trims `Employee` from `ComplaintService`/`StaffComplaintService` (nine entries removed, two trimmed).
+`TABLE_OWNERS` gains `'employees' => 'Console'`, so ratchet 3 (raw `DB::table`) now polices that table.
+`ModuleBoundaryTest`'s entrypoint list is EMPTY (the two converted entrypoints name only Contracts), the kernel
+port ceiling is untouched, and no cross-context edge changed. `docs/ARCHITECTURE.md` and the Console README now
+record the class as moved, and the readiness tool no longer lists it.
+
+**Verification.** `AppFuture` + `Unit/Models` + `Unit/Middleware` = **280 / 764 OK**; `Auth` + `Staff` +
+`Security` + `Console` + `Repositories` + `Chat` + `Unit/Services/Staff` + `Unit/Providers` = **505 / 1246 OK**;
+`Admin` + `T3Batch` + `T4Batch` + the Auth/Staff/Admin/Misc snapshot files = **270 / 1541 OK** with only the
+already-recorded budget notices and byte-identical staff-auth snapshots; the twelve changed `Review` files =
+**67 / 185 OK**. Pint **PASS** on the 53 changed files. Nothing was edited to make a test pass: the 47 import
+rewrites are one line each and no assertion changed.

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Employee;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Modules\Console\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;

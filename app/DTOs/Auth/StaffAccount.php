@@ -9,7 +9,7 @@ use Carbon\Carbon;
  * Stage 2 C2: the employee fields Identity needs, as a kernel DTO rather than the `Employee` model.
  *
  * WHY IT EXISTS. `employees` is Console's table, and Identity's staff-auth path (login, refresh, `/staff/me`)
- * used to type-hint `App\Models\Employee`, which is the `Identity -> Employee` pair of the ownership ratchet.
+ * used to type-hint the `Employee` model, which was the `Identity -> Employee` pair of the ownership ratchet.
  * The DTO lives in the SHARED KERNEL so both sides may name it: Console builds it from the row it owns, and
  * Identity formats/tokenises from it without ever naming the model. It carries no password hash - the
  * login-only shape is {@see StaffCredentials}.

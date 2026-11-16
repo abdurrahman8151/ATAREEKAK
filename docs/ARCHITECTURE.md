@@ -271,7 +271,7 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | Identity | UserRating | `user_ratings` | `App\Models` (pending) |
 | Console | Complaint | `complaints` | `App\Models` (pending) |
 | Console | ComplaintAttachment | `complaint_attachments` | `App\Models` (pending) |
-| Console | Employee | `employees` | `App\Models` (pending) |
+| Console | Employee | `employees` | `App\Modules\Console\Models` (moved) |
 | *kernel* | User | `users` | `App\Models` - the authenticated principal only ([ADR 0007](adr/0007-user-is-the-authenticated-principal.md)) |
 
 "Pending" means the ownership is declared and enforced by the ratchets, while the class itself still sits in

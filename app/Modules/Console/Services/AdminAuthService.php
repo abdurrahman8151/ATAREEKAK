@@ -2,8 +2,8 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Models\Employee;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Contracts\StaffJwtInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;

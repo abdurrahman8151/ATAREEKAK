@@ -3,8 +3,8 @@
 namespace Services\Staff;
 
 use App\Enums\StaffRole;
-use App\Models\Employee;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Console\Services\EmployeeManagementService;
 use App\Modules\Identity\Services\EmployeeAuthService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;

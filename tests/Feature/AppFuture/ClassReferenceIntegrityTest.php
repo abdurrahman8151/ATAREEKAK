@@ -15,8 +15,8 @@ use Tests\TestCase;
  *
  *   sec 301  `RefreshToken::user()`        -> `User` resolved implicitly
  *   sec 304  `UserRating`'s two relations  -> declared on `User` with no import
- *   sec 352  `Complaint::assignedAgent()`  -> `Employee`, removed by the attempted move; 56 tests died
- *                                            with `Class "App\Models\Employee" not found`
+ *   sec 352  `Complaint::assignedAgent()`  -> `Employee`, removed by the attempted move; 56 tests died on a
+ *                                            "class not found" error for the OLD namespace.
  *
  * A `use`-line measurement cannot see any of them, and a search for the OLD fully-qualified name cannot
  * either. `DanglingImportTest` (stage 1.5) catches a LITERAL `App\...` token that does not resolve - including

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Console\Models;
 
 use App\Enums\StaffRole;
 use App\Models\Concerns\GuardsLazyLoading;
@@ -9,11 +9,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
+/**
+ * Stage 2 C2: `employees` is Console's table and this model now lives in its module.
+ *
+ * The explicit `$table` is new on the move: a namespace change must never be able to change which table a row
+ * lands in. Its relations are self-relations (`creator`, `managedEmployees`) plus the kernel `GuardsLazyLoading`
+ * trait; `refreshTokens()` was removed in sec 353 because it pointed at Identity's `staff_refresh_tokens`.
+ */
 class Employee extends Authenticatable
 {
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;
+
+    protected $table = 'employees';
 
     protected $fillable = [
         'username',

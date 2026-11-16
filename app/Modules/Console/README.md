@@ -57,4 +57,4 @@ the schema is frozen and each model declares its table explicitly.
 |---|---|---|
 | `Complaint` | `complaints` | `App\Models` - ownership enforced, class move pending |
 | `ComplaintAttachment` | `complaint_attachments` | `App\Models` - ownership enforced, class move pending |
-| `Employee` | `employees` | `App\Models` - ownership enforced, class move pending |
+| `Employee` | `employees` | `App\Modules\Console\Models` (moved) |

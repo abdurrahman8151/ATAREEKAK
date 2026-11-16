@@ -4,12 +4,12 @@ namespace Tests\Feature\T3Batch;
 
 use App\Exceptions\Domain\BusinessRuleViolation;
 use App\Models\Booking;
-use App\Models\Employee;
 use App\Models\NoshowReport;
 use App\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\Console\Models\Employee;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\WalletRequestService;
 use App\Modules\Ride\Services\Noshowservice;

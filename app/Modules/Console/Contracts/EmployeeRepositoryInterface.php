@@ -6,7 +6,7 @@ use App\DTOs\Auth\StaffAccount;
 use App\DTOs\Auth\StaffCredentials;
 use App\DTOs\Auth\StaffTokenSubject;
 use App\Enums\StaffRole;
-use App\Models\Employee;
+use App\Modules\Console\Models\Employee;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
