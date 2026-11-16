@@ -133,6 +133,27 @@ class EmployeeRepository implements EmployeeRepositoryInterface
     }
 
     /**
+     * One query for many employees, keyed by id. Unknown ids are simply absent, so a caller's
+     * `$accounts[$id] ?? null` keeps the old relation's "no row -> null" behaviour.
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, StaffAccount>
+     */
+    public function accountsFor(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, fn ($id) => $id !== null)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return Employee::whereIn('id', $ids)
+            ->get()
+            ->mapWithKeys(fn (Employee $employee) => [$employee->id => $this->accountFor($employee)])
+            ->all();
+    }
+
+    /**
      * Record a successful login and return the timestamp written - the same single-column update the
      * caller used to run on the model, so its login response reports the new `last_login_at`.
      */

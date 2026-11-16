@@ -64,6 +64,8 @@ final class ComplaintController extends Controller
     public function index(Request $request): JsonResponse
     {
         $complaints = $this->complaintService->getUserComplaints($request->user());
+        // Stage 2 C2: ONE batched assignee lookup for the page, replacing the `assignedAgent` eager load.
+        $this->complaintService->preloadAgents($complaints);
 
         return response()->json([
             'status' => 'success',

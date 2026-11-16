@@ -2,6 +2,7 @@
 
 namespace App\Modules\Console\Services;
 
+use App\DTOs\Auth\StaffAccount;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
 use App\Models\Complaint;
@@ -9,12 +10,17 @@ use App\Models\ComplaintAttachment;
 use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 
 final class ComplaintService
 {
+    /** Stage 2 C2: assignees resolved for the list currently being formatted, keyed by employee id. */
+    private array $agentCache = [];
+
     public function __construct(
         private readonly ComplaintRepositoryInterface $repository,
+        private readonly EmployeeRepositoryInterface $employees,
     ) {}
 
     public function submit(array $data, User $user, array $files = []): Complaint
@@ -93,9 +99,42 @@ final class ComplaintService
         return $complaint;
     }
 
+    /**
+     * Stage 2 C2: resolve the assignees for a whole page in ONE query before formatting the rows.
+     *
+     * The `assignedAgent` relation this replaces was also ONE query per page, so the endpoint's query count
+     * does not move. Callers that skip this still work - `format()` falls back to one lookup for that row,
+     * exactly the lazy query the relation used to run.
+     */
+    public function preloadAgents(iterable $complaints): void
+    {
+        $ids = [];
+        foreach ($complaints as $complaint) {
+            if ($complaint->assigned_to) {
+                $ids[] = (int) $complaint->assigned_to;
+            }
+        }
+
+        $this->agentCache = $this->employees->accountsFor($ids);
+    }
+
+    private function agentFor(?int $employeeId): ?StaffAccount
+    {
+        if ($employeeId === null) {
+            return null;
+        }
+
+        if (array_key_exists($employeeId, $this->agentCache)) {
+            return $this->agentCache[$employeeId];
+        }
+
+        return $this->employees->accountsFor([$employeeId])[$employeeId] ?? null;
+    }
+
     public function format(Complaint $complaint): array
     {
         $complaint->loadMissing('attachments');
+        $agent = $this->agentFor($complaint->assigned_to ? (int) $complaint->assigned_to : null);
 
         return [
             'id' => $complaint->id,
@@ -107,8 +146,8 @@ final class ComplaintService
             'status_label' => $complaint->status->label(),
             'status_color' => $complaint->status->color(),
             'resolution_notes' => $complaint->resolution_notes,
-            'assigned_to' => $complaint->assignedAgent ? [
-                'name' => $complaint->assignedAgent->first_name.' '.$complaint->assignedAgent->last_name,
+            'assigned_to' => $agent ? [
+                'name' => $agent->fullName(),
             ] : null,
             'attachments' => $complaint->attachments->map(fn ($a) => [
                 'id' => $a->id,

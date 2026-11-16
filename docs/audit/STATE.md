@@ -1,4 +1,16 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 `Complaint::assignedAgent()` GONE - the Employee-move wall removed (audit
+  sec 355), commit `Stage 2 C2: complaints resolve assignees through Console's repository`.** NEW
+  `EmployeeRepositoryInterface::accountsFor(array): array` (ONE `whereIn`, `StaffAccount` DTOs keyed by id);
+  `ComplaintService` + `StaffComplaintService` gained `preloadAgents()` (ONE query per page, called by the three
+  list controllers) with a single-lookup fallback in `format()` for one row;
+  `ComplaintDirectoryService` batches its own pages and DROPS the dead `attachments` eager load that sec 341
+  kept only for the budget (`admin/passenger-complaints` 9 -> 8, notice only); `ComplaintRepository` no longer
+  eager-loads it; the relation is deleted from the model, `assigned_to` the column untouched. Tests: six
+  `load([...])` lists adapted mechanically, `test_find_by_id_eager_loads_assigned_agent` deleted with its
+  subject (sec 297 precedent). Gate: 510/1322 + MiscSnapshot 10/61 + Engagement 16/96, complaint snapshots
+  byte-identical, Pint PASS 11. **`Employee` CAN NOW MOVE** - only the entrypoint conversion designed in the
+  rolled-back attempt remains.
 - Done recently: **STAGE 2 - C2 readiness table RE-DERIVED with the adjacency-aware measurement (audit sec 354),
   commit `Stage 2 C2: readiness measurement tool + measured blockers`.** NEW
   `scripts/measure-model-readiness.php` (read-only, repeatable: relations, import-vs-BARE references, test

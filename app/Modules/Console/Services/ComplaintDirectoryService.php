@@ -2,24 +2,33 @@
 
 namespace App\Modules\Console\Services;
 
+use App\DTOs\Auth\StaffAccount;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
 use App\Models\Complaint;
 use App\Modules\Console\Contracts\ComplaintDirectory;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**
  * Stage 2 C2: Console owns `complaints`, so the passenger-profile complaint reads run here.
  *
- * The three methods are line-for-line the queries Identity's panels ran - including the `assignedAgent`
- * eager load and, on the paginated one, the `attachments` eager load, so the endpoint's query count does
- * not move - and each row is flattened to the five scalars the response prints. The type/status values are
- * normalised here, where the model's casts live, so the caller cannot get the enum-vs-string difference
- * wrong.
+ * The three methods are the queries Identity's panels ran - same filters, same ordering, same limits - and
+ * each row is flattened to the five scalars the response prints. The type/status values are normalised here,
+ * where the model's casts live, so the caller cannot get the enum-vs-string difference wrong.
+ *
+ * Stage 2 C2: the `assignedAgent` relation is gone; the assignee's name arrives from ONE batched
+ * `EmployeeRepositoryInterface::accountsFor()` per page (the same one query the eager load cost). The
+ * `attachments` eager load that sec 341 kept only to hold a frozen budget is also gone: the row shape has no
+ * attachments, so the query was dead weight and its removal is a shrink (the snapshot prints the notice).
  */
 final class ComplaintDirectoryService implements ComplaintDirectory
 {
+    public function __construct(
+        private readonly EmployeeRepositoryInterface $employees,
+    ) {}
+
     public function pageForUser(
         int $userId,
         string $status,
@@ -27,8 +36,7 @@ final class ComplaintDirectoryService implements ComplaintDirectory
         int $perPage,
         int $page,
     ): LengthAwarePaginator {
-        $query = Complaint::with(['assignedAgent:id,first_name,last_name', 'attachments'])
-            ->where('user_id', $userId);
+        $query = Complaint::where('user_id', $userId);
 
         if ($status !== 'all') {
             $query->where('status', $status);
@@ -37,16 +45,18 @@ final class ComplaintDirectoryService implements ComplaintDirectory
             $query->where('type', $type);
         }
 
-        return $query
+        $paginator = $query
             ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'page', $page)
-            ->through(fn (Complaint $complaint) => $this->row($complaint));
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $agents = $this->agentsFor($paginator->getCollection()->pluck('assigned_to')->all());
+
+        return $paginator->through(fn (Complaint $complaint) => $this->row($complaint, $agents));
     }
 
     public function recentForUser(int $userId, string $status, string $type, int $limit): array
     {
-        $query = Complaint::with(['assignedAgent:id,first_name,last_name'])
-            ->where('user_id', $userId);
+        $query = Complaint::where('user_id', $userId);
 
         if ($status !== 'all') {
             $query->where('status', $status);
@@ -55,11 +65,15 @@ final class ComplaintDirectoryService implements ComplaintDirectory
             $query->where('type', $type);
         }
 
-        return $query
+        $complaints = $query
             ->orderByDesc('created_at')
             ->limit($limit)
-            ->get()
-            ->map(fn (Complaint $complaint) => $this->row($complaint))
+            ->get();
+
+        $agents = $this->agentsFor($complaints->pluck('assigned_to')->all());
+
+        return $complaints
+            ->map(fn (Complaint $complaint) => $this->row($complaint, $agents))
             ->values()
             ->all();
     }
@@ -74,11 +88,21 @@ final class ComplaintDirectoryService implements ComplaintDirectory
     }
 
     /**
+     * @param  array<int, int|null>  $employeeIds
+     * @return array<int, StaffAccount>
+     */
+    private function agentsFor(array $employeeIds): array
+    {
+        return $this->employees->accountsFor($employeeIds);
+    }
+
+    /**
+     * @param  array<int, StaffAccount>  $agents
      * @return array{id: int, type: string, status: string, created_at: Carbon, assigned_to: string|null}
      */
-    private function row(Complaint $complaint): array
+    private function row(Complaint $complaint, array $agents): array
     {
-        $assigned = $complaint->assignedAgent;
+        $agent = $complaint->assigned_to ? ($agents[(int) $complaint->assigned_to] ?? null) : null;
 
         return [
             'id' => $complaint->id,
@@ -87,9 +111,7 @@ final class ComplaintDirectoryService implements ComplaintDirectory
             'status' => $complaint->status instanceof ComplaintStatus
                 ? $complaint->status->value : (string) $complaint->status,
             'created_at' => $complaint->created_at,
-            'assigned_to' => $assigned
-                ? trim("{$assigned->first_name} {$assigned->last_name}")
-                : null,
+            'assigned_to' => $agent?->fullName(),
         ];
     }
 }

@@ -272,6 +272,9 @@ final class StaffAdminController extends Controller
             page: (int) $request->get('page', 1),
         );
 
+        // Stage 2 C2: ONE batched assignee lookup for the page, replacing the `assignedAgent` eager load.
+        $this->complaintService->preloadAgents($paginator->getCollection());
+
         return response()->json([
             'status' => 'success',
             'data' => $paginator->getCollection()

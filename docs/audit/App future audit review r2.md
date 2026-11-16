@@ -21254,3 +21254,47 @@ and is fixed.
 `AppFuture` suite - whose `DanglingImportTest` scans `scripts/` and caught a dead FQCN written in this script's
 own comment - is **62 tests / 466 assertions OK** after that comment was reworded. The tool reproduces the table
 from a clean shell (`php scripts/measure-model-readiness.php`).
+
+---
+
+### 355. Stage 2 C2: `Complaint::assignedAgent()` is GONE - the wall that stopped the Employee move is removed
+
+**The problem.** `app/Models/Complaint.php` declared `belongsTo(Employee::class, 'assigned_to')` with no import.
+That single relation was the reason the Employee move rolled back in sec 352: once `Employee` leaves `app/Models`,
+the name resolves to a class that no longer exists, and a kernel model may not import a Console model. Its four
+readers were all Console code, so the fix was to give Console a batched owner-side lookup and delete the relation.
+
+**The replacement - one query per page, exactly what the eager load cost.**
+- `EmployeeRepositoryInterface::accountsFor(array $ids): array` - ONE `whereIn`, returning kernel `StaffAccount`
+  DTOs keyed by employee id (the same DTO sec 351 introduced). Unknown ids are absent, so `$accounts[$id] ?? null`
+  reproduces the relation's "no row -> null" exactly.
+- `ComplaintService` and `StaffComplaintService` grew `preloadAgents(iterable $complaints)`: ONE `accountsFor()`
+  call for the page, called by the three list controllers (`ComplaintController::index`,
+  `StaffAdminController`'s escalated list, `StaffComplaintController::index`). `format()` reads the cache and
+  falls back to a single lookup for one row - the same lazy query the relation used to run - so callers that
+  skip the preload still work and single-item responses are unchanged.
+- `ComplaintDirectoryService` batches the page itself (its three methods already own their queries).
+- `ComplaintRepository::findById()` / `getUserComplaints()` no longer eager-load anything but `attachments`.
+- `Complaint` keeps its `assigned_to` COLUMN as the source of truth; only the relation is gone.
+
+**One intended shrink.** `ComplaintDirectoryService` also dropped the `attachments` eager load that sec 341 kept
+ONLY to hold a frozen budget: the row shape has no attachments, so it was a dead statement. `admin/passenger-complaints`
+9 -> 8 (notice printed; the budget file is untouched). Every other affected endpoint is net zero: eager load out,
+batched lookup in.
+
+**Tests, adapted and deleted the same way sec 297 did.** Six `->load(['user', 'assignedAgent', 'attachments'])`
+calls in `StaffComplaintServiceTest` became `->load(['user', 'attachments'])` - construction only, no assertion
+changed. `ComplaintRepositoryTest::test_find_by_id_eager_loads_assigned_agent` was DELETED with its subject (it
+asserted `relationLoaded('assignedAgent')`, i.e. the relation this step removes); its sibling
+`test_find_by_id_eager_loads_attachments` stays and still covers the repository's remaining eager load.
+
+**Verification.** `Complaints` + `Staff` + `Unit/Services/Staff` + `Admin` + `AdminSnapshotTest` +
+`StaffSnapshotTest` = **510 tests / 1322 assertions OK**; `MiscSnapshotTest` (the `complaints/*` snapshots) =
+**10 / 61 OK** with NO budget notice; `EngagementSnapshotTest` = 16 / 96 OK. Every complaint and staff-complaint
+snapshot is byte-identical. Pint **PASS** on the eleven changed files.
+
+**Consequence: the `Employee` move is unblocked.** `Complaint` now names no Console class; the only remaining
+work for `git mv app/Models/Employee.php app/Modules/Console/Models/Employee.php` is the entrypoint conversion the
+rolled-back attempt already designed and proved (`EmployeeManagementInterface::findEmployeeById()` for
+`StaffJwtMiddleware`, `EmployeeRepositoryInterface` for the rotate-password command) plus the mechanical import
+rewrite. That is the next step.

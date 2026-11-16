@@ -52,6 +52,15 @@ interface EmployeeRepositoryInterface
     /** Build the account shape from a row the caller already holds - no query. */
     public function accountFor(Employee $employee): StaffAccount;
 
+    /**
+     * Stage 2 C2: accounts for many employees in ONE query, keyed by id - the batched replacement for the
+     * `Complaint::assignedAgent` relation that Console's complaint screens used to eager-load.
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, StaffAccount>
+     */
+    public function accountsFor(array $ids): array;
+
     /** Record a successful login and return the timestamp written (the login response reports it). */
     public function markLoggedIn(int $id): Carbon;
 }

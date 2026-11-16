@@ -87,16 +87,11 @@ class ComplaintRepositoryTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function test_find_by_id_eager_loads_assigned_agent(): void
-    {
-        $user = User::factory()->create();
-        $complaint = Complaint::create($this->data($user->id));
-
-        $found = $this->repo->findById($complaint->id);
-
-        // relationLoaded() confirms eager loading without an extra query
-        $this->assertTrue($found->relationLoaded('assignedAgent'));
-    }
+    // Stage 2 C2: `test_find_by_id_eager_loads_assigned_agent` was REMOVED with its subject. The relation
+    // pointed at Console's `Employee` from a kernel model, and the employee move required it gone (sec 352);
+    // the complaint services now resolve assignees through ONE batched Console repository query instead
+    // (`preloadAgents()` / `accountsFor()`), so there is no relation left to eager-load. The attachments
+    // assertion below still covers this repository's remaining eager load.
 
     public function test_find_by_id_eager_loads_attachments(): void
     {

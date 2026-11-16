@@ -53,10 +53,11 @@ class Complaint extends Model
         return $this->belongsTo(User::class, 'complained_id');
     }
 
-    public function assignedAgent(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'assigned_to');
-    }
+    // Stage 2 C2: `assignedAgent()` (belongsTo Employee) is REMOVED - `employees` is Console's table, and a
+    // kernel model naming Console's class after its move is exactly what the boundary rule forbids (it was the
+    // one wall that stopped the Employee move, sec 352). Its four readers were all Console code; they now use
+    // `EmployeeRepositoryInterface::accountsFor()` - ONE query per page, the same query the eager load cost -
+    // and read the kernel `StaffAccount` DTO. The `assigned_to` COLUMN is untouched and still the source of truth.
 
     public function attachments(): HasMany
     {

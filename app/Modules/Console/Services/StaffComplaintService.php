@@ -2,11 +2,13 @@
 
 namespace App\Modules\Console\Services;
 
+use App\DTOs\Auth\StaffAccount;
 use App\Enums\ComplaintStatus;
 use App\Models\Complaint;
 use App\Models\Employee;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -14,14 +16,19 @@ use Illuminate\Support\Facades\Log;
 
 final class StaffComplaintService
 {
+    /** Stage 2 C2: assignees resolved for the list currently being formatted, keyed by employee id. */
+    private array $agentCache = [];
+
     public function __construct(
         private readonly NotificationPort $notificationService,
+        private readonly EmployeeRepositoryInterface $employees,
     ) {}
 
     // ── eager-load for every query ──────────────────────────────────────────
     private const WITH = [
         'user:id,first_name,last_name,email',
-        'assignedAgent:id,first_name,last_name,role',
+        // Stage 2 C2: `assignedAgent` is gone - `format()` reads the assignee from the batched
+        // EmployeeRepositoryInterface lookup (`preloadAgents()`), the same ONE query the eager load cost.
         'attachments',
     ];
 
@@ -289,8 +296,40 @@ final class StaffComplaintService
     // FORMAT
     // =========================================================================
 
+    /**
+     * Stage 2 C2: resolve the assignees for a whole page in ONE query before formatting the rows. Callers
+     * that skip this still work - `format()` falls back to one lookup for that row, the lazy query the
+     * removed relation used to run.
+     */
+    public function preloadAgents(iterable $complaints): void
+    {
+        $ids = [];
+        foreach ($complaints as $complaint) {
+            if ($complaint->assigned_to) {
+                $ids[] = (int) $complaint->assigned_to;
+            }
+        }
+
+        $this->agentCache = $this->employees->accountsFor($ids);
+    }
+
+    private function agentFor(?int $employeeId): ?StaffAccount
+    {
+        if ($employeeId === null) {
+            return null;
+        }
+
+        if (array_key_exists($employeeId, $this->agentCache)) {
+            return $this->agentCache[$employeeId];
+        }
+
+        return $this->employees->accountsFor([$employeeId])[$employeeId] ?? null;
+    }
+
     public function format(Complaint $complaint): array
     {
+        $agent = $this->agentFor($complaint->assigned_to ? (int) $complaint->assigned_to : null);
+
         return [
             'id' => $complaint->id,
             'title' => $complaint->title,
@@ -303,10 +342,10 @@ final class StaffComplaintService
             'is_escalated' => $complaint->status === ComplaintStatus::ESCALATED,
             'resolution_notes' => $complaint->resolution_notes,
             'resolved_at' => $complaint->resolved_at?->toIso8601String(),
-            'assigned_to' => $complaint->assignedAgent ? [
-                'id' => $complaint->assignedAgent->id,
-                'name' => $complaint->assignedAgent->fullName(),
-                'role' => $complaint->assignedAgent->role->value,
+            'assigned_to' => $agent ? [
+                'id' => $agent->id,
+                'name' => $agent->fullName(),
+                'role' => $agent->role->value,
             ] : null,
             'user' => [
                 'id' => $complaint->user?->id,

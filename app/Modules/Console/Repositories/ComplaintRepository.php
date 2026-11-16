@@ -15,13 +15,15 @@ class ComplaintRepository implements ComplaintRepositoryInterface
 
     public function findById(int $id): ?Complaint
     {
-        return Complaint::with(['assignedAgent:id,first_name,last_name', 'attachments'])->find($id);
+        // Stage 2 C2: no `assignedAgent` relation any more - the services resolve the assignee through
+        // EmployeeRepositoryInterface::accountsFor() in ONE query.
+        return Complaint::with(['attachments'])->find($id);
     }
 
     public function getUserComplaints(int $userId): Collection
     {
         return Complaint::where('user_id', $userId)
-            ->with(['assignedAgent:id,first_name,last_name', 'attachments'])
+            ->with(['attachments'])
             ->orderByDesc('created_at')
             ->get();
     }

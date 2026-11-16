@@ -572,14 +572,14 @@ class StaffComplaintServiceTest extends TestCase
 
     public function test_format_returns_an_array(): void
     {
-        $complaint = $this->makeComplaint()->load(['user', 'assignedAgent', 'attachments']);
+        $complaint = $this->makeComplaint()->load(['user', 'attachments']);
 
         $this->assertIsArray($this->service->format($complaint));
     }
 
     public function test_format_includes_complaint_id(): void
     {
-        $complaint = $this->makeComplaint()->load(['user', 'assignedAgent', 'attachments']);
+        $complaint = $this->makeComplaint()->load(['user', 'attachments']);
         $formatted = $this->service->format($complaint);
 
         $this->assertArrayHasKey('id', $formatted);
@@ -589,7 +589,7 @@ class StaffComplaintServiceTest extends TestCase
     public function test_format_includes_status(): void
     {
         $complaint = $this->makeComplaint(ComplaintStatus::IN_REVIEW)
-            ->load(['user', 'assignedAgent', 'attachments']);
+            ->load(['user', 'attachments']);
 
         $formatted = $this->service->format($complaint);
 
@@ -599,7 +599,7 @@ class StaffComplaintServiceTest extends TestCase
     public function test_format_includes_type(): void
     {
         $complaint = $this->makeComplaint(type: ComplaintType::TRIP_SAFETY)
-            ->load(['user', 'assignedAgent', 'attachments']);
+            ->load(['user', 'attachments']);
 
         $formatted = $this->service->format($complaint);
 
@@ -608,7 +608,7 @@ class StaffComplaintServiceTest extends TestCase
 
     public function test_format_includes_created_at(): void
     {
-        $complaint = $this->makeComplaint()->load(['user', 'assignedAgent', 'attachments']);
+        $complaint = $this->makeComplaint()->load(['user', 'attachments']);
 
         $formatted = $this->service->format($complaint);
 
@@ -618,7 +618,7 @@ class StaffComplaintServiceTest extends TestCase
     public function test_format_status_reflects_the_complaint_current_status(): void
     {
         $complaint = $this->makeComplaint(ComplaintStatus::RESOLVED)
-            ->load(['user', 'assignedAgent', 'attachments']);
+            ->load(['user', 'attachments']);
 
         $formatted = $this->service->format($complaint);
 
