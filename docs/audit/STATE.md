@@ -1,4 +1,15 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C2 readiness table RE-DERIVED with the adjacency-aware measurement (audit sec 354),
+  commit `Stage 2 C2: readiness measurement tool + measured blockers`.** NEW
+  `scripts/measure-model-readiness.php` (read-only, repeatable: relations, import-vs-BARE references, test
+  counts for the 13 remaining models). **TOTALS: 146 app import rewrites, 17 BARE uses, ~273 test files.**
+  Four findings: (1) EVERY bare use is inside `app/Models` - no non-model kernel file is a hazard; (2) the
+  Identity blockers are IN THE PRINCIPAL (`User::profile()`, `User::receivedRatings()`); (3) cluster structure
+  is explicit and only `Complaint -> Ride` crosses clusters; (4) `Employee`'s only outside bare use is
+  `Complaint::assignedAgent()`. `docs/ARCHITECTURE.md` corrected: the map's "gated on nothing but the imports"
+  claim replaced with the measured blockers + the forced order **Ride/Booking -> Complaint -> Employee**, and
+  the stale `Photo` row (still "pending" though moved in sec 338) fixed. Gate: AppFuture **62/466 OK** (its
+  `DanglingImportTest` scans `scripts/` and caught a dead FQCN in the new tool's own comment - reworded).
 - Done recently: **STAGE 2 - C2 NEW RATCHET + a live defect it found (audit sec 353), commit
   `Stage 2 C2: class-reference ratchet; a dangling Employee relation removed`.** NEW
   `tests/Feature/AppFuture/ClassReferenceIntegrityTest.php`: every `X::class` in app/ is resolved through the

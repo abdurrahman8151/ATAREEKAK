@@ -21197,3 +21197,60 @@ this repository: never write a dead FQCN in prose; the scanner reads comments.**
 
 **Verification.** `AppFuture` (the new ratchet included) + `Unit/Models` = **220 tests / 676 assertions OK**;
 `Staff` + `Auth` + `Unit/Services/Staff` = **367 / 827 OK**. Pint **PASS** on the three changed files.
+
+---
+
+### 354. Stage 2 C2: the model-move readiness table RE-DERIVED, this time counting the references a `use`-line grep cannot see
+
+**Why re-derive.** Sec 300's readiness table counted `use`-line references and missed every namespace-adjacency
+reference - which is how three moves failed (secs 301, 304, 352). The new `ClassReferenceIntegrityTest` (sec 353)
+makes that class of miss visible; this section re-measures the remaining 13 kernel models with the same
+resolution logic, committed as a repeatable tool:
+**`scripts/measure-model-readiness.php`** (read-only analysis; prints the table below).
+
+**The measurement.**
+
+| model | owner | relations | app files using it | BARE uses | test files |
+|---|---|---|---|---|---|
+| Ride | Ride | User, Booking | 30 import | 3 (Booking, Complaint, NoshowReport) | 49 |
+| Booking | Ride | User, Ride | 30 import | 2 (NoshowReport, Ride) | 49 |
+| NoshowReport | Ride | Ride, Booking, User x2 | 6 import | 0 | 4 |
+| Wallet | Money | User, WalletTransaction | 24 import | 3 (LedgerEntry, WalletRequest, WalletTransaction) | 68 |
+| WalletRequest | Money | User, Wallet, User | 2 import | 0 | 8 |
+| WalletTransaction | Money | Wallet, User | 17 import | 2 (LedgerEntry, Wallet) | 30 |
+| LedgerEntry | Money | Wallet, WalletTransaction | 2 import | 0 | 6 |
+| Complaint | Console | User, Ride, User, Employee, ComplaintAttachment | 8 import | 1 (ComplaintAttachment) | 10 |
+| ComplaintAttachment | Console | Complaint | 1 import | 1 (Complaint) | 2 |
+| Employee | Console | Employee x2 (self) | 13 import | 1 (Complaint) | 33 |
+| Profile | Identity | User, ProfileComment | 5 import | 2 (ProfileComment, **User**) | 5 |
+| ProfileComment | Identity | Profile, User | 3 import | 1 (Profile) | 3 |
+| UserRating | Identity | User, User | 5 import | 1 (**User**) | 6 |
+
+Totals: **146 app-file import rewrites and 17 bare uses**, plus roughly **273 test files** across the models.
+
+**FOUR findings the old table could not show.**
+1. **Every bare use is inside `app/Models` itself.** After the namespace-declaration false positives were
+   removed, no non-model kernel file uses any of these models bare. So the mechanical rewrite is genuinely
+   mechanical; the blockers are model-to-model references in the kernel.
+2. **The kernel principal is where the Identity blockers live.** `app/Models/User.php` names `Profile` and
+   `UserRating` bare: `User::profile()` and `User::receivedRatings()`. A kernel file may not import a module
+   model, so those two relations (and their readers, sec 350) are the gate - not any service.
+3. **The cluster structure is now explicit.** Ride {Ride, Booking, NoshowReport}, Money {Wallet, WalletRequest,
+   WalletTransaction, LedgerEntry}, Console {Complaint, ComplaintAttachment, Employee}, Identity
+   {Profile, ProfileComment} + UserRating alone. Every FOREIGN relation is internal to its cluster EXCEPT
+   `Complaint -> Ride` (cross-cluster, the RV23 owner question) and `Complaint -> Employee` (internal to the
+   Console cluster). A cluster moves together or not at all.
+4. **`Employee`'s self-relations are fine; its blocker is `Complaint`.** `Employee::creator()`/
+   `managedEmployees()` are self-relations (own-module after the move). The single thing that stopped the
+   sec-352 move was `Complaint::assignedAgent()`, and the table shows it is the ONLY outside bare use.
+
+**Documentation corrected in the same pass.** `docs/ARCHITECTURE.md`'s ownership map said the remaining moves
+were "gated on nothing but the imports that still name it" - false, and exactly the reading that cost three
+rollbacks. It now records the measured blockers, the forced order **Ride/Booking -> Complaint -> Employee**, and
+the two Identity/Money gates; its `Photo` row was also correct as "pending" while the class had moved in sec 338,
+and is fixed.
+
+**Verification.** Read-only analysis plus docs; the last code gate is sec 353's. With the tool committed, the
+`AppFuture` suite - whose `DanglingImportTest` scans `scripts/` and caught a dead FQCN written in this script's
+own comment - is **62 tests / 466 assertions OK** after that comment was reworded. The tool reproduces the table
+from a clean shell (`php scripts/measure-model-readiness.php`).

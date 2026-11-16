@@ -265,7 +265,7 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | Identity | Otp | `otps` | `App\Modules\Identity\Models` (moved) |
 | Identity | RefreshToken | `refresh_tokens` | `App\Modules\Identity\Models` (moved) |
 | Identity | StaffRefreshToken | `staff_refresh_tokens` | `App\Modules\Identity\Models` (moved) |
-| Identity | Photo | `photos` | `App\Models` (pending) |
+| Identity | Photo | `photos` | `App\Modules\Identity\Models` (moved) |
 | Identity | Profile | `profiles` | `App\Models` (pending) |
 | Identity | ProfileComment | `profile_comments` | `App\Models` (pending) |
 | Identity | UserRating | `user_ratings` | `App\Models` (pending) |
@@ -275,8 +275,25 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | *kernel* | User | `users` | `App\Models` - the authenticated principal only ([ADR 0007](adr/0007-user-is-the-authenticated-principal.md)) |
 
 "Pending" means the ownership is declared and enforced by the ratchets, while the class itself still sits in
-`app/Models`. Moving the class is the mechanical half of the work; it is gated on nothing but the imports that
-still name it (see [README](../README.md) and the audit record for the current list).
+`app/Models`. Moving a class is NOT only "the imports that still name it" - that reading cost this phase three
+rollbacks. The MEASURED blockers (re-derive them with `php scripts/measure-model-readiness.php`; the numbers are
+recorded in `docs/audit/App future audit review r2.md` sec 354) are:
+
+- **Ride cluster** (`Ride`, `Booking`, `NoshowReport`): relation-clean internally, but `app/Models/Complaint.php`
+  names `Ride` by namespace adjacency and `RV23ComplaintContextTest` asserts that relation resolves. Moving this
+  cluster is gated on that owner question.
+- **Console cluster** (`Complaint`, `ComplaintAttachment`, `Employee`): `Complaint` names `Ride` (above) and
+  `Employee`; `Employee` is named bare by `Complaint::assignedAgent()`. Forced order, therefore:
+  **Ride/Booking -> Complaint -> Employee**.
+- **Money cluster** (`Wallet`, `WalletRequest`, `WalletTransaction`, `LedgerEntry`): relation-clean internally;
+  gated on Console's remaining imports and the two owner decisions in audit secs 291/293 (response payloads,
+  where the approval workflow lives).
+- **Identity** (`Profile`, `ProfileComment`): the restored relation `User::profile()` on the kernel principal;
+  (`UserRating`): `User::receivedRatings()` plus the `UntangleBatchTest` mechanism assertion. Audit sec 350 has
+  the three questions. `Photo` has moved.
+
+The mechanical cost when the gates open, per the same measurement: **146** app-file import rewrites and about
+**273** test files across the remaining models.
 
 ## 11. Who may read a table, and through what
 
