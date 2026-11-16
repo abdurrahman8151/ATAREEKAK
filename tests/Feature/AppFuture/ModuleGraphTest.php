@@ -82,7 +82,11 @@ class ModuleGraphTest extends TestCase
     private const EDGES = [
         'Communication -> Console' => 2,
         'Console -> Communication' => 4,
-        'Console -> Identity' => 9,
+        'Console -> Identity' => 10,
+        // Stage 2 C3: the tenth port is `UserDirectory`. The staff complaint lists used to eager-load the
+        // complainant's `users` row for its name and email; the same ONE query now arrives from Identity's
+        // directory, read by property, with the DTO class never named here. A new port on an edge that already
+        // existed (staff auth, employees, ratings, photos, the profile directory), not a new edge.
         // Stage 2 C2: the ninth port is `ProfileCommentDirectory`. The staff review-moderation screen
         // browsed and deleted Identity's `profile_comments` through the model; the page, its filters and
         // the delete now run in Identity and Console keeps the response shape. A new port on an edge

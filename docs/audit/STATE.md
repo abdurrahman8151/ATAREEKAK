@@ -1,4 +1,14 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- Done recently: **STAGE 2 - C3 slice 1: staff complaint lists stop eager-loading the complainant (audit
+  sec 359), commit `Stage 2 C3: complaint lists read complainants through the directory`.** `WITH_LIST` (no
+  `user`) for `listAll`/`listEscalated`; `preloadUsers()` batches Identity's `UserDirectory::summariesFor()`
+  beside `preloadAgents()` in the two list controllers; `userBlock()` reads the summary BY PROPERTY (Console may
+  not name the DTO) and falls back to the relation on mutation paths, which keep `WITH` because
+  `NotificationPort::createNotification(User ...)` needs the model. `Console -> Identity` 9 -> 10 ports.
+  Gate: AppFuture + Complaints + Staff + Unit/Staff + Staff/Admin snapshots **450/1523 OK**, no new budget
+  notice (net zero), snapshots byte-identical; Pint PASS 4.
+  **C3 QUEUE (sec 358): next = `WalletChargeHistoryReader`'s admin name; then Ride's six booking `user`
+  eager loads.**
 - Done recently: **STAGE 2 - C3 OPENS: the chat-start path no longer fetches the other user's row (audit
   sec 358), commit `Stage 2 C3: chat start takes the validated user id`.** `findPrivateConversation(int, int)`
   replaces `(User, User)`; the controller passes the validated `request->user_id`; `ChatMessageHandler::

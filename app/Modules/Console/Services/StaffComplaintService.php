@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Console\Models\Employee;
+use App\Modules\Identity\Contracts\UserDirectory;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -19,9 +20,21 @@ final class StaffComplaintService
     /** Stage 2 C2: assignees resolved for the list currently being formatted, keyed by employee id. */
     private array $agentCache = [];
 
+    /**
+     * Stage 2 C3: the complainants resolved for the list currently being formatted, keyed by user id.
+     * The values are Identity's `UserSummary` objects, read by PROPERTY only - this module may not name the
+     * DTO class (it reaches Identity through Contracts), so the type is deliberately `object`.
+     *
+     * @var array<int, object>
+     */
+    private array $userCache = [];
+
+    private bool $usersPreloaded = false;
+
     public function __construct(
         private readonly NotificationPort $notificationService,
         private readonly EmployeeRepositoryInterface $employees,
+        private readonly UserDirectory $users,
     ) {}
 
     // ── eager-load for every query ──────────────────────────────────────────
@@ -29,6 +42,14 @@ final class StaffComplaintService
         'user:id,first_name,last_name,email',
         // Stage 2 C2: `assignedAgent` is gone - `format()` reads the assignee from the batched
         // EmployeeRepositoryInterface lookup (`preloadAgents()`), the same ONE query the eager load cost.
+        'attachments',
+    ];
+
+    /**
+     * Stage 2 C3: list queries no longer eager-load the complainant's row; the list controllers call
+     * `preloadUsers()` and the same ONE query arrives from Identity's directory instead.
+     */
+    private const WITH_LIST = [
         'attachments',
     ];
 
@@ -48,7 +69,7 @@ final class StaffComplaintService
         int $perPage = 15,
         int $page = 1,
     ): LengthAwarePaginator {
-        $query = Complaint::with(self::WITH)
+        $query = Complaint::with(self::WITH_LIST)
             // Never show escalated in the agent's queue
             ->where('status', '!=', ComplaintStatus::ESCALATED->value);
 
@@ -91,7 +112,7 @@ final class StaffComplaintService
         int $perPage = 15,
         int $page = 1,
     ): LengthAwarePaginator {
-        $query = Complaint::with(self::WITH);
+        $query = Complaint::with(self::WITH_LIST);
 
         if ($status) {
             // Admin can filter e.g. resolved escalated for history
@@ -326,6 +347,50 @@ final class StaffComplaintService
         return $this->employees->accountsFor([$employeeId])[$employeeId] ?? null;
     }
 
+    /**
+     * Stage 2 C3: resolve the complainants for a whole page in ONE Identity query before formatting the rows.
+     * The list queries no longer eager-load `user`; callers that skip this fall back to the loaded relation
+     * (the mutation paths keep it, because a notification needs the model).
+     */
+    public function preloadUsers(iterable $complaints): void
+    {
+        $ids = [];
+        foreach ($complaints as $complaint) {
+            if ($complaint->user_id) {
+                $ids[] = (int) $complaint->user_id;
+            }
+        }
+
+        $this->userCache = $this->users->summariesFor($ids);
+        $this->usersPreloaded = true;
+    }
+
+    /**
+     * The `user` block of the response: the preloaded summary when the list path supplied one, otherwise the
+     * relation the mutation paths already eager-load. Identity's DTO is read by property only - this module
+     * never names its class.
+     */
+    private function userBlock(Complaint $complaint): array
+    {
+        if ($this->usersPreloaded) {
+            $summary = $this->userCache[(int) $complaint->user_id] ?? null;
+
+            return [
+                'id' => $summary?->id,
+                'name' => $summary !== null ? $summary->fullName() : '',
+                'email' => $summary?->email,
+            ];
+        }
+
+        $user = $complaint->user;
+
+        return [
+            'id' => $user?->id,
+            'name' => trim(($user?->first_name ?? '').' '.($user?->last_name ?? '')),
+            'email' => $user?->email,
+        ];
+    }
+
     public function format(Complaint $complaint): array
     {
         $agent = $this->agentFor($complaint->assigned_to ? (int) $complaint->assigned_to : null);
@@ -347,11 +412,7 @@ final class StaffComplaintService
                 'name' => $agent->fullName(),
                 'role' => $agent->role->value,
             ] : null,
-            'user' => [
-                'id' => $complaint->user?->id,
-                'name' => trim(($complaint->user?->first_name ?? '').' '.($complaint->user?->last_name ?? '')),
-                'email' => $complaint->user?->email,
-            ],
+            'user' => $this->userBlock($complaint),
             'attachments' => $complaint->attachments?->map(fn ($a) => [
                 'id' => $a->id,
                 'url' => $a->url,

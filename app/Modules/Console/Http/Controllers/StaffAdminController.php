@@ -274,6 +274,8 @@ final class StaffAdminController extends Controller
 
         // Stage 2 C2: ONE batched assignee lookup for the page, replacing the `assignedAgent` eager load.
         $this->complaintService->preloadAgents($paginator->getCollection());
+        // Stage 2 C3: and ONE batched complainant lookup from Identity, replacing the `user` eager load.
+        $this->complaintService->preloadUsers($paginator->getCollection());
 
         return response()->json([
             'status' => 'success',

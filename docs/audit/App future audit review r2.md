@@ -21424,3 +21424,33 @@ snapshot-verified before the next:
    `BookingActionService`, `BookingActivityFeedService`, `BookingCancellationService`, ...): the largest group;
    each endpoint needs its own response-parity pass and query-count check.
 `Identity`'s own files are the owner of the table and are not targets.
+
+---
+
+### 359. Stage 2 C3: the staff complaint lists stop eager-loading the complainant's row
+
+**The first real C3 migration slice.** `StaffComplaintService`'s list queries carried
+`user:id,first_name,last_name,email` - another user's row, loaded for a name and an email that
+`UserSummary` publishes. The two list methods now use a `WITH_LIST` constant without it, and the two list
+controllers call a new `preloadUsers()` beside the `preloadAgents()` sec 355 added, so the same ONE query
+arrives from Identity's `UserDirectory::summariesFor()`.
+
+**Read by property, never named.** Console reaches Identity through Contracts only, so the service types the
+cache `array<int, object>` and reads `->id`, `->fullName()`, `->email` - it does NOT import `UserSummary`
+(sec 302's lesson: a port returning a DTO does not license the caller to name it, and four ratchets enforce it).
+
+**The honest boundary: mutation paths still read the model.** `openComplaint`/`respond`/`escalate`/
+`resolveEscalated` keep `WITH` (with `user`) because a notification has to be sent, and
+`NotificationPort::createNotification()` takes a `User` model. `format()` therefore has two branches: the
+preloaded summary when the list path supplied one, otherwise the relation those methods already eager-load -
+same keys, same `null` semantics (a deleted user still yields `{id: null, name: '', email: null}`). Changing that
+last read means changing Communication's notification port, which is its own design step, not this one.
+
+**Ratchets.** `ModuleGraphTest` `Console -> Identity` **9 -> 10 ports** - a new port on an edge that already
+existed (`UserDirectory` is the first Console use of Identity's directory), argued in `EDGES`; no new edge, no
+new cycle. Nothing in `KERNEL_MODEL_IMPORTS` moves: this removes a RELATION read, not an import.
+
+**Verification.** `AppFuture` + `Complaints` + `Staff` + `Unit/Services/Staff` + `StaffSnapshotTest` +
+`AdminSnapshotTest` = **450 tests / 1523 assertions OK**; NO new budget notice on any complaint list (eager load
+out, directory query in - net zero) and the staff complaint / escalated-complaint snapshots are byte-identical.
+Pint **PASS** on the four changed files.
