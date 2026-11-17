@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\RideBuilder;

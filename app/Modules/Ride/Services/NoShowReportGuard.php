@@ -4,9 +4,9 @@ namespace App\Modules\Ride\Services;
 
 use App\Enums\BookingStatus;
 use App\Enums\RideStatus;
-use App\Models\Booking;
-use App\Models\NoshowReport;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\NoshowReport;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 
 /**

@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Repositories;
 
-use App\Models\Booking;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;

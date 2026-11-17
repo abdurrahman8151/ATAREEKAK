@@ -8,7 +8,7 @@ use Carbon\Carbon;
  * The fleet-wide trip counters the admin report publishes.
  *
  * WHY A PORT AND NOT A QUERY (Stage 2 C2): every method here is a COUNT over the `rides` table, and `rides` is
- * Ride's. Console used to build those counts itself, which meant naming `App\Models\Ride` - the one thing a module
+ * Ride's. Console used to build those counts itself, which meant naming the `Ride` model - the one thing a module
  * may not do to another module. The counts are also the whole surface: no report screen reads a ride row, so this
  * contract returns numbers only.
  *

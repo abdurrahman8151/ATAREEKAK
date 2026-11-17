@@ -6,9 +6,9 @@ use App\Enums\BookingStatus;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
 use App\Enums\RideStatus;
-use App\Models\Booking;
 use App\Models\Complaint;
 use App\Models\User;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
@@ -77,10 +77,13 @@ class RV23ComplaintContextTest extends TestCase
         $this->assertSame($driver->id, (int) $fresh->complained_id);
 
         // The relations actually resolve, not just the raw ids.
-        // RV-37 / un9: eager-load both - reading them off a bare fresh() is a lazy load, which the
-        // armed lazy guard turns into a violation.
-        $fresh->load(['ride', 'complainedUser']);
-        $this->assertTrue($fresh->ride->is($ride));
+        // RV-37 / un9: eager-load it - reading it off a bare fresh() is a lazy load, which the armed
+        // lazy guard turns into a violation.
+        //
+        // Owner ruling 2026-11-17: the `ride` half of this block is GONE with `Complaint::ride()`. The
+        // relation had no production reader (this test was its only consumer), and `ride_id` - asserted
+        // above - is the source of truth. The `complainedUser` half stays: that relation has real readers.
+        $fresh->load(['complainedUser']);
         $this->assertTrue($fresh->complainedUser->is($driver));
     }
 

@@ -289,7 +289,7 @@ class NoShowSettlement implements NoShowSettlementInterface
             'posting_key' => $escrowOutKey,
         ]);
 
-        WalletTransaction::create([
+        $passengerTransaction = WalletTransaction::create([
             'wallet_id' => $passengerWallet->id,
             'user_id' => $passenger->id,
             'type' => 'driver_no_show_refund',
@@ -301,6 +301,16 @@ class NoShowSettlement implements NoShowSettlementInterface
             'status' => 'completed',
             'reference' => "booking:{$booking->id}",
         ]);
+
+        // Stage 2 B2 added the capture at the call site ("keep the rows so each leg can name its own side")
+        // but this method never returned them, so the declared `: array` made every driver-no-show refund
+        // throw a TypeError - caught upstream as "Failed to resolve no-show report", which left the report
+        // pending and the booking `confirmed`. The rows exist and are posted either way; returning them is
+        // what makes the legs name their own transaction, exactly as the sibling passenger-no-show path does.
+        return [
+            $syCashWallet->id => $syCashTransaction,
+            $passengerWallet->id => $passengerTransaction,
+        ];
     }
 
     /** Double-entry legs for the passenger no-show fan-out (same 95/5 shape as ride completion). */

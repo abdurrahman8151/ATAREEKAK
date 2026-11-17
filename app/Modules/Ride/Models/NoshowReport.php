@@ -1,16 +1,20 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Ride\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * PLACE IN: app/Models/NoshowReport.php
+ * PLACE IN: app/Modules/Ride/Models/NoshowReport.php
  */
 class NoshowReport extends Model
 {
+    // Stage 2 C2: the class moved into the module that owns `noshow_reports`.
+    protected $table = 'noshow_reports';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
 

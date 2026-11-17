@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Models\Booking;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Contracts\TripCancellationWriter;
 
 /**

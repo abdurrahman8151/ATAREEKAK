@@ -2,7 +2,7 @@
 
 namespace Tests\Support;
 
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 

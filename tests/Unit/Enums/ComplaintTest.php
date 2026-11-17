@@ -85,10 +85,10 @@ class ComplaintTest extends TestCase
         $this->assertTrue(method_exists(Complaint::class, 'user'));
     }
 
-    public function test_has_assigned_agent_relationship(): void
-    {
-        $this->assertTrue(method_exists(Complaint::class, 'assignedAgent'));
-    }
+    // Stage 2 C2: `test_has_assigned_agent_relationship` was REMOVED with its subject. The relation named
+    // Console's `Employee` from a kernel model; sec 355 replaced its readers with a batched Console
+    // repository lookup and deleted it (owner ruling 2026-11-17). This test lives under Unit/Enums, which
+    // sec 355's gate did not include, so it stayed behind and was found by the whole-Unit run in sec 368.
 
     public function test_has_attachments_relationship(): void
     {

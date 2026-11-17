@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Broadcast;
 
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Identity\Services\JwtService;
 use App\Modules\Ride\Events\RideCancelled;

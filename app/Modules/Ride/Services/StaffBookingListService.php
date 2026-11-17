@@ -2,7 +2,7 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Contracts\StaffBookingList;
 use Illuminate\Pagination\LengthAwarePaginator;
 

@@ -4,8 +4,8 @@ namespace Tests\Unit\Services\Payment;
 
 use App\Enums\BookingStatus;
 use App\Enums\PaymentMethod;
-use App\Models\Booking;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Modules\Money\Services\CashRideFeeService;

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Database\Eloquent\Model;
 use Tests\TestCase;

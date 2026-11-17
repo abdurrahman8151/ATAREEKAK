@@ -21676,3 +21676,103 @@ test lines - has no production reader at all.
 and every slice's own gate is recorded in its section. No baseline, budget or assertion was changed anywhere in
 C3; the two budget MOVEMENTS were both shrinks (sec 360's endpoint returned to its ceiling, sec 365 went one
 query cheaper).
+
+---
+
+### 368. Stage 2 C2: the owner's ruling lands - `Complaint::ride()` is deleted and the Ride cluster moves into the module (14 pairs -> 11)
+
+**The owner's answer.** Asked with the measurement in front of them (sec 357: the relation has NO production
+reader; its only consumer is `RV23ComplaintContextTest:82-83`), the owner ruled: delete it. That single ruling
+unlocked the forced order - **Ride/Booking -> Complaint -> Employee** - and the first two steps are done here.
+
+**Step 1 - the relation and its two test lines are gone.** `Complaint::ride()` (a `belongsTo` resolving `Ride`
+by NAMESPACE ADJACENCY, with no import at all) is deleted; `ride_id` remains the source of truth and its RV-23
+assertions are untouched. The test block keeps the `complainedUser` half (that relation has real readers) and
+loses the `ride` load + assertion, with the reason written where the lines were.
+
+**Step 2 - the cluster moved, together, as the readiness measurement said it must.**
+`Ride`, `Booking` and `NoshowReport` now live in `app/Modules/Ride/Models/`. Their only outside references were
+each other (verified by grep before the move: every other app file that names them is inside the module, and the
+three production commands described below). Each gained an explicit `$table` and, crucially, a
+`use App\Models\User;` import - the bare `User::class` in their relations would otherwise re-resolve to
+`App\Modules\Ride\Models\User`, which is exactly the adjacency trap **`ClassReferenceIntegrityTest` (sec 353)
+caught within seconds of the move**, before any test ran.
+
+**114 files** had imports rewritten by the Python rewriter (one line each - `git diff --numstat` verified, only
+the moved models' own files and the allowlist show more), and the classmap was regenerated with
+`composer dump-autoload` under `APP_ENV=testing`.
+
+**The factory follows the class.** `HasFactory` derives its factory from the model's namespace, so the move sent
+it looking for `Database\Factories\Modules\Ride\Models\RideFactory`. `Ride::newFactory()` now points explicitly at
+the existing `Database\Factories\RideFactory` - nine `Class ... not found` errors in the Review set became zero
+without touching a single test.
+
+**Ratchets.**
+- `KERNEL_MODEL_IMPORTS` **14 -> 11 pairs**: `Ride -> Ride`, `Ride -> Booking`, `Ride -> NoshowReport` are gone.
+- `TABLE_OWNERS` gains `rides`, `bookings` and `noshow_reports`, so ratchet 3 now polices raw `DB::table` access
+  to them.
+- `ENTRYPOINT_ALLOWLIST` is NO LONGER EMPTY: the three PRODUCTION commands that read Ride rows directly
+  (`BackfillBookingMoneySnapshot`, `ExpireStaleBookingsCommand`, `ReportStuckEscrowCommand`) became entrypoints
+  naming module implementation the moment the models moved. They are listed deliberately - which is what the
+  ratchet's own class docblock requires ("listed here deliberately, or converted to a port, in a commit that
+  says which and why") - and each one's port conversion is recorded as parked work below rather than rushed
+  inside a model move: the backfill writes an immutable money snapshot per booking, the expire command re-reads
+  and updates each stale booking, and the escrow report joins bookings to held money.
+
+**A stale test the earlier gate missed, found and removed.** `tests/Unit/Enums/ComplaintTest.php` still asserted
+`method_exists(Complaint::class, 'assignedAgent')` - a leftover from sec 355, which deleted that relation but ran
+`tests/Unit/Models` (not `Unit/Enums`). The whole-Unit run in this batch caught it; the test is deleted with its
+subject and the miss is recorded here rather than hidden.
+
+**One intended snapshot change, regenerated the sanctioned way.** `score_transactions.reference_type` stores the
+referenced model's class name, so the state snapshot for `score/transactions-with-ride-and-booking-references`
+now holds `App\Modules\Ride\Models\Ride` / `...\Booking`. Both readers (`ScoreController:61`,
+`ScoreTransactionResource:101`) and the batch hydrator (`ScoreHistoryService:47-70`) use
+`class_basename()`, so rows written BEFORE the move stay readable - verified by reading the code, not assumed.
+The state file was regenerated with `SNAPSHOT_UPDATE=1`, and `tests/Snapshots/MANIFEST.json` refreshed with
+`php scripts/refresh-snapshot-manifest.php` (213 frozen files, exactly 1 changed) - never hand-edited.
+
+**Verification, by area (all green, run after everything above):**
+
+| gate | paths | result |
+|---|---|---|
+| A | `AppFuture` + all `Unit` | **1050 tests / 3358 assertions OK** |
+| B | `Rides`, `Bookings`, `Wallet`, `Payment`, `Unit/Domain` | **538 / 3184 OK** |
+| C | `Admin`, `Staff`, `Review` | **1025 / 3215 OK** (2 pre-existing skips) |
+| D | `Snapshots` (all 213 files, freeze + manifest), `T3Batch`, `T4Batch`, `Chat`, `Notifications`, `Complaints`, `Verification`, `Repositories` | **345 / 2956 OK** |
+| E | `Auth`, `Security`, `Otp`, `Config`, `Console`, `Broadcast`, `Documents`, `Profile`, `RateLimiting` | **234 / 807 OK** |
+
+**Parked (recorded, not done, with the reason):**
+1. **Ride maintenance ports** for the three commands above - each needs its own verified conversion.
+2. `Money\Services\NoShowSettlement::recordDriverNoShowRefundRows()` was found RED on HEAD by gate C (3 L16
+   failures) - a PHP return-type fatal, unrelated to this move and in an untouched file. It is fixed in the next
+   section (369), because leaving a fatal in a money path is not acceptable.
+
+---
+
+### 369. VERIFIED FIX: a dropped `return` made every driver no-show refund throw - found by this batch's gate, fixed without touching a single money number
+
+**The defect.** `Money\Services\NoShowSettlement::recordDriverNoShowRefundRows()` is declared `: array`, creates
+the two `driver_no_show_refund` rows (the SyCash escrow debit, `posting_key` = the escrow-out key, and the
+passenger's full-fare credit), and returned NOTHING. PHP raised
+`Return value must be of type array, none returned`; `resolveExpiredReports()` catches it, logs
+"Failed to resolve no-show report", and stops. The visible result: the report stays `pending`, the booking stays
+`confirmed`, the refund legs carry no `wallet_transaction_id`, and L16's three characterization tests fail.
+
+**Why it is a regression from this phase, proven - not assumed.** `git diff` for that file was EMPTY when the
+failure appeared (the move did not touch Money); the call site's own comment says "Stage 2 B2: keep the rows so
+each leg can name its own side", i.e. the capture was added to the caller while the method's return was never
+written; and the sibling path (`postPassengerNoShowLegs` / the map returned just above
+`recordDriverNoShowRefundRows`) returns exactly this shape. The tests were red on HEAD before this batch; sec
+355's gate and every gate since simply never included `L16DriverNoShowSettlementCharacterizationTest`.
+
+**The fix - linkage only, no money semantics.** The two created rows are captured
+(`$passengerTransaction = ...`) and returned as
+`[$syCashWallet->id => $syCashTransaction, $passengerWallet->id => $passengerTransaction]`, the same map shape the
+passenger-no-show legs already consume (`$transactions[$wallet->id]->id ?? null`). **No amount, refund tier,
+95/5 split, `posting_key`, escrow rule or ledger type changed** - the rows and legs were already written with the
+same values; the return is what lets each leg name its own transaction, which is what "B2" intended.
+
+**Verification.** `L16DriverNoShowSettlementCharacterizationTest` **4 tests / 7 assertions OK** (was 3 failures
+out of 4), and gate C re-run green: `Admin` + `Staff` + `Review` = **1025 tests / 3215 assertions OK**. The
+failure names recorded before the fix (all three in that one class) are gone; no other test changed state.

@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Services\Admin;
 
-use App\Models\Booking;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
 use App\Models\Wallet;

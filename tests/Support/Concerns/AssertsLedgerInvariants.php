@@ -2,7 +2,7 @@
 
 namespace Tests\Support\Concerns;
 
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use App\Models\LedgerEntry;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;

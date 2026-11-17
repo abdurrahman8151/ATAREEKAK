@@ -3,12 +3,12 @@
 namespace Tests\Feature\Snapshots;
 
 use App\Enums\StaffRole;
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use App\Models\Complaint;
 use App\Models\ComplaintAttachment;
 use App\Models\Profile;
 use App\Models\ProfileComment;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletRequest;

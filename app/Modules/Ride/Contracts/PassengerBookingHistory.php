@@ -7,7 +7,8 @@ namespace App\Modules\Ride\Contracts;
  *
  * WHY A PORT (Stage 2 C2). `bookings` belongs to Ride, and Identity ran five of its own statements against that
  * table - two scalar aggregates, one grouped monthly breakdown, the recent-trips list with its ride and driver
- * eager loads, and an eligibility `exists()`. Once the model moves, naming `App\Models\Booking` from Identity is
+ * eager loads, and an eligibility `exists()`. Once the model moved into this module, naming the `Booking` class
+ * from Identity became
  * the cross-module implementation reference the boundary ratchet forbids, so the statements move here and
  * Identity keeps the presentation (month labels, money formatting, the panel keys).
  *

@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;

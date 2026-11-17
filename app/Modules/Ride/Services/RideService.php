@@ -4,7 +4,7 @@ namespace App\Modules\Ride\Services;
 
 use App\DTOs\Ride\CreateRideDTO;
 use App\Enums\RideStatus;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Money\Contracts\CancellationRefundInterface;

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 

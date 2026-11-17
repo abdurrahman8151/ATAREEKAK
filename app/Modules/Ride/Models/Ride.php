@@ -1,9 +1,11 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Ride\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use App\Support\GeoPoint;
+use Database\Factories\RideFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,9 +15,23 @@ use Illuminate\Support\Facades\DB;
 
 class Ride extends Model
 {
+    // Stage 2 C2: the class moved into the module that owns `rides`. The explicit table keeps a
+    // namespace change from ever changing which table a row lands in.
+    protected $table = 'rides';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
     use HasFactory;
+
+    /**
+     * Stage 2 C2: `HasFactory` derives the factory class from THIS namespace, which would send it looking for
+     * `Database\Factories\Modules\Ride\Models\RideFactory`. The factory lives where it always has, so the move
+     * points at it explicitly instead of renaming it (renaming would touch every test that calls it).
+     */
+    protected static function newFactory(): RideFactory
+    {
+        return RideFactory::new();
+    }
 
     protected $fillable = [
         'driver_id',

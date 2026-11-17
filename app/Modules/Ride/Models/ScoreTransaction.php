@@ -34,7 +34,7 @@ class ScoreTransaction extends Model
         'points',
         'previous_score',
         'new_score',
-        'reference_type',   // class name of the referenced row (App\Models\Ride / App\Models\Booking today)
+        'reference_type',   // class name of the referenced row (the Ride / Booking models)
         'reference_id',     // e.g. booking_id or ride_id
         'reason',
         'high_cancel_rate_applied',

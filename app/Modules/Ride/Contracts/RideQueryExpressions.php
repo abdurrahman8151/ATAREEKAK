@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
  * table is paginated and the aggregates must cost ZERO extra statements. `admin/drivers` is budgeted at 9
  * queries and a budget may only shrink, so a reader returning values (one query for the page) is not an
  * option there: it would make the endpoint 10. `withAvg`/`withCount` are what generated these expressions
- * before, from `App\Models\Ride`; once the model belongs to this module, Console cannot name it, so the
+ * before, from the `Ride` model; once the model belongs to this module, Console cannot name it, so the
  * owner publishes the expression itself and the caller embeds it in the same statement.
  *
  * The third is a plain scalar and is deliberately in the same contract: all three are one screen's reads,

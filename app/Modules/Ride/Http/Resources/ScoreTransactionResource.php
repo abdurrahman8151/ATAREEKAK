@@ -3,8 +3,8 @@
 namespace App\Modules\Ride\Http\Resources;
 
 use App\Enums\ScoreAction;
-use App\Models\Booking;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

@@ -2,7 +2,7 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Contracts\CashRideCounter;
 
 /**

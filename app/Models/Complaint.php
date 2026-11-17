@@ -41,11 +41,11 @@ class Complaint extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** RV-23: the ride a complaint refers to (null for manual complaints). */
-    public function ride(): BelongsTo
-    {
-        return $this->belongsTo(Ride::class);
-    }
+    // RV-23: `ride()` (belongsTo Ride) is DELETED - owner ruling 2026-11-17. `ride_id` stays the source of
+    // truth (the RV-23 assertions on it are above), but the relation had NO production reader: its only
+    // consumer was the two lines in RV23ComplaintContextTest, measured before the deletion. Removing it is
+    // what lets the Ride cluster (`Ride`, `Booking`, `NoshowReport`) leave the kernel - a kernel model may
+    // not name a module's class, and this was the last such name in Complaint.
 
     /** RV-23: the user the complaint is ABOUT (distinct from the submitter). */
     public function complainedUser(): BelongsTo

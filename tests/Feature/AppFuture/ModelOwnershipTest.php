@@ -87,6 +87,11 @@ final class ModelOwnershipTest extends TestCase
         'photos' => 'Identity',
         // Stage 2 C2: the `employees` table's model moved into Console.
         'employees' => 'Console',
+        // Stage 2 C2: the Ride cluster moved together once the owner ruling removed `Complaint::ride()`
+        // (the kernel model that used to name `Ride` by namespace adjacency).
+        'rides' => 'Ride',
+        'bookings' => 'Ride',
+        'noshow_reports' => 'Ride',
     ];
 
     /**
@@ -107,9 +112,6 @@ final class ModelOwnershipTest extends TestCase
         'Money -> Wallet' => 'wallets',
         'Money -> WalletRequest' => 'wallet_requests',
         'Money -> WalletTransaction' => 'wallet_transactions',
-        'Ride -> Booking' => 'bookings',
-        'Ride -> NoshowReport' => 'noshow_reports',
-        'Ride -> Ride' => 'rides',
     ];
 
     /** @test */

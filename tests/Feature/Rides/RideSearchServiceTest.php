@@ -3,7 +3,7 @@
 namespace Tests\Feature\Rides;
 
 use App\Http\Resources\RideResource;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Models\UserRating;
 use App\Modules\Ride\Services\RideSearchService;

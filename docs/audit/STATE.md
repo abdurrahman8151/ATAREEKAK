@@ -1,4 +1,27 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- **OWNER ANSWERS RECEIVED 2026-11-17 (round 21) - the phase is unblocked and in execution:**
+  (1) DELETE `Complaint::ride()` + the two lines -> **DONE (sec 368)**; (2)/(3) Money payloads narrowed +
+  approval workflow moved into Money -> **NEXT**; (4) Profile -> **KEEP PARKED** (no +1 query, no JSON change);
+  (5) UserRating assertion + relation replaced -> **NEXT (after Money or before, its own batch)**.
+- Done recently: **STAGE 2 - C2 the Ride cluster MOVED into the module + RV23 relation deleted (audit sec 368),
+  commit `Stage 2 C2: Ride cluster moves into the module`.** `Ride`, `Booking`, `NoshowReport` ->
+  `app/Modules/Ride/Models/` (explicit `$table`; `use App\Models\User;` added after
+  `ClassReferenceIntegrityTest` caught the adjacency trap instantly); 114 files' imports rewritten; classmap
+  regenerated; `Ride::newFactory()` points at the existing factory (9 errors -> 0). **Ratchets: 14 -> 11 pairs;
+  `TABLE_OWNERS` +3 tables; `ENTRYPOINT_ALLOWLIST` now lists the 3 production commands with their port
+  conversions PARKED.** A stale `Unit/Enums/ComplaintTest` assertion (missed by sec 355's gate) removed. The
+  intended `reference_type` state snapshot regenerated via `SNAPSHOT_UPDATE=1` + manifest refresh; readers use
+  `class_basename` so pre-move rows stay readable. Gates A-E: **1050/3358, 538/3184, 1025/3215, 345/2956,
+  234/807 - all OK**.
+- Done recently: **STAGE 2 - VERIFIED FIX of a dropped return found by that gate (audit sec 369), commit
+  `Money: restore the dropped return in the driver no-show refund rows`.** `recordDriverNoShowRefundRows()` was
+  declared `: array` and returned nothing, so every driver no-show refund threw a TypeError, was caught as
+  "Failed to resolve no-show report", and left the report pending + the booking confirmed; the legs also lost
+  their `wallet_transaction_id`. The two rows are now captured and returned in the sibling's map shape -
+  linkage only, no amount/split/posting_key/escrow change. `L16...` **4/7 OK** (was 3 failures); gate C
+  re-run green.
+- **PARKED (recorded, not done):** (a) Ride maintenance ports for the three production commands now on
+  `ENTRYPOINT_ALLOWLIST`; (b) Profile move - owner keeps it parked; (c) C3's parked reads (sec 366).
 - **STAGE 2 IS AT ITS RULES-TERMINAL STATE (audit sec 366).** Everything below is owner-gated or parked with a
   recorded reason; there is no convertible item left in either half of the phase.
   - **C3 CLOSED after eight slices** (358-365). The remaining `users` reads are parked, each for a stated

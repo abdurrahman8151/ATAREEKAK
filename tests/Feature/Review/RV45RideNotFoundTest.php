@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Modules\Identity\Models\Photo;

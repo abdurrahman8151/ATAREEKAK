@@ -1,13 +1,17 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Ride\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Booking extends Model
 {
+    // Stage 2 C2: the class moved into the module that owns `bookings`.
+    protected $table = 'bookings';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
 

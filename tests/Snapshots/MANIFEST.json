@@ -200,7 +200,7 @@
         "state/rides/create-with-route.json": "ea24a28a0c4a49184bcc6bd949c7a80cf1e545b0d53d103b6e3964a9f98cd388",
         "state/rides/create.json": "ea24a28a0c4a49184bcc6bd949c7a80cf1e545b0d53d103b6e3964a9f98cd388",
         "state/rides/driver-no-show.json": "36746d84d33b75fa3e589355589e9614d6ad2effb1b3bbd01e614b5e9e4003e5",
-        "state/score/transactions-with-ride-and-booking-references.json": "a93470602e6de3fa986460718e8c6dbfa2c549432ede185889f829708efc394f",
+        "state/score/transactions-with-ride-and-booking-references.json": "7638dd5320b67cdd1b2e888dc519fa673d1dd1588734bcf9f9c4fc9a9a6654ad",
         "state/staff/bookings-cancel-a-booking-that-does-not-exist.json": "af04f82500c129339f34f93189898beb92b60b2c8985b7ac33903a8bfd74b2c9",
         "state/staff/bookings-cancel.json": "ed192d7f8c0e7361412700f842d7291dfa1d4c113354e20bcd61d644bbfe43fd",
         "state/staff/trips-cancel.json": "0f4c67c023c5ad9430de4314f42de31f36679b66d364cb1dd2cfe2ac35315c01",

@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Contracts;
 
-use App\Models\Booking;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Database\Eloquent\Collection;
 
 interface RideRepositoryInterface

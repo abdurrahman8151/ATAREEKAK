@@ -3,7 +3,7 @@
 namespace App\Modules\Ride\Services;
 
 use App\Enums\RideStatus;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Ride;
 use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;

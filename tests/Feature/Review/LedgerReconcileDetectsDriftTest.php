@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Models\Wallet;

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\BookingStatus;
-use App\Models\Booking;
+use App\Modules\Ride\Models\Booking;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Console\Command;

@@ -3,8 +3,8 @@
 namespace Tests\Feature\Staff;
 
 use App\Enums\StaffRole;
-use App\Models\Booking;
-use App\Models\Ride;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Modules\Console\Models\Employee;
