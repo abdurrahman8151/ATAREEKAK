@@ -1,4 +1,20 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- **STAGE 2 IS AT ITS RULES-TERMINAL STATE (audit sec 366).** Everything below is owner-gated or parked with a
+  recorded reason; there is no convertible item left in either half of the phase.
+  - **C3 CLOSED after eight slices** (358-365). The remaining `users` reads are parked, each for a stated
+    reason: the driver screen (its own tests pin the row ATTRIBUTES and pass models into `formatDriver()` -
+    converting means editing assertions), Ride's booking lists (the `average_rating` -> owner-gated UserRating
+    item), notification recipients (the port takes a `User` model by design), the shadow-user bridge and
+    `BanService` (WRITE paths), and `WalletProvisioningService::passwordHashFor()` (reads the password hash; the
+    fix is an auth "verify password" port, owner territory).
+  - **C2: 14 pairs, five owner sentences** (sec 357): (1) delete `Complaint::ride()` + the two test lines -
+    measured to have NO production reader -> unlocks 5 pairs; (2)/(3) Money payloads + approval workflow -> 6
+    pairs; (4) Profile's three questions -> 2 pairs; (5) UserRating's assertion + relation -> 1 pair.
+- Done recently: **STAGE 2 - C3 CLOSES: the eight-slice record + the conversion rule + the parked table (audit
+  sec 366), commit `Stage 2 C3: close the migration; park the remaining reads`.** New rule: a C3 slice is
+  convertible only if no existing test reads model attributes off the returned rows
+  (`git grep 'items()\[0\]->' tests/`). Gate: AppFuture **62/466 OK** on the closing tree; no baseline, budget or
+  assertion changed in the whole of C3.
 - Done recently: **STAGE 2 - C3 slice 7: the staff bookings list reads passengers and drivers through the
   directory (audit sec 365), commit `Stage 2 C3: staff bookings read passengers through the directory`.**
   Ride's `StaffBookingListService` dropped `user` and `ride.driver` eager loads;

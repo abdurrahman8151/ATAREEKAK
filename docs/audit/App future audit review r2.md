@@ -21628,3 +21628,51 @@ rating (`BookingResource`), which stays coupled to the owner-gated UserRating it
 
 **Verification.** `AppFuture` + `Staff` + `StaffSnapshotTest` + `Bookings` = **328 tests / 1170 assertions OK**,
 Pint **PASS** on the three changed files.
+
+---
+
+### 366. Stage 2 C3 CLOSES: eight slices done, and the remaining `users` reads are parked for a stated reason each
+
+**What C3 set out to do.** A module that needs a user's name, email or verification flag calls Identity's
+`UserDirectory` instead of reading `users` itself; `App\Models\User` stays in the kernel only as the authenticated
+principal (ADR 0007). Eight slices, each with its own section and snapshot proof:
+
+| sec | slice | what moved | proof |
+|---|---|---|---|
+| 358 | chat start | the other user's row was fetched for its `id` and deleted outright | `chat/conversations-store` 7 -> 6 |
+| 359 | staff complaint lists | `user` eager load -> batched summaries | 450/1523, no notice |
+| 360 | wallet-charge history | `user` eager load -> directory; budget caught my N+1 | 427/1465 |
+| 361 | verification queues | the whole `users` list query + `UserSummary` grew 4 fields | 507/1709 |
+| 362 | admin report | four aggregate statements | 241/1006 |
+| 363 | users dashboard | filtered/paginated list + 5 counters; **RV42a green** | 237/1007 |
+| 364 | admin dashboard | 4 cards + recent feed + 2 efficiency counters | 233/992 |
+| 365 | staff bookings | passenger AND driver eager loads -> ONE query; **cheaper** | `staff/bookings` 11 -> 10 |
+
+**The rule this phase learned, written down so the next slice does not relearn it.** A C3 slice is convertible
+only if NO existing test reads model attributes off the rows the endpoint returns. `AdminDriverServiceTest:453`
+asserts `$service->getDrivers()->items()[0]->avg_rating`, and fifteen `formatDriver($this->reloadDriver(...))`
+calls pass a model; converting the driver screen means editing those assertions, which the rules forbid for a
+behaviour-preserving refactor. Check `git grep 'items()\[0\]->' tests/` BEFORE designing a C3 slice.
+
+**Parked, each with the reason that stops it (not difficulty, not taste):**
+
+| remaining reader | why it stays |
+|---|---|
+| Driver screen: `AdminDriverQueryService` (3), `AdminDriverPresenter` (2), `AdminDriverDashboardService` (1) | the driver screen's own tests pin the row ATTRIBUTES and pass models into `formatDriver()`; converting = editing assertions |
+| Ride booking lists (`BookingResource` via `BookingService`/`RideLifecycleHandler`/...) | the passenger block prints `average_rating`, which reads `User::receivedRatings()` - the owner-gated UserRating item |
+| Notification recipients: `StaffCancellationService`, `PushNotificationService`, `BookingCompletionService`, `StaffComplaintService::notifyUser` | `NotificationPort::createNotification()` takes a `User` model by design; a notification is addressed to a user, not to a summary |
+| `EmployeeManagementService` (6 reads) | it CREATES and attaches the shadow user - a write path, so a write port would be the design, not this read port |
+| `BanService` (3 reads) | ban/unban WRITES the row; the admin action needs the model to save |
+| `WalletProvisioningService::passwordHashFor()` | it reads the PASSWORD HASH on the write PDO. Publishing that through the directory would violate C3's own doctrine (the DTO lists columns so nothing else leaks). The correct shape is a "verify password" port - an AUTH design change, owner territory |
+| Communication/Ride module models' `belongsTo(User::class)` | the principal relation ADR 0007 keeps; a message's sender and a ride's driver are kernel users by decision |
+
+**Why this is a terminal state rather than another slice.** Everything left is either (a) forbidden by the
+no-assertion-edit rule, (b) gated on the owner's UserRating decision, (c) a by-design model use, or (d) an auth
+design change. The remaining MODEL-OWNERSHIP work is likewise owner-gated: the 14 `KERNEL_MODEL_IMPORTS` pairs
+need the five sentences recorded in STATE.md (sec 357), the first of which - deleting `Complaint::ride()` and two
+test lines - has no production reader at all.
+
+**Verification.** `AppFuture` = **62 tests / 466 assertions OK** on the closing tree (all seven ratchets green),
+and every slice's own gate is recorded in its section. No baseline, budget or assertion was changed anywhere in
+C3; the two budget MOVEMENTS were both shrinks (sec 360's endpoint returned to its ceiling, sec 365 went one
+query cheaper).
