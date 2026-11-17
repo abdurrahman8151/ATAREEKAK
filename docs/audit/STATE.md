@@ -13,8 +13,8 @@
   intended `reference_type` state snapshot regenerated via `SNAPSHOT_UPDATE=1` + manifest refresh; readers use
   `class_basename` so pre-move rows stay readable. Gates A-E: **1050/3358, 538/3184, 1025/3215, 345/2956,
   234/807 - all OK**.
-- Done recently: **STAGE 2 - VERIFIED FIX of a dropped return found by that gate (audit sec 369), commit
-  `Money: restore the dropped return in the driver no-show refund rows`.** `recordDriverNoShowRefundRows()` was
+- Done recently: **STAGE 2 - VERIFIED FIX of a dropped return found by that gate (audit sec 369), SAME commit
+  `857acb0` as the move (one batch: the move and the red test it surfaced).** `recordDriverNoShowRefundRows()` was
   declared `: array` and returned nothing, so every driver no-show refund threw a TypeError, was caught as
   "Failed to resolve no-show report", and left the report pending + the booking confirmed; the legs also lost
   their `wallet_transaction_id`. The two rows are now captured and returned in the sibling's map shape -

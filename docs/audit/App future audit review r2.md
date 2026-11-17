@@ -21776,3 +21776,7 @@ same values; the return is what lets each leg name its own transaction, which is
 **Verification.** `L16DriverNoShowSettlementCharacterizationTest` **4 tests / 7 assertions OK** (was 3 failures
 out of 4), and gate C re-run green: `Admin` + `Staff` + `Review` = **1025 tests / 3215 assertions OK**. The
 failure names recorded before the fix (all three in that one class) are gone; no other test changed state.
+
+
+**Commit note.** This fix and the Ride-cluster move (sec 368) ship in ONE commit, `857acb0`: the move's own
+gate is what surfaced the red money path, and the batch is not finished while a money route throws.
