@@ -2,6 +2,7 @@
 
 namespace App\Modules\Money\Services;
 
+use App\Enums\WalletKind;
 use App\Models\Wallet;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Money\DTOs\WalletSummary;
@@ -53,14 +54,55 @@ final class WalletDirectoryReader implements WalletDirectory
             ->all();
     }
 
+    public function walletOrFail(int $id): WalletSummary
+    {
+        return $this->toSummary(Wallet::findOrFail($id));
+    }
+
+    public function systemWalletsForPhones(array $phoneNumbers): array
+    {
+        if ($phoneNumbers === []) {
+            return [];
+        }
+
+        $summaries = Wallet::query()
+            ->whereIn('phone_number', $phoneNumbers)
+            ->get()
+            ->mapWithKeys(fn (Wallet $wallet) => [$wallet->phone_number => $this->toSummary($wallet)])
+            ->all();
+
+        // The caller's order, and only the phones that exist - the admin card relies on both.
+        return array_values(array_filter(array_map(
+            fn (string $phone) => $summaries[$phone] ?? null,
+            $phoneNumbers,
+        )));
+    }
+
+    public function allSummaries(): array
+    {
+        return Wallet::query()
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn (Wallet $wallet) => $this->toSummary($wallet))
+            ->values()
+            ->all();
+    }
+
     private function toSummary(Wallet $wallet): WalletSummary
     {
+        $kind = $wallet->kind;
+
         return new WalletSummary(
             id: (int) $wallet->id,
-            userId: (int) $wallet->user_id,
+            userId: $wallet->user_id === null ? null : (int) $wallet->user_id,
             walletNumber: (string) $wallet->wallet_number,
             balance: $wallet->balance,
             cashRideDebt: $wallet->cash_ride_debt,
+            name: $wallet->name,
+            phoneNumber: $wallet->phone_number,
+            kind: $kind instanceof WalletKind ? $kind->value : ($kind === null ? null : (string) $kind),
+            createdAt: $wallet->created_at,
+            updatedAt: $wallet->updated_at,
         );
     }
 }

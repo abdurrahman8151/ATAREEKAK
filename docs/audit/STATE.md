@@ -1,7 +1,19 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **OWNER ANSWERS (2026-11-17) progress:** (1) `Complaint::ride()` deleted + Ride cluster moved -> **DONE
-  (sec 368)**; (5) `User::receivedRatings()` + `UserRating` -> **DONE (sec 370, 11 -> 10 pairs)**;
-  (2)/(3) Money payloads + approval workflow -> **NEXT**; (4) Profile -> KEEP PARKED.
+- **OWNER ANSWERS (2026-11-17) progress:** (1) `Complaint::ride()` + Ride cluster -> **DONE (sec 368)**;
+  (5) UserRating -> **DONE (sec 370, 11 -> 10 pairs)**; (2) admin wallet payloads + (3) the approval workflow
+  -> **IN PROGRESS: sec 371 narrowed the wallet-transactions payload to an EXPLICIT shape with byte-identical
+  JSON and moved AdminWalletService onto Money's `WalletDirectory` (Console allowlist entry removed); the
+  workflow move is NEXT (sec 372), then the Money model move (sec 373)**; (4) Profile -> KEEP PARKED.
+- Done recently: **STAGE 2 - C2 the admin wallet screens move onto `WalletDirectory` (audit sec 371), commit
+  `Stage 2 C2: admin wallet reads go through Money's directory`.** NEW `WalletDirectory::walletOrFail()`
+  (ModelNotFoundException stays inside Money), `systemWalletsForPhones()` (caller's order) and
+  `allSummaries()`; `WalletSummary` gained `name`/`phoneNumber`/`kind`/`createdAt`/`updatedAt` and `userId` is
+  now NULLABLE (system wallets). `AdminWalletService` reads owner names from ONE `UserDirectory::summariesFor()`
+  and no longer names `Wallet`; the wallet-transactions payload is an explicit documented array with
+  **byte-identical JSON** (owner said "narrow"; this removes the row from the response without inventing a
+  field-by-field change - if fields should be DROPPED, that is a one-line edit + snapshot regeneration).
+  Two carrier-only test edits (`assertInstanceOf(WalletSummary::class)`, `$result['wallet']['id']`). Gates:
+  **385/1153, 186/2069, 1171/6180 (2 skips) - all OK**; Pint PASS.
 - Done recently: **STAGE 2 - C2 `User::receivedRatings()` removed; `UserRating` moved into Identity (audit
   sec 370), commit `Stage 2 C2: UserRating moves into Identity`.** The kernel principal no longer answers rating
   questions (relation + accessor deleted). NEW `UserRatingReader::averageForUsers()` (ONE grouped query; absent =

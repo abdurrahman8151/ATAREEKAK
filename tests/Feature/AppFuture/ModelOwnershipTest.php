@@ -57,7 +57,8 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Repositories/ComplaintRepository.php' => ['Complaint'],
         'app/Modules/Console/Services/AdminReportService.php' => ['Complaint'],
         'app/Modules/Console/Services/AdminWalletRequestService.php' => ['Wallet', 'WalletRequest'],
-        'app/Modules/Console/Services/AdminWalletService.php' => ['Wallet'],
+        // Stage 2 C2: AdminWalletService's wallet reads moved behind Money's WalletDirectory, so its entry
+        // (Wallet) is gone - the ratchet printed the shrink and this is the follow-through.
         'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment'],
         // Stage 2 C2: Ride's no-show conflict opens its complaint through this Console file.
         'app/Modules/Console/Services/ComplaintDirectoryService.php' => ['Complaint'],

@@ -45,4 +45,27 @@ interface WalletDirectory
      * @return array<int, WalletSummary> keyed by user id; users without a wallet are absent
      */
     public function summariesFor(array $userIds): array;
+
+    /**
+     * Stage 2 C2: one wallet by id, or ModelNotFoundException - the read the admin wallet-transactions
+     * screen performs with `findOrFail`, kept INSIDE Money so the caller neither names the model nor
+     * re-implements the "missing means 404" decision with a null check.
+     */
+    public function walletOrFail(int $id): WalletSummary;
+
+    /**
+     * The platform wallets identified by their configured phone numbers, in the order the phones are given.
+     *
+     * @param  string[]  $phoneNumbers
+     * @return array<int, WalletSummary> a list
+     */
+    public function systemWalletsForPhones(array $phoneNumbers): array;
+
+    /**
+     * Every wallet, newest first - the admin "all wallets" table. One query; the owner's name and email are
+     * Identity's data and are joined by the caller from `UserDirectory`.
+     *
+     * @return array<int, WalletSummary> a list
+     */
+    public function allSummaries(): array;
 }

@@ -2,6 +2,8 @@
 
 namespace App\Modules\Money\DTOs;
 
+use Carbon\Carbon;
+
 /**
  * Stage 2 C1/C2: what another module may know about a wallet.
  *
@@ -17,7 +19,8 @@ final class WalletSummary
 {
     public function __construct(
         public readonly int $id,
-        public readonly int $userId,
+        /** NULL for a platform-owned (system) wallet - the same fact `Wallet::isSystemWallet()` reads. */
+        public readonly ?int $userId,
         public readonly string $walletNumber,
         /**
          * NOT cast to float on purpose. The model hands back its own attribute value (a decimal
@@ -28,5 +31,13 @@ final class WalletSummary
         public readonly mixed $balance,
         /** Same reasoning as `$balance`: passed through, never re-typed. */
         public readonly mixed $cashRideDebt,
+        // Stage 2 C2: the admin wallet screens (escrow/syCash cards, the all-wallets table and the
+        // wallet-transactions header) read these columns, so the summary now publishes them instead of
+        // handing the caller the row. Additive with defaults, so every existing construction stands.
+        public readonly ?string $name = null,
+        public readonly ?string $phoneNumber = null,
+        public readonly ?string $kind = null,
+        public readonly ?Carbon $createdAt = null,
+        public readonly ?Carbon $updatedAt = null,
     ) {}
 }

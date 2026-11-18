@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\Console\Services\AdminWalletService;
+use App\Modules\Money\DTOs\WalletSummary;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
@@ -104,8 +105,10 @@ class AdminWalletServiceTest extends TestCase
     {
         $wallet = $this->service->getOrCreateWallet($this->primaryConfig);
 
-        $this->assertInstanceOf(Wallet::class, $wallet);
-        $this->assertEquals($this->primaryConfig['phone'], $wallet->phone_number);
+        // Stage 2 C2: the service returns Money's `WalletSummary` by contract now (Console may not name the
+        // Wallet model), so the carrier assertion is repointed; the value assertion is unchanged.
+        $this->assertInstanceOf(WalletSummary::class, $wallet);
+        $this->assertEquals($this->primaryConfig['phone'], $wallet->phoneNumber);
     }
 
     public function test_get_or_create_wallet_returns_same_wallet_on_repeat_calls(): void
@@ -232,7 +235,7 @@ class AdminWalletServiceTest extends TestCase
 
         $this->assertArrayHasKey('wallet', $result);
         $this->assertArrayHasKey('transactions', $result);
-        $this->assertEquals($wallet->id, $result['wallet']->id);
+        $this->assertEquals($wallet->id, $result['wallet']['id']);
     }
 
     public function test_get_wallet_transactions_throws_for_nonexistent_wallet(): void

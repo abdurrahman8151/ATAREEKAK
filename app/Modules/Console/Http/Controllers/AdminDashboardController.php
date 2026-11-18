@@ -213,8 +213,8 @@ final class AdminDashboardController extends Controller
             'status' => 'success',
             'wallet' => [
                 'id' => $wallet->id,
-                'wallet_number' => $wallet->wallet_number,
-                'phone_number' => $wallet->phone_number,
+                'wallet_number' => $wallet->walletNumber,
+                'phone_number' => $wallet->phoneNumber,
                 'balance' => Money::from($wallet->balance)->formatted(),
                 'admin_type' => $adminConfig['type'],
             ],

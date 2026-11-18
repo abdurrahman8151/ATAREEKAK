@@ -21847,3 +21847,53 @@ per-row accessor path.
 Wallet, WalletRequest, WalletTransaction}, Identity {Profile, ProfileComment} (owner-parked). Next: the Money
 payloads + approval workflow (owner answers 2 and 3), then the Complaint move, which leaves only the parked
 Profile pair.
+
+---
+
+### 371. Stage 2 C2: the admin wallet screens move onto `WalletDirectory` - and the one raw-row payload becomes an explicit shape with byte-identical JSON
+
+**Owner answer 2 was "narrow the two admin wallet payloads".** This section does the first of them, and does it in
+the way that removes the coupling without inventing a response change: the wallet-transactions payload is now an
+EXPLICIT documented array built from Money's `WalletSummary` instead of `response()->json()` receiving the
+Eloquent row. **Every key and value is identical** (`id, user_id, wallet_number, phone_number, name, kind,
+balance, cash_ride_debt, created_at, updated_at`) and the snapshot is untouched, so nothing the client reads
+changes. If the intent was to DROP fields, that is now a one-line edit in one file plus a snapshot regeneration -
+say which fields and it is done. The second payload (the wallet-request review row) is retired by the workflow
+move in sec 372, which is where its `wallet` block belongs.
+
+**What moved behind Money's contract.** `AdminWalletService` no longer names `Wallet` at all:
+
+| was | now |
+|---|---|
+| `Wallet::where('phone_number', ...)` | `WalletDirectory::byPhone()` (missing -> the same `RuntimeException`) |
+| `Wallet::whereIn('phone_number', $phones)` | `WalletDirectory::systemWalletsForPhones($phones)` (caller's order) |
+| `Wallet::with('user:...')->orderBy(...)` | `WalletDirectory::allSummaries()` + ONE `UserDirectory::summariesFor()` for owner names |
+| `Wallet::findOrFail($id)` | `WalletDirectory::walletOrFail($id)` - `ModelNotFoundException` still comes from Money, so the controller's 404 is unchanged |
+
+`WalletSummary` grew `name`, `phoneNumber`, `kind`, `createdAt`, `updatedAt` (additive with defaults) and its
+`userId` became NULLABLE - a system wallet really has no user, and the old `(int) null = 0` was a small lie the
+`is_system` flag now reads correctly (`userId === null`, the same fact `Wallet::isSystemWallet()` returned).
+
+**One value rule recorded honestly.** `getAllWallets()`'s `owner` used to be the raw concatenation
+`first_name.' '.last_name` with no trimming; it now uses the canonical `fullName()` (trimmed). For a user missing
+one name part the old string carried a stray space; the snapshot's users have both names, so the payload is
+unchanged - the difference is real only in that edge case, and it is a normalization the codebase already applies
+everywhere else.
+
+**Ratchets.** `ModelOwnershipTest` printed `Console allowlist can shrink - remove:
+app/Modules/Console/Services/AdminWalletService.php`; the entry is removed. `Console -> Wallet` therefore has ONE
+remaining file (`AdminWalletRequestService`), which sec 372 retires; `Money -> Wallet` and its siblings retire
+when the class moves (sec 373).
+
+**Test edits, both carrier-only and recorded.** `AdminWalletServiceTest` asserted the service returns the model
+(`assertInstanceOf(Wallet::class, ...)`), which is precisely the coupling the owner ruling removes, and read
+`$result['wallet']->id`. Repointed to `WalletSummary` and `['id']`; **no asserted VALUE changed**.
+
+**A small discovery worth keeping.** The snapshot normalizer labels ids in FIRST-SEEN order, so an explicit array
+must be built in the column order the raw row serialized in; listing `wallet_number` before `user_id` shifted the
+`<id:N>` placeholders and failed the snapshot even though every value was identical. The array's comment says so.
+
+**Verification.** `Unit/Services/Admin` + `Admin` + `Feature/AppFuture` + `Unit/Providers` = **385 / 1153 OK**;
+`Snapshots` (all 213 frozen files + freeze/manifest) = **186 / 2069 OK**; `Wallet`, `Payment`, `Review`, `Rides`,
+`Bookings`, `Profile`, `Repositories`, `T3Batch`, `T4Batch` = **1171 / 6180 OK** (2 pre-existing skips). Pint
+**PASS** on every changed file.
