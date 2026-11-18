@@ -1,12 +1,18 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **OWNER ANSWERS (2026-11-17) progress: ALL FOUR EXECUTED.** (1) `Complaint::ride()` + Ride cluster -> **sec
-  368**; (5) UserRating -> **sec 370**; (2) wallet payloads -> **sec 371**; (3) approval workflow -> **sec 372**;
-  (4) Profile -> KEEP PARKED (the only 2 pairs left). **Money cluster -> sec 373; Complaint cluster -> sec 374.**
-  `KERNEL_MODEL_IMPORTS` **21 -> 2**, and both survivors are owner-parked.
-- **REMAINING (un-gated, the only code work left in the phase):** the three production artisan commands on
-  `ModuleBoundaryTest::ENTRYPOINT_ALLOWLIST` (`BackfillBookingMoneySnapshot`, `ExpireStaleBookingsCommand`,
-  `ReportStuckEscrowCommand`) need Ride maintenance ports so the allowlist returns to `[]` (sec 368 records why
-  each needs its own verified conversion). Then the phase is at its terminal state: 2 owner-parked pairs.
+- **OWNER ANSWERS (2026-11-17): ALL EXECUTED** - (1) sec 368, (2) sec 371, (3) sec 372, (5) sec 370; (4) Profile
+  stays PARKED (the only 2 `KERNEL_MODEL_IMPORTS` pairs left). Clusters moved: Ride 368, Money 373, Complaint 374.
+- **THE PHASE IS AT ITS TERMINAL STATE except ONE item:** `ENTRYPOINT_ALLOWLIST` is `[]` (sec 375),
+  `KERNEL_MODEL_IMPORTS` is 2 (owner-parked Profile pair). The single remaining coupling in scope is
+  `ReportStuckEscrowCommand::heldEscrows()` - a grouped `DB::table('wallet_transactions')` read of Money's ledger
+  from a Console entrypoint (table-level, not model-level; no ratchet counts it). Its home is a Money contract.
+- Done recently: **STAGE 2 - C2 the three maintenance commands go through ports (audit sec 375), commit
+  `Stage 2 C2: booking maintenance commands go through Ride's port`.** NEW `Ride\Contracts\RideMaintenance`
+  (+`RideMaintenanceService`): `stalePendingBookingIds`, `expireIfStillStale` (lock + re-check + write in one
+  transaction), `unfilledSnapshotBookingIds`, `backfillSnapshot`, `bookingContexts` - ids and scalars only, never
+  a model. The backfill's raw `wallet_transactions` read became `LedgerAggregates::escrowTotalsByBooking()`.
+  Commands keep their console I/O, counts, logs and notifications (recipient = KERNEL principal).
+  **`ENTRYPOINT_ALLOWLIST` back to `[]`**; `MoneyRoundingIsDecidedInOnePlaceTest`'s file list followed the moved
+  money arithmetic. Gates: **89/564, 1094/3698, 1914/9201 (2 skips) - all OK**; Pint PASS.
 - Done recently: **STAGE 2 - C2 the Complaint cluster moves (audit sec 374), commit
   `Stage 2 C2: Complaint cluster moves into the module`.** `Complaint` + `ComplaintAttachment` ->
   `app/Modules/Console/Models/` (explicit `$table`, `use App\Models\User;`); 19 files rewritten, no old FQCN

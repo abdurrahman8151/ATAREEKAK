@@ -52,7 +52,9 @@ class MoneyRoundingIsDecidedInOnePlaceTest extends TestCase
         'app/Modules/Money/Services/RidePayout.php',
         'app/Modules/Console/Services/AdminDriverPresenter.php',
         'app/Modules/Identity/Services/PassengerProfilePanelBuilder.php',
-        'app/Console/Commands/BackfillBookingMoneySnapshot.php',
+        // Stage 2 C2 (sec 375): the backfill's `Money::from()->divide()` arithmetic moved into the module that
+        // owns the rows, so the list follows it - the same rule, the same value object, a new home.
+        'app/Modules/Ride/Services/RideMaintenanceService.php',
         'app/Console/Testing/Support/FullRideFlowScenarios.php',
     ];
 

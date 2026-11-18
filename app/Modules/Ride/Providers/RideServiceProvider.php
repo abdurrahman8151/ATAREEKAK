@@ -12,6 +12,7 @@ use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\NoShowReportInterface;
 use App\Modules\Ride\Contracts\PassengerBookingHistory;
+use App\Modules\Ride\Contracts\RideMaintenance;
 use App\Modules\Ride\Contracts\RideQueryExpressions;
 use App\Modules\Ride\Contracts\RideReportCounts;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
@@ -33,6 +34,7 @@ use App\Modules\Ride\Services\DriverRideReadsService;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\Noshowservice;
 use App\Modules\Ride\Services\PassengerBookingHistoryService;
+use App\Modules\Ride\Services\RideMaintenanceService;
 use App\Modules\Ride\Services\RideQueryExpressionsService;
 use App\Modules\Ride\Services\RideReportCountsService;
 use App\Modules\Ride\Services\RideSearchService;
@@ -61,6 +63,8 @@ final class RideServiceProvider extends ServiceProvider
         $this->app->singleton(ArabicPlaceNameService::class);
         // Stage 2 C2: the guarded escrow decrement, so Money stops writing ookings itself.
         $this->app->bind(BookingEscrowLedger::class, BookingEscrowWriter::class);
+        // Stage 2 C2: the three maintenance commands' row access (list, locked re-check, snapshot write).
+        $this->app->bind(RideMaintenance::class, RideMaintenanceService::class);
 
         $this->app->singleton(GeocodingService::class, function ($app) {
             return new GeocodingService(

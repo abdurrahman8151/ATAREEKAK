@@ -22021,3 +22021,46 @@ Communication, Money, Ride, Console and Identity each have a `Models/` namespace
 goes through a contract. The one piece of un-gated work this phase still carries is the three production
 artisan commands on `ModuleBoundaryTest`'s `ENTRYPOINT_ALLOWLIST` (Ride maintenance ports), recorded as parked in
 sec 368 with the reason each needs its own verified conversion.
+
+---
+
+### 375. Stage 2 C2: the three maintenance commands go through ports - `ENTRYPOINT_ALLOWLIST` is back to ZERO
+
+**The debt this pays.** When the Ride cluster moved (sec 368) the three production artisan commands that read
+booking rows became entrypoints naming module implementation, and the ratchet listing them said so - deliberately,
+for one release, with the port that would remove each one named in the record. This is that release.
+
+**`Ride\Contracts\RideMaintenance`** (`RideMaintenanceService`) now owns the row access the commands held:
+`stalePendingBookingIds()`, `expireIfStillStale(int)` (the row LOCK and the re-check that a driver did not accept
+in the meantime, in one transaction), `unfilledSnapshotBookingIds()`, `backfillSnapshot(int, ?float, bool)` and
+`bookingContexts(array)`. Each method returns ids and scalars - never a Booking model - so a command cannot start
+mutating a row it was handed. The bodies are the commands' own logic, verbatim in behaviour: the same filters,
+the same lock-and-recheck, the same `Money::from()->divide()` arithmetic (and its value-object requirement, whose
+source-file list in `MoneyRoundingIsDecidedInOnePlaceTest` followed the code), the same "an e-pay booking with no
+escrow row is SKIPPED, never guessed" rule.
+
+**The backfill's second coupling went too.** `BackfillBookingMoneySnapshot` also queried `wallet_transactions`
+directly to derive the escrow total per booking. That read is Money's ledger vocabulary, so it is now
+`LedgerAggregates::escrowTotalsByBooking()` inside Money - the same `escrow_received` reduction, the same
+per-booking sum for partial re-charges.
+
+**What the commands kept:** the dry-run flag, the counts, the summary lines, the log line, the passenger
+notification (addressed by the KERNEL principal, which an entrypoint may name - a module's model is what it may
+not). `ExpireStaleBookingsCommand` still sends the notification AFTER the commit and never rolls the expiry back
+on a notification failure.
+
+**Ratchets.** `ENTRYPOINT_ALLOWLIST` is **`[]`** again - Console's entrypoints name only Contracts, and the
+allowlist's own docblock says that is the state it is trying to reach. `Ride -> Console`/`Money -> Ride` unchanged
+(the new port is on an existing edge).
+
+**Verification.** `AppFuture` + `BookingExpiryTest` + `RV02EscrowDerivationTest` + `RV40BackfillSnapshotTest` +
+`MoneyRoundingIsDecidedInOnePlaceTest` = **89 / 564 OK**; all `Unit` + `T3Batch` + `T4Batch` + `Console` +
+`Config` = **1094 / 3698 OK**; every remaining feature area (`Review`, `Snapshots` incl. all 213 frozen files,
+`Admin`, `Staff`, `Rides`, `Bookings`, `Wallet`, `Payment`, `Complaints`, `Profile`, `Verification`,
+`Repositories`, `Chat`, `Notifications`, `Auth`, `Security`, `Otp`, `Broadcast`, `Documents`, `RateLimiting`) =
+**1914 / 9201 OK** (2 pre-existing skips). Pint **PASS** on every changed file.
+
+**One last item, recorded rather than hidden:** `ReportStuckEscrowCommand::heldEscrows()` still runs a grouped
+`DB::table('wallet_transactions')` query - a TABLE-level read of Money's ledger by a Console entrypoint. It is not
+a model coupling (no ratchet counts it), but it is the same class of debt, and the honest home for that
+aggregation is a Money contract. It is the only remaining item in the phase's scope.

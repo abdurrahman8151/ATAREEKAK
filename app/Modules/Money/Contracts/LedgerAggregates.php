@@ -33,4 +33,16 @@ interface LedgerAggregates
 
     /** Sum of 'platform_fee' rows for the wallet, optionally windowed. */
     public function platformFees(int $walletId, ?Carbon $start, ?Carbon $end): float;
+
+    /**
+     * Stage 2 C2: the escrow money actually received, keyed by the booking it was received for.
+     *
+     * One statement over `wallet_transactions` (`type = 'escrow_received'`, reference `booking:{id}`), summed per
+     * booking because a booking can be charged across more than one row. The backfill command used to run this
+     * SQL itself, which meant a Console entrypoint reading Money's table directly - the same coupling the
+     * `Type`-vocabulary paragraphs above describe, just discovered later.
+     *
+     * @return array<int, float> booking id => escrow received
+     */
+    public function escrowTotalsByBooking(): array;
 }

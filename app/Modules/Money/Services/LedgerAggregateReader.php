@@ -47,6 +47,28 @@ final class LedgerAggregateReader implements LedgerAggregates
     }
 
     /**
+     * Stage 2 C2: the escrow totals the backfill command derives its snapshot from - the SAME reduction the
+     * command ran itself, now inside the module that owns the rows (and the `escrow_received` vocabulary).
+     *
+     * @return array<int, float> booking id => escrow received
+     */
+    public function escrowTotalsByBooking(): array
+    {
+        return WalletTransaction::query()
+            ->where('type', 'escrow_received')
+            ->whereNotNull('reference')
+            ->get()
+            ->reduce(function (array $carry, WalletTransaction $transaction) {
+                if (preg_match('/^booking:(\d+)$/', (string) $transaction->reference, $matches)) {
+                    // Sum in case a booking was charged across multiple rows (partial re-charge).
+                    $carry[(int) $matches[1]] = ($carry[(int) $matches[1]] ?? 0.0) + (float) $transaction->amount;
+                }
+
+                return $carry;
+            }, []);
+    }
+
+    /**
      * @param  array<int, string>  $types
      */
     private function sum(int $walletId, array $types, ?Carbon $start, ?Carbon $end): float

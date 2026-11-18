@@ -95,16 +95,10 @@ class ModuleBoundaryTest extends TestCase
      * that removes it.
      */
     private const ENTRYPOINT_ALLOWLIST = [
-        // Stage 2 C2 (Ride cluster move, sec 368): these three production artisan commands read/write
-        // Ride rows directly. They were compliant while `Booking`/`Ride` were kernel classes; the move makes
-        // each one an entrypoint naming module implementation. They are LISTED deliberately here, with the
-        // port that removes each one recorded as parked work (STATE.md, sec 368): the backfill iterates a
-        // cursor and writes the immutable money snapshot per booking, the expire command re-reads and updates
-        // each stale booking, and the escrow report joins bookings to held money - each needs its own
-        // verified conversion, not a blind one in the middle of a model move.
-        'Console/Commands/BackfillBookingMoneySnapshot.php' => 1,
-        'Console/Commands/ExpireStaleBookingsCommand.php' => 1,
-        'Console/Commands/ReportStuckEscrowCommand.php' => 1,
+        // Stage 2 C2 (sec 375): EMPTY again. The three production commands that appeared here when the Ride
+        // cluster moved (`BackfillBookingMoneySnapshot`, `ExpireStaleBookingsCommand`, `ReportStuckEscrowCommand`)
+        // now read and write through `RideMaintenance`, and the backfill's escrow totals through
+        // `LedgerAggregates`, so no entrypoint names module implementation any more.
     ];
 
     /**

@@ -2,7 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Modules\Ride\Models\Booking;
+use App\Modules\Identity\Contracts\UserDirectory;
+use App\Modules\Ride\Contracts\RideMaintenance;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -52,7 +53,7 @@ class ReportStuckEscrowCommand extends Command
     /** The reference prefix WalletTransactionService writes: "booking:{id}". */
     private const REFERENCE_PREFIX = 'booking:';
 
-    public function handle(): int
+    public function handle(RideMaintenance $bookings, UserDirectory $users): int
     {
         $rows = $this->heldEscrows();
 
@@ -63,7 +64,7 @@ class ReportStuckEscrowCommand extends Command
             return self::SUCCESS;
         }
 
-        $rows = $this->attachBookingsAndAge($rows);
+        $rows = $this->attachBookingsAndAge($rows, $bookings, $users);
 
         // The histogram is always built from the FULL population. D2 says window W is chosen from
         // this reporter's data, so filtering the histogram with a guessed threshold would let the
@@ -121,33 +122,36 @@ class ReportStuckEscrowCommand extends Command
      * @param  Collection<int, object>  $rows
      * @return Collection<int, array>
      */
-    private function attachBookingsAndAge($rows)
+    private function attachBookingsAndAge($rows, RideMaintenance $bookings, UserDirectory $users)
     {
         $ids = $rows->map(fn ($r) => (int) str_replace(self::REFERENCE_PREFIX, '', $r->reference))->all();
 
-        $bookings = Booking::query()
-            ->with(['user', 'ride'])
-            ->whereIn('id', $ids)
-            ->get()
-            ->keyBy('id');
+        // Stage 2 C2: Ride owns the booking/ride rows and Identity owns the passenger's name, so this report -
+        // a READ-ONLY console command - asks both instead of naming `Booking`. One query each, the same two the
+        // retired eager loads cost.
+        $contexts = $bookings->bookingContexts($ids);
+        $passengers = $users->summariesFor(
+            array_values(array_filter(array_map(fn ($context) => $context['user_id'], $contexts)))
+        );
 
         $now = now();
 
-        return $rows->map(function ($r) use ($bookings, $now) {
+        return $rows->map(function ($r) use ($contexts, $passengers, $now) {
             $id = (int) str_replace(self::REFERENCE_PREFIX, '', $r->reference);
-            $booking = $bookings->get($id);
-            $ride = $booking?->ride;
+            $context = $contexts[$id] ?? null;
 
-            $departure = $ride?->departure_time ? Carbon::parse($ride->departure_time) : null;
+            $departure = ($context['departure_time'] ?? null) ? Carbon::parse($context['departure_time']) : null;
             $basis = $departure ?? Carbon::parse($r->first_seen);
+
+            $passenger = ($context['user_id'] ?? null) === null
+                ? null
+                : ($passengers[$context['user_id']] ?? null);
 
             return [
                 'booking_id' => $id,
-                'passenger' => $booking?->user
-                    ? trim(($booking->user->first_name ?? '').' '.($booking->user->last_name ?? ''))
-                    : 'unknown',
-                'ride_id' => $ride?->id,
-                'seats' => $booking?->seats,
+                'passenger' => $passenger ? $passenger->fullName() : 'unknown',
+                'ride_id' => $context['ride_id'] ?? null,
+                'seats' => $context['seats'] ?? null,
                 'amount' => (float) $r->net,
                 'age_hours' => $basis->diffInHours($now),
                 'age_basis' => $departure ? 'departure' : 'escrow receipt',
