@@ -3,7 +3,7 @@
 namespace App\Modules\Money\Services;
 
 use App\Models\User;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 
 /**
  * Wallet provisioning: the account-password re-read and the wallet row creation plus its link on the

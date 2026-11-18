@@ -3,9 +3,9 @@
 namespace App\Modules\Money\Services;
 
 use App\Enums\WalletKind;
-use App\Models\Wallet;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Money\DTOs\WalletSummary;
+use App\Modules\Money\Models\Wallet;
 
 /**
  * Stage 2 C1: reads `wallets` from inside the module that owns the table.

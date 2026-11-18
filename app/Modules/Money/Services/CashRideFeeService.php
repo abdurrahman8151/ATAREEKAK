@@ -4,8 +4,8 @@ namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
-use App\Models\Wallet;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
+use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Contracts\CashRideCounter;
 
 /**

@@ -3,8 +3,8 @@
 namespace App\Modules\Money\Services;
 
 use App\Enums\LedgerType;
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\DriverEarningsReader;
+use App\Modules\Money\Models\WalletTransaction;
 
 /**
  * Stage 2 C2: the driver-earnings sum, moved verbatim from the Console dashboard.

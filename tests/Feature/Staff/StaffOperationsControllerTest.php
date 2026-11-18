@@ -3,11 +3,11 @@
 namespace Tests\Feature\Staff;
 
 use App\Enums\StaffRole;
+use App\Models\User;
+use App\Modules\Console\Models\Employee;
+use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Models\Wallet;
-use App\Modules\Console\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Concerns\SeedsSystemWallets;

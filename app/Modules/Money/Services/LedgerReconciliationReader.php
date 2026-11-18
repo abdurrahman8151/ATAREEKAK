@@ -2,9 +2,9 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\LedgerEntry;
-use App\Models\Wallet;
 use App\Modules\Money\Contracts\LedgerReconciliation;
+use App\Modules\Money\Models\LedgerEntry;
+use App\Modules\Money\Models\Wallet;
 
 /**
  * Stage 2 C2: the reconciliation reads, moved verbatim from the `ledger:reconcile` command.

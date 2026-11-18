@@ -3,10 +3,10 @@
 namespace App\Modules\Money\Services;
 
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\LedgerServiceInterface;
 use App\Modules\Money\Contracts\PassengerWalletChargerInterface;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;

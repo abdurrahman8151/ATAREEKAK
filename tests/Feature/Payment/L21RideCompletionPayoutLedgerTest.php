@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Payment;
 
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\FeeSplit;
 use App\Modules\Money\Services\RidePayout;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;

@@ -3,7 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Enums\LedgerType;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 use Carbon\Carbon;
 use Database\Seeders\Atarikaktestseeder;
 use Database\Seeders\BulkRideSeeder;

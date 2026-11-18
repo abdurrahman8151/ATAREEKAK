@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Money\Models;
 
 use App\Enums\WalletKind;
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

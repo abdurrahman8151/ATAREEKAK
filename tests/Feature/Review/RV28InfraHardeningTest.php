@@ -84,8 +84,9 @@ class RV28InfraHardeningTest extends TestCase
             // Stage 2 C1: the balance read left the controller (a controller may no longer name a
             // model) and now lives in Money's own accessor, which is where the write-PDO requirement
             // has to be asserted. Same requirement, new home - the assertion follows the code rather
-            // than being dropped.
-            'app/Models/Wallet.php' => 'Wallet::forUser (money read, getBalance)',
+            // than being dropped. Stage 2 C2 (sec 373): the class moved into the module that owns
+            // `wallets`, so the PATH follows it too; the assertion itself is unchanged.
+            'app/Modules/Money/Models/Wallet.php' => 'Wallet::forUser (money read, getBalance)',
         ];
 
         foreach ($sites as $file => $what) {

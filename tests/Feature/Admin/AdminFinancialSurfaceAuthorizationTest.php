@@ -3,8 +3,8 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\User;
-use App\Models\Wallet;
 use App\Modules\Console\Models\Employee;
+use App\Modules\Money\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;

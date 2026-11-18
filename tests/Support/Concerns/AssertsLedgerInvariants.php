@@ -2,10 +2,10 @@
 
 namespace Tests\Support\Concerns;
 
+use App\Modules\Money\Models\LedgerEntry;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Ride\Models\Booking;
-use App\Models\LedgerEntry;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use RuntimeException;
 
 /**

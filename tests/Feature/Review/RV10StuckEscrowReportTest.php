@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Review;
 
+use App\Models\User;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;

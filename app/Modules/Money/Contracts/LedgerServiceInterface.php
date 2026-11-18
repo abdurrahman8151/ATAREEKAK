@@ -2,9 +2,9 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Models\LedgerEntry;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\LedgerEntry;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 
 /**
  * Port over the EXTERNAL ledger entry point (batch 233).

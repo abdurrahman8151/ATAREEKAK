@@ -2,10 +2,10 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\WalletTransaction;
 use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Money\Contracts\WalletChargeHistory;
+use App\Modules\Money\Models\WalletTransaction;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**

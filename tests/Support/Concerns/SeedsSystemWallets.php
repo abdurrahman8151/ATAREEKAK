@@ -3,7 +3,7 @@
 namespace Tests\Support\Concerns;
 
 use App\Enums\WalletKind;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 
 /**
  * RV-34 — shared, idempotent system-wallet seeding.

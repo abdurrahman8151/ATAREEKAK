@@ -3,15 +3,15 @@
 namespace Tests\Feature\Review;
 
 use App\Domain\ValueObjects\Money;
-use App\Modules\Ride\Models\Booking;
-use App\Models\LedgerEntry;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Modules\Console\Services\AdminWalletService;
+use App\Modules\Money\Models\LedgerEntry;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\LedgerService;
 use App\Modules\Money\Services\RidePayout;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\Support\Concerns\SeedsSystemWallets;

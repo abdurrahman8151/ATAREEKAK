@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Rides;
 
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Concerns\SeedsSystemWallets;

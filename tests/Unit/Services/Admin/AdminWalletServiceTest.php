@@ -4,10 +4,10 @@ namespace Tests\Unit\Services\Admin;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Modules\Console\Services\AdminWalletService;
 use App\Modules\Money\DTOs\WalletSummary;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;

@@ -3,20 +3,20 @@
 namespace Tests\Feature\Snapshots;
 
 use App\Enums\StaffRole;
-use App\Modules\Ride\Models\Booking;
 use App\Models\Complaint;
 use App\Models\ComplaintAttachment;
 use App\Models\Profile;
 use App\Models\ProfileComment;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletRequest;
-use App\Models\WalletTransaction;
 use App\Modules\Communication\Models\Message;
 use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Models\Photo;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletRequest;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Money\Services\PassengerWalletCharger;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Models\ScoreTransaction;
 use App\Modules\Ride\Services\ScoreService;
 use Illuminate\Database\Eloquent\Model;

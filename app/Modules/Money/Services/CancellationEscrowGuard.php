@@ -2,7 +2,7 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 use Illuminate\Database\Eloquent\Collection;
 
 /**

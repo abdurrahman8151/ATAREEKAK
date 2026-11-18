@@ -3,7 +3,7 @@
 namespace App\Modules\Money\Contracts;
 
 use App\Models\User;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 use Illuminate\Http\JsonResponse;
 
 /**

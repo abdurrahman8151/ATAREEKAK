@@ -3,10 +3,10 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\LedgerEntry;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\LedgerServiceInterface;
+use App\Modules\Money\Models\LedgerEntry;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 

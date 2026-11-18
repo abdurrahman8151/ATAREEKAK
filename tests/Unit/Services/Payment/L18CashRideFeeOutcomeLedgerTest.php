@@ -4,12 +4,12 @@ namespace Tests\Unit\Services\Payment;
 
 use App\Enums\BookingStatus;
 use App\Enums\PaymentMethod;
+use App\Models\User;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Money\Services\CashRideFeeService;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
-use App\Modules\Money\Services\CashRideFeeService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

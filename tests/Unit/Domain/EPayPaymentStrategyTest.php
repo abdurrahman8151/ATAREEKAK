@@ -2,14 +2,14 @@
 
 namespace Tests\Unit\Domain;
 
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
 use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\PaymentResult;
 use App\Modules\Money\Domain\Strategies\PaymentStrategy;
 use App\Modules\Money\Domain\Strategies\RefundResult;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;

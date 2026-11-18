@@ -3,11 +3,11 @@
 namespace Tests\Unit\Services\Admin;
 
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Modules\Console\Services\AdminDriverService;
 use App\Modules\Identity\Models\Photo;
 use App\Modules\Identity\Models\UserRating;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
 use Carbon\Carbon;

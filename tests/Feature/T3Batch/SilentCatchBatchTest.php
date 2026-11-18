@@ -3,8 +3,8 @@
 namespace Tests\Feature\T3Batch;
 
 use App\Models\User;
-use App\Models\Wallet;
 use App\Modules\Communication\Services\NotificationService;
+use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Services\WalletRequestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;

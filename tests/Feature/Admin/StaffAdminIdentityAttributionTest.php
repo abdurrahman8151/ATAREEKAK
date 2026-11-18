@@ -3,10 +3,10 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletRequest;
 use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Services\JwtService;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;

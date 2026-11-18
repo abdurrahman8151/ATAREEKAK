@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Modules\Ride\Models\Booking;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Modules\Console\Services\AdminDriverService;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Concerns\SeedsSystemWallets;

@@ -3,10 +3,10 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Wallet;
 use App\Modules\Money\Contracts\AdminWalletCredit;
 use App\Modules\Money\Contracts\LedgerServiceInterface;
 use App\Modules\Money\Contracts\WalletTransactionRecorder;
+use App\Modules\Money\Models\Wallet;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;

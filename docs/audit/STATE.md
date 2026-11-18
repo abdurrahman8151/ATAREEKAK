@@ -1,8 +1,16 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - **OWNER ANSWERS (2026-11-17) progress:** (1) `Complaint::ride()` + Ride cluster -> **DONE (sec 368)**;
   (5) UserRating -> **DONE (sec 370)**; (2) wallet payloads -> **DONE (sec 371)**; (3) the approval workflow
-  -> **DONE (sec 372: `Console -> Wallet` and `Console -> WalletRequest` retired, 10 -> 8 pairs)**;
-  (4) Profile -> KEEP PARKED. NEXT: the Money model move (sec 373), then Complaint/ComplaintAttachment.
+  -> **DONE (sec 372)**; (4) Profile -> KEEP PARKED. **Money cluster moved -> DONE (sec 373, 8 -> 4 pairs)**.
+  NEXT: the Complaint cluster move (Console {Complaint, ComplaintAttachment}) - after that only the parked
+  Profile pair remains.
+- Done recently: **STAGE 2 - C2 the Money cluster moves into the module (audit sec 373), commit
+  `Stage 2 C2: Money cluster moves into the module`.** `Wallet`, `WalletRequest`, `WalletTransaction` and
+  `LedgerEntry` -> `app/Modules/Money/Models/` (explicit `$table` already present; `use App\Models\User;` added
+  where the relations needed it); 108 files' references rewritten, no old FQCN left in any form.
+  **`KERNEL_MODEL_IMPORTS` 8 -> 4** (Console {Complaint, ComplaintAttachment} + the owner-parked Identity
+  {Profile, ProfileComment}); `TABLE_OWNERS` +4 tables. `RV28InfraHardeningTest`'s path followed the Wallet model
+  (assertion unchanged). Gates: **62/465, 1297/5672, 541/2889, 1170/4336 (2 skips) - all OK**; Pint PASS.
 - Done recently: **STAGE 2 - C2 the wallet-request approval workflow moves into Money (audit sec 372), commit
   `Stage 2 C2: the wallet-request decision moves into Money`.** NEW `Money\Contracts\WalletRequests` +
   `WalletRequestSummary` + `WalletRequestDeskService`: the whole approve/reject body moved VERBATIM (lock,

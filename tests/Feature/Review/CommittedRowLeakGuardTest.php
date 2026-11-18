@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

@@ -4,8 +4,8 @@ namespace Tests\Feature\Review;
 
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
-use App\Models\Wallet;
 use App\Modules\Console\Services\AdminWalletService;
+use App\Modules\Money\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\Support\Concerns\SeedsSystemWallets;

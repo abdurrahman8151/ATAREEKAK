@@ -3,8 +3,8 @@
 namespace Tests\Unit\Models;
 
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;

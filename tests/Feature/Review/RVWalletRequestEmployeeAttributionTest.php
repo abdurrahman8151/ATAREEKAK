@@ -3,9 +3,9 @@
 namespace Tests\Feature\Review;
 
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletRequest;
 use App\Modules\Console\Models\Employee;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;

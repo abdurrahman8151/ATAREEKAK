@@ -3,8 +3,8 @@
 namespace Tests\Feature\Review;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\LedgerEntry;
-use App\Models\Wallet;
+use App\Modules\Money\Models\LedgerEntry;
+use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Services\LedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;

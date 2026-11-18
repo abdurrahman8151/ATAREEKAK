@@ -2,15 +2,15 @@
 
 namespace Tests\Feature\Payment;
 
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\CancellationRefund;
 use App\Modules\Money\Services\LedgerService;
 use App\Modules\Money\Services\WalletAccess;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;

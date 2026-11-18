@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Review;
 
+use App\Models\User;
+use App\Modules\Console\Models\Employee;
+use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Models\Wallet;
-use App\Modules\Console\Models\Employee;
 use App\Modules\Ride\Models\UserScore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;

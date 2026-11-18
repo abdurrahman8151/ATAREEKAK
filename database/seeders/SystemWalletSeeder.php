@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\WalletKind;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 use Illuminate\Database\Seeder;
 use RuntimeException;
 

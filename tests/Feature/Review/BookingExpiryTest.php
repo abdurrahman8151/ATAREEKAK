@@ -3,11 +3,11 @@
 namespace Tests\Feature\Review;
 
 use App\Enums\BookingStatus;
+use App\Models\User;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;

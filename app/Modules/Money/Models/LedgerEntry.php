@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Money\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

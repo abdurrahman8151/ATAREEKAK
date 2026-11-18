@@ -2,8 +2,8 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\WalletTransactionRecorder;
+use App\Modules\Money\Models\WalletTransaction;
 
 /**
  * Stage 2 C1: the one insert Identity performs on Money's behalf.

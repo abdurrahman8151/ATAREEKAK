@@ -21943,3 +21943,44 @@ snapshot - list, approve and reject - BYTE-IDENTICAL. Pint **PASS** on the 57 ch
 **Remaining: 8 pairs** - Console {Complaint, ComplaintAttachment}, Money {LedgerEntry, Wallet, WalletRequest,
 WalletTransaction}, Identity {Profile, ProfileComment} (owner-parked). Next: the Money model move (sec 373), then
 the Complaint pair.
+
+---
+
+### 373. Stage 2 C2: the Money cluster moves into the module - `KERNEL_MODEL_IMPORTS` is down to FOUR
+
+**The move.** `Wallet`, `WalletRequest`, `WalletTransaction` and `LedgerEntry` now live in
+`app/Modules/Money/Models/`. They already carried explicit `$table` names (added in the C1 slice that introduced
+the rule), so no table could move under the namespace change; the three with relation to the principal gained the
+`use App\Models\User;` import their bare `User::class` needs - the adjacency trap `ClassReferenceIntegrityTest`
+exists to catch, and the reason every moved model gets checked for it now instead of after a red suite.
+
+**108 files** had references rewritten (one import line each, a handful with two), verified by
+`git diff --numstat` and by a final scan for the old fully-qualified name **in any form** (including docblocks):
+zero hits. `composer dump-autoload` regenerated the classmap.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **8 -> 4**: `Money -> Wallet`, `Money -> WalletRequest`,
+`Money -> WalletTransaction` and `Money -> LedgerEntry` are gone. `TABLE_OWNERS` gains `wallets`,
+`wallet_requests`, `wallet_transactions` and `ledger_entries`, so the raw-`DB::table` ratchet now polices all four.
+No module outside Money names any of them: secs 371/372 had already taken Console off `Wallet`/`WalletRequest`,
+and every other module uses Money's contracts.
+
+**One test followed the code.** `RV28InfraHardeningTest` pins that the balance read forces the write PDO by
+grepping the `Wallet` model's source for `useWritePdo`. Its PATH was repointed to the new location; the
+assertion, the reason and the requirement are unchanged - the same way its sibling entry followed the read out of
+the controller in stage 2 C1.
+
+**The remaining four pairs are exactly the parked and owner-gated ones:**
+
+| pair | why it is still there |
+|---|---|
+| `Console -> Complaint`, `Console -> ComplaintAttachment` | next in the forced order (the Complaint cluster move) |
+| `Identity -> Profile`, `Identity -> ProfileComment` | OWNER-PARKED: no +1 query, no nested-`profile` JSON change |
+
+**Verification, three runs, all green:**
+
+| paths | result |
+|---|---|
+| all `Unit` + `Wallet` + `Payment` | **1297 / 5672 OK** |
+| `Snapshots` (all 213 frozen files + freeze/manifest) + `Admin` + `Staff` | **541 / 2889 OK** |
+| `Review`, `Rides`, `Bookings`, `Profile`, `Verification`, `Repositories`, `Chat`, `Notifications`, `T3Batch`, `T4Batch`, `Auth`, `Security`, `Otp`, `Config`, `Console`, `Broadcast`, `Documents`, `RateLimiting`, `Complaints` | **1170 / 4336 OK** (2 pre-existing skips) |
+| `AppFuture` (all seven ratchets, run first) | **62 / 465 OK** |

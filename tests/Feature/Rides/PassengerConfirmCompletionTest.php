@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Rides;
 
+use App\Models\User;
+use App\Modules\Identity\Services\JwtService;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Models\Wallet;
-use App\Modules\Identity\Services\JwtService;
-use App\Modules\Money\Services\BookingCharge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;

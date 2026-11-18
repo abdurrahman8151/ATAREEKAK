@@ -3,13 +3,13 @@
 namespace Tests\Feature\Rides;
 
 use App\Jobs\SendPushNotificationJob;
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
 use App\Modules\Communication\Models\Notification;
 use App\Modules\Communication\Models\UserNotification;
+use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Services\BookingCharge;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Str;

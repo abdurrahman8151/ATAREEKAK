@@ -2,8 +2,8 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\LedgerAggregates;
+use App\Modules\Money\Models\WalletTransaction;
 use Carbon\Carbon;
 
 /**

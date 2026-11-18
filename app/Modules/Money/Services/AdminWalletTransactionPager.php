@@ -2,8 +2,8 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\WalletTransaction;
 use App\Modules\Money\Contracts\WalletTransactionPager;
+use App\Modules\Money\Models\WalletTransaction;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**

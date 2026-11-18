@@ -96,6 +96,11 @@ final class ModelOwnershipTest extends TestCase
         'rides' => 'Ride',
         'bookings' => 'Ride',
         'noshow_reports' => 'Ride',
+        // Stage 2 C2: the Money cluster moved together, after secs 371/372 took Console off its models.
+        'wallets' => 'Money',
+        'wallet_requests' => 'Money',
+        'wallet_transactions' => 'Money',
+        'ledger_entries' => 'Money',
     ];
 
     /**
@@ -113,10 +118,8 @@ final class ModelOwnershipTest extends TestCase
         // now goes through Money's `WalletRequests`. Console names no wallet model at all.
         'Identity -> Profile' => 'profiles',
         'Identity -> ProfileComment' => 'profile_comments',
-        'Money -> LedgerEntry' => 'ledger_entries',
-        'Money -> Wallet' => 'wallets',
-        'Money -> WalletRequest' => 'wallet_requests',
-        'Money -> WalletTransaction' => 'wallet_transactions',
+        // Stage 2 C2: the four `Money -> *` pairs are REMOVED (sec 373) - the classes moved into
+        // `App\Modules\Money\Models`, so Money names only its own models now.
     ];
 
     /** @test */

@@ -2,7 +2,7 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\WalletTransaction;
 use RuntimeException;
 
 /**

@@ -3,11 +3,11 @@
 namespace Tests\Feature\Review;
 
 use App\Enums\PaymentMethod;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Money\Services\CashRideFeeService;
+use App\Modules\Ride\Models\Ride;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;

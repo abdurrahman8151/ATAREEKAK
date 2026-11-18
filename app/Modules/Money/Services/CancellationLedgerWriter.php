@@ -2,8 +2,8 @@
 
 namespace App\Modules\Money\Services;
 
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 

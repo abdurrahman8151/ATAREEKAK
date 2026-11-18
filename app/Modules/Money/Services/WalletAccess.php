@@ -5,7 +5,7 @@ namespace App\Modules\Money\Services;
 use App\Domain\ValueObjects\Money;
 use App\Enums\WalletKind;
 use App\Models\User;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
 use Illuminate\Database\Eloquent\Collection;
 

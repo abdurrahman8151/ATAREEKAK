@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Review;
 
-use App\Modules\Ride\Models\Booking;
 use App\Models\User;
-use App\Models\Wallet;
-use App\Models\WalletTransaction;
+use App\Modules\Money\Models\Wallet;
+use App\Modules\Money\Models\WalletTransaction;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\CancellationRefund;
 use App\Modules\Money\Services\PostingKey;
 use App\Modules\Money\Services\RidePayout;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

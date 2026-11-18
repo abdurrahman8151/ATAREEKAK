@@ -3,7 +3,7 @@
 namespace Tests\Feature\Review;
 
 use App\Models\User;
-use App\Models\Wallet;
+use App\Modules\Money\Models\Wallet;
 use Database\Seeders\SystemWalletSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
