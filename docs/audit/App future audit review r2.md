@@ -21984,3 +21984,40 @@ the controller in stage 2 C1.
 | `Snapshots` (all 213 frozen files + freeze/manifest) + `Admin` + `Staff` | **541 / 2889 OK** |
 | `Review`, `Rides`, `Bookings`, `Profile`, `Verification`, `Repositories`, `Chat`, `Notifications`, `T3Batch`, `T4Batch`, `Auth`, `Security`, `Otp`, `Config`, `Console`, `Broadcast`, `Documents`, `RateLimiting`, `Complaints` | **1170 / 4336 OK** (2 pre-existing skips) |
 | `AppFuture` (all seven ratchets, run first) | **62 / 465 OK** |
+
+---
+
+### 374. Stage 2 C2: the Complaint cluster moves - the kernel keeps TWO models' worth of pairs, and both are owner-parked
+
+**The move.** `Complaint` and `ComplaintAttachment` now live in `app/Modules/Console/Models/`. Their only relations
+are each other and the kernel principal (`Complaint::user()`, `complainedUser()`, `attachments()`;
+`ComplaintAttachment::complaint()`), and `Complaint::ride()` - the adjacency reference that used to make this pair
+unmovable - was deleted by the owner's ruling back in sec 368. Each gained an explicit `$table` and the
+`use App\Models\User;` import. **19 files** rewritten, verified by numstat and a final scan for the old name in
+any form: zero hits.
+
+**Ratchets, and one guard that had to move rather than be deleted.**
+- `KERNEL_MODEL_IMPORTS` **4 -> 2**: `Console -> Complaint` and `Console -> ComplaintAttachment` are gone. The
+  two that remain are `Identity -> Profile` and `Identity -> ProfileComment`, and they STAY DECLARED because they
+  are still measured - the owner parked that move (it needs a +1 query on two endpoints and a nested-`profile`
+  JSON change). Deleting them from the list would not remove the imports, it would only hide them.
+- `TABLE_OWNERS` gains `complaints` and `complaint_attachments`.
+- `CONSOLE_FOREIGN_MODEL_FILES` is now **EMPTY** - Console reads no foreign kernel model at all. That tripped
+  the ratchet's own non-vacuity guard ("An empty allowlist would make this ratchet vacuous"), so the guard was
+  MOVED to the scan rather than removed: it now asserts Console actually owns models (>= 3 files in
+  `Modules/Console/Models`) and that a foreign reference with an empty allowlist still fails. The ratchet is not
+  weaker - it is aimed at the state that now exists.
+
+**Verification.** `AppFuture` + `Complaints` + all `Unit` = **1084 / 3410 OK**; `Admin` + `Staff` + `Snapshots`
+(all 213 frozen files) = **541 / 2889 OK**; every other feature area (`Review`, `Rides`, `Bookings`, `Profile`,
+`Verification`, `Repositories`, `Chat`, `Notifications`, `T3Batch`, `T4Batch`, `Auth`, `Security`, `Otp`,
+`Config`, `Console`, `Broadcast`, `Documents`, `RateLimiting`, `Wallet`, `Payment`) = **1445 / 7062 OK**
+(2 pre-existing skips). Pint **PASS** on every changed file.
+
+**Where Stage 2's model ownership now stands.** 21 pairs at the start of this run -> **2**, and both of the
+remaining two are parked BY THE OWNER, not by difficulty: `Identity -> Profile` and `Identity -> ProfileComment`
+(sec 350's three questions; answer 4 was "keep parked"). Every module owns its own tables:
+Communication, Money, Ride, Console and Identity each have a `Models/` namespace, and every cross-module read
+goes through a contract. The one piece of un-gated work this phase still carries is the three production
+artisan commands on `ModuleBoundaryTest`'s `ENTRYPOINT_ALLOWLIST` (Ride maintenance ports), recorded as parked in
+sec 368 with the reason each needs its own verified conversion.

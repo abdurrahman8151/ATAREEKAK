@@ -4,8 +4,8 @@ namespace Tests\Feature\Complaints;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Models\Complaint;
 use App\Models\User;
+use App\Modules\Console\Models\Complaint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;

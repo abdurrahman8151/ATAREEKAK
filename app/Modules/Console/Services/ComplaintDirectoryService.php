@@ -5,9 +5,9 @@ namespace App\Modules\Console\Services;
 use App\DTOs\Auth\StaffAccount;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Models\Complaint;
 use App\Modules\Console\Contracts\ComplaintDirectory;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Models\Complaint;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 

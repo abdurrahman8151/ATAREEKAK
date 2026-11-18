@@ -4,9 +4,9 @@ namespace Tests\Unit\Models;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Models\Complaint;
-use App\Models\ComplaintAttachment;
 use App\Models\User;
+use App\Modules\Console\Models\Complaint;
+use App\Modules\Console\Models\ComplaintAttachment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

@@ -2,8 +2,8 @@
 
 namespace App\Modules\Console\Repositories;
 
-use App\Models\Complaint;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
+use App\Modules\Console\Models\Complaint;
 use Illuminate\Database\Eloquent\Collection;
 
 class ComplaintRepository implements ComplaintRepositoryInterface

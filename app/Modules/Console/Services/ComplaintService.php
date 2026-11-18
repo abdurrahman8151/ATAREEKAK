@@ -5,11 +5,11 @@ namespace App\Modules\Console\Services;
 use App\DTOs\Auth\StaffAccount;
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Models\Complaint;
-use App\Models\ComplaintAttachment;
 use App\Models\User;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Models\Complaint;
+use App\Modules\Console\Models\ComplaintAttachment;
 use App\Modules\Console\Models\Employee;
 use Illuminate\Database\Eloquent\Collection;
 

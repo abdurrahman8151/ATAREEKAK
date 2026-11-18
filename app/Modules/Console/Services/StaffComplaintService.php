@@ -4,10 +4,10 @@ namespace App\Modules\Console\Services;
 
 use App\DTOs\Auth\StaffAccount;
 use App\Enums\ComplaintStatus;
-use App\Models\Complaint;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
+use App\Modules\Console\Models\Complaint;
 use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Contracts\UserDirectory;
 use App\Support\Logging\SafeExceptionLog;

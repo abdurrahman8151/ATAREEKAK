@@ -2,7 +2,7 @@
 
 namespace App\Modules\Console\Contracts;
 
-use App\Models\Complaint;
+use App\Modules\Console\Models\Complaint;
 use Illuminate\Database\Eloquent\Collection;
 
 interface ComplaintRepositoryInterface

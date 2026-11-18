@@ -3,7 +3,7 @@
 namespace App\Console\Testing\Support;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Complaint;
+use App\Modules\Console\Models\Complaint;
 use App\Modules\Ride\Models\NoshowReport;
 use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Services\Noshowservice;

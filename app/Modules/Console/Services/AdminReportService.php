@@ -4,7 +4,7 @@ namespace App\Modules\Console\Services;
 
 use App\Domain\ValueObjects\Money;
 use App\Enums\ComplaintStatus;
-use App\Models\Complaint;
+use App\Modules\Console\Models\Complaint;
 use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Money\Contracts\LedgerAggregates;

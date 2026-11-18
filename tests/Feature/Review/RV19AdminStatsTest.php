@@ -4,8 +4,8 @@ namespace Tests\Feature\Review;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
-use App\Models\Complaint;
 use App\Models\User;
+use App\Modules\Console\Models\Complaint;
 use App\Modules\Console\Services\AdminReportService;
 use App\Modules\Money\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;

@@ -1,9 +1,21 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **OWNER ANSWERS (2026-11-17) progress:** (1) `Complaint::ride()` + Ride cluster -> **DONE (sec 368)**;
-  (5) UserRating -> **DONE (sec 370)**; (2) wallet payloads -> **DONE (sec 371)**; (3) the approval workflow
-  -> **DONE (sec 372)**; (4) Profile -> KEEP PARKED. **Money cluster moved -> DONE (sec 373, 8 -> 4 pairs)**.
-  NEXT: the Complaint cluster move (Console {Complaint, ComplaintAttachment}) - after that only the parked
-  Profile pair remains.
+- **OWNER ANSWERS (2026-11-17) progress: ALL FOUR EXECUTED.** (1) `Complaint::ride()` + Ride cluster -> **sec
+  368**; (5) UserRating -> **sec 370**; (2) wallet payloads -> **sec 371**; (3) approval workflow -> **sec 372**;
+  (4) Profile -> KEEP PARKED (the only 2 pairs left). **Money cluster -> sec 373; Complaint cluster -> sec 374.**
+  `KERNEL_MODEL_IMPORTS` **21 -> 2**, and both survivors are owner-parked.
+- **REMAINING (un-gated, the only code work left in the phase):** the three production artisan commands on
+  `ModuleBoundaryTest::ENTRYPOINT_ALLOWLIST` (`BackfillBookingMoneySnapshot`, `ExpireStaleBookingsCommand`,
+  `ReportStuckEscrowCommand`) need Ride maintenance ports so the allowlist returns to `[]` (sec 368 records why
+  each needs its own verified conversion). Then the phase is at its terminal state: 2 owner-parked pairs.
+- Done recently: **STAGE 2 - C2 the Complaint cluster moves (audit sec 374), commit
+  `Stage 2 C2: Complaint cluster moves into the module`.** `Complaint` + `ComplaintAttachment` ->
+  `app/Modules/Console/Models/` (explicit `$table`, `use App\Models\User;`); 19 files rewritten, no old FQCN
+  left. `KERNEL_MODEL_IMPORTS` **4 -> 2** (only the owner-parked Identity Profile pair, kept DECLARED because it
+  is still measured); `TABLE_OWNERS` +2 tables; **`CONSOLE_FOREIGN_MODEL_FILES` is now EMPTY**, so its
+  non-vacuity guard MOVED to the scan (Console must own >= 3 model files; a foreign reference with an empty
+  allowlist still fails). `docs/ARCHITECTURE.md`'s ownership map updated for all ten models this run moved
+  (only the two parked Profile rows still say pending). Gates: **1084/3410, 541/2889, 1445/7062 (2 skips) - all
+  OK**; Pint PASS.
 - Done recently: **STAGE 2 - C2 the Money cluster moves into the module (audit sec 373), commit
   `Stage 2 C2: Money cluster moves into the module`.** `Wallet`, `WalletRequest`, `WalletTransaction` and
   `LedgerEntry` -> `app/Modules/Money/Models/` (explicit `$table` already present; `use App\Models\User;` added

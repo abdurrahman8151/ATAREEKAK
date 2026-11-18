@@ -253,13 +253,13 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | Communication | Notification | `notifications` | `App\Modules\Communication\Models` (moved) |
 | Communication | UserNotification | `user_notifications` | `App\Modules\Communication\Models` (moved) |
 | Communication | PushNotificationToken | `push_notification_tokens` | `App\Modules\Communication\Models` (moved) |
-| Money | Wallet | `wallets` | `App\Models` (pending) |
-| Money | WalletRequest | `wallet_requests` | `App\Models` (pending) |
-| Money | WalletTransaction | `wallet_transactions` | `App\Models` (pending) |
-| Money | LedgerEntry | `ledger_entries` | `App\Models` (pending) |
-| Ride | Ride | `rides` | `App\Models` (pending) |
-| Ride | Booking | `bookings` | `App\Models` (pending) |
-| Ride | NoshowReport | `noshow_reports` | `App\Models` (pending) |
+| Money | Wallet | `wallets` | `App\Modules\Money\Models` (moved) |
+| Money | WalletRequest | `wallet_requests` | `App\Modules\Money\Models` (moved) |
+| Money | WalletTransaction | `wallet_transactions` | `App\Modules\Money\Models` (moved) |
+| Money | LedgerEntry | `ledger_entries` | `App\Modules\Money\Models` (moved) |
+| Ride | Ride | `rides` | `App\Modules\Ride\Models` (moved) |
+| Ride | Booking | `bookings` | `App\Modules\Ride\Models` (moved) |
+| Ride | NoshowReport | `noshow_reports` | `App\Modules\Ride\Models` (moved) |
 | Ride | ScoreTransaction | `score_transactions` | `App\Modules\Ride\Models` (moved) |
 | Ride | UserScore | `user_scores` | `App\Modules\Ride\Models` (moved) |
 | Identity | Otp | `otps` | `App\Modules\Identity\Models` (moved) |
@@ -268,9 +268,9 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | Identity | Photo | `photos` | `App\Modules\Identity\Models` (moved) |
 | Identity | Profile | `profiles` | `App\Models` (pending) |
 | Identity | ProfileComment | `profile_comments` | `App\Models` (pending) |
-| Identity | UserRating | `user_ratings` | `App\Models` (pending) |
-| Console | Complaint | `complaints` | `App\Models` (pending) |
-| Console | ComplaintAttachment | `complaint_attachments` | `App\Models` (pending) |
+| Identity | UserRating | `user_ratings` | `App\Modules\Identity\Models` (moved) |
+| Console | Complaint | `complaints` | `App\Modules\Console\Models` (moved) |
+| Console | ComplaintAttachment | `complaint_attachments` | `App\Modules\Console\Models` (moved) |
 | Console | Employee | `employees` | `App\Modules\Console\Models` (moved) |
 | *kernel* | User | `users` | `App\Models` - the authenticated principal only ([ADR 0007](adr/0007-user-is-the-authenticated-principal.md)) |
 

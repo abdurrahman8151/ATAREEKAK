@@ -53,17 +53,11 @@ final class ModelOwnershipTest extends TestCase
      * @var array<string, array<int, string>>
      */
     private const CONSOLE_FOREIGN_MODEL_FILES = [
-        'app/Modules/Console/Contracts/ComplaintRepositoryInterface.php' => ['Complaint'],
-        'app/Modules/Console/Repositories/ComplaintRepository.php' => ['Complaint'],
-        'app/Modules/Console/Services/AdminReportService.php' => ['Complaint'],
-        // Stage 2 C2: AdminWalletService (sec 371) and AdminWalletRequestService (sec 372, deleted when its
-        // reads AND the approval workflow moved into Money) both left this list. Console names no wallet
-        // model any more.
-        'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment'],
-        // Stage 2 C2: Ride's no-show conflict opens its complaint through this Console file.
-        'app/Modules/Console/Services/ComplaintDirectoryService.php' => ['Complaint'],
-        'app/Modules/Console/Services/ComplaintRecorderService.php' => ['Complaint'],
-        'app/Modules/Console/Services/StaffComplaintService.php' => ['Complaint'],
+        // EMPTY as of sec 374: the Complaint cluster (`complaints`, `complaint_attachments`) moved into
+        // `App\Modules\Console\Models`, so every entry that used to be here - the complaint repository and
+        // its interface, the four complaint services and the admin report - now names Console's own models.
+        // The list is shrink-only, so it stays here at zero rather than being deleted: a future Console file
+        // that reaches for ANOTHER module's kernel model must add itself, deliberately.
     ];
 
     /**
@@ -101,6 +95,10 @@ final class ModelOwnershipTest extends TestCase
         'wallet_requests' => 'Money',
         'wallet_transactions' => 'Money',
         'ledger_entries' => 'Money',
+        // Stage 2 C2: the Complaint cluster moved last (sec 374) - Console's own tables, whose only remaining
+        // kernel reference (`Complaint::ride()`) the owner ruling removed back in sec 368.
+        'complaints' => 'Console',
+        'complaint_attachments' => 'Console',
     ];
 
     /**
@@ -110,16 +108,13 @@ final class ModelOwnershipTest extends TestCase
      * @var array<string, string>
      */
     private const KERNEL_MODEL_IMPORTS = [
-        'Console -> Complaint' => 'complaints',
-        'Console -> ComplaintAttachment' => 'complaint_attachments',
-        // Stage 2 C2: `Console -> Wallet` and `Console -> WalletRequest` were REMOVED here (sec 372). The
-        // admin wallet screens read through `WalletDirectory`, and the whole review-and-decision surface -
-        // including the approve/reject money movement that used to write these rows from Console's controller -
-        // now goes through Money's `WalletRequests`. Console names no wallet model at all.
+        // Stage 2 C2: the Complaint pair went with the sec-374 move, and the Money and Console-wallet pairs
+        // went in secs 372/373. These two are what is LEFT, and both are OWNER-PARKED (the Profile move needs a
+        // +1 query on two endpoints and a nested-`profile` JSON change; the owner's ruling was to keep it
+        // parked). They stay declared because they are still measured - removing them here would not remove
+        // the imports, it would only hide them.
         'Identity -> Profile' => 'profiles',
         'Identity -> ProfileComment' => 'profile_comments',
-        // Stage 2 C2: the four `Money -> *` pairs are REMOVED (sec 373) - the classes moved into
-        // `App\Modules\Money\Models`, so Money names only its own models now.
     ];
 
     /** @test */
@@ -200,9 +195,29 @@ final class ModelOwnershipTest extends TestCase
      */
     public function console_only_touches_foreign_models_from_named_files(): void
     {
-        $this->assertNotEmpty(self::CONSOLE_FOREIGN_MODEL_FILES, 'An empty allowlist would make this ratchet vacuous.');
-
+        // Stage 2 C2 (sec 374): the allowlist is now EMPTY, because Console reads no foreign kernel model at
+        // all. The non-vacuity guard therefore moved to the SCAN: an empty allowlist is only meaningful if the
+        // scanner actually read Console and the measurement is empty too. If the scan ever breaks (or a new
+        // Console file reaches for another module's model), the assertion below still fires.
         $scan = $this->consoleForeignModelFiles();
+
+        $this->assertGreaterThanOrEqual(
+            3,
+            count(glob(app_path('Modules/Console/Models/*.php'))),
+            'Console should own models of its own by now - the move this ratchet polices actually happened.'
+        );
+
+        if (self::CONSOLE_FOREIGN_MODEL_FILES === []) {
+            $this->assertSame(
+                [],
+                $scan,
+                "Console names a foreign model but the allowlist is empty:\n  ".implode("\n  ", array_keys($scan))
+                ."\nAdd a Reader contract in the owning module's Contracts, or justify the file here in the same commit."
+            );
+
+            return;
+        }
+
         $this->assertNotEmpty($scan, 'The Console scan found no foreign model references - it is not reading the module.');
 
         $new = array_values(array_diff(array_keys($scan), array_keys(self::CONSOLE_FOREIGN_MODEL_FILES)));
