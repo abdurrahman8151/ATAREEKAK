@@ -21897,3 +21897,49 @@ must be built in the column order the raw row serialized in; listing `wallet_num
 `Snapshots` (all 213 frozen files + freeze/manifest) = **186 / 2069 OK**; `Wallet`, `Payment`, `Review`, `Rides`,
 `Bookings`, `Profile`, `Repositories`, `T3Batch`, `T4Batch` = **1171 / 6180 OK** (2 pre-existing skips). Pint
 **PASS** on every changed file.
+
+---
+
+### 372. Stage 2 C2: the wallet-request approval workflow moves into Money - `Console -> Wallet` and `Console -> WalletRequest` are GONE
+
+**The largest write-coupling in the phase, closed.** Console's `AdminWalletRequestController` used to run the
+whole approval body itself: lock the wallet row, compute the movement, write the balance, create the wallet
+transaction, mirror the movement against External Capital, post the ledger legs and mark the request approved -
+every statement a WRITE on Money's tables from another module, the one shape a reader contract cannot fix.
+It is now `Money\Contracts\WalletRequests` (`WalletRequestDeskService`), moved **verbatim**: same row lock, same
+arithmetic, same transaction ids (`WR-{id}-{uuid}`, `EXT-WR-{id}-{uuid}`), same references, same descriptions,
+same audit columns, same `DomainException` refusal for a withdrawal above the balance.
+
+**What stayed in Console:** validation, the response envelope and status codes, the `wallet.requests.{userId}`
+cache bust, and the row formatting - now read from a `WalletRequestSummary` (request columns + a nested
+`WalletSummary`) instead of a model.
+
+**One thing moved that was not in the plan, and why.** The decision NOTIFICATIONS went with it.
+`NotificationPort::createNotification()` takes the principal by design, so keeping them in Console meant
+importing `App\Models\User` into a controller - which tripped `BoundaryDependencyTest`'s `controllers_to_models`
+(baseline 0) the moment it was written. Money may name the kernel principal, so `approve()`/`reject()` now send
+the notification (same texts, channel, priority, non-fatal logging). To keep the response query-neutral, the
+summary carries the requester's name/email that Money had already loaded for the notification, so no path reads
+the user row twice. `autoClearDebtAfterCharge()` moved as well: it needs the wallet ROW and the payer.
+
+**The budgets caught the first cut, again.** The naive move measured **22 queries against the 18-query budget**
+on `admin/wallet-requests-approve`/`-reject` (4 over). The overrun was not the move itself but three reads nobody
+needed: an eager-loaded wallet the transaction body ignored (it uses the ROW-LOCKED one), a `refresh()` on an
+instance that already held the update, and a second user read. All three removed - and the endpoint is back
+UNDER budget while doing the same work.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **10 -> 8**: `Console -> Wallet` and `Console -> WalletRequest` are removed
+(the ratchet printed the shrink). `ModuleGraphTest` `Console -> Money` **9 -> 7**, argued in `EDGES`: two ports
+left the edge (`LedgerServiceInterface`, `CashRideFeeServiceInterface` were only there because the controller ran
+the money movement) and one joined it (`WalletRequests`). The Console service that used to hold the queries
+(`AdminWalletRequestService`) is DELETED - its only consumer was this controller - and its stale fully-qualified
+name in a `BoundaryDependencyTest` comment was reworded (the dead FQCN is what `DanglingImportTest` exists to
+catch).
+
+**Verification.** `Feature/AppFuture` (all seven ratchets) + `Wallet` + `Payment` + `Review` + `Admin` + `Staff` +
+`T3Batch` + `T4Batch` = **1452 tests / 7180 assertions OK** (2 pre-existing skips), with every wallet-request
+snapshot - list, approve and reject - BYTE-IDENTICAL. Pint **PASS** on the 57 changed/new files.
+
+**Remaining: 8 pairs** - Console {Complaint, ComplaintAttachment}, Money {LedgerEntry, Wallet, WalletRequest,
+WalletTransaction}, Identity {Profile, ProfileComment} (owner-parked). Next: the Money model move (sec 373), then
+the Complaint pair.

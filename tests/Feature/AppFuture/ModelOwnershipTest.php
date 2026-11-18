@@ -56,9 +56,9 @@ final class ModelOwnershipTest extends TestCase
         'app/Modules/Console/Contracts/ComplaintRepositoryInterface.php' => ['Complaint'],
         'app/Modules/Console/Repositories/ComplaintRepository.php' => ['Complaint'],
         'app/Modules/Console/Services/AdminReportService.php' => ['Complaint'],
-        'app/Modules/Console/Services/AdminWalletRequestService.php' => ['Wallet', 'WalletRequest'],
-        // Stage 2 C2: AdminWalletService's wallet reads moved behind Money's WalletDirectory, so its entry
-        // (Wallet) is gone - the ratchet printed the shrink and this is the follow-through.
+        // Stage 2 C2: AdminWalletService (sec 371) and AdminWalletRequestService (sec 372, deleted when its
+        // reads AND the approval workflow moved into Money) both left this list. Console names no wallet
+        // model any more.
         'app/Modules/Console/Services/ComplaintService.php' => ['Complaint', 'ComplaintAttachment'],
         // Stage 2 C2: Ride's no-show conflict opens its complaint through this Console file.
         'app/Modules/Console/Services/ComplaintDirectoryService.php' => ['Complaint'],
@@ -107,8 +107,10 @@ final class ModelOwnershipTest extends TestCase
     private const KERNEL_MODEL_IMPORTS = [
         'Console -> Complaint' => 'complaints',
         'Console -> ComplaintAttachment' => 'complaint_attachments',
-        'Console -> Wallet' => 'wallets',
-        'Console -> WalletRequest' => 'wallet_requests',
+        // Stage 2 C2: `Console -> Wallet` and `Console -> WalletRequest` were REMOVED here (sec 372). The
+        // admin wallet screens read through `WalletDirectory`, and the whole review-and-decision surface -
+        // including the approve/reject money movement that used to write these rows from Console's controller -
+        // now goes through Money's `WalletRequests`. Console names no wallet model at all.
         'Identity -> Profile' => 'profiles',
         'Identity -> ProfileComment' => 'profile_comments',
         'Money -> LedgerEntry' => 'ledger_entries',

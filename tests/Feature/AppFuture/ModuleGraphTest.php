@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      2        3          -
  *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
- *   Console            4       9     11        9          -
+ *   Console            4       7     11        9          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -106,7 +106,11 @@ class ModuleGraphTest extends TestCase
         // ledger type spellings, so Console calls the aggregate reader.
         // Stage 2 C2: the admin report reads system wallets through Money's directory.
         // Stage 2 C2: the admin credit is Money's write path, called through its contract.
-        'Console -> Money' => 9,
+        'Console -> Money' => 7,
+        // Stage 2 C2 (sec 372): the wallet-request approval workflow moved INTO Money, so two Console ports left
+        // this edge (`LedgerServiceInterface` and `CashRideFeeServiceInterface` were only there because the
+        // controller ran the money movement) and one joined it (`WalletRequests`, the desk that now owns both
+        // the review reads and the approve/reject body). 9 -> 7 is a shrink: the edge lost more than it gained.
         // Stage 2 C2: the admin driver screens embed two ride aggregates in their own statement,
         // so Console asks Ride for the expressions instead of building them from the model; the same
         // screen's recent-rides page and contact number are a second, row-returning port, which the

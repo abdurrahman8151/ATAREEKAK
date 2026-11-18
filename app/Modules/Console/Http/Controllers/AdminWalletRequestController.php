@@ -3,43 +3,37 @@
 namespace App\Modules\Console\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Communication\Contracts\NotificationPort;
-use App\Modules\Console\Services\AdminWalletRequestService;
-use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
-use App\Modules\Money\Contracts\LedgerServiceInterface;
+use App\Modules\Identity\Contracts\UserDirectory;
+use App\Modules\Money\Contracts\WalletRequests;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 
 /**
  * AdminWalletRequestController
  *
- * Admin endpoints for reviewing and acting on wallet charge/withdraw requests.
+ * The review list and the approve/reject decisions for wallet charge/withdraw requests.
  *
- * Routes (all behind `staff:admin` / `staff:system_admin` middleware):
- *   GET   /api/admin/wallet/requests              → index()
- *   POST  /api/admin/wallet/requests/{id}/approve → approve()
- *   POST  /api/admin/wallet/requests/{id}/reject  → reject()
+ * ── Stage 2 C2: the WRITE moved into Money ───────────────────────────────────
+ * The approval body used to live in this class: it locked the wallet row, moved the balance, wrote the wallet
+ * transaction, mirrored the movement against External Capital, posted the ledger legs, marked the request
+ * approved and auto-cleared cash-ride debt. Every one of those statements writes a Money table, which is the
+ * one coupling a reader contract cannot fix, so the body now lives in `Money\Contracts\WalletRequests`
+ * (`WalletRequestDeskService`) - VERBATIM, including the transaction ids, the references and the audit columns.
  *
- * ── Fixes applied ────────────────────────────────────────────────────────────
- *  1. Withdrawal WalletTransaction amount stored as -$amount (outflow convention).
- *  2. reject() now eager-loads user + wallet so formatRequest() has no N+1.
- *  3. autoClearDebt wrapped in its own DB::transaction() so lockForUpdate()
- *     inside it actually holds a row lock.
+ * What stayed here is what an HTTP layer owns: validation, the response envelope, the cache bust, the
+ * notifications and the row formatting. Console keeps NO reference to a wallet/wallet-request model, and the
+ * money movement is now a call, not a sequence the controller can get wrong.
  */
 final class AdminWalletRequestController extends Controller
 {
     public function __construct(
-        private readonly CashRideFeeServiceInterface $cashRideFeeService,
-        private readonly AdminWalletRequestService $walletRequests,
-        private readonly LedgerServiceInterface $ledgerService,
-        private readonly NotificationPort $notificationService,
+        private readonly WalletRequests $walletRequests,
+        private readonly UserDirectory $users,
     ) {}
 
     // ── GET /api/admin/wallet/requests ──────────────────────────────────────
@@ -56,7 +50,7 @@ final class AdminWalletRequestController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
-        $paginator = $this->walletRequests->reviewList(
+        $paginator = $this->walletRequests->reviewPage(
             status: $request->get('status', 'pending'),
             type: $request->filled('type') ? $request->input('type') : null,
             perPage: (int) $request->get('per_page', 15),
@@ -65,10 +59,16 @@ final class AdminWalletRequestController extends Controller
 
         $counts = $this->walletRequests->statusCounts();
 
+        // Stage 2 C2: the requesters' names/emails are Identity's data - ONE batched directory read, the same
+        // single query the retired `user:id,first_name,last_name,email` eager load cost.
+        $requesters = $this->users->summariesFor(
+            array_values(array_filter(array_map(fn ($row) => $row->userId, $paginator->getCollection()->all())))
+        );
+
         return response()->json([
             'status' => 'success',
             'data' => $paginator->getCollection()
-                ->map(fn ($r) => $this->formatRequest($r))
+                ->map(fn ($r) => $this->formatRequest($r, $requesters[$r->userId] ?? null))
                 ->values(),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
@@ -88,28 +88,21 @@ final class AdminWalletRequestController extends Controller
         }
 
         try {
-            $walletRequest = $this->walletRequests->findOrFail($id, ['wallet']);
+            $summary = $this->walletRequests->approve(
+                $id,
+                $request->input('admin_notes'),
+                $request->attributes->get('staffEmployee')?->id,
+                $request->user()?->id,
+            );
 
-            if (! $walletRequest->isPending()) {
-                return $this->alreadyDecided($walletRequest);
+            if ($summary->userId !== null) {
+                Cache::forget("wallet.requests.{$summary->userId}");
             }
-
-            DB::transaction(fn () => $this->applyApprovedRequest($walletRequest, $request));
-
-            $walletRequest->refresh()->load([
-                'user:id,first_name,last_name,email',
-                'wallet:id,wallet_number,phone_number,balance,cash_ride_debt',
-            ]);
-
-            Cache::forget("wallet.requests.{$walletRequest->user_id}");
-
-            $this->autoClearDebtAfterCharge($walletRequest);
-            $this->notifyRequestDecided($walletRequest);
 
             return response()->json([
                 'status' => 'success',
-                'message' => ucfirst($walletRequest->type).' request approved. Wallet balance updated.',
-                'data' => $this->formatRequest($walletRequest),
+                'message' => ucfirst($summary->type).' request approved. Wallet balance updated.',
+                'data' => $this->formatRequest($summary),
             ]);
 
         } catch (ModelNotFoundException) {
@@ -131,45 +124,27 @@ final class AdminWalletRequestController extends Controller
         }
 
         try {
-            // FIX 2: eager-load relationships so formatRequest() and the
-            //         notification call below have no lazy-load N+1 queries.
-            $walletRequest = $this->walletRequests->findOrFail($id, [
-                'user:id,first_name,last_name,email',
-                'wallet:id,wallet_number,phone_number,balance,cash_ride_debt',
-            ]);
+            $summary = $this->walletRequests->reject(
+                $id,
+                $request->input('admin_notes'),
+                $request->attributes->get('staffEmployee')?->id,
+                $request->user()?->id,
+            );
 
-            if (! $walletRequest->isPending()) {
-                return $this->alreadyDecided($walletRequest);
+            if ($summary->userId !== null) {
+                Cache::forget("wallet.requests.{$summary->userId}");
             }
-
-            $walletRequest->update([
-                'status' => 'rejected',
-                'admin_notes' => $request->input('admin_notes'),
-                // T3-4: see the approve() call site for why both columns are written.
-                'processed_by_employee_id' => $request->attributes->get('staffEmployee')?->id,
-                'processed_by' => $request->user()?->id,
-                'processed_at' => now(),
-            ]);
-
-            Cache::forget("wallet.requests.{$walletRequest->user_id}");
-
-            Log::info('Wallet request rejected', [
-                'request_id' => $walletRequest->id,
-                'type' => $walletRequest->type,
-                'amount' => $walletRequest->amount,
-                'user_id' => $walletRequest->user_id,
-            ]);
-
-            $this->notifyRequestRejected($walletRequest, $request);
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Request rejected.',
-                'data' => $this->formatRequest($walletRequest),
+                'data' => $this->formatRequest($summary),
             ]);
 
         } catch (ModelNotFoundException) {
             return response()->json(['status' => 'error', 'message' => 'Request not found.'], 404);
+        } catch (\DomainException $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
             Log::error('Wallet request rejection failed', ['id' => $id, 'error' => SafeExceptionLog::message($e)]);
 
@@ -192,274 +167,41 @@ final class AdminWalletRequestController extends Controller
         return null;
     }
 
-    /** The 422 a decision endpoint returns for a request that is no longer pending. */
-    private function alreadyDecided($walletRequest): JsonResponse
-    {
-        return response()->json([
-            'status' => 'error',
-            'message' => "This request has already been {$walletRequest->status}.",
-        ], 422);
-    }
-
     /**
-     * Body of the approval transaction: lock the wallet, apply the movement, mirror it against
-     * the External Capital account, post the ledger leg, then mark the request approved.
+     * Stage 2 C2: the decision NOTIFICATIONS moved into Money with the decision itself
+     * (`WalletRequestDeskService::approve()/reject()`), because they are addressed to the requesting user and
+     * Console would otherwise have to load a `User` row just to hand it to the port - the import that tripped
+     * `controllers_to_models` (baseline 0) the moment it was written. Money may name the kernel principal.
      */
-    private function applyApprovedRequest($walletRequest, Request $request): void
+    private function formatRequest($r, $requester = null): array
     {
-        $wallet = $this->walletRequests->lockWalletOrFail($walletRequest->wallet_id);
-        $movement = $this->resolveApprovedMovement($walletRequest, $wallet);
+        // The list supplies a batched directory summary for the page; a single decision carries the requester's
+        // fields on the summary itself (Money loaded that row for the notification), so both paths agree.
+        $name = $requester?->fullName() ?? $r->requesterName;
+        $email = $requester?->email ?? $r->requesterEmail;
 
-        $wallet->balance = $movement['new_balance'];
-        $wallet->save();
-
-        $targetTransaction = $this->recordWalletMovement($walletRequest, $wallet, $movement);
-        $this->settleExternalCapital($walletRequest, $wallet, $movement['transaction_amount'], $targetTransaction);
-        $this->markRequestApproved($walletRequest, $request);
-
-        Log::info('Wallet request approved', [
-            'request_id' => $walletRequest->id,
-            'type' => $walletRequest->type,
-            'amount' => $movement['amount'],
-            'user_id' => $walletRequest->user_id,
-            'previous_balance' => $movement['previous_balance'],
-            'new_balance' => $movement['new_balance'],
-        ]);
-    }
-
-    /**
-     * The balance movement for one approved request: the new balance plus the ledger-leg values
-     * the wallet transaction row is written with. A withdrawal above the balance throws.
-     *
-     * @return array{amount: float, previous_balance: float, new_balance: float, type: string, transaction_amount: float, description: string}
-     */
-    private function resolveApprovedMovement($walletRequest, $wallet): array
-    {
-        $amount = (float) $walletRequest->amount;
-
-        if ($walletRequest->isWithdraw()) {
-            if ($amount > (float) $wallet->balance) {
-                throw new \DomainException(
-                    "Insufficient wallet balance ({$wallet->balance} SYP) to process withdrawal of {$amount} SYP."
-                );
-            }
-            $previousBalance = (float) $wallet->balance;
-            $newBalance = $previousBalance - $amount;
-            $transactionType = 'withdrawal';
-            // FIX 1: withdrawal is an outflow — store as negative to match
-            //         the convention used everywhere else in the codebase.
-            $transactionAmount = -$amount;
-            $description = 'Withdrawal processed by admin';
-        } else {
-            $previousBalance = (float) $wallet->balance;
-            $newBalance = $previousBalance + $amount;
-            $transactionType = 'admin_charge';
-            $transactionAmount = $amount;
-            $description = 'Balance topped up by admin';
-        }
-
-        return [
-            'amount' => $amount,
-            'previous_balance' => $previousBalance,
-            'new_balance' => $newBalance,
-            'type' => $transactionType,
-            'transaction_amount' => $transactionAmount,
-            'description' => $description,
-        ];
-    }
-
-    /**
-     * Stage 2 B2: returns the row it wrote, so the ledger legs can name it. Deliberately left untyped:
-     * the CONSOLE module does not import kernel models, and the value is only handed straight back to
-     * the MONEY port, which owns the type.
-     *
-     * @param  array{previous_balance: float, new_balance: float, type: string, transaction_amount: float, description: string}  $movement
-     */
-    private function recordWalletMovement($walletRequest, $wallet, array $movement)
-    {
-        return $this->walletRequests->createTransaction([
-            'wallet_id' => $wallet->id,
-            'user_id' => $walletRequest->user_id,
-            'type' => $movement['type'],
-            'amount' => $movement['transaction_amount'],
-            'previous_balance' => $movement['previous_balance'],
-            'new_balance' => $movement['new_balance'],
-            'description' => $movement['description'],
-            // T3-1: was 'WR-'.$walletRequest->id.'-'.now()->timestamp.
-            // Honest note: because the request id is itself unique, this
-            // generator could not actually collide — the real collision
-            // was in PassengerProfileController::chargeWallet() where the
-            // id was 'ADM-'.$user->id.'-'.timestamp (same passenger, same
-            // second, UNIQUE transaction_id → 500 + rollback). Normalised
-            // to UUID anyway so both money paths share one collision-free
-            // scheme; the readable prefix is kept for ops.
-            'transaction_id' => 'WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
-            'status' => 'completed',
-            'reference' => 'wallet_request:'.$walletRequest->id,
-        ]);
-    }
-
-    /**
-     * Mirror the movement against the External Capital account and close it on the ledger.
-     */
-    private function settleExternalCapital($walletRequest, $wallet, float $transactionAmount, $targetTransaction): void
-    {
-        // ── Decision un3 (owner choice (a)): external flow ──────────────────────
-        // A top-up is money ARRIVING from outside; a withdrawal is money LEAVING to outside.
-        // Both are recorded against the External Capital account, which is what closes the
-        // ledger. `$transactionAmount`'s sign already encodes the direction, so the inbound
-        // flag is derived from it rather than re-decided here.
-        $external = $this->walletRequests->lockedExternalWallet();
-
-        if ($external === null) {
-            throw new \RuntimeException(
-                'External Capital wallet not found for phone: '.config('admin.external.phone')
-                .'. Run: php artisan db:seed --class=SystemWalletSeeder'
-            );
-        }
-
-        $externalPrev = (float) $external->balance;
-        // A positive wallet movement means money arrived, so it LEFT the external account.
-        $externalDelta = -1 * (float) $transactionAmount;
-        $external->balance += $externalDelta;
-        $external->save();
-
-        $externalTransaction = $this->walletRequests->createTransaction([
-            'wallet_id' => $external->id,
-            'user_id' => null,
-            'type' => $transactionAmount > 0 ? 'external_inbound' : 'external_outbound',
-            'amount' => $externalDelta,
-            'previous_balance' => $externalPrev,
-            'new_balance' => (float) $external->balance,
-            'description' => ($transactionAmount > 0 ? 'Injected' : 'Paid out')
-                ." for wallet request #{$walletRequest->id}",
-            'transaction_id' => 'EXT-WR-'.$walletRequest->id.'-'.(string) Str::uuid(),
-            'status' => 'completed',
-            'reference' => 'wallet_request:'.$walletRequest->id,
-        ]);
-
-        $this->ledgerService->postExternalTransfer(
-            $external,
-            $wallet,
-            abs((float) $transactionAmount),
-            inbound: $transactionAmount > 0,
-            externalTransaction: $externalTransaction,
-            targetTransaction: $targetTransaction,
-            description: "wallet request #{$walletRequest->id}",
-        );
-    }
-
-    /** Persist the approval decision and its audit columns on the request row. */
-    private function markRequestApproved($walletRequest, Request $request): void
-    {
-        $walletRequest->update([
-            'status' => 'approved',
-            'admin_notes' => $request->input('admin_notes'),
-            // T3-4: `processed_by` is the shadow `users` id and is kept for history;
-            // `processed_by_employee_id` is the real actor, read from the attribute
-            // StaffJwtMiddleware sets (the same idiom 12 other admin/staff call sites
-            // use). Writing only the shadow id made the audit trail name a mirror row -
-            // and a real customer, if one already held the admin's email address.
-            'processed_by_employee_id' => $request->attributes->get('staffEmployee')?->id,
-            'processed_by' => $request->user()?->id,
-            'processed_at' => now(),
-        ]);
-    }
-
-    /** Tell the requesting user their request was rejected. Non-fatal: a failure is logged only. */
-    private function notifyRequestRejected($walletRequest, Request $request): void
-    {
-        try {
-            $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
-            $reason = $request->input('admin_notes') ? ' Reason: '.$request->input('admin_notes') : '';
-
-            $this->notificationService->createNotification(
-                $walletRequest->user,
-                'wallet_request_rejected',
-                $label.' - Rejected',
-                "Your request for {$walletRequest->amount} SYP has been rejected.{$reason}",
-                ['wallet_request_id' => $walletRequest->id],
-                'normal',
-                'system'
-            );
-        } catch (\Throwable $e) {
-            Log::warning('wallet-request decision notification failed (non-fatal): '.SafeExceptionLog::message($e));
-        }
-    }
-
-    private function formatRequest($r): array
-    {
         return [
             'id' => $r->id,
             'type' => $r->type,
             'amount' => (float) $r->amount,
             'status' => $r->status,
-            'user_notes' => $r->user_notes,
-            'admin_notes' => $r->admin_notes,
-            'processed_at' => $r->processed_at?->toIso8601String(),
-            'created_at' => $r->created_at->toIso8601String(),
-            'user' => $r->user ? [
-                'id' => $r->user->id,
-                'name' => trim("{$r->user->first_name} {$r->user->last_name}"),
-                'email' => $r->user->email,
+            'user_notes' => $r->userNotes,
+            'admin_notes' => $r->adminNotes,
+            'processed_at' => $r->processedAt?->toIso8601String(),
+            'created_at' => $r->createdAt->toIso8601String(),
+            'user' => ($name !== null || $email !== null) ? [
+                'id' => $r->userId,
+                'name' => $name,
+                'email' => $email,
             ] : null,
             'wallet' => $r->wallet ? [
                 'id' => $r->wallet->id,
-                'wallet_number' => $r->wallet->wallet_number,
-                'phone_number' => $r->wallet->phone_number,
+                'wallet_number' => $r->wallet->walletNumber,
+                'phone_number' => $r->wallet->phoneNumber,
                 'current_balance' => (float) $r->wallet->balance,
-                'cash_ride_debt' => (float) $r->wallet->cash_ride_debt,
+                'cash_ride_debt' => (float) $r->wallet->cashRideDebt,
             ] : null,
         ];
-    }
-
-    /**
-     * Auto-clear cash ride debt after a top-up. Only for charges; withdrawals reduce the balance, so debt
-     * clearing would fail the balance >= debt check anyway. Wrapped in its own transaction so the
-     * lockForUpdate() inside autoClearDebt is effective. A failure here never blocks the approval.
-     */
-    private function autoClearDebtAfterCharge($walletRequest): void
-    {
-        if (! ($walletRequest->isCharge() && $walletRequest->user && $walletRequest->wallet)) {
-            return;
-        }
-
-        try {
-            DB::transaction(function () use ($walletRequest) {
-                $this->cashRideFeeService->autoClearDebt(
-                    $walletRequest->wallet->fresh(),
-                    $walletRequest->user
-                );
-            });
-        } catch (\Throwable $e) {
-            Log::error('Auto debt clear failed after wallet charge', [
-                'wallet_request_id' => $walletRequest->id,
-                'error' => SafeExceptionLog::message($e),
-            ]);
-        }
-    }
-
-    /** Tell the requesting user their request was approved. Non-fatal: a failure is logged only. */
-    private function notifyRequestDecided($walletRequest): void
-    {
-        try {
-            $label = $walletRequest->isCharge() ? 'Wallet Charge' : 'Wallet Withdrawal';
-            $msg = $walletRequest->isCharge()
-                ? "Your wallet charge request of {$walletRequest->amount} SYP has been approved."
-                : "Your withdrawal request of {$walletRequest->amount} SYP has been approved.";
-
-            $this->notificationService->createNotification(
-                $walletRequest->user,
-                'wallet_request_approved',
-                $label.' - موافق',
-                $msg,
-                ['wallet_request_id' => $walletRequest->id],
-                'high',
-                'system'
-            );
-        } catch (\Throwable $e) {
-            Log::warning('wallet-request decision notification failed (non-fatal): '.SafeExceptionLog::message($e));
-        }
     }
 
     private function serverError(): JsonResponse

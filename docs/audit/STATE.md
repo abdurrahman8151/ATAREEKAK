@@ -1,9 +1,20 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
 - **OWNER ANSWERS (2026-11-17) progress:** (1) `Complaint::ride()` + Ride cluster -> **DONE (sec 368)**;
-  (5) UserRating -> **DONE (sec 370, 11 -> 10 pairs)**; (2) admin wallet payloads + (3) the approval workflow
-  -> **IN PROGRESS: sec 371 narrowed the wallet-transactions payload to an EXPLICIT shape with byte-identical
-  JSON and moved AdminWalletService onto Money's `WalletDirectory` (Console allowlist entry removed); the
-  workflow move is NEXT (sec 372), then the Money model move (sec 373)**; (4) Profile -> KEEP PARKED.
+  (5) UserRating -> **DONE (sec 370)**; (2) wallet payloads -> **DONE (sec 371)**; (3) the approval workflow
+  -> **DONE (sec 372: `Console -> Wallet` and `Console -> WalletRequest` retired, 10 -> 8 pairs)**;
+  (4) Profile -> KEEP PARKED. NEXT: the Money model move (sec 373), then Complaint/ComplaintAttachment.
+- Done recently: **STAGE 2 - C2 the wallet-request approval workflow moves into Money (audit sec 372), commit
+  `Stage 2 C2: the wallet-request decision moves into Money`.** NEW `Money\Contracts\WalletRequests` +
+  `WalletRequestSummary` + `WalletRequestDeskService`: the whole approve/reject body moved VERBATIM (lock,
+  movement, transaction ids, External Capital mirror, ledger legs, audit columns, DomainException refusal).
+  Console keeps validation/envelope/cache/formatting. The decision NOTIFICATIONS and
+  `autoClearDebtAfterCharge()` moved too - a `User` import in the controller tripped
+  `controllers_to_models` (baseline 0), and Money may name the kernel principal. The naive move overran the
+  approve/reject budgets by 4 (`22 vs 18`); three unread reads were removed (an ignored eager wallet, an
+  unneeded `refresh()`, a second user read) and both endpoints are back under budget. The dead
+  `AdminWalletRequestService` was DELETED; `KERNEL_MODEL_IMPORTS` **10 -> 8**; `Console -> Money` 9 -> 7 (two
+  ports left with the workflow, one joined). Gate: **1452/7180 (2 skips)**, every wallet-request snapshot
+  byte-identical; Pint PASS 57.
 - Done recently: **STAGE 2 - C2 the admin wallet screens move onto `WalletDirectory` (audit sec 371), commit
   `Stage 2 C2: admin wallet reads go through Money's directory`.** NEW `WalletDirectory::walletOrFail()`
   (ModelNotFoundException stays inside Money), `systemWalletsForPhones()` (caller's order) and

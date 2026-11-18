@@ -95,10 +95,11 @@ class BoundaryDependencyTest extends TestCase
         // The two that remained when this slice landed - AdminWalletRequestController (the money-path
         // review queue) and PassengerProfileController - are now done too, so the edge is at zero:
         //
-        //   AdminWalletRequestController 493 -> 468: App\Modules\Console\Services\AdminWalletRequestService (new)
-        //     owns the filtered review list, the GROUP BY tab counts, the two row lookups, the two
-        //     lockForUpdate() wallet reads (the decision wallet and the External Capital account) and
-        //     both WalletTransaction::create() rows. The controller keeps the transaction boundaries,
+        //   AdminWalletRequestController 493 -> 468: a new Console service (since DELETED in stage 2 C2 sec
+        //     372, when the whole review-and-decision surface moved behind Money's `WalletRequests`) owned the
+        //     filtered review list, the GROUP BY tab counts, the two row lookups, the two lockForUpdate()
+        //     wallet reads (the decision wallet and the External Capital account) and both
+        //     WalletTransaction::create() rows. The controller keeps the transaction boundaries,
         //     the ledger posting and the response shapes; its three app() calls became constructor
         //     injection. No amount, tier, split, posting key or escrow semantic was touched.
         //   PassengerProfileController 442 -> 417: App\Modules\Identity\Services\PassengerProfileQueryService

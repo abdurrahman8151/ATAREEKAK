@@ -16,6 +16,7 @@ use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
 use App\Modules\Money\Contracts\WalletChargeHistory;
 use App\Modules\Money\Contracts\WalletDirectory;
+use App\Modules\Money\Contracts\WalletRequests;
 use App\Modules\Money\Contracts\WalletTransactionPager;
 use App\Modules\Money\Contracts\WalletTransactionRecorder;
 use App\Modules\Money\Domain\Strategies\CashPaymentStrategy;
@@ -36,6 +37,7 @@ use App\Modules\Money\Services\RidePayout;
 use App\Modules\Money\Services\WalletAccess;
 use App\Modules\Money\Services\WalletChargeHistoryReader;
 use App\Modules\Money\Services\WalletDirectoryReader;
+use App\Modules\Money\Services\WalletRequestDeskService;
 use App\Modules\Money\Services\WalletRequestService;
 use App\Modules\Money\Services\WalletTransactionRecorderService;
 use Illuminate\Support\ServiceProvider;
@@ -72,6 +74,8 @@ final class MoneyServiceProvider extends ServiceProvider
         $this->app->singleton(WalletAccess::class);
         // Stage 2 C1: the read door other modules use instead of `$user->wallet`.
         $this->app->bind(WalletDirectory::class, WalletDirectoryReader::class);
+        // Stage 2 C2: the admin wallet-request desk (review reads AND the approve/reject money movement).
+        $this->app->bind(WalletRequests::class, WalletRequestDeskService::class);
         $this->app->bind(WalletChargeHistory::class, WalletChargeHistoryReader::class);
         $this->app->bind(WalletTransactionRecorder::class, WalletTransactionRecorderService::class);
         $this->app->singleton(EPayPaymentStrategy::class);
