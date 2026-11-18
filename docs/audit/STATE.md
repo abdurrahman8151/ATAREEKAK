@@ -1,11 +1,27 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **STAGE 2 IS COMPLETE except the pair the owner PARKED (audit sec 376). Terminal state, measured on this
-  tree: `KERNEL_MODEL_IMPORTS` = 2 (both `Identity -> Profile`/`ProfileComment`, answer 4 = keep parked),
-  `ENTRYPOINT_ALLOWLIST` = 0, `CONSOLE_FOREIGN_MODEL_FILES` = 0, `TABLE_OWNERS` = 20 tables across five modules,
-  and no module reads another's table directly.**
-  If the Profile pair is ever un-parked, its unblock conditions are sec 350's three questions (a +1 query on
-  `rides/create` and `chat/messages-store`, the nested-`profile` JSON in the ride search / create-with-route
-  responses, and where the auth cache's profile rehydration lives).
+- **STAGE 2 CLOSING VERIFICATION COMPLETE (audit sec 377). THE TIP IS PROVEN.** No code and no test was changed:
+  `git status --short` shows only the owner's `AGENTS.md` plus this task's documentation edits, and
+  `tests/Snapshots`, `MANIFEST.json` and `query-budgets.json` are byte-identical to the starting tip.
+  - **Start tip `40aab7b`; snapshot diff `af39d23..HEAD -- tests/Snapshots` = 47 files, ALL expected** (1 MANIFEST
+    + 4 ride api + 1 query-budgets + 41 state: 40 ledger `wallet_transaction_id` `null`->id + 1 score
+    `reference_type`). Budgets: 7 entries, all decreases.
+  - **STEP 1 + STEP 2:** full suite in default AND reverse order, one process each = **3071 tests / 13364
+    assertions / 2 skipped / 0 failures** in both (16:11.879 and 17:16.842). The 15 slowest tests are recorded in
+    sec 377.
+  - **STEP 3:** five-order matrix (default, reverse, random-11, random-20261102, random-7919): **3071/13364/2/0 in
+    every order**, **0 per-test assertion-count differences** against default, 0 tests present in only one log, and
+    the leftover-rows probe printed **clean - 0 rows in all 30 guarded tables** after EVERY run.
+  - **STEP 4:** nothing to classify - 0 failures across 15,371 test executions, so the `af39d23` baseline worktree
+    was not needed; the procedure (separate worktree + its OWN vendor + bisect on the failing file) is recorded for
+    the next failure, with the sec-369 lesson as the reason it is written down.
+  - **STEP 5:** exactly ONE column stores a class name: `score_transactions.reference_type` (old
+    `App\Models\Ride`/`Booking` -> new `App\Modules\Ride\Models\...`), written by `ScoreLedger::resolveReference()`;
+    all three readers use `class_basename` and accept both; **no literal old name is compared anywhere**; the only
+    consequence is `ScoreHistoryService` grouping mixed rows into two queries. Everything else checked and cleared
+    (morph `tokenable_type`, JSON payload columns, `reference` fields, cache DTOs, queue payloads).
+  - **STEP 6:** `docs/ARCHITECTURE.md` section 12 rewritten: 12.1 the MODEL-move queue hazard (drain the queue),
+    12.2 the stored class name, 12.3 the owner's open production actions (T1-3 rotation, RV-10 window W,
+    `APP_ENV=production` .env, the parked Profile pair).
 - Done recently: **STAGE 2 - C2 the stuck-escrow report asks Money instead of reading its ledger (audit sec 376),
   commit `Stage 2 C2: the stuck-escrow report asks Money`.** `LedgerAggregates::heldEscrowReferences()` now runs
   the grouped `wallet_transactions` correlation (balance-movement based, `escrow_in_legs > 0`) and returns plain

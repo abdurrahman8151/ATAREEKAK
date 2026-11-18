@@ -334,9 +334,65 @@ Stage 2 moved five **queued** classes, and a queued class is the one kind of mov
 old name, and the worker that picks it up *after* the deploy cannot deserialise it - the job fails, and on a
 queue with retries it fails repeatedly. **Deploy with the queue empty, or drain it first.**
 
-Everything else moved in stage 2 is safe by construction: models, contracts, services and readers are resolved
-from the container at runtime, not serialised. Listeners, jobs and notifications deliberately stayed in the
-kernel ([ADR 0004](adr/0004-jobs-listeners-notifications-stay-in-the-kernel.md)); only the events moved
-([ADR 0009](adr/0009-events-move-with-their-publisher.md)).
+### 12.1 The MODEL moves are the same hazard, through the same mechanism
 
-A future move of any queued class repeats this note. It is a property of the queue, not of these two classes.
+`SerializesModels` stores a model's class name as well as its key, so a queued payload that holds a model also
+breaks if THAT MODEL moved. Stage 2 C2 moved twelve models into their modules:
+
+| Old namespace | New namespace | Models |
+|---|---|---|
+| `App\Models` | `App\Modules\Ride\Models` | `Ride`, `Booking`, `NoshowReport` |
+| `App\Models` | `App\Modules\Money\Models` | `Wallet`, `WalletRequest`, `WalletTransaction`, `LedgerEntry` |
+| `App\Models` | `App\Modules\Console\Models` | `Complaint`, `ComplaintAttachment`, `Employee` |
+| `App\Models` | `App\Modules\Identity\Models` | `Photo`, `UserRating` |
+
+Three queued events carry them today (`RideBooked`: `Ride` + `Booking`; `RideCancelled`: `Ride` + an array of
+`Booking`; `RideCreated`: `Ride`), so the drain-the-queue rule above is what protects these moves too. The push
+jobs (`SendPushNotification`, `SendPushNotificationJob`) carry only an int and an array, so they are unaffected.
+
+Everything else moved in stage 2 is safe by construction: contracts, services and readers are resolved from the
+container at runtime, not serialised. Listeners, jobs and notifications deliberately stayed in the kernel
+([ADR 0004](adr/0004-jobs-listeners-notifications-stay-in-the-kernel.md)); the events moved only with their
+publisher ([ADR 0009](adr/0009-events-move-with-their-publisher.md)).
+
+A future move of any queued class - or of any model a queued class holds - repeats this note. It is a property of
+the queue, not of these classes.
+
+### 12.2 The one database column that stores a class name (stage-2 closing verification, sec 377)
+
+`score_transactions.reference_type` holds a PHP class name, written by
+`Ride\Services\ScoreLedger::resolveReference()` (`get_class($reference)`, else `Booking::class`, else
+`Ride::class`). The Ride move changed what NEW rows store:
+
+| | value |
+|---|---|
+| rows written before the move | `App\Models\Ride` / `App\Models\Booking` |
+| rows written after the move | `App\Modules\Ride\Models\Ride` / `App\Modules\Ride\Models\Booking` |
+
+**Every reader accepts both**, because all three go through the basename: `ScoreController` and
+`ScoreTransactionResource` print `class_basename(...)`, and `ScoreHistoryService` groups by the raw value and then
+matches on `class_basename(...)`. **No query, report, export, raw SQL or test fixture compares a literal old
+name** - a repository-wide grep for the old strings returns nothing outside the audit's own history.
+
+One consequence worth knowing before someone reads a query log: `ScoreHistoryService` groups by the raw value, so
+a user with pre-move AND post-move rows is hydrated in two queries instead of one. Same output, one extra query on
+that one screen, and it disappears as old rows age out. No backfill is required, and none should be run blind.
+
+The other places a class name could hide were checked and are clean: the schema's only morph
+(`personal_access_tokens.tokenable_type`) is written by no code since T2-9 and legacy rows hold the unmoved
+`App\Models\User`; the JSON payload columns (`notifications.data`, `conversations.metadata`,
+`messages.metadata`, `user_scores.metadata`) carry ids and scalars; `wallet_transactions.reference` carries
+`booking:{id}` / `wallet_request:{id}`; and the cache holds the unmoved `App\DTOs\Auth\CachedUser` DTO plus
+plain arrays.
+
+### 12.3 Owner production actions still open at the end of stage 2
+
+1. **T1-3 (P0, owner-only):** rotate `JWT_SECRET` and `PUSHER_APP_SECRET` (both live and in git history), rotate
+   the PAT embedded in `origin`'s URL, then `filter-repo` (244 commits, 4 refs) and force-push.
+2. **RV-10 (P1, an action rather than a decision):** run `php artisan escrow:stuck-report` against PRODUCTION and
+   use its age histogram to name the escalation window W.
+3. **`APP_ENV=production` in the deployment `.env`** - the app's boot guard refuses to start with a testing OTP
+   mode outside `local`/`testing`, and that guard must not be weakened to make a deploy start.
+4. **The parked Profile pair** is a code decision, not a production action: `Identity -> Profile` and
+   `Identity -> ProfileComment` remain the only two `KERNEL_MODEL_IMPORTS` pairs, and the three questions that
+   unblock them are recorded in `docs/audit/STATE.md`.

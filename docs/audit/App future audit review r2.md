@@ -22100,3 +22100,249 @@ Everything the owner authorised is done. What is left is the Profile pair, which
 its unblock conditions are recorded in sec 350 and repeated in `STATE.md`, so it can be picked up the moment the
 three questions (a +1 query on two endpoints, the nested-`profile` JSON, the auth cache's rehydration home) are
 answered differently.
+
+---
+
+### 377. STAGE 2 CLOSING VERIFICATION (in progress) - prove the tip: full suite twice, order matrix, failure baseline, stored class names, docs
+
+**Scope of this section.** Verification only, on the tree as it stands. No model moves, no new ports, no
+refactors. Code or test edits are allowed ONLY when a verified failure forces them; each becomes its own commit,
+named below. Anything that would change a response shape, status code, query count or auth rule is Parked with the
+reason instead. `SNAPSHOT_UPDATE=1` is forbidden; `tests/Snapshots`, `MANIFEST.json` and `query-budgets.json`
+must stay byte-identical to the tip this run starts from; schema frozen.
+
+**STEP 0 - the starting point, recorded.**
+
+- **HEAD: `40aab7b`** ("Stage 2 C2: the stuck-escrow report asks Money (R2 sec 376)", 2026-11-18 18:48:57 +0300).
+- `git status --short` - only the owner's files:
+```
+ M AGENTS.md
+?? docker-compose.local.yml
+```
+- `git diff --stat af39d23..HEAD -- tests/Snapshots` - 47 files, and every one of them is on the expected list:
+
+| group | files | expected? |
+|---|---|---|
+| 4 ride-list snapshots | `api/rides/cancel.json`, `api/rides/index.json`, `api/rides/search-get.json`, `api/rides/search-post.json` | YES |
+| ledger `wallet_transaction_id` state snapshots | 40 of the 41 `state/**` files (`null` -> `<id:N>` on `ledger_entries.wallet_transaction_id`) | YES |
+| the score `reference_type` state snapshot | `state/score/transactions-with-ride-and-booking-references.json` (the 41st state file) | YES |
+| `MANIFEST.json` | the hash refresh that followed the deliberate state regeneration | YES |
+| `query-budgets.json` | 7 entries, **all decreases** (16->10, 45->43, 15->5, 16->14, 10->4, 10->4, 11->9) | YES |
+
+Nothing else. The 41st `state/` file is the score one, which is why the count reads 41 rather than 40; the total is
+47 = 1 MANIFEST + 4 api + 1 budgets + 41 state.
+
+**Scratch MySQL.** Port 3399 was DOWN after the idle gap and was restarted with the documented command before any
+run (up in 2s). Infrastructure, not a result.
+
+**STEP 1 - the full suite, default order, ONE process.** Command:
+`php vendor/bin/phpunit --no-coverage --log-junit <tmp>/junit-default.xml` (no path argument, default order, one
+process; nothing else ran concurrently).
+
+| metric | value |
+|---|---|
+| tests | **3071** |
+| assertions | **13364** |
+| skipped | **2** |
+| failures / errors | **0** |
+| PHPUnit time | **16:11.879** (wall 973 s; the JUnit test-time sum is 970.0 s) |
+| exit code | 0 |
+
+**Expected 0 failures and 2 skipped: confirmed.** The 2 skips are the pre-existing MySQL-spatial guard in
+`UntangleBatchTest::test_live_search_serializes_the_relations_the_service_eager_loads` and its sibling - both
+skip themselves when `DB_CONNECTION` is not `mysql`, which is not the case here, so they are the same two the
+earlier runs reported as "OK, but some tests were skipped".
+
+**The 15 slowest tests (JUnit `time`, seconds):**
+
+| # | time | test |
+|---|---|---|
+| 1 | 8.037 | `Unit/Broadcasting/NotificationChannelTest::test_channel_class_exists` |
+| 2 | 4.171 | `Review/RV39SeederHygieneTest::test_wallet_phone_numberspaces_do_not_collide_between_the_two_seeders` |
+| 3 | 4.137 | `Review/RV39SeederHygieneTest::test_driver_and_passenger_seeders_create_ten_wallets_each_with_distinct_phones` |
+| 4 | 2.584 | `Snapshots/StaffSnapshotTest::staff/escalated-resolve` |
+| 5 | 2.560 | `Snapshots/EmployeesSnapshotTest::employees/reset-password` |
+| 6 | 2.544 | `Snapshots/StaffSnapshotTest::staff/escalated-complaints` |
+| 7 | 2.528 | `Snapshots/EmployeesSnapshotTest::employees/store` |
+| 8 | 2.349 | `Snapshots/StaffSnapshotTest::staff/chat-messages` |
+| 9 | 2.346 | `Snapshots/StaffSnapshotTest::staff/chat-send` |
+| 10 | 2.345 | `Snapshots/EmployeesSnapshotTest::employees/toggle-active` |
+| 11 | 2.333 | `Snapshots/EmployeesSnapshotTest::employees/show` |
+| 12 | 2.325 | `Snapshots/StaffSnapshotTest::staff/chat-conversations` |
+| 13 | 2.315 | `Snapshots/EmployeesSnapshotTest::employees/update` |
+| 14 | 2.313 | `Snapshots/EmployeesSnapshotTest::employees/index` |
+| 15 | 2.183 | `Snapshots/ErrorPathSnapshotTest::admin/wallet-charge-a-negative-amount` |
+
+Two observations, recorded because they are odd rather than because they are wrong: the single slowest case is a
+`class_exists` assertion (8 s) - it boots the broadcasting channel stack, so the cost is setup, not the
+assertion - and every other entry is a snapshot case or a seeder-hygiene case, i.e. fixtures, not logic.
+
+**STEP 2 - the same full suite in reverse order, ONE process.** Command:
+`php vendor/bin/phpunit --no-coverage --order-by=reverse --log-junit <tmp>/junit-reverse.xml`.
+
+| metric | default (step 1) | reverse (step 2) |
+|---|---|---|
+| tests | 3071 | **3071** |
+| assertions | 13364 | **13364** |
+| skipped | 2 | **2** |
+| failures / errors | 0 | **0** |
+| PHPUnit time | 16:11.879 | **17:16.842** (wall 1038 s) |
+| exit code | 0 | **0** |
+
+Same counts in a different order: no test depends on what ran before it, at the suite level.
+
+**The 15 slowest tests in reverse order (JUnit `time`, seconds):**
+
+| # | time | test |
+|---|---|---|
+| 1 | 7.392 | `Feature/Wallet/WalletTest::test_balance_requires_authentication` |
+| 2 | 4.038 | `Review/RV39SeederHygieneTest::test_driver_and_passenger_seeders_create_ten_wallets_each_with_distinct_phones` |
+| 3 | 4.014 | `Review/RV39SeederHygieneTest::test_wallet_phone_numberspaces_do_not_collide_between_the_two_seeders` |
+| 4 | 2.641 | `Snapshots/StaffSnapshotTest::staff/escalated-resolve` |
+| 5 | 2.587 | `Snapshots/StaffSnapshotTest::staff/escalated-complaints` |
+| 6 | 2.501 | `Snapshots/EmployeesSnapshotTest::employees/store` |
+| 7 | 2.474 | `Snapshots/EmployeesSnapshotTest::employees/reset-password` |
+| 8 | 2.361 | `Snapshots/StaffSnapshotTest::staff/chat-messages` |
+| 9 | 2.358 | `Snapshots/EmployeesSnapshotTest::employees/index` |
+| 10 | 2.350 | `Snapshots/StaffSnapshotTest::staff/chat-conversations` |
+| 11 | 2.334 | `Snapshots/EmployeesSnapshotTest::employees/toggle-active` |
+| 12 | 2.326 | `Snapshots/StaffSnapshotTest::staff/chat-send` |
+| 13 | 2.317 | `Snapshots/EmployeesSnapshotTest::employees/update` |
+| 14 | 2.303 | `Snapshots/EmployeesSnapshotTest::employees/show` |
+| 15 | 2.275 | `Snapshots/AdminSnapshotTest::admin/dashboard-cities` |
+
+The slowest case differs between the two orders (`NotificationChannelTest::test_channel_class_exists` in default,
+`WalletTest::test_balance_requires_authentication` in reverse) - both are one-off boot costs, and the rest of the
+list is the same set of snapshot and seeder fixtures in both. The JUnit test-time sum is 970.0 s (default) vs
+1034.1 s (reverse); the order changes the fixture warm-up, not the outcome.
+
+**The leftover-rows probe, run immediately after these two orders (and after every later order).** The probe is
+the sec-256 procedure, recreated outside the repo at `%TEMP%\probe\leftover-rows.php` because the original
+`C:\temp\s05\leftover-rows.php` no longer exists on this machine: it boots the app the way `CommittedRowLeakDetector`
+does (same `Schema::getTableListing()` derivation, minus `migrations`), counts every guarded table and prints
+`LEFTOVER ROWS: clean - 0 rows in N guarded tables` or names the offenders. It needs `APP_ENV=testing` as well as
+the scratch DB variables - the app's own OTP boot guard refuses to start with a testing OTP mode in a non-testing
+environment, which is the guard doing its job.
+
+After `default` + `reverse`: **`LEFTOVER ROWS: clean - 0 rows in all 30 guarded tables`** (the same 30 the
+sec-256 matrix recorded).
+
+**STEP 3 - the five-order matrix, with per-test counts.**
+
+Five full-suite runs, serialised (never two `phpunit` processes at once), each with its own JUnit log, each
+followed immediately by the leftover-rows probe:
+
+| run | order | tests | assertions | skipped | failures | PHPUnit time | leftovers |
+|---|---|---|---|---|---|---|---|
+| `default` | `--order-by=default` | 3071 | 13364 | 2 | 0 | 16:11.879 | clean - 0 in all 30 guarded tables |
+| `reverse` | `--order-by=reverse` | 3071 | 13364 | 2 | 0 | 17:16.842 | clean - 0 in all 30 guarded tables |
+| `random-11` | `--order-by=random --random-order-seed=11` | 3071 | 13364 | 2 | 0 | 23:37.637 | clean - 0 in all 30 guarded tables |
+| `random-20261102` | `--order-by=random --random-order-seed=20261102` | 3071 | 13364 | 2 | 0 | 17:11.320 | clean - 0 in all 30 guarded tables |
+| `random-7919` | `--order-by=random --random-order-seed=7919` | 3071 | 13364 | 2 | 0 | 17:06.135 | clean - 0 in all 30 guarded tables |
+
+**Per-test assertion-count diff, every order against `default`** (test identity = `classname::name`, including
+the data-set suffix PHPUnit writes into the name; assertion count = the JUnit `assertions` attribute):
+
+| comparison | tests | assertions | tests whose assertion count DIFFERS | tests present in only one log |
+|---|---|---|---|---|
+| `reverse` vs `default` | 3071 vs 3071 | 13364 vs 13364 | **0** | 0 / 0 |
+| `random-11` vs `default` | 3071 vs 3071 | 13364 vs 13364 | **0** | 0 / 0 |
+| `random-20261102` vs `default` | 3071 vs 3071 | 13364 vs 13364 | **0** | 0 / 0 |
+| `random-7919` vs `default` | 3071 vs 3071 | 13364 vs 13364 | **0** | 0 / 0 |
+
+**No test's assertion count differs in any order.** `random-11` is the slowest order (23:38 vs ~17:00) - order
+changes fixture warm-up, never the outcome.
+
+**The corpus was never written to.** `git status --short tests/Snapshots` is EMPTY after all five runs,
+`MANIFEST.json` still lists 213 files, `query-budgets.json` still holds 170 entries, and `SNAPSHOT_UPDATE=1` was
+never set in any run's environment (the harness only ever regenerated the one intended state file, in sec 370,
+before this verification began).
+
+**STEP 4 - the failure rule: nothing to apply, and that is the finding.** All five orders finished with
+**0 failures and 0 errors**, so no test needed classifying as pre-existing and the `af39d23` baseline worktree was
+NOT needed: creating it (a separate worktree with its own `composer install`, never a junction to this vendor, per
+the rule) exists to classify a failure, and there was none. In total this verification ran **15,371 test
+executions** (5 x 3071) without a single failure.
+
+For the record, if a failure had appeared, the documented procedure is: `git worktree add` at `af39d23`, run
+`composer install` INSIDE that worktree, point the same scratch DB variables at it, and run the failing FILE there;
+if it reproduces, `git bisect` over that one file between `af39d23` and the tip; if it does not reproduce, the
+test is "unexplained" and may not be called pre-existing. The sec-369 lesson is exactly why this rule is written
+down: a missing `return` in `NoShowSettlement` was called pre-existing for two weeks by runs that never executed
+the failing file at the baseline.
+
+**STEP 5 - stored class names: one column holds a PHP class name, and every reader of it accepts both the old
+and the new value.** Report only; nothing was changed.
+
+**The inventory method, so the negative results mean something.** Three passes:
+1. every committed state snapshot grepped for a `"App\\` VALUE (the state dumps contain every guarded table's
+   rows, so a column whose stored value is a class name cannot hide from that grep);
+2. `app/` grepped for the writers that could produce one (`::class` and `get_class()` inside a create/update/
+   insert/`DB::table()` payload, plus any `'App\\...'` string literal);
+3. the schema's `_type`/`payload`/`json` columns read from the migrations, since a morph or a serialized payload
+   stores a class name without any `::class` in the writer.
+
+**Found: exactly ONE column stores a class name.**
+
+| column | value | written by | changed by |
+|---|---|---|---|
+| `score_transactions.reference_type` (string, nullable) | `App\Models\Ride` / `App\Models\Booking` -> **`App\Modules\Ride\Models\Ride` / `App\Modules\Ride\Models\Booking`** | `Ride\Services\ScoreLedger::resolveReference()` - `get_class($reference)`, else `Booking::class`, else `Ride::class` | the Ride cluster move (sec 368); the committed state snapshot `state/score/transactions-with-ride-and-booking-references.json` holds the new value in all three rows |
+
+**Who accepts both values - all of them, and none compares a literal:**
+
+| reader | how it handles the value |
+|---|---|
+| `Ride\Http\Controllers\ScoreController:61` | `class_basename($tx->reference_type ?? '')` - old and new both render `Ride`/`Booking` |
+| `Ride\Http\Resources\ScoreTransactionResource:101` | `class_basename($this->reference_type)` before resolving the model - both work |
+| `Ride\Services\ScoreHistoryService:47` | groups by the RAW value, then `class_basename($className)` in a `match` for `Ride`/`Booking` - both resolve |
+
+**No literal old name is compared anywhere.** `git grep` for `App\Models\Ride`, `App\Models\Booking`,
+`App\Models\NoshowReport`, `App\Models\Wallet`, `App\Models\UserRating` and `App\Models\Complaint` across
+`app/`, `database/`, `tests/`, `scripts/`, `routes/` and `config/` returns **nothing** - the only surviving
+occurrences of the old names in the repository are in `docs/` (the audit's own history) and in this section.
+
+**The one real consequence, stated precisely.** A production database has BOTH values: pre-move rows keep the old
+class name. `ScoreHistoryService` groups by the raw value, so a user with old and new rows is hydrated in TWO
+queries instead of one - same output, one extra query on that one screen. Nothing else changes: the API prints the
+basename, so the client never sees the difference, and no report, export, raw SQL or test fixture keys off the
+literal.
+
+**Checked and CLEARED (each one a place a class name could have been hiding):**
+
+| candidate | why it is safe |
+|---|---|
+| `personal_access_tokens.tokenable_type` (the schema's only `morphs()`) | the writer is DELETED (T2-9 removed `createToken()`); legacy rows hold `App\Models\User`, which did not move |
+| `notifications.data`, `conversations.metadata`, `messages.metadata`, `user_scores.metadata` (JSON) | every committed snapshot shows ids and scalars, no class names - the `"App\\` grep found only the three `reference_type` rows |
+| `wallet_transactions.reference` | `booking:{id}` / `wallet_request:{id}` - identifiers, not classes (sec 375 moved their reader into Money) |
+| `score_transactions.reference_type` with a NULL value | the no-reference case; unchanged by the moves |
+| `jobs.payload`, `failed_jobs.payload` (serialized) | not dumped by the snapshot corpus, so checked in code: see STEP 6 - a queued payload CAN hold a moved MODEL class through `SerializesModels` |
+| `cache` / `sessions` | `JwtService` caches the `App\DTOs\Auth\CachedUser` DTO (unmoved) and `WalletController`/`VerifyPasswordOtpController` cache arrays - no moved class is serialized |
+
+**STEP 6 - docs updated (`docs/ARCHITECTURE.md`).**
+
+Section 12 ("Deploy notes: drain the queue before deploying") was rewritten in place and now carries three
+subsections instead of one paragraph:
+
+- **12.1 - the MODEL moves are the same hazard.** The original section listed the five queued EVENTS. It now also
+  names the twelve MODELS that moved into their modules (`Ride`/`Booking`/`NoshowReport`,
+  `Wallet`/`WalletRequest`/`WalletTransaction`/`LedgerEntry`, `Complaint`/`ComplaintAttachment`/`Employee`,
+  `Photo`/`UserRating`) and explains the mechanism: `SerializesModels` stores a model's class name as well as its
+  key, so a payload queued before the deploy that holds one of them cannot be deserialised after it. The three
+  affected queued events are named (`RideBooked`, `RideCancelled`, `RideCreated`), and the two push jobs are
+  explicitly cleared (an int and an array, no models). The rule stays what it was: **drain the queue, or deploy
+  with it empty.**
+- **12.2 - the one database column that stores a class name.** The step-5 finding, with the old/new values, the
+  three readers that accept both through `class_basename()`, the explicit statement that no query/report/export/
+  raw SQL/test fixture compares a literal old name, and the one real consequence (mixed old and new rows cost
+  `ScoreHistoryService` one extra query on that screen until old rows age out - no backfill, and none should be
+  run blind). The cleared candidates are listed too, so the next reader does not have to redo the search.
+- **12.3 - owner production actions still open at the end of stage 2:** T1-3 (rotate `JWT_SECRET` /
+  `PUSHER_APP_SECRET` / the PAT in `origin`'s URL, then `filter-repo` + force-push - owner-only), RV-10 (run
+  `escrow:stuck-report` against production and choose window W from its histogram), the `APP_ENV=production`
+  deployment `.env` (the OTP boot guard must not be weakened to make a deploy start), and a pointer to the parked
+  Profile pair in `STATE.md` as a code decision rather than a production action.
+
+**No code and no test was changed by this verification.** `git status --short` still shows only the owner's
+`AGENTS.md` plus this run's documentation edits; `tests/Snapshots`, `MANIFEST.json` and `query-budgets.json` are
+byte-identical to the starting tip, and no probe or temporary file was left inside the repository (the
+leftover-rows probe lives outside it, at `%TEMP%\\probe\\leftover-rows.php`).
