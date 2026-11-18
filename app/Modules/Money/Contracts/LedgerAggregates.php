@@ -45,4 +45,22 @@ interface LedgerAggregates
      * @return array<int, float> booking id => escrow received
      */
     public function escrowTotalsByBooking(): array;
+
+    /**
+     * Stage 2 C2: the stuck-escrow report's population - one row per (reference, wallet) whose SyCash wallet net
+     * movement is positive and which received at least one escrow leg.
+     *
+     * `ReportStuckEscrowCommand` used to run this grouped query itself, which made a Console entrypoint read
+     * Money's ledger table directly. The grouping is Money's knowledge for the same reason the type vocabulary
+     * above is: it correlates escrow by the wallet's OWN recorded balance movement
+     * (`new_balance - previous_balance`) rather than by a hand-maintained list of settlement type names, because
+     * that list would silently start reporting settled bookings as stuck the first time a settlement route is
+     * added. The `escrow_in_legs > 0` filter is the boundary between a wallet that received money and the
+     * PASSENGER's own debit under the same reference.
+     *
+     * Rows come back as plain arrays, ordered by amount held descending.
+     *
+     * @return array<int, array{reference: string, wallet_id: int, first_seen: string, net: float}>
+     */
+    public function heldEscrowReferences(): array;
 }

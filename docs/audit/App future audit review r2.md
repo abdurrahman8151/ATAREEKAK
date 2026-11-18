@@ -22064,3 +22064,39 @@ allowlist's own docblock says that is the state it is trying to reach. `Ride -> 
 `DB::table('wallet_transactions')` query - a TABLE-level read of Money's ledger by a Console entrypoint. It is not
 a model coupling (no ratchet counts it), but it is the same class of debt, and the honest home for that
 aggregation is a Money contract. It is the only remaining item in the phase's scope.
+
+---
+
+### 376. Stage 2 C2 closes: the stuck-escrow report asks Money instead of reading its ledger - the last cross-module coupling in scope is gone
+
+**The item this pays.** Sec 375's record named it plainly: `ReportStuckEscrowCommand::heldEscrows()` still ran a
+grouped `DB::table('wallet_transactions')` query, so a Console entrypoint read Money's ledger table directly. No
+ratchet counts a table read (they count models and ports), which is exactly why it survived to the end of the
+phase - and why it is recorded rather than quietly left.
+
+**The move.** `LedgerAggregates::heldEscrowReferences()` (`LedgerAggregateReader`) now runs that grouping and
+returns plain arrays (`reference`, `wallet_id`, `first_seen`, `net`), ordered by amount held. The correlation
+STAYS what it was - the SyCash wallet's own recorded balance movement (`new_balance - previous_balance`) with the
+`escrow_in_legs > 0` boundary that separates a wallet that received money from the PASSENGER's own debit under
+the same reference - because that correlation is the ledger's knowledge, the same way the settlement-type
+vocabulary the contract's docblock already documents is. The command keeps everything a command owns: the
+histogram, the window option, the summary, the detail table, the words.
+
+**Verification.** `AppFuture` + `MoneyRoundingIsDecidedInOnePlaceTest` + `RV02EscrowDerivationTest` + `Admin` =
+**201 / 798 OK**; all `Unit` + `Review` + `Wallet` + `Payment` + `T3Batch` + `T4Batch` + `Console` =
+**2065 / 8862 OK** (2 pre-existing skips). Pint **PASS** on the three changed files.
+
+**The phase's terminal state, measured on this tree:**
+
+| ratchet | state |
+|---|---|
+| `KERNEL_MODEL_IMPORTS` | **2** - `Identity -> Profile`, `Identity -> ProfileComment`, both OWNER-PARKED (answer 4) |
+| `ENTRYPOINT_ALLOWLIST` | **0** |
+| `CONSOLE_FOREIGN_MODEL_FILES` | **0** |
+| `TABLE_OWNERS` | 20 tables across all five modules |
+| cross-module reads | every one goes through a contract; no module reads another's table directly |
+
+Everything the owner authorised is done. What is left is the Profile pair, which the owner explicitly parked -
+its unblock conditions are recorded in sec 350 and repeated in `STATE.md`, so it can be picked up the moment the
+three questions (a +1 query on two endpoints, the nested-`profile` JSON, the auth cache's rehydration home) are
+answered differently.

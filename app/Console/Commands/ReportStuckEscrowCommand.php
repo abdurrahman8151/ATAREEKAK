@@ -3,11 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Modules\Identity\Contracts\UserDirectory;
+use App\Modules\Money\Contracts\LedgerAggregates;
 use App\Modules\Ride\Contracts\RideMaintenance;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * RV-10, decision D2 first half: the READ-ONLY stuck-escrow reporter.
@@ -53,9 +53,9 @@ class ReportStuckEscrowCommand extends Command
     /** The reference prefix WalletTransactionService writes: "booking:{id}". */
     private const REFERENCE_PREFIX = 'booking:';
 
-    public function handle(RideMaintenance $bookings, UserDirectory $users): int
+    public function handle(RideMaintenance $bookings, UserDirectory $users, LedgerAggregates $ledger): int
     {
-        $rows = $this->heldEscrows();
+        $rows = $this->heldEscrows($ledger);
 
         if ($rows->isEmpty()) {
             $this->info('No escrow is currently held in SyCash. Nothing is stuck.');
@@ -97,19 +97,11 @@ class ReportStuckEscrowCommand extends Command
      *
      * @return Collection<int, object>
      */
-    private function heldEscrows()
+    private function heldEscrows(LedgerAggregates $ledger)
     {
-        return DB::table('wallet_transactions')
-            ->select('reference', 'wallet_id')
-            ->selectRaw('MIN(created_at) as first_seen')
-            ->selectRaw('SUM(new_balance - previous_balance) as net')
-            ->selectRaw("SUM(CASE WHEN type = 'escrow_received' THEN 1 ELSE 0 END) as escrow_in_legs")
-            ->where('reference', 'like', self::REFERENCE_PREFIX.'%')
-            ->groupBy('reference', 'wallet_id')
-            ->havingRaw('escrow_in_legs > 0')
-            ->havingRaw('net > 0')
-            ->orderBy('net', 'desc')
-            ->get();
+        // Stage 2 C2: the grouping moved into Money (`LedgerAggregates::heldEscrowReferences()`) - the
+        // correlation is the ledger's own balance movement, which is Money's vocabulary, not a screen's.
+        return collect($ledger->heldEscrowReferences());
     }
 
     /**
@@ -124,7 +116,7 @@ class ReportStuckEscrowCommand extends Command
      */
     private function attachBookingsAndAge($rows, RideMaintenance $bookings, UserDirectory $users)
     {
-        $ids = $rows->map(fn ($r) => (int) str_replace(self::REFERENCE_PREFIX, '', $r->reference))->all();
+        $ids = $rows->map(fn ($r) => (int) str_replace(self::REFERENCE_PREFIX, '', $r['reference']))->all();
 
         // Stage 2 C2: Ride owns the booking/ride rows and Identity owns the passenger's name, so this report -
         // a READ-ONLY console command - asks both instead of naming `Booking`. One query each, the same two the
@@ -137,11 +129,11 @@ class ReportStuckEscrowCommand extends Command
         $now = now();
 
         return $rows->map(function ($r) use ($contexts, $passengers, $now) {
-            $id = (int) str_replace(self::REFERENCE_PREFIX, '', $r->reference);
+            $id = (int) str_replace(self::REFERENCE_PREFIX, '', $r['reference']);
             $context = $contexts[$id] ?? null;
 
             $departure = ($context['departure_time'] ?? null) ? Carbon::parse($context['departure_time']) : null;
-            $basis = $departure ?? Carbon::parse($r->first_seen);
+            $basis = $departure ?? Carbon::parse($r['first_seen']);
 
             $passenger = ($context['user_id'] ?? null) === null
                 ? null
@@ -152,7 +144,7 @@ class ReportStuckEscrowCommand extends Command
                 'passenger' => $passenger ? $passenger->fullName() : 'unknown',
                 'ride_id' => $context['ride_id'] ?? null,
                 'seats' => $context['seats'] ?? null,
-                'amount' => (float) $r->net,
+                'amount' => (float) $r['net'],
                 'age_hours' => $basis->diffInHours($now),
                 'age_basis' => $departure ? 'departure' : 'escrow receipt',
             ];

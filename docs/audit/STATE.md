@@ -1,10 +1,16 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **OWNER ANSWERS (2026-11-17): ALL EXECUTED** - (1) sec 368, (2) sec 371, (3) sec 372, (5) sec 370; (4) Profile
-  stays PARKED (the only 2 `KERNEL_MODEL_IMPORTS` pairs left). Clusters moved: Ride 368, Money 373, Complaint 374.
-- **THE PHASE IS AT ITS TERMINAL STATE except ONE item:** `ENTRYPOINT_ALLOWLIST` is `[]` (sec 375),
-  `KERNEL_MODEL_IMPORTS` is 2 (owner-parked Profile pair). The single remaining coupling in scope is
-  `ReportStuckEscrowCommand::heldEscrows()` - a grouped `DB::table('wallet_transactions')` read of Money's ledger
-  from a Console entrypoint (table-level, not model-level; no ratchet counts it). Its home is a Money contract.
+- **STAGE 2 IS COMPLETE except the pair the owner PARKED (audit sec 376). Terminal state, measured on this
+  tree: `KERNEL_MODEL_IMPORTS` = 2 (both `Identity -> Profile`/`ProfileComment`, answer 4 = keep parked),
+  `ENTRYPOINT_ALLOWLIST` = 0, `CONSOLE_FOREIGN_MODEL_FILES` = 0, `TABLE_OWNERS` = 20 tables across five modules,
+  and no module reads another's table directly.**
+  If the Profile pair is ever un-parked, its unblock conditions are sec 350's three questions (a +1 query on
+  `rides/create` and `chat/messages-store`, the nested-`profile` JSON in the ride search / create-with-route
+  responses, and where the auth cache's profile rehydration lives).
+- Done recently: **STAGE 2 - C2 the stuck-escrow report asks Money instead of reading its ledger (audit sec 376),
+  commit `Stage 2 C2: the stuck-escrow report asks Money`.** `LedgerAggregates::heldEscrowReferences()` now runs
+  the grouped `wallet_transactions` correlation (balance-movement based, `escrow_in_legs > 0`) and returns plain
+  arrays; the command keeps the histogram, the window, the summary and the table. This was the LAST cross-module
+  table read in the phase. Gates: **201/798, 2065/8862 (2 skips) - all OK**; Pint PASS 3.
 - Done recently: **STAGE 2 - C2 the three maintenance commands go through ports (audit sec 375), commit
   `Stage 2 C2: booking maintenance commands go through Ride's port`.** NEW `Ride\Contracts\RideMaintenance`
   (+`RideMaintenanceService`): `stalePendingBookingIds`, `expireIfStillStale` (lock + re-check + write in one
