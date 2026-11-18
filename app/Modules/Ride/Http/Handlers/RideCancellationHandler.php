@@ -74,7 +74,7 @@ class RideCancellationHandler
 
             return response()->json([
                 'success' => true,
-                'data' => (new BookingResource($booking))->withProfilePhotos($this->bookingService->profilePhotosFor($booking)),
+                'data' => (new BookingResource($booking))->withProfilePhotos($this->bookingService->profilePhotosFor($booking))->withRatings($this->bookingService->ratingsFor($booking)),
                 'message' => 'Booking cancelled successfully',
             ]);
 

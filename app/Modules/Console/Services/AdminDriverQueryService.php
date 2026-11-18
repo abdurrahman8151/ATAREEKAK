@@ -62,19 +62,6 @@ final class AdminDriverQueryService
         ?string $search = null
     ): LengthAwarePaginator {
         $query = User::query()
-            // Stage 0.6 item 1: two per-row lookups moved into this one query.
-            //
-            //  1. avg_rating used to be set by a transform() that ran `UserRating::where(...)->avg()`
-            //     once PER DRIVER (a page of 3 drivers cost 3 queries). withAvg() turns it into one
-            //     aggregate subquery, and the alias keeps the exact attribute name the presenter
-            //     already reads (`avg_rating`), so the JSON is unchanged.
-            //  2. `phone` is `AdminDriverPresenter::resolveDriverPhone()`, which asks for the newest
-            //     non-null `communication_number` among the driver's rides - also once PER DRIVER.
-            //     The correlated subquery materialises the same value as a `latest_communication_number`
-            //     attribute, and the presenter prefers it when it is present. Same ordering
-            //     (`created_at DESC`, then whatever the engine returns for ties - the old scalar
-            //     `value()` query behaved identically), same NULL semantics.
-            ->withAvg('receivedRatings as avg_rating', 'rating')
             // Stage 2 C2: Ride owns the rows, so the expression is Ride's too. It is still embedded in
             // THIS statement - the port returns a subquery, not a result set - so the endpoint's query
             // count does not move.
@@ -109,6 +96,17 @@ final class AdminDriverQueryService
         $query->orderByDesc('created_at');
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Stage 0.6 item 1 / Stage 2 C2: `avg_rating` used to come from `withAvg('receivedRatings ...')` -
+        // one aggregate subquery. `user_ratings` is Identity's table and the kernel relation that call leaned
+        // on is gone (owner ruling 2026-11-17), so the same ONE query now arrives from its batched reader and
+        // the value is set on the rows under the SAME attribute name: the presenter and the pinned tests read
+        // `avg_rating`, and a driver with no ratings still gets null rather than 0.
+        $ratings = app(UserRatingReader::class)->averageForUsers($paginator->getCollection()->pluck('id')->all());
+
+        foreach ($paginator->getCollection() as $driver) {
+            $driver->setAttribute('avg_rating', $ratings[(int) $driver->id] ?? null);
+        }
 
         return $paginator;
     }

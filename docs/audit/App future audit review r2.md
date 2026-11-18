@@ -21780,3 +21780,70 @@ failure names recorded before the fix (all three in that one class) are gone; no
 
 **Commit note.** This fix and the Ride-cluster move (sec 368) ship in ONE commit, `857acb0`: the move's own
 gate is what surfaced the red money path, and the batch is not finished while a money route throws.
+
+---
+
+### 370. Stage 2 C2: `User::receivedRatings()` is gone and `UserRating` moves into Identity (11 pairs -> 10)
+
+**The ruling this executes.** Owner answer 5 (2026-11-17): replace `User::receivedRatings()` with a batched rating
+reader, and delete the mechanism assertion that pinned it as a loaded relation.
+
+**What the kernel principal stopped doing.** `app/Models/User.php` loses BOTH `receivedRatings()` (the hasMany
+relation) and `getAverageRatingAttribute()` (the accessor that read it, eagerly when loaded, with a per-row query
+otherwise). `user_ratings` is Identity's table, so a rating was the last piece of another module's data the
+principal still answered. Nothing in the kernel names a rating now.
+
+**The reader that replaces it** (`UserRatingReader`):
+- `averageForUsers(array $ids): array` - ONE grouped query for a page; a user with no ratings is ABSENT (so the
+  resources' `?? 0` and the driver list's "no rating yet -> null" keep their old meanings).
+- `rowsForUsers(array $ids): array` - the rows themselves, serialized exactly as the model's `toArray()` did, for
+  the endpoints that serialize RAW models.
+
+**Resources take a map, exactly like their photos.** `RideResource::withRatings()` and
+`BookingResource::withRatings()` mirror the existing `withProfilePhotos()` plumbing. Producers:
+`BookingService::ratingsFor()` / `ratingsForBookings()` (one query per page), and `RideLifecycleHandler` /
+`RideSearchReadHandler` calling the reader directly for their driver ids. `AdminDriverQueryService::getDrivers()`
+drops `withAvg('receivedRatings as avg_rating', 'rating')` - a call that leaned on the deleted relation - and sets
+`avg_rating` from the same reader under the SAME attribute name, so `AdminDriverServiceTest:453`'s
+`items()[0]->avg_rating` assertion and `formatDriver()`'s null semantics are untouched: same value, one query.
+
+**The raw-model responses keep their nested key.** `GET /api/rides` and both `rides/search-*` cases serialize
+models, and their payloads carry `driver.received_ratings`; the committed snapshots pin it. They now restore it
+from `rowsForUsers()` in ONE query per page - `setRelation('received_ratings', collect($rows))`. The snapshot
+corpus caught a real subtlety here: `Model::relationsToArray()` only serializes `Arrayable` values, so a plain
+PHP array set as a relation VANISHES from the payload silently - hence the `collect()`, with a comment saying so.
+The first attempt (using `setAttribute`) also shifted the snapshot normalizer's `<id:N>` placeholders, because an
+attribute and a relation are visited in different orders; `setRelation` restores the original order.
+
+**Test edits, all owner-approved or mechanical:**
+- `UntangleBatchTest:68`'s `relationLoaded('receivedRatings')` assertion is DELETED with its subject (the ruling).
+- `RideSearchServiceTest`'s fixture no longer loads the relation; it passes the same map the producers pass. The
+  AF-4 assertion itself (`driver rating must be the real average (5+3)/2 = 4`) is UNCHANGED, and its sibling N+1
+  test still requires exactly ONE `user_ratings` query - which the reader provides.
+- `DeadArtifactBatchTest` asserted the canonical model at its old path; the path moved, so the assertion was
+  repointed and a NEW assertion added that the old path is gone (strengthening, not weakening).
+
+**The model moved.** `git mv app/Models/UserRating.php app/Modules/Identity/Models/UserRating.php` (namespace,
+explicit `$table = 'user_ratings'`, `use App\Models\User;` for its two relations - the adjacency trap
+`ClassReferenceIntegrityTest` exists to catch), 13 import rewrites (one line each, numstat-verified) across app,
+tests and the one migration that references the class.
+
+**Ratchets.** `KERNEL_MODEL_IMPORTS` **11 -> 10**: `Identity -> UserRating` is gone. `TABLE_OWNERS` gains
+`user_ratings`. `ModuleGraphTest` `Ride -> Identity` **2 -> 3 ports** (`UserRatingReader`), argued in `EDGES`.
+`bookings/index` prints a SHRINK (13 -> 8 queries): the eager load is gone and one batched read replaced the
+per-row accessor path.
+
+**Verification (five runs, all green, MySQL restarted once after the ~20h idle gap - infrastructure):**
+
+| paths | result |
+|---|---|
+| `AppFuture`, `Rides`, `Bookings`, all `Unit` | **1157 / 3601 OK** |
+| `Snapshots` (213 frozen files + freeze/manifest), `Admin`, `Staff` | **541 / 2889 OK** |
+| `Review`, `Wallet`, `Payment`, `Chat`, `Notifications`, `Profile`, `Verification`, `Repositories`, `T3Batch` | **1100 / 5970 OK** (2 pre-existing skips) |
+| `T4Batch` | **16 / 55 OK** |
+| `Auth`, `Security`, `Otp`, `Config`, `Console`, `Broadcast`, `Documents`, `RateLimiting` | **222 / 791 OK** |
+
+**Remaining: 10 pairs** - Console {Complaint, ComplaintAttachment, Wallet, WalletRequest}, Money {LedgerEntry,
+Wallet, WalletRequest, WalletTransaction}, Identity {Profile, ProfileComment} (owner-parked). Next: the Money
+payloads + approval workflow (owner answers 2 and 3), then the Complaint move, which leaves only the parked
+Profile pair.

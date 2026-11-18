@@ -1,8 +1,18 @@
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **OWNER ANSWERS RECEIVED 2026-11-17 (round 21) - the phase is unblocked and in execution:**
-  (1) DELETE `Complaint::ride()` + the two lines -> **DONE (sec 368)**; (2)/(3) Money payloads narrowed +
-  approval workflow moved into Money -> **NEXT**; (4) Profile -> **KEEP PARKED** (no +1 query, no JSON change);
-  (5) UserRating assertion + relation replaced -> **NEXT (after Money or before, its own batch)**.
+- **OWNER ANSWERS (2026-11-17) progress:** (1) `Complaint::ride()` deleted + Ride cluster moved -> **DONE
+  (sec 368)**; (5) `User::receivedRatings()` + `UserRating` -> **DONE (sec 370, 11 -> 10 pairs)**;
+  (2)/(3) Money payloads + approval workflow -> **NEXT**; (4) Profile -> KEEP PARKED.
+- Done recently: **STAGE 2 - C2 `User::receivedRatings()` removed; `UserRating` moved into Identity (audit
+  sec 370), commit `Stage 2 C2: UserRating moves into Identity`.** The kernel principal no longer answers rating
+  questions (relation + accessor deleted). NEW `UserRatingReader::averageForUsers()` (ONE grouped query; absent =
+  no ratings) and `rowsForUsers()` (rows serialized as before). `RideResource`/`BookingResource` gained
+  `withRatings()` (mirroring `withProfilePhotos`), fed by `BookingService::ratingsFor/ratingsForBookings` and the
+  ride handlers; `AdminDriverQueryService` sets `avg_rating` from the reader (its pinned attribute unchanged).
+  Raw-model endpoints keep `received_ratings` via `setRelation(..., collect($rows))` - note
+  `relationsToArray()` serializes only Arrayable values, so a plain array silently vanishes. `UserRating` ->
+  `App\Modules\Identity\Models` (13 imports, explicit `$table`); `KERNEL_MODEL_IMPORTS` **11 -> 10**;
+  `TABLE_OWNERS` + `user_ratings`; `Ride -> Identity` 2 -> 3 ports; `bookings/index` shrinks 13 -> 8. Gates:
+  **1157/3601, 541/2889, 1100/5970, 16/55, 222/791 - all OK** (MySQL restarted once after the 20h idle gap).
 - Done recently: **STAGE 2 - C2 the Ride cluster MOVED into the module + RV23 relation deleted (audit sec 368),
   commit `Stage 2 C2: Ride cluster moves into the module`.** `Ride`, `Booking`, `NoshowReport` ->
   `app/Modules/Ride/Models/` (explicit `$table`; `use App\Models\User;` added after

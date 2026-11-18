@@ -3,9 +3,10 @@
 namespace Tests\Feature\Rides;
 
 use App\Http\Resources\RideResource;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\UserRating;
+use App\Modules\Identity\Contracts\UserRatingReader;
+use App\Modules\Identity\Models\UserRating;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Services\RideSearchService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -328,9 +329,15 @@ class RideSearchServiceTest extends TestCase
         ]);
 
         // RV-37 / un9: RideResource also reads `driver.profile` (the avatar fallback), so the
-        // fixture must eager-load it as well - loading only driver + receivedRatings lazy-loads
-        // the profile per rendered row, which the armed lazy guard turns into a violation.
-        $row = (new RideResource($ride->fresh(['driver', 'driver.profile', 'driver.receivedRatings'])))->toArray(request());
+        // fixture must eager-load it as well - loading only driver lazy-loads the profile per
+        // rendered row, which the armed lazy guard turns into a violation.
+        // Stage 2 C2: ratings are no longer a relation on `User`; the resource takes the same batched map
+        // the producers pass, from Identity's reader (owner ruling 2026-11-17). The assertion below is
+        // untouched - only the wiring in this fixture changed.
+        $freshRide = $ride->fresh(['driver', 'driver.profile']);
+        $row = (new RideResource($freshRide))
+            ->withRatings(app(UserRatingReader::class)->averageForUsers([$freshRide->driver_id]))
+            ->toArray(request());
 
         $this->assertSame(
             4.0,

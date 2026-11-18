@@ -8,6 +8,7 @@ use App\Http\Requests\CreateRideRequest;
 use App\Http\Resources\BookingResource;
 use App\Http\Resources\RideResource;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Http\Controllers\ScoreController;
 use App\Modules\Ride\Services\BookingService;
 use App\Modules\Ride\Services\GeocodingService;
@@ -37,6 +38,7 @@ class RideLifecycleHandler
         private readonly RouteCalculationService $routeService,
         private readonly ScoreService $scoreService,
         private readonly ProfileDirectory $profiles,
+        private readonly UserRatingReader $ratingReader,
     ) {}
 
     public function create(CreateRideRequest $request): JsonResponse
@@ -50,11 +52,13 @@ class RideLifecycleHandler
             // Stage 2 C2: the driver's photo is Identity's and arrives from its port in ONE query.
             $ride->load(['driver']);
             $photoPaths = $this->profiles->photoPathsForUsers([$ride->driver_id]);
+            // Stage 2 C2: ONE batched rating read for the driver this response renders.
+            $rideRatings = $this->ratingReader->averageForUsers([$ride->driver_id]);
             $score = $this->scoreService->getScore($request->user());
 
             return response()->json([
                 'success' => true,
-                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths),
+                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths)->withRatings($rideRatings),
                 'message' => 'Ride created successfully',
                 'driver_score' => ScoreController::formatScore($score),
             ], 201);
@@ -206,11 +210,13 @@ class RideLifecycleHandler
 
         // Stage 2 C2: ONE batched Identity read for the page's drivers, replacing `driver.profile`.
         $ridePhotos = $this->profiles->photoPathsForUsers($rides->pluck('driver_id')->all());
+        // Stage 2 C2: and ONE batched rating read for the same page.
+        $rideRatings = $this->ratingReader->averageForUsers($rides->pluck('driver_id')->all());
 
         return response()->json([
             'success' => true,
             'data' => RideResource::collection(
-                $rides->map(fn ($ride) => (new RideResource($ride))->withProfilePhotos($ridePhotos))
+                $rides->map(fn ($ride) => (new RideResource($ride))->withProfilePhotos($ridePhotos)->withRatings($rideRatings))
             ),
         ]);
     }
@@ -231,10 +237,13 @@ class RideLifecycleHandler
                 ->all()
         );
 
+        // Stage 2 C2: and ONE batched rating read for every passenger on the page.
+        $bookingRatings = $this->bookingService->ratingsForBookings($bookings);
+
         return response()->json([
             'success' => true,
             'data' => BookingResource::collection(
-                $bookings->map(fn ($booking) => (new BookingResource($booking))->withProfilePhotos($bookingPhotos))
+                $bookings->map(fn ($booking) => (new BookingResource($booking))->withProfilePhotos($bookingPhotos)->withRatings($bookingRatings))
             ),
         ]);
     }
@@ -243,6 +252,18 @@ class RideLifecycleHandler
     {
         try {
             $rides = $this->rideService->getDriverRides($request->user()->id);
+
+            // Stage 2 C2: this response serializes RAW models, so the nested `received_ratings` key it always
+            // carried must survive the relation's removal. ONE Identity read for the page, set under the same
+            // key - the query the retired eager load cost, and no per-row accessor.
+            $ratingRows = app(UserRatingReader::class)->rowsForUsers($rides->pluck('driver_id')->all());
+
+            foreach ($rides as $ride) {
+                if ($ride->driver) {
+                    // `collect()` because relationsToArray() serializes Arrayable values and plain arrays are not.
+                    $ride->driver->setRelation('received_ratings', collect($ratingRows[(int) $ride->driver_id] ?? []));
+                }
+            }
 
             return response()->json([
                 'success' => true,

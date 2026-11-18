@@ -27,6 +27,28 @@ class RideResource extends JsonResource
     private ?array $profilePhotos = null;
 
     /**
+     * Stage 2 C2: batched rating averages keyed by user id, from Identity's
+     * `UserRatingReader::averageForUsers()` (ONE grouped query per page). This replaces the
+     * `driver.receivedRatings` eager load and the kernel `User::average_rating` accessor: `user_ratings` is
+     * Identity's table, so a producer resolves the numbers and this resource only formats them.
+     *
+     * @var array<int, float>|null
+     */
+    private ?array $ratings = null;
+
+    /**
+     * Supply the batched rating averages for this resource's users.
+     *
+     * @param  array<int, float>|null  $ratings
+     */
+    public function withRatings(?array $ratings): static
+    {
+        $this->ratings = $ratings;
+
+        return $this;
+    }
+
+    /**
      * Supply the batched stored photo paths for this resource's users.
      *
      * A fluent setter rather than a constructor argument on purpose: Laravel's `collection()` calls
@@ -99,14 +121,12 @@ class RideResource extends JsonResource
             'avatar' => $storedPhoto
                 ? asset('storage/'.$storedPhoto)
                 : $this->driver->avatar,
-            // AF-4: `driver_rating` is not a column on users; it evaluated
-            // to null and `?? 0` silently returned a rating of 0 for EVERY
-            // driver — a fake number in the API response. average_rating is
-            // the model's single-source accessor; it reads the batch-loaded
-            // relation when present (search/list eager-load driver.
-            // receivedRatings) and falls back to one query for single-model
-            // paths, so this never turns a list into an N+1.
-            'rating' => round((float) $this->driver->average_rating, 2),
+            // AF-4: `driver_rating` is not a column on users; it evaluated to null and `?? 0` silently
+            // returned a rating of 0 for EVERY driver - a fake number in the API response. Stage 2 C2: the
+            // average now arrives as a batched map (ONE grouped query per page) from Identity's reader, so
+            // there is no relation and no per-row query; a driver with no ratings is absent from the map and
+            // reads 0, exactly as the removed accessor's `?? 0` did.
+            'rating' => round((float) ($this->ratings[$this->driver->id] ?? 0), 2),
         ];
     }
 

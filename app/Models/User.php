@@ -175,14 +175,10 @@ class User extends Authenticatable
     // sites all lived in Communication's own NotificationController, which now asks this module's
     // UnreadNotificationCounter directly - so the emitted `unread_count` is unchanged and this file
     // keeps no edge into the module, neither to a model nor to a contract.
-    // Stage 2 C2: `givenRatings()` (hasMany UserRating via rater_id) is REMOVED - it had no consumer.
-    // Every rating read in the tree goes through `receivedRatings` (the accessors below), Identity's
-    // `UserRatingReader`, or its own services; nothing asked a user for the ratings they GAVE.
-    public function receivedRatings(): HasMany
-    {
-        return $this->hasMany(UserRating::class, 'rated_user_id');
-    }
-
+    // Stage 2 C2: `receivedRatings()` (hasMany UserRating) is REMOVED, owner ruling 2026-11-17. `user_ratings`
+    // is Identity's table, so the relation had to go before the class could move into the module - and its only
+    // consumers were the `average_rating` accessor below (now gone too), Identity's own `UserRatingReader`, and
+    // one mechanism assertion. The batched read is `UserRatingReader::averageForUsers()`, one query per page.
     // Stage 2 C1: wallet() is gone with the other reverse relations. Money owns wallets, and readers
     // ask Money\Contracts\WalletDirectory (batched) instead of the principal.
 
@@ -192,23 +188,16 @@ class User extends Authenticatable
     // UnreadNotificationCounter directly - so the emitted `unread_count` is unchanged and the kernel
     // keeps no edge into the module, neither to a model nor to a contract.
 
-    public function getAverageRatingAttribute()
-    {
-        // AF-4: rating is shown in the ride/booking API responses. This used to
-        // call ->avg() unconditionally, i.e. one query per row — which is why
-        // presenters avoided it and instead read a nonexistent driver_rating
-        // column (always 0). When the relation is eager-loaded (the search and
-        // list paths do this in one batched query), average the loaded rows in
-        // memory; the lazy query remains the fallback for single-model paths.
-        return ($this->relationLoaded('receivedRatings')
-            ? $this->receivedRatings->avg('rating')
-            : $this->receivedRatings()->avg('rating')) ?? 0;
-    }
+    // Stage 2 C2: `getAverageRatingAttribute()` is REMOVED with the relation it read (owner ruling
+    // 2026-11-17). A rating is another module's data: the resources now take a batched map from Identity's
+    // `UserRatingReader::averageForUsers()` (`withRatings()` on `RideResource` / `BookingResource`), so the
+    // kernel principal no longer answers a question about `user_ratings` at all - not with a relation, and not
+    // with a fallback query per row. The AF-4 defect this accessor fixed (every driver shown as rating 0) is
+    // pinned by `RideSearchServiceTest::test_search_results_render_the_real_driver_rating_not_zero`.
 
     // Stage 2 C2: `getTotalRatingsAttribute()` is REMOVED - it had no consumer. Every `total_ratings`
     // in the tree is read off Identity's `UserRatingStats` DTO (or a response array built from it),
-    // never off a User. That leaves `average_rating` as the only rating accessor, which is the whole
-    // read surface once the relation goes.
+    // never off a User.
 
     public function getIsBannedAttribute(): bool
     {

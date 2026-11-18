@@ -7,15 +7,16 @@ use App\Enums\BookingStatus;
 use App\Enums\BookingType;
 use App\Enums\PaymentMethod;
 use App\Enums\RideStatus;
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\PaymentStrategyFactoryInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Events\RideBooked;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -274,9 +275,9 @@ final class BookingService
     {
         return Booking::with([
             'ride',
-            'user.receivedRatings', // AF-4: batch the passenger rating for BookingResource
             'ride.driver',
-            // Stage 2 C2: `ride.driver.profile` is gone - the handler batches it from Identity's port.
+            // Stage 2 C2: `user.receivedRatings` is gone with the kernel relation; the handler passes the
+            // passenger's average from Identity's batched reader instead (`ratingsFor()`).
         ])
             ->where('user_id', $userId)
             ->orderByDesc('created_at')
@@ -296,6 +297,37 @@ final class BookingService
             $booking->user_id,
             $booking->ride?->driver_id,
         ])));
+    }
+
+    /**
+     * Stage 2 C2: the batched rating average a BookingResource renders for its passenger - ONE grouped query,
+     * from Identity's reader. This replaces the `user.receivedRatings` eager load and the kernel
+     * `User::average_rating` accessor (owner ruling 2026-11-17): `user_ratings` is Identity's table, so the
+     * number is resolved here and merely formatted by the resource.
+     *
+     * @return array<int, float>
+     */
+    public function ratingsFor(Booking $booking): array
+    {
+        return app(UserRatingReader::class)->averageForUsers(
+            array_values(array_filter([$booking->user_id]))
+        );
+    }
+
+    /**
+     * The same for a whole page: ONE query for every passenger on it.
+     *
+     * @param  iterable<int, Booking>  $bookings
+     * @return array<int, float>
+     */
+    public function ratingsForBookings(iterable $bookings): array
+    {
+        $ids = [];
+        foreach ($bookings as $booking) {
+            $ids[] = $booking->user_id;
+        }
+
+        return app(UserRatingReader::class)->averageForUsers(array_values(array_filter($ids)));
     }
 
     // =========================================================================

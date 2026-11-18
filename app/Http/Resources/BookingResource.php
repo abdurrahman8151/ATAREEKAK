@@ -27,6 +27,15 @@ class BookingResource extends JsonResource
     private ?array $profilePhotos = null;
 
     /**
+     * Stage 2 C2: batched rating averages keyed by user id, from Identity's
+     * `UserRatingReader::averageForUsers()` (ONE grouped query per page) - the replacement for the
+     * `user.receivedRatings` eager load and the kernel `User::average_rating` accessor.
+     *
+     * @var array<int, float>|null
+     */
+    private ?array $ratings = null;
+
+    /**
      * Supply the batched stored photo paths for this resource's users.
      *
      * A fluent setter rather than a constructor argument on purpose: Laravel's `collection()` calls
@@ -37,6 +46,18 @@ class BookingResource extends JsonResource
     public function withProfilePhotos(?array $profilePhotos): static
     {
         $this->profilePhotos = $profilePhotos;
+
+        return $this;
+    }
+
+    /**
+     * Supply the batched rating averages for this resource's users.
+     *
+     * @param  array<int, float>|null  $ratings
+     */
+    public function withRatings(?array $ratings): static
+    {
+        $this->ratings = $ratings;
 
         return $this;
     }
@@ -54,10 +75,11 @@ class BookingResource extends JsonResource
                 'id' => $this->user->id,
                 'name' => trim($this->user->first_name.' '.$this->user->last_name),
                 'avatar' => $this->avatarFor($this->user),
-                // AF-4: same defect as RideResource — `passenger_rating` is not
-                // a column on users, so every passenger was shown with rating 0.
-                // average_rating is the single-source accessor; batch-safe.
-                'rating' => round((float) $this->user->average_rating, 2),
+                // AF-4: same defect as RideResource - `passenger_rating` is not a column on users, so
+                // every passenger was shown with rating 0. Stage 2 C2: the average arrives as a batched map
+                // (ONE grouped query per page) from Identity's reader; a passenger with no ratings reads 0,
+                // exactly as before.
+                'rating' => round((float) ($this->ratings[$this->user->id] ?? 0), 2),
             ],
 
             'ride' => [

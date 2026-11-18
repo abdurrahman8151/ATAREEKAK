@@ -2,11 +2,11 @@
 
 namespace App\Modules\Ride\Repositories;
 
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Contracts\Geocoding\GeocodingServiceInterface;
 use App\Modules\Ride\Contracts\Geocoding\RouteCalculationServiceInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Support\GeoPoint;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -276,7 +276,9 @@ class RideRepository implements RideRepositoryInterface
         Log::info('RideRepository: Fetching driver rides', ['user_id' => $userId]);
 
         return Ride::where('driver_id', $userId)
-            ->with('driver.receivedRatings') // AF-4: batch the rating for RideResource
+            // Stage 2 C2: the driver row is still eager-loaded (the raw response nests it); the ratings key
+            // that used to ride along with it comes from Identity's batched reader in the handler.
+            ->with('driver')
             ->withCount('bookings')
             ->orderBy('departure_time', 'desc')
             ->get();

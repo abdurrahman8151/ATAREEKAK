@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\T4Batch;
 
-use App\Models\UserRating;
 use App\Modules\Console\Http\Controllers\AdminDashboardController;
+use App\Modules\Identity\Models\UserRating;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -38,7 +38,7 @@ class DeadArtifactBatchTest extends TestCase
     {
         return [
             'fix.php' => 'blind str_replace against /var/www/html production paths',
-            'UserRating.php' => 'root-level duplicate of app/Models/UserRating.php (same App\Models namespace)',
+            'UserRating.php' => 'root-level duplicate of the canonical UserRating model (same App\Models namespace)',
             'cacert.pem' => 'unreferenced CA bundle',
             'resources/js/firebase.js' => 'unreferenced placeholder using Laravel-Mix process.env syntax in a Vite project',
             'app/Jobs/ProcessBulkNotifications.php' => 'empty handle(), zero dispatch sites (T4-7)',
@@ -55,10 +55,12 @@ class DeadArtifactBatchTest extends TestCase
 
     public function test_the_root_userrating_duplicate_is_gone(): void
     {
-        // The real model is the one composer can autoload (PSR-4 App\Models\ -> app/).
-        $this->assertFileExists(base_path('app/Models/UserRating.php'));
+        // The real model is the one composer can autoload. Stage 2 C2 moved it into the module that owns
+        // `user_ratings`; the point of this test is unchanged - one canonical class, no root duplicate.
+        $this->assertFileExists(base_path('app/Modules/Identity/Models/UserRating.php'));
         $this->assertFileDoesNotExist(base_path('UserRating.php'));
         $this->assertTrue(class_exists(UserRating::class), 'the canonical model must still autoload');
+        $this->assertFileDoesNotExist(base_path('app/Models/UserRating.php'), 'the old kernel path must be gone');
     }
 
     public function test_the_misfiled_geocoding_test_now_sits_at_its_canonical_path(): void

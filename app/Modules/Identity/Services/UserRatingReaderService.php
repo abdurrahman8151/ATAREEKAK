@@ -2,9 +2,9 @@
 
 namespace App\Modules\Identity\Services;
 
-use App\Models\UserRating;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Identity\DTOs\UserRatingStats;
+use App\Modules\Identity\Models\UserRating;
 
 /**
  * Stage 2 C1/C2: the one place that aggregates `user_ratings` for a caller outside Identity.
@@ -38,5 +38,49 @@ final class UserRatingReaderService implements UserRatingReader
             'ratedUser',
             fn ($q) => $q->where('is_verified_driver', true)
         )->avg('rating');
+    }
+
+    /**
+     * Stage 2 C2: ONE grouped query for a page's worth of users. The value is the raw AVG, exactly what
+     * `withAvg('receivedRatings as avg_rating', 'rating')` produced (the callers round), and a user with no
+     * ratings is absent rather than zero - so a caller's `?? 0` (resources) and `?? null` (the driver list's
+     * "no rating yet") both keep the meaning they had.
+     */
+    public function averageForUsers(array $userIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $userIds)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return UserRating::query()
+            ->whereIn('rated_user_id', $ids)
+            ->groupBy('rated_user_id')
+            ->selectRaw('rated_user_id, AVG(rating) as average')
+            ->pluck('average', 'rated_user_id')
+            ->map(fn ($average) => (float) $average)
+            ->all();
+    }
+
+    /**
+     * Stage 2 C2: the rows themselves, keyed by rated user id, serialized exactly as the model's
+     * `toArray()` did when the relation was eager-loaded - so a raw-model response keeps the same nested
+     * `received_ratings` key and values (including the decimal-as-string rating).
+     */
+    public function rowsForUsers(array $userIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $userIds)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return UserRating::query()
+            ->whereIn('rated_user_id', $ids)
+            ->get()
+            ->groupBy('rated_user_id')
+            ->map(fn ($rows) => $rows->map(fn (UserRating $row) => $row->toArray())->values()->all())
+            ->all();
     }
 }

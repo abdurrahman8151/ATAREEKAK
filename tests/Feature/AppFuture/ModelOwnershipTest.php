@@ -87,6 +87,9 @@ final class ModelOwnershipTest extends TestCase
         'photos' => 'Identity',
         // Stage 2 C2: the `employees` table's model moved into Console.
         'employees' => 'Console',
+        // Stage 2 C2: `user_ratings` moved into Identity with its class, once the owner ruling removed the
+        // kernel `User::receivedRatings()` relation and `average_rating` accessor that named it.
+        'user_ratings' => 'Identity',
         // Stage 2 C2: the Ride cluster moved together once the owner ruling removed `Complaint::ride()`
         // (the kernel model that used to name `Ride` by namespace adjacency).
         'rides' => 'Ride',
@@ -107,7 +110,6 @@ final class ModelOwnershipTest extends TestCase
         'Console -> WalletRequest' => 'wallet_requests',
         'Identity -> Profile' => 'profiles',
         'Identity -> ProfileComment' => 'profile_comments',
-        'Identity -> UserRating' => 'user_ratings',
         'Money -> LedgerEntry' => 'ledger_entries',
         'Money -> Wallet' => 'wallets',
         'Money -> WalletRequest' => 'wallet_requests',

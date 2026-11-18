@@ -1,13 +1,18 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Identity\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserRating extends Model
 {
+    // Stage 2 C2: the class moved into the module that owns `user_ratings`. The explicit table keeps a
+    // namespace change from ever changing which table a row lands in.
+    protected $table = 'user_ratings';
+
     // RV-38: arms Eloquent's lazy-loading guard on every hydrated instance.
     use GuardsLazyLoading;
 

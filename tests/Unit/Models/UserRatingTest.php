@@ -3,7 +3,7 @@
 namespace Tests\Unit\Models;
 
 use App\Models\User;
-use App\Models\UserRating;
+use App\Modules\Identity\Models\UserRating;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

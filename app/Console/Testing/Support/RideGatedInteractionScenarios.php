@@ -3,7 +3,7 @@
 namespace App\Console\Testing\Support;
 
 use App\Models\ProfileComment;
-use App\Models\UserRating;
+use App\Modules\Identity\Models\UserRating;
 use App\Modules\Identity\Services\ProfileInteractionService;
 
 /**

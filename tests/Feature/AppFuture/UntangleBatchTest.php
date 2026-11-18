@@ -5,10 +5,10 @@ namespace Tests\Feature\AppFuture;
 use App\Console\Testing\Getloadtesttokens;
 use App\Console\Testing\Testfullrideflow;
 use App\Enums\BookingStatus;
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Repositories\RideRepository;
 use App\Modules\Ride\Services\Noshowservice;
 use App\Modules\Ride\Services\RideSearchService;
@@ -52,7 +52,7 @@ class UntangleBatchTest extends TestCase
         $ride = $this->insertRideAt($driver, 36.2765, 33.5138, 37.1343, 36.2021);
 
         // Direct service call is what the endpoint now runs; the old repository
-        // path selected only ->with('driver') — no profile, no receivedRatings,
+        // path selected only ->with('driver') — no profile,
         // no booked-seat count. Their presence pins the delegation.
         $results = app(RideSearchService::class)->searchRides([
             'departure_date' => $ride->departure_time->toDateString(),
@@ -65,7 +65,9 @@ class UntangleBatchTest extends TestCase
         $this->assertNotNull($found, 'the endpoint search must find the ride');
         // Nested relations load on their parent model, not via dotted paths on Ride.
         $this->assertTrue($found->relationLoaded('driver'), 'the wired path eager-loads the driver');
-        $this->assertTrue($found->driver->relationLoaded('receivedRatings'), 'wired path batch-loads ratings');
+        // Owner ruling 2026-11-17: the `receivedRatings` assertion is GONE with the kernel
+        // relation it pinned. Ratings are not a relation on `User` any more - the resources take a
+        // batched map from Identity's `UserRatingReader::averageForUsers()`.
         $this->assertTrue($found->driver->relationLoaded('profile'), 'wired path batch-loads driver profile');
         $this->assertTrue(isset($found->total_booked_seats), 'wired path supplies the booked-seat count');
     }

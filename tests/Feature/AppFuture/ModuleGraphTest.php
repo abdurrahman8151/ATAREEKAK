@@ -19,7 +19,7 @@ use Tests\TestCase;
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          2
  *   Money              1       1      2        3          -
- *   Ride               1       5      1        2          -
+ *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
  *   Console            4       9     11        9          -
  *
@@ -154,7 +154,11 @@ class ModuleGraphTest extends TestCase
         // Stage 2 C2: Ride's no-show conflict opens a support complaint, which Console owns.
         'Ride -> Console' => 1,
         'Ride -> Communication' => 1,
-        'Ride -> Identity' => 2,
+        'Ride -> Identity' => 3,
+        // Stage 2 C2: the third port is `UserRatingReader`. The kernel `User::receivedRatings()` relation and
+        // its `average_rating` accessor were removed (owner ruling 2026-11-17), so the ride and booking
+        // resources take a batched rating map from Identity instead - one query per page, and the raw-model
+        // endpoints get their nested `received_ratings` rows from the same port.
         // Stage 2 C2: the second port is `ProfileDirectory`. Ride's ride views render the driver's (and, on
         // the driver's passenger list, every passenger's) stored photo, which used to come from the
         // `driver.profile` / `user.profile` eager loads; the paths now arrive batched from Identity, and the

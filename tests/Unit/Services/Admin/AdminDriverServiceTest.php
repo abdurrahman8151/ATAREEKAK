@@ -2,14 +2,14 @@
 
 namespace Tests\Unit\Services\Admin;
 
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
-use App\Models\UserRating;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\Console\Services\AdminDriverService;
 use App\Modules\Identity\Models\Photo;
+use App\Modules\Identity\Models\UserRating;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;

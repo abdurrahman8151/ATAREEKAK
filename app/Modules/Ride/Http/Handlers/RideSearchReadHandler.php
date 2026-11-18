@@ -4,6 +4,7 @@ namespace App\Modules\Ride\Http\Handlers;
 
 use App\Http\Resources\RideResource;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Services\GeocodingService;
 use App\Modules\Ride\Services\RideService;
 use App\Modules\Ride\Services\RouteCalculationService;
@@ -30,6 +31,7 @@ class RideSearchReadHandler
         private readonly GeocodingService $geocodingService,
         private readonly RouteCalculationService $routeService,
         private readonly ProfileDirectory $profiles,
+        private readonly UserRatingReader $ratingReader,
     ) {}
 
     public function searchRides(Request $request): JsonResponse
@@ -152,6 +154,8 @@ class RideSearchReadHandler
             // single query the retired eager load cost.
             $ride->load(['driver']);
             $photoPaths = $this->profiles->photoPathsForUsers([$ride->driver_id]);
+            // Stage 2 C2: ONE batched rating read for the driver this response renders.
+            $rideRatings = $this->ratingReader->averageForUsers([$ride->driver_id]);
 
             // Only aggregate seat totals — no booking rows, no passenger data
             $seatsByStatus = $ride->bookings()
@@ -164,7 +168,7 @@ class RideSearchReadHandler
 
             return response()->json([
                 'success' => true,
-                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths),
+                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths)->withRatings($rideRatings),
                 'seat_summary' => [
                     'total_capacity' => $ride->available_seats + $confirmedSeats + $pendingSeats,
                     'available' => $ride->available_seats,
@@ -216,7 +220,7 @@ class RideSearchReadHandler
 
             return response()->json([
                 'success' => true,
-                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths),
+                'data' => (new RideResource($ride))->withProfilePhotos($photoPaths)->withRatings($this->ratingReader->averageForUsers([$ride->driver_id])),
                 'bookings' => [
                     'total_bookings' => $ride->bookings->count(),
                     'seat_summary' => [

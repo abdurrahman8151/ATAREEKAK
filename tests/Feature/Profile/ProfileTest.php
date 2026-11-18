@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Profile;
 
+use App\Models\User;
+use App\Modules\Identity\Models\UserRating;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Models\UserRating;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;

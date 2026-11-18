@@ -3,6 +3,7 @@
 namespace App\Modules\Ride\Services;
 
 use App\Enums\RideStatus;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Models\Ride;
 use App\Support\GeoPoint;
 use Carbon\Carbon;
@@ -55,27 +56,36 @@ final class RideSearchService
 
         $this->applySpatialFilters($query, $params);
 
-        return $query
+        $rides = $query
             ->with([
-                // AF-4: this used to select a `driver_rating` column that does
-                // not exist on users — one reason the service could never have
-                // served the live endpoint. NOTE: no select-restrictions here.
-                // The repository path this replaces loaded the FULL driver row,
-                // and the controller serializes raw models (no Resource), so any
-                // trimmed column list would SUBTRACT fields from a live response
-                // shape. The wired search must be strictly additive: existing
-                // keys unchanged, new ones (profile, received_ratings,
-                // total_booked_seats) appended. Ratings arrive in ONE batched
-                // eager load (see the N+1 test), never per row.
+                // AF-4: this used to select a `driver_rating` column that does not exist on users.
+                // NOTE: no select-restrictions here - the controller serializes raw models (no Resource),
+                // so a trimmed column list would SUBTRACT fields from a live response shape.
                 'driver',
                 'driver.profile',
-                'driver.receivedRatings',
+                // Stage 2 C2: `driver.receivedRatings` is gone with the kernel relation (owner ruling
+                // 2026-11-17). The nested key it produced is restored below from Identity's reader, in
+                // ONE batched query for the whole page - see `rowsForUsers()`.
             ])
             ->withCount(['bookings as total_booked_seats' => function ($query) {
                 $query->selectRaw('COALESCE(SUM(seats), 0)');
             }])
             ->orderBy('departure_time', 'asc')
             ->get();
+
+        // Stage 2 C2: ONE Identity read for the page, set under the SAME key the eager-loaded relation
+        // serialized. That keeps this raw-model response byte-identical (and the AF-4 N+1 test's
+        // "exactly one user_ratings query" contract) with no relation on the kernel principal.
+        $ratingRows = app(UserRatingReader::class)->rowsForUsers($rides->pluck('driver_id')->all());
+
+        foreach ($rides as $ride) {
+            if ($ride->driver) {
+                // `collect()` because relationsToArray() serializes Arrayable values and plain arrays are not.
+                $ride->driver->setRelation('received_ratings', collect($ratingRows[(int) $ride->driver_id] ?? []));
+            }
+        }
+
+        return $rides;
     }
 
     /**

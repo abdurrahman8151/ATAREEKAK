@@ -2,8 +2,8 @@
 
 namespace App\Modules\Identity\Services;
 
-use App\Models\UserRating;
 use App\Modules\Identity\Contracts\UserRatingRecorder;
+use App\Modules\Identity\Models\UserRating;
 
 /**
  * Stage 2 C1/C2: the write side of `user_ratings`.

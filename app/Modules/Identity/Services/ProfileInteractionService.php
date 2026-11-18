@@ -5,7 +5,7 @@ namespace App\Modules\Identity\Services;
 use App\Exceptions\Domain\ConflictViolation;
 use App\Models\Profile;
 use App\Models\ProfileComment;
-use App\Models\UserRating;
+use App\Modules\Identity\Models\UserRating;
 use App\Modules\Ride\Contracts\PassengerBookingHistory;
 
 /**
