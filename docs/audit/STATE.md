@@ -28,10 +28,21 @@ marks it. Nothing was pushed.
     `items()[0]->avg_rating`; 15 calls pass models). (c) **PARKED** - notification recipients take the PRINCIPAL by
     design (ADR 0007); those four call sites read the authenticated user, not another user's row.
     Gate: **197/901** + **2209/10862 (2 skips)**, every snapshot byte-identical, Pint PASS.
-  - NEXT: **A5** (report the 15 slowest tests + suite time; test-side fixes only, never an assertion), **A6**
-    (route status/error-shape INVENTORY only, for D6), then **Phase C** (docs/ARCHITECTURE.md + ADRs for what
-    changed, terminal STATE, then the full default-order suite, a reverse run, the five-order matrix with
-    per-test assertion-count diff and the leftover-rows probe on the final tip, failure rule in force).
+  - **A5 DONE (audit sec 383):** one full default-order run on the Stage 3 tip = **3071 / 13368 / 2 skipped / 0
+    failures, 16:56.621**; the 15 slowest recorded (slowest is
+    `NotificationChannelTest::test_channel_class_exists` at 14.6 s for one `class_exists` assertion - diagnosed as
+    boot cost, deliberately NOT trimmed because that would weaken what the test exercises). Assertions
+    13364 -> 13368 (+4) is accounted for by the two new contracts' `::class` references and the new provider
+    registration; no test added or changed. **No test-side fix taken.**
+  - **A6 DONE (audit sec 382):** INVENTORY ONLY, built from the committed snapshot corpus (170 cases) after a
+    static scan produced garbage and was discarded: statuses 200x124, 201x17, 422x13, 400x7, 401x6, 404x2, 409x1;
+    **five distinct error body shapes** (`message+success`; `code+message+status`; `errors+message`;
+    `message+status`; `message+status+success`) plus two singletons, and 149/154 routes snapshot-covered with 5
+    non-JSON routes parked. This is the artefact D6 needs; D6 stays PARKED.
+  - NEXT: **Phase C** - docs/ARCHITECTURE.md + ADRs for what changed, terminal STATE, then the full
+    default-order suite, a reverse run, the five-order matrix with per-test assertion-count diff and the
+    leftover-rows probe on the final tip (failure rule in force: a failure is pre-existing only if reproduced at
+    `e845ba3` in a separate worktree with its own vendor).
   - **A3 DONE (audit sec 380):** D1 = PARK, so the note and nothing else - NEW `docs/adr/0010-stored-class-names.md`
     (indexed in `docs/adr/README.md`): new rows keep the module namespace, all three readers accept both values via
     `class_basename()`, no pinning and no backfill; PIN-OLD would be one change in

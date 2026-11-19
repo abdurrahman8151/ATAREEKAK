@@ -22603,3 +22603,44 @@ covers every JSON route there is; there is no un-inventoried JSON surface.
 the five shapes above appear at 400/401/404/409/422, and every one of them has at least one frozen snapshot and
 at least one feature test asserting its keys. D6 stays PARKED, and the inventory above is the artefact the owner
 asked for before picking one.
+
+**A5 - pending queue and speed, MEASURED on the Stage 3 tip.** One full default-order run, one process, JUnit log:
+**3071 tests / 13368 assertions / 2 skipped / 0 failures / 16:56.621** (wall 1017 s, JUnit test-time sum 1014.1 s).
+
+**The 15 slowest tests (JUnit `time`):**
+
+| # | time | test |
+|---|---|---|
+| 1 | **14.576 s** | `Unit/Broadcasting/NotificationChannelTest::test_channel_class_exists` |
+| 2 | 4.144 | `Review/RV39SeederHygieneTest::test_wallet_phone_numberspaces_do_not_collide_between_the_two_seeders` |
+| 3 | 4.127 | `Review/RV39SeederHygieneTest::test_driver_and_passenger_seeders_create_ten_wallets_each_with_distinct_phones` |
+| 4 | 2.652 | `Snapshots/StaffSnapshotTest::staff/escalated-resolve` |
+| 5 | 2.633 | `Snapshots/StaffSnapshotTest::staff/escalated-complaints` |
+| 6 | 2.597 | `Snapshots/EmployeesSnapshotTest::employees/store` |
+| 7 | 2.587 | `Snapshots/EmployeesSnapshotTest::employees/reset-password` |
+| 8 | 2.451 | `Snapshots/StaffSnapshotTest::staff/chat-messages` |
+| 9 | 2.442 | `Snapshots/StaffSnapshotTest::staff/chat-send` |
+| 10 | 2.419 | `Snapshots/EmployeesSnapshotTest::employees/index` |
+| 11 | 2.412 | `Snapshots/StaffSnapshotTest::staff/chat-conversations` |
+| 12 | 2.411 | `Snapshots/EmployeesSnapshotTest::employees/toggle-active` |
+| 13 | 2.401 | `Snapshots/EmployeesSnapshotTest::employees/show` |
+| 14 | 2.395 | `Snapshots/EmployeesSnapshotTest::employees/update` |
+| 15 | 2.297 | `Snapshots/AdminSnapshotTest::admin/wallet-requests-reject` |
+
+**Against the Stage 2 closing run (sec 377):** 3071 tests in both; suite time 16:56.6 vs 16:11.9 (+2.8%); the sum
+of per-test times 1014.1 s vs 970.0 s, which is machine noise on the same fixtures plus the one case that
+dominates. **Assertions 13364 -> 13368 (+4)**, and the delta is accounted for: the two new contracts and the one
+new service add `::class` references (the class-reference ratchet counts them) and the new provider registration is
+one more resolvable entry in `ProviderWiringTest`. No test was added or changed by A1-A6.
+
+**The one number worth the owner's attention: `NotificationChannelTest::test_channel_class_exists` is 14.6 s
+here (8.0 s in the closing run) for a single `class_exists` assertion**, i.e. roughly 0.5% of the whole suite on
+one test whose name suggests it asserts nothing expensive. I did NOT "fix" it: A5 permits test-side fixes with no
+assertion change, but the honest diagnosis is that the cost is in what the test BOOTS (the broadcasting channel
+stack) rather than in the assertion, and trimming that boot would change what the test actually exercises - a
+weakening dressed as a speed-up. Recorded for a future, deliberate change; the two seeder-hygiene tests (4.1 s
+each) are seeding work by design, and every other entry on the list is a snapshot fixture.
+
+**Conclusion for A5: no test-side fix taken, and none is proposed that would leave the assertions intact.** The
+suite's time is fixture and boot cost spread thin (the slowest 15 = 51 s of 1014 s, i.e. 5%), not one pathological
+test.
