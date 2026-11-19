@@ -24,7 +24,21 @@ cross-module Money parameters **0 -> 111 of 113**.
 6. The Profile pair - owner-parked since stage 2 (unblock conditions in the Stage 2 record, sec 350).
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **Nothing in progress. Stage 3 Phase A is complete and verified; Phase B is entirely PARK by owner decision.**
+- **STAGE 4 STARTED (owner file; decisions D1=PIN-OLD, D2=YES if unavoidable, D3=NO byte-identical, D4=AGENT,
+  D5=REPORT-ONLY, D6=YES). Start sha `05fa622` (tag `stage3-verified`); start numbers: 15 edges / 65 port
+  references / 5 two-cycles / 21 derived loops. Tree clean except the owner's `AGENTS.md` +
+  `docker-compose.local.yml`.**
+  - **A1 DONE (audit sec 385):** census = exactly ONE module write site
+    (`Modules/Money/Services/BookingCharge.php` force-filling Ride's booking through `BookingView`); no
+    `DB::table` foreign writes, no foreign-model static writes; the 9 kernel hits are all `app/Console/Testing/`
+    (ADR 0005 exemption). NEW `tests/Support/Boundary/ForeignWriteScanner` + `ForeignWriteTest` pin the census
+    (shrink-only, non-vacuous: >=250 module files scanned + 3 fixture needles + 2 negative controls). The determinism
+    ratchet caught the first needle version twice (heredoc `->save()` / `touch(` tokens) -> needles moved to
+    `tests/Fixtures/foreign-writes/*.php.txt`. Gate: **2260/10681 (2 skips)**.
+  - NEXT: **A2** - fix the pinned site: Money returns the money snapshot as a DTO and Ride persists it through a
+    Ride-owned service (same values, same transaction boundary, same query count; ledger/booking-charge snapshots
+    unchanged), which drives the census to empty; then **A3** (D6=YES - driver screen reads through the Reader, its
+    assertion REPLACED), then Phase B (D1=PIN-OLD), C, D, E, F.
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
 default-order suite and a reverse run, both **3071 tests / 13364 assertions / 2 skipped / 0 failures**, the

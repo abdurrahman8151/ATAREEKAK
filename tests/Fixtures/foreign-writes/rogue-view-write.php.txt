@@ -1,0 +1,13 @@
+﻿<?php
+
+namespace App\Modules\Money\Services;
+
+use App\Modules\Ride\Contracts\BookingView;
+
+final class RogueWriter
+{
+    public function apply(BookingView $booking): void
+    {
+        $booking->forceFill(['amount_paid' => 1]);
+    }
+}

@@ -1,0 +1,13 @@
+﻿<?php
+
+namespace App\Modules\Money\Services;
+
+use App\Modules\Ride\Models\Booking;
+
+final class RogueModelWriter
+{
+    public function apply(): void
+    {
+        Booking::create(['seats' => 1]);
+    }
+}

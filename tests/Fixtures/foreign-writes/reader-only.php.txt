@@ -1,0 +1,14 @@
+﻿<?php
+
+namespace App\Modules\Money\Services;
+
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
+
+final class ReadOnlyConsumer
+{
+    public function show(BookingView $booking, RideView $ride): array
+    {
+        return ['seats' => $booking->seats, 'price' => $ride->price_per_seat];
+    }
+}

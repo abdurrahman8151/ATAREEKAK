@@ -1,0 +1,14 @@
+﻿<?php
+
+namespace App\Modules\Ride\Services;
+
+use App\Modules\Ride\Models\Booking;
+
+final class OwnerWriter
+{
+    public function apply(Booking $booking): void
+    {
+        $booking->forceFill(['amount_paid' => 0]);
+        DB::table('bookings')->update(['amount_paid' => 0]);
+    }
+}

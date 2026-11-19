@@ -22724,3 +22724,54 @@ by the three new classes' `::class` references and the one new provider registra
    candidates, blocked by rule A (a listener must name the publisher's class), rule B and the kernel-contracts
    ceiling, and by the delivery-timing change a queue would introduce (sec 378).
 6. The Profile pair (`Identity -> Profile`, `Identity -> ProfileComment`) - owner-parked since stage 2.
+
+---
+
+### 385. STAGE 4 A1 - the cross-module WRITE census, and a ratchet that can see what the name-based ones cannot
+
+**Stage 4 starts at `05fa622` (tag `stage3-verified`).** Gate checked before any edit: HEAD is that commit, the tree
+carries only the owner's `AGENTS.md` (modified) and `docker-compose.local.yml` (untracked), and the start numbers
+match Stage 3's end - **15 directed edges, 65 port references, 5 declared two-cycles (21 derived loops)**.
+
+**Why a new ratchet.** Every ownership ratchet in `AppFuture` measures what a module NAMES, and Stage 3's A4 finding
+showed the blind spot from the other side: `Money\Services\BookingCharge::snapshotBookingCharge()` force-fills
+Money's money snapshot onto a **Ride-owned** booking row, and no ratchet said a word - because `BookingView` is
+Ride's own contract, so *naming* it is legal. The write was invisible.
+
+**The census (two passes).**
+
+| scope | result |
+|---|---|
+| module code writing another module's row | **exactly ONE site**: `Modules/Money/Services/BookingCharge.php` - `$booking->forceFill([...])->save()` on a Ride-owned booking, through `BookingView` |
+| module code writing a foreign table by raw SQL (`DB::table(...)->update/insert/delete/upsert/increment/decrement/truncate`) | **none** |
+| module code doing a static write on another module's model (`Model::create/insert/updateOrCreate/firstOrCreate/destroy`) | **none** |
+| kernel (non-module) code writing module rows | **9 hits, all in `app/Console/Testing/`** (`Testfullrideflow`, `Testridecompleteionflow`, `Testridegatedinteractioncommand` inserting `rides`/`bookings`, creating `Wallet`s) - exempt by [ADR 0005](../adr/0005-console-testing-directory-exemption.md), and loaded only in local/testing |
+
+**The ratchet: `ForeignWriteTest` + `Tests\Support\Boundary\ForeignWriteScanner`.** It pins the module census above
+as declared data (shrink-only: measured must equal declared, so a new foreign write fails and a fix shrinks the
+list) and is non-vacuous in two independent ways:
+
+1. **coverage** - the scan asserts it walked at least 250 module files, so an empty or broken scan cannot pass;
+2. **the detector's own needles**, loaded from `tests/Fixtures/foreign-writes/*.php.txt` (real source text, never a
+   patch to a tracked production file): a Money file writing through `BookingView` -> found;
+   `DB::table('bookings')->update()` from Money -> found; `Booking::create()` from Money -> found; and the
+   **negative controls**: a read-only consumer (property reads only) -> nothing, and the OWNER writing its own row
+   -> nothing.
+
+The scanner is a plain class with a pure `scanSource()` entry point for exactly that reason: the test owns needles,
+not the production tree.
+
+**A ratchet caught the first version of the needle, which is the system working.** The needles were inline heredocs
+at first, and `TestDeterminismRatchetTest` failed the step gate twice - once because a synthetic `->save()` token
+made it think `ForeignWriteTest` wrote to the database without `RefreshDatabase`, once because a synthetic
+`touch(` token made it think the test wrote a tracked file. Both were false positives of a source-text scan on a
+test that only CONTAINS those strings, and the honest fix was to move the needles into `.php.txt` fixtures (which
+that ratchet does not scan) rather than to add the test to an allowlist: the file genuinely writes nothing.
+
+**Step gate (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots):** run and recorded
+in the commit; the new test adds 3 cases / 8 assertions and changes nothing else - no app code, no snapshot, no
+budget, no manifest.
+
+**Next:** A2 fixes the pinned site (Money returns the snapshot as a DTO; Ride persists it through a Ride-owned
+service), which shrinks this list to empty - and the coverage half of the ratchet is what keeps the empty list
+meaningful.

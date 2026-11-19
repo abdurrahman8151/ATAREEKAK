@@ -1,0 +1,11 @@
+﻿<?php
+
+namespace App\Modules\Money\Services;
+
+final class RogueTableWriter
+{
+    public function apply(): void
+    {
+        DB::table('bookings')->update(['status' => 'x']);
+    }
+}
