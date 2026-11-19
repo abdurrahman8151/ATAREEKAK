@@ -22528,3 +22528,78 @@ redesign a Communication contract for no ownership gain, so it is parked with th
 **197 / 901 OK**; `Unit` + `Review` + `Wallet` + `Payment` + `Snapshots` (all 213 frozen files) + `T3Batch` +
 `T4Batch` = **2209 tests / 10862 assertions OK** (2 pre-existing skips). Pint PASS. No snapshot, manifest, budget
 or schema change; `composer dump-autoload` regenerated only because a class was added.
+
+---
+
+### 382. STAGE 3 A6 - INVENTORY ONLY: every route's status codes and error-body shapes today, grouped by pattern (for D6)
+
+**Scope.** Inventory only: no code, no test, no snapshot changed. It exists so the owner can pick ONE errors
+envelope for D6 with the current surface in front of them.
+
+**Method, and the method that was THROWN AWAY.** The first attempt was a static scan of controllers for
+`response()->json(..., NNN)`; it reported 147 of 148 actions as a single pattern (`200`, no named keys) because a
+regex cannot match a status that follows a multi-line array payload (it lands on the first nested `)` instead).
+That output was discarded rather than reported. The inventory below is built from the **committed snapshot
+corpus** - 170 cases, each a recorded HTTP status plus the actual body - cross-checked against
+`tests/Snapshots/route-inventory.json` for coverage. That is observed behaviour, not a guess about the code.
+
+**Status totals across the 170 recorded cases:** 200 -> **124**, 201 -> **17**, 422 -> **13**, 400 -> **7**,
+401 -> **6**, 404 -> **2**, 409 -> **1**.
+
+**The patterns (status, body keys) with their case counts.** Only the shapes that occur; the table is ordered by
+frequency.
+
+| HTTP | body keys | cases | an example |
+|---|---|---|---|
+| 200 | `data, status` | 27 | `admin/dashboard-stats` |
+| 200 | `data, success` | 14 | `bookings/index` |
+| 200 | `data, message, status` | 12 | `admin/users-ban` |
+| 200 | `data, message, success` | 8 | `bookings/accept` |
+| 200 | `message, status` | 8 | `admin/logout` |
+| **400** | **`message, success`** | **7** | `auth/otp-verify-invalid` |
+| 200 | `counts, data, meta, status` | 6 | `staff/complaints` |
+| **401** | **`code, message, status`** | **6** | `auth/login-invalid-credentials` |
+| **422** | **`message, success`** | **5** | `bookings/accept-someone-elses-request` |
+| 200 | `data, meta, status` | 4 | `staff/bookings` |
+| 200 | `message, success` | 4 | `notifications/destroy` |
+| 200 | `data, status, total` | 3 | `admin/trips-live` |
+| 201 | `data, message, status, success` | 3 | `wallet/request-charge` |
+| **422** | **`errors, message`** | **3** | `rides/create-departure-in-the-past` |
+| 200 | `data, meta, success` | 2 | `score/transactions` |
+| 200 | `data, status, success` | 2 | `wallet/requests-show` |
+| 200 | `employee, message, status` | 2 | `employees/update` |
+| 200 | `expires_at, message, otp_code, success` | 2 | `auth/otp-send` |
+| 201 | `data, message, success` | 2 | `rides/book` |
+| 201 | `data, success` | 2 | `chat/messages-store` |
+| **422** | **`message, status`** | **2** | `rides/cancel-someone-elses-trip` |
+| 200 | `message, ride, status` | 1 each | `rides/cancel` |
+| 200 | `message, status, tokens` | 1 each | `auth/refresh-success` |
+| 201 | `agent, conversation_id, message, status` | 1 | `contact/store` |
+| 201 | `balance, message, phone_number, success, wallet_number` | 1 | `wallet/create-direct` |
+| 201 | `complaint, message, status` | 1 | `complaints/store` |
+| **404** | **`message, status`** | 1 | `staff/bookings-cancel-a-booking-that-does-not-exist` |
+| **404** | **`message, status, success`** | 1 | `wallet/requests-destroy-not-the-owner` |
+| **409** | **`message, success`** | 1 | `wallet/create-direct-already-has-a-wallet` |
+| **422** | **`code, errors, status`** | 1 | `admin/wallet-charge-a-negative-amount` |
+| **422** | **`errors, status`** | 1 | `admin/passenger-charge-a-negative-amount` |
+| **422** | **`message, status, success`** | 1 | `wallet/request-withdraw-more-than-balance` |
+
+**What D6 is choosing between, stated in counts rather than adjectives.** There are **FIVE distinct error body
+shapes** in production today:
+
+1. `message, success` - 7x at 400, 5x at 422, 1x at 409 (13 cases);
+2. `code, message, status` - 6x at 401 (6 cases);
+3. `errors, message` - 3x at 422 (3 cases);
+4. `message, status` - 2x at 422, 1x at 404 (3 cases);
+5. `message, status, success` - 1x at 404, 1x at 422 (2 cases);
+   plus two singletons: `code, errors, status` (422) and `errors, status` (422).
+
+**Coverage and gaps.** `route-inventory.json` holds 154 route entries: **149 are snapshot-covered** (the 170 cases
+include both success and error paths for many) and **5 are deliberately parked as non-JSON** - the report PDF, the
+Swagger UI page and its OAuth2 callback, and the two staff KYC document byte streams. So the inventory above
+covers every JSON route there is; there is no un-inventoried JSON surface.
+
+**What this means for D6 (recorded, not decided).** A single envelope is a real decision with a real blast radius:
+the five shapes above appear at 400/401/404/409/422, and every one of them has at least one frozen snapshot and
+at least one feature test asserting its keys. D6 stays PARKED, and the inventory above is the artefact the owner
+asked for before picking one.
