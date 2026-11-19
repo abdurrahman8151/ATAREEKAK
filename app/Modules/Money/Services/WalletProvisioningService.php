@@ -17,17 +17,6 @@ use App\Modules\Money\Models\Wallet;
 final class WalletProvisioningService
 {
     /**
-     * The account password hash, read fresh from the primary.
-     *
-     * The JWT-cached user deliberately omits the password hash (decision un11), so this cannot read
-     * the value off the request user.
-     */
-    public function passwordHashFor(int $userId): ?string
-    {
-        return User::query()->useWritePdo()->whereKey($userId)->value('password');
-    }
-
-    /**
      * Create the wallet, link it to the user, and hand back the two fields the 201 response carries.
      *
      * @return array{wallet_number: string|null, phone_number: string}

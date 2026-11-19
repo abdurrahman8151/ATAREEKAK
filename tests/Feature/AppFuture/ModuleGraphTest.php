@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          2
- *   Money              1       1      4        3          -
+ *   Money              1       1      4        4          -
  *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
  *   Console            4       7     12        9          -
@@ -155,7 +155,10 @@ class ModuleGraphTest extends TestCase
         // queries, same JSON: the dependency is visible to the type system again, and the one cross-module
         // WRITE in these paths stays untyped and parked.
         'Money -> Communication' => 1,
-        'Money -> Identity' => 3,
+        'Money -> Identity' => 4,
+        // Stage 3 A4: the fourth port is `PasswordVerifier`. Wallet provisioning used to read the
+        // `users.password` hash itself (and compare it with `Hash::check`) - the hash left Identity for the
+        // length of one comparison. Money now asks for the boolean; same ONE read on the write PDO, same 401.
         // Stage 2 C3: the third port is `UserDirectory`. The admin wallet-charge history eager-loaded the
         // charging admin's `users` row for a name; Identity's directory now supplies it in the same ONE query,
         // read by property. A new port on the existing `Money -> Identity` edge, not a new edge.

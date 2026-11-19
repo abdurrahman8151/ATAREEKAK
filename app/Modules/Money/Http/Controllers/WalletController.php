@@ -8,13 +8,13 @@ use App\DTOs\Auth\VerifyEmailOtpDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WalletTransactionResource;
 use App\Modules\Identity\Contracts\EmailOtpServiceInterface;
+use App\Modules\Identity\Contracts\PasswordVerifier;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Money\Services\WalletProvisioningService;
 use App\Modules\Money\Services\WalletTransactionFeed;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class WalletController extends Controller
@@ -22,6 +22,7 @@ class WalletController extends Controller
     public function __construct(
         private readonly EmailOtpServiceInterface $emailOtpService,
         private readonly WalletProvisioningService $walletProvisioning,
+        private readonly PasswordVerifier $passwordVerifier,
         private readonly WalletDirectory $wallets,
         private readonly WalletTransactionFeed $transactionFeed,
     ) {}
@@ -219,10 +220,10 @@ class WalletController extends Controller
      */
     private function checkAccountPassword($user, string $password): ?JsonResponse
     {
-        // Re-confirm the account password before starting wallet creation. The JWT-cached user
-        // deliberately omits the password hash (decision un11), so read it fresh from the primary.
-        $passwordHash = $this->walletProvisioning->passwordHashFor($user->id);
-        if (! $passwordHash || ! Hash::check($password, $passwordHash)) {
+        // Re-confirm the account password before starting wallet creation.
+        // Stage 3 A4: Identity answers this question now (`PasswordVerifier`), so the password hash never leaves
+        // the module that owns it. Same ONE read (on the write PDO), same 401.
+        if (! $this->passwordVerifier->verify((int) $user->id, $password)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials',

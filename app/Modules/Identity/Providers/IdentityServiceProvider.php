@@ -9,6 +9,7 @@ use App\Modules\Identity\Contracts\EmployeeAuthInterface;
 use App\Modules\Identity\Contracts\OtpMailInterface;
 use App\Modules\Identity\Contracts\OtpRepositoryInterface;
 use App\Modules\Identity\Contracts\PasswordResetRepositoryInterface;
+use App\Modules\Identity\Contracts\PasswordVerifier;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileCommentDirectory;
 use App\Modules\Identity\Contracts\ProfileDirectory;
@@ -35,6 +36,7 @@ use App\Modules\Identity\Services\DocumentVerificationService;
 use App\Modules\Identity\Services\EmailOtpService;
 use App\Modules\Identity\Services\EmployeeAuthService;
 use App\Modules\Identity\Services\JwtService;
+use App\Modules\Identity\Services\PasswordVerifierService;
 use App\Modules\Identity\Services\ProfileCommentDirectoryService;
 use App\Modules\Identity\Services\ProfileDirectoryReader;
 use App\Modules\Identity\Services\ProfileInteractionService;
@@ -99,6 +101,8 @@ final class IdentityServiceProvider extends ServiceProvider
         $this->app->bind(VerificationRepositoryInterface::class, VerificationRepository::class);
         $this->app->bind(PasswordResetRepositoryInterface::class, PasswordResetRepository::class);
         $this->app->bind(TokenRevokerInterface::class, JwtService::class);
+        // Stage 3 A4: the account-password check lives here, so the hash never leaves Identity.
+        $this->app->bind(PasswordVerifier::class, PasswordVerifierService::class);
         $this->app->bind(UserTokenCleanupInterface::class, JwtService::class);
         $this->app->bind(UserTokenVerifierInterface::class, JwtService::class);
         $this->app->bind(StaffTokenCleanupInterface::class, StaffJwtService::class);

@@ -22483,3 +22483,48 @@ under the Stage 3 rule means "write a one-line ADR note and do nothing". The not
   state-snapshot grep from closing step 5 is the check to repeat after any model move.
 
 **No code, test, snapshot, manifest or schema change in this step** - docs only, as the rule requires.
+
+---
+
+### 381. STAGE 3 A4 - the password hash stops leaving Identity (`PasswordVerifier`); the other two parked C3 readers parked with their measurement
+
+**A4(a) - converted: the password-verify port.** Wallet provisioning used to reach into `users.password` from
+Money: `WalletProvisioningService::passwordHashFor()` selected the hash on the write PDO, returned it to
+`WalletController`, and the controller ran `Hash::check()`. The hash is Identity's most sensitive column, and Money
+held it for the length of one comparison.
+
+| before | after |
+|---|---|
+| `Money\WalletProvisioningService::passwordHashFor(int): ?string` (the hash crosses the boundary) | **deleted** |
+| `WalletController` compares the hash itself | `Identity\Contracts\PasswordVerifier::verify(int $userId, string $plain): bool` |
+| one `users.password` select on the write PDO | **the same one select**, now inside `PasswordVerifierService` |
+
+Same 401 body (`INVALID_CREDENTIALS`), same question answered, same query - the wallet-initiate and
+create-direct snapshots are byte-identical, which is the evidence that the response did not move.
+`ModuleGraphTest` `Money -> Identity` **3 -> 4** (declared with its reason); EDGES stays 15, cycles unchanged.
+
+**One incident worth recording, because the ratchets caught it.** The patch that added the provider binding silently
+skipped the service's `use` line (the anchor I chose did not exist and that particular insertion had no guard), so
+the container tried to resolve `App\Modules\Identity\Providers\PasswordVerifierService`. **Three ratchets failed
+at boot in exactly the right way**: `UntangleBatchTest` (route resolution), `ClassReferenceIntegrityTest` (an
+`X::class` that does not resolve) and `ProviderWiringTest` (a provider registration that does not resolve) - 18
+failures pointing at one missing import. Fixed, re-ran: **197 / 901 OK** for the touched areas. The lesson is the
+same one this phase keeps relearning: the boot-level ratchets are cheap and they name the file.
+
+**A4(b) - PARKED: the driver screen.** Converting `AdminDriverPresenter::formatDriver()` and its siblings to
+`UserSummary` would require EDITING ASSERTIONS: `AdminDriverServiceTest:453` asserts
+`$service->getDrivers()->items()[0]->avg_rating` (a row ATTRIBUTE), and fifteen calls pass a real model
+(`formatDriver($this->reloadDriver($driver->id))`). A4's rule is explicit - convert only what can be converted
+without changing a test assertion - so this stays parked with that measurement, exactly as recorded in sec 366.
+
+**A4(c) - PARKED: the notification recipients.** `NotificationPort::createNotification()` takes the principal by
+design (ADR 0007: `App\Models\User` is the authenticated principal, not a module model), and the four call sites
+(`StaffCancellationService`, `PushNotificationService`, `BookingCompletionService`,
+`StaffComplaintService::notifyUser`) load that PRINCIPAL - not another user's row. C3's rule is about reading
+somebody else's data; a notification is addressed to the user it is sent to. Converting the port to ids would
+redesign a Communication contract for no ownership gain, so it is parked with this reason rather than forced.
+
+**Gate for this step.** `AppFuture` + `Wallet` + `WalletSnapshotTest` + `ErrorPathSnapshotTest` + `Auth` =
+**197 / 901 OK**; `Unit` + `Review` + `Wallet` + `Payment` + `Snapshots` (all 213 frozen files) + `T3Batch` +
+`T4Batch` = **2209 tests / 10862 assertions OK** (2 pre-existing skips). Pint PASS. No snapshot, manifest, budget
+or schema change; `composer dump-autoload` regenerated only because a class was added.
