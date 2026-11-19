@@ -1,4 +1,4 @@
-﻿# Architecture decision records
+# Architecture decision records
 
 One file per decision that shapes the module layout. They are short on purpose: context, the decision,
 the consequences, and the alternatives that were rejected and why. Decisions that were superseded say so
@@ -15,5 +15,6 @@ in a line at the top rather than being rewritten.
 | [0007](0007-user-is-the-authenticated-principal.md) | `App\Models\User` is the authenticated principal, not a module model |
 | [0008](0008-readers-and-dtos-not-relations.md) | Readers and DTOs instead of relations and eager loads |
 | [0009](0009-events-move-with-their-publisher.md) | Domain events move with their publisher; jobs and listeners stay in the kernel |
+| [0010](0010-stored-class-names.md) | Stored class names: new rows keep the module namespace, readers accept both (decision PARKED) |
 
 The map those decisions produce is in [../ARCHITECTURE.md](../ARCHITECTURE.md).

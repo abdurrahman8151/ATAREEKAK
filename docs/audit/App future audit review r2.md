@@ -22469,3 +22469,17 @@ the view claim a write it must not publish. The honest fix is a Ride-owned write
 `Wallet` + `Payment` + `Snapshots` (all 213 frozen files) + `T3Batch` + `T4Batch` = **2316 tests / 11104
 assertions OK** (2 pre-existing skips). Every snapshot is byte-identical: typing changed nothing observable - no
 query count moved and no JSON changed, which is what A2 required.
+
+**A3 - D1 = PARK, so the note and nothing else.** The owner left the stored-class-name question parked, which
+under the Stage 3 rule means "write a one-line ADR note and do nothing". The note is
+[`docs/adr/0010-stored-class-names.md`](../../adr/0010-stored-class-names.md) (indexed in `docs/adr/README.md`):
+
+- what ships today - new rows keep writing the module namespace, all three readers accept both values through
+  `class_basename()`, no value is pinned and no backfill is run;
+- what PIN-OLD would cost if ever taken - a single change in `ScoreLedger::resolveReference()` plus one
+  value-to-class map (`Relation::morphMap` only if the column became a real morph), reversible at any time because
+  the readers already accept both;
+- the consequence that matters for future work: the column is invisible to every import ratchet, so the
+  state-snapshot grep from closing step 5 is the check to repeat after any model move.
+
+**No code, test, snapshot, manifest or schema change in this step** - docs only, as the rule requires.
