@@ -2,8 +2,8 @@
 
 namespace App\Modules\Console\Services;
 
-use App\Modules\Console\Contracts\ComplaintRecorder;
 use App\Modules\Console\Models\Complaint;
+use App\Modules\Ride\Contracts\ComplaintRecorder;
 
 /**
  * Stage 2 C2: Console's implementation of the complaint insert.

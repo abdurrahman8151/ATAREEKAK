@@ -4,7 +4,6 @@ namespace App\Modules\Console\Providers;
 
 use App\Modules\Console\Contracts\BanLifterInterface;
 use App\Modules\Console\Contracts\ComplaintDirectory;
-use App\Modules\Console\Contracts\ComplaintRecorder;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
 use App\Modules\Console\Contracts\EmployeeManagementInterface;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
@@ -28,6 +27,7 @@ use App\Modules\Console\Services\EmployeeTokenVersionBumper;
 use App\Modules\Console\Services\ReviewModerationService;
 use App\Modules\Console\Services\StaffComplaintService;
 use App\Modules\Console\Services\SupportAgentRoutingService;
+use App\Modules\Ride\Contracts\ComplaintRecorder;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -46,6 +46,8 @@ final class ConsoleServiceProvider extends ServiceProvider
         // Admin back office.
         // Stage 2 C2: Identity invalidates staff sessions through this, instead of writing employees.
         // Stage 2 C2: Ride opens its no-show support complaint through this instead of `Complaint::create()`.
+        // Stage 3 A1: the contract is declared by its CONSUMER (Ride) and implemented here, which is what
+        // removes the `Ride -> Console` edge and the `Console <-> Ride` cycle. Same class, same binding.
         $this->app->bind(ComplaintRecorder::class, ComplaintRecorderService::class);
         $this->app->bind(EmployeeTokenVersion::class, EmployeeTokenVersionBumper::class);
         $this->app->singleton(AdminAuthService::class);

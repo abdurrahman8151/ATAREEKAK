@@ -22346,3 +22346,80 @@ subsections instead of one paragraph:
 `AGENTS.md` plus this run's documentation edits; `tests/Snapshots`, `MANIFEST.json` and `query-budgets.json` are
 byte-identical to the starting tip, and no probe or temporary file was left inside the repository (the
 leftover-rows probe lives outside it, at `%TEMP%\\probe\\leftover-rows.php`).
+
+---
+
+### 378. STAGE 3 A1 - the edge census, ONE edge cut (`Ride -> Console`), the other fifteen parked with their measurement
+
+**Stage 3 started here.** Gate first: `docs/audit/STATE.md` now carries the literal line **"Stage 2 verified on
+`40aab7b`"** and the commit that carries it is tagged **`stage2-verified`** (`e845ba3`, docs-only delta from the
+verified tip). That was missing when the Stage 3 file arrived, so it was produced before anything else (first
+Stage 3 commit).
+
+**The census.** A script (outside the repo) walks `app/Modules/**` and reads every `use App\Modules\X\Contracts\Y;`
+where `X` is not the file's own module: **16 directed edges, 62 port references.** It reproduces the declared
+`EDGES` table exactly, so the census and the ratchet agree before any change:
+
+| edge | ports | the ports |
+|---|---|---|
+| Communication -> Console | 2 | `EmployeeManagementInterface`, `SupportAgentRoutingInterface` |
+| Console -> Communication | 4 | `ChatMessageHandlerInterface`, `ChatRepositoryInterface`, `MessageBroadcaster`, `NotificationPort` |
+| Console -> Identity | 10 | staff auth, `PhotoRepositoryInterface`, `ProfileCommentDirectory`, `ProfileDirectory`, `TokenRevokerInterface`, `UserDirectory`, `UserRatingReader`, verification pair |
+| Console -> Money | 7 | `AdminWalletCredit`, `CancellationRefundInterface`, `DriverEarningsReader`, `LedgerAggregates`, `WalletDirectory`, `WalletRequests`, `WalletTransactionPager` |
+| Console -> Ride | 11 | trip queries, activity feed, revenue aggregates, driver reads, expressions, report counts, score, staff cancel/list, trip writer, ride stats |
+| Identity -> Communication | 2 | `NotificationPort`, `ProfilePhotoDirectory` |
+| Identity -> Console | 3 | `ComplaintDirectory`, `EmployeeRepositoryInterface`, `EmployeeTokenVersion` |
+| Identity -> Money | 4 | `PassengerWalletChargerInterface`, `WalletChargeHistory`, `WalletDirectory`, `WalletTransactionRecorder` |
+| Identity -> Ride | 3 | `PassengerBookingHistory`, `ScoreServiceInterface`, `UserRideStatsInterface` |
+| Money -> Communication | 1 | `NotificationPort` |
+| Money -> Identity | 3 | `EmailOtpServiceInterface`, `ProfileDirectory`, `UserDirectory` |
+| Money -> Ride | 2 | `BookingEscrowLedger`, `CashRideCounter` |
+| Ride -> Communication | 1 | `NotificationPort` |
+| Ride -> Console | 1 | `ComplaintRecorder` |
+| Ride -> Identity | 3 | `DocumentVerificationInterface`, `ProfileDirectory`, `UserRatingReader` |
+| Ride -> Money | 5 | refund, cash-ride fee, no-show settlement, payment factory, payout |
+
+**Is the event mechanism available at all? Measured, not assumed.** A listener that consumes a module event must
+name that event's class, and rule A admits only another module's **Contracts**. The measurement: **zero** module
+events are referenced from outside their own module today (`git` walk over `app/` excluding each module's own
+`Events/` directory), which is why Stage 2's event move kept the construction inside the publisher
+(`MessageBroadcaster`). A kernel listener is equally unavailable: rule B forbids naming module implementation and
+the kernel-Contracts ceiling is a shrink-only 5. So an event can cut an edge only when the reaction can live in
+the publisher's own module, which is never true for a cross-module reaction.
+
+**THE CUT - `Ride -> Console`, inverted as a consumer-declared contract.** Its single port,
+`ComplaintRecorder`, exists so Ride's no-show conflict can open a support complaint without holding the
+`Complaint` model. The contract is now declared by its CONSUMER (`App\Modules\Ride\Contracts\ComplaintRecorder`)
+and implemented + bound by Console (`ComplaintRecorderService`, `ConsoleServiceProvider`), which is the same
+pattern Stage 2 used for `ProfilePhotoDirectory` one direction over. **Nothing at runtime moved**: same
+implementation class, same binding, same `record(array): int`, same insert, same returned id, no query change, no
+JSON change. What moved is the interface's namespace - and with it the edge.
+
+| metric | before | after |
+|---|---|---|
+| EDGES | 16 | **15** |
+| port references | 62 | **62** (one edge lost one, the reverse edge gained it) |
+| 2-cycles (declared `UNCUT_CYCLES`) | 6 | **5** (`Console <-> Ride` is cut) |
+| derived longer loops | 25 | **21** (the four that passed through `Ride -> Console` are gone) |
+
+`ModuleGraphTest` was updated in the same commit: the edge removed from `EDGES`, `Console -> Ride` 11 -> 12 with
+the reason, the matrix row corrected, `Console <-> Ride` deleted from `UNCUT_CYCLES`, `DERIVED_CYCLES` replaced
+with the measured 21, and the header sentence (which had said 14 since stage 2 and was already stale at 16)
+corrected to 15.
+
+**The other fifteen, parked - each with the mechanism tried and the measurement that stops it.**
+
+| edge | why it cannot go |
+|---|---|
+| `Communication -> Console` (2) | the contact endpoint must RETURN the agent and its shadow user, so no event can carry it; the consumer-declared inversion was already rejected by the phase's own record (it would move Console's ownership of employees and support routing into the passenger-facing module) |
+| `Console -> Communication` (4) | all four are response-returning (chat pages, message construction, notification delivery); queueing the notification would change delivery timing, which A1 forbids |
+| `Console -> Identity` (10), `Console -> Ride` (12), `Console -> Money` (7) | every port returns data or a page the Console screen prints; inverting them would hand Ride/Identity/Money's owned tables to the back office, i.e. exactly the laundering the ownership map forbids |
+| `Identity -> Console` (3) | staff auth lives in Identity and employee RECORDS in Console (batch-233 map); cutting moves one or the other. The third port (`ComplaintDirectory`) returns a page |
+| `Identity -> Money` (4), `Identity -> Ride` (3) | OTP-verified withdrawal vs top-up, and document checks vs ride stats/score: both sides need return values and both are declared uncut in `UNCUT_CYCLES` for that reason |
+| `Money -> Identity` (3), `Money -> Ride` (2) | response-returning money/identity reads; escrow is a COLUMN on the booking row, so the table owner must own the guarded decrement (declared uncut) |
+| `Ride -> Identity` (3) | driver-document verification and the two directory reads must return values synchronously (declared uncut) |
+| `Money -> Communication` (1), `Ride -> Communication` (1) | these are the two textbook event candidates (both are void `NotificationPort` calls). They are parked on TWO measured facts, not on taste: an event cannot be consumed without naming the publisher's class (rule A) or adding a kernel listener (rule B + the shrink-only ceiling), and dispatching the notification to a queue instead of delivering it inline would change WHEN the user is notified - a behaviour change A1 forbids. Both need an owner decision about delivery timing, which is why they are parked rather than forced |
+
+**Gate for this step.** The touched flow is the no-show one: `Review` + `Rides` + `Bookings` + `T3Batch` +
+`T4Batch` + all `Unit` = **1821 tests / 6253 assertions OK** (2 pre-existing skips), plus `AppFuture` (all seven
+ratchets) **62 / 464 OK**. Pint PASS on every changed file. No snapshot, budget, manifest or schema change.

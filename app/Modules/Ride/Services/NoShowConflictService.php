@@ -4,12 +4,12 @@ namespace App\Modules\Ride\Services;
 
 use App\Enums\ComplaintStatus;
 use App\Enums\ComplaintType;
+use App\Models\User;
+use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Ride\Contracts\ComplaintRecorder;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\NoshowReport;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Modules\Communication\Contracts\NotificationPort;
-use App\Modules\Console\Contracts\ComplaintRecorder;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\Log;
 

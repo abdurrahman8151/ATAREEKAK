@@ -13,7 +13,7 @@ use Tests\TestCase;
  * `ModuleBoundaryTest` says what MAY cross a boundary (Contracts, never implementation). This file says
  * what DOES cross it, so that the graph cannot grow or close a new loop by accident. The measured graph
  * on 2026-11-03, counting only code (comments and docblocks are stripped first, so history notes about
- * old namespaces cannot register as edges), is 14 directed edges and every one of them is a Contracts
+ * old namespaces cannot register as edges), is 15 directed edges and every one of them is a Contracts
  * edge:
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
@@ -21,7 +21,7 @@ use Tests\TestCase;
  *   Money              1       1      2        3          -
  *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
- *   Console            4       7     11        9          -
+ *   Console            4       7     12        9          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -120,7 +120,10 @@ class ModuleGraphTest extends TestCase
         // are a fifth (the workflow itself stays in Console); the report's three booking-based money
         // projections are a sixth; the recent-activity feed is a seventh; the staff bookings list is
         // an eighth; the staff booking-cancel path's lookup and write are a ninth.
-        'Console -> Ride' => 11,
+        'Console -> Ride' => 12,
+        // Stage 3 A1: the twelfth port is the inverted `ComplaintRecorder` (see the note where `Ride ->
+        // Console` used to be). Same implementation, same binding, same insert - only the interface's home
+        // moved to the caller that needs it.
         'Identity -> Communication' => 2,
         // Stage 2 C2: the second port is `ProfilePhotoDirectory`, and it is declared by the CONSUMER.
         // Communication's chat read path needs the senders' stored `profile_photo`; Identity owns
@@ -155,8 +158,9 @@ class ModuleGraphTest extends TestCase
         // charging admin's photo, which Money used to read by eager-loading `User::profile`; the column now
         // arrives batched from Identity (the same ONE query for the page), and `profiles` stays Identity's.
         // A new port on the existing `Money -> Identity` edge, not a new edge.
-        // Stage 2 C2: Ride's no-show conflict opens a support complaint, which Console owns.
-        'Ride -> Console' => 1,
+        // Stage 3 A1: `Ride -> Console` is GONE. Its single port, `ComplaintRecorder`, is now declared by
+        // its CONSUMER (Ride) and implemented here, so the no-show conflict still opens exactly the same
+        // complaint through exactly the same service - one edge and the `Console <-> Ride` cycle fewer.
         'Ride -> Communication' => 1,
         'Ride -> Identity' => 3,
         // Stage 2 C2: the third port is `UserRatingReader`. The kernel `User::receivedRatings()` relation and
@@ -176,7 +180,6 @@ class ModuleGraphTest extends TestCase
         'Communication <-> Console' => 'a passenger-facing contact endpoint must reach the back office to build its response; an event cannot return the agent and a kernel listener would breach the 5-file Contracts ceiling',
         'Console <-> Identity' => 'staff authentication lives in Identity and employee records in Console (batch 233 context map); cutting it would move one or the other',
         'Identity <-> Money' => 'OTP-verified withdrawal versus wallet top-up: both need a return value and cutting either moves an HTTP endpoint between modules',
-        'Console <-> Ride' => 'a no-show conflict must open a support complaint for the back office to investigate; Console already reaches Ride for its trip and booking screens, and cutting either side means moving an HTTP endpoint between modules',
         'Money <-> Ride' => 'escrow is a COLUMN ON THE BOOKING ROW, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids',
         'Identity <-> Ride' => 'driver-document checks versus ride stats and score: same shape as Identity <-> Money',
     ];
@@ -203,11 +206,7 @@ class ModuleGraphTest extends TestCase
         'Communication -> Console -> Ride -> Identity -> Money',
         'Communication -> Console -> Ride -> Money',
         'Communication -> Console -> Ride -> Money -> Identity',
-        'Console -> Identity -> Money -> Ride',
-        'Console -> Identity -> Ride',
         'Console -> Money -> Identity',
-        'Console -> Money -> Identity -> Ride',
-        'Console -> Money -> Ride',
         'Console -> Money -> Ride -> Identity',
         'Console -> Ride -> Identity',
         'Console -> Ride -> Money -> Identity',

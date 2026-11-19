@@ -8,18 +8,20 @@ record of that run is the documentation commit that carries this line, and the l
 marks it. Nothing was pushed.
 
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **STAGE 3 STARTED (owner-pasted file; OWNER DECISIONS all PARK except none).** Start sha for Stage 3:
-  the `stage2-verified` commit (recorded in the audit section that opens Stage 3). Scope as the file states:
-  Phase A only - **Phase B starts nothing, because D1..D8 are all PARK** (D1 PARK, D2 NO, D3 NO, D4 PARK,
-  D5 NO, D6 PARK, D7 PARK, D8 PARK), and the Phase B header is "start a step only if its decision above is not
-  PARK".
-  - **Gate completion (this is the first Stage 3 action, docs-only):** the closing run had not written the
-    literal statement and the tag did not exist, so both were produced here before anything else - the line above
-    and `git tag stage2-verified`. The verification CONTENT backing them is sec 377's, unchanged and unrepeated.
-  - NEXT: **A1** (ceiling census + shrink, EDGES total and cycles before/after, park with measurement), then A2,
-    A3 (D1 = PARK -> one-line ADR note, no code), A4 (the three parked C3 readers), A5 (slowest tests + suite time),
-    A6 (route status/error inventory only), then Phase C (docs/ADRs, terminal STATE, full default + reverse +
-    five-order matrix + probe on the final tip).
+- **STAGE 3 (Phase A only; Phase B entirely PARK). Start sha: the `stage2-verified` commit `e845ba3`.**
+  - **A1 DONE (audit sec 378):** census = 16 edges / 62 port references; **cut `Ride -> Console`** by moving its
+    single port (`ComplaintRecorder`) to the CONSUMER (Ride) with Console implementing + binding it - same class,
+    same binding, same insert, no query/JSON change. EDGES **16 -> 15**, 2-cycles **6 -> 5** (`Console <-> Ride`
+    gone), derived loops **25 -> 21**; `ModuleGraphTest` updated (EDGES, matrix, UNCUT_CYCLES, DERIVED_CYCLES,
+    stale "14 edges" header fixed). Other 15 edges parked with measurements - including the two void
+    `NotificationPort` edges, parked because an event needs a listener that names the publisher's class (rule A)
+    or a kernel listener (rule B + ceiling) and queueing would change delivery timing. Gate: **1821/6253** +
+    AppFuture **62/464**, Pint PASS.
+  - NEXT: **A2** (restore the dropped cross-module type hints - Money services' 14 Ride + 43 Booking parameters -
+    with typed Contracts/DTOs, e.g. a read-only `BookingView`; no query or JSON change), then A3 (D1 = PARK ->
+    one-line ADR note), A4 (password-verify port first, then the other two parked C3 readers), A5 (15 slowest +
+    suite time), A6 (route status/error inventory only), then Phase C (docs + full default + reverse + five-order
+    matrix + probe on the final tip).
   - **Start tip `40aab7b`; snapshot diff `af39d23..HEAD -- tests/Snapshots` = 47 files, ALL expected** (1 MANIFEST
     + 4 ride api + 1 query-budgets + 41 state: 40 ledger `wallet_transaction_id` `null`->id + 1 score
     `reference_type`). Budgets: 7 entries, all decreases.
