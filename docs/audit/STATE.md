@@ -1,7 +1,25 @@
+# STAGE 2 CLOSED
+
+**Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
+default-order suite and a reverse run, both **3071 tests / 13364 assertions / 2 skipped / 0 failures**, the
+five-order matrix with **0 per-test assertion-count differences** and the leftover-rows probe **clean (0 rows in
+all 30 guarded tables) after every run**, plus the stored-class-name inventory and the rewritten deploy notes. The
+record of that run is the documentation commit that carries this line, and the local tag **`stage2-verified`**
+marks it. Nothing was pushed.
+
 ## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **STAGE 2 CLOSING VERIFICATION COMPLETE (audit sec 377). THE TIP IS PROVEN.** No code and no test was changed:
-  `git status --short` shows only the owner's `AGENTS.md` plus this task's documentation edits, and
-  `tests/Snapshots`, `MANIFEST.json` and `query-budgets.json` are byte-identical to the starting tip.
+- **STAGE 3 STARTED (owner-pasted file; OWNER DECISIONS all PARK except none).** Start sha for Stage 3:
+  the `stage2-verified` commit (recorded in the audit section that opens Stage 3). Scope as the file states:
+  Phase A only - **Phase B starts nothing, because D1..D8 are all PARK** (D1 PARK, D2 NO, D3 NO, D4 PARK,
+  D5 NO, D6 PARK, D7 PARK, D8 PARK), and the Phase B header is "start a step only if its decision above is not
+  PARK".
+  - **Gate completion (this is the first Stage 3 action, docs-only):** the closing run had not written the
+    literal statement and the tag did not exist, so both were produced here before anything else - the line above
+    and `git tag stage2-verified`. The verification CONTENT backing them is sec 377's, unchanged and unrepeated.
+  - NEXT: **A1** (ceiling census + shrink, EDGES total and cycles before/after, park with measurement), then A2,
+    A3 (D1 = PARK -> one-line ADR note, no code), A4 (the three parked C3 readers), A5 (slowest tests + suite time),
+    A6 (route status/error inventory only), then Phase C (docs/ADRs, terminal STATE, full default + reverse +
+    five-order matrix + probe on the final tip).
   - **Start tip `40aab7b`; snapshot diff `af39d23..HEAD -- tests/Snapshots` = 47 files, ALL expected** (1 MANIFEST
     + 4 ride api + 1 query-budgets + 41 state: 40 ledger `wallet_transaction_id` `null`->id + 1 score
     `reference_type`). Budgets: 7 entries, all decreases.
