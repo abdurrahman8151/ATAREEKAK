@@ -21,17 +21,17 @@ that holds it is named next to it, so the number is never the source of truth - 
 ```
 app/
   Modules/
-    Communication/   19 files   5 ports   chat, push, notifications, mail transport
-    Money/           35 files   8 ports   ledger, wallets, escrow, refunds, payouts, payment strategies
-    Ride/            47 files   5 ports   booking and ride lifecycle, search, scoring, no-shows
-    Identity/        59 files  17 ports   passenger and staff auth, tokens, OTP, KYC, profiles
-    Console/         48 files   5 ports   the back office, employees, bans, support routing
+    Communication/   32 files   8 ports   chat, push, notifications, mail transport
+    Money/           60 files  17 ports   ledger, wallets, escrow, refunds, payouts, payment strategies
+    Ride/            85 files  23 ports   booking and ride lifecycle, search, scoring, no-shows
+    Identity/        78 files  23 ports   passenger and staff auth, tokens, OTP, KYC, profiles
+    Console/         55 files   7 ports   the back office, employees, bans, support routing
   Models/ Enums/ DTOs/ Events/ Exceptions/ Jobs/ Listeners/ Mail/ Observers/ Support/ Services/
   Http/             the kernel: shared domain vocabulary and framework glue
 ```
 
-`app/` is **359 PHP files**: 208 in modules, 151 in the kernel, 40 of the module files being ports.
-`tests/` is 298 PHP files.
+`app/` is **436 PHP files**: 310 in modules, 126 in the kernel, **78 of the module files being contracts** (65 of
+those are referenced across the 15 graph edges; the rest are internal). `tests/` is **304 PHP files**.
 
 Why one deployable instead of services: the money paths need one transaction (an escrow hold and its
 ledger posting commit or roll back together), and the boundaries were discovered by moving code, which
@@ -110,12 +110,13 @@ edges are 0, which is `ModuleBoundaryTest` rule A's job and is asserted again on
 | from \ to | Communication | Money | Ride | Identity | Console |
 |---|---|---|---|---|---|
 | **Communication** | - | - | - | 0 | 2 |
-| **Money** | 1 | - | - | 1 | - |
-| **Ride** | 1 | 5 | - | 1 | - |
-| **Identity** | 1 | 1 | 2 | - | 1 |
-| **Console** | 3 | 3 | 2 | 6 | - |
+| **Money** | 1 | - | 4 | 4 | - |
+| **Ride** | 1 | 5 | - | 3 | - |
+| **Identity** | 2 | 4 | 3 | - | 3 |
+| **Console** | 4 | 7 | 12 | 10 | - |
 
-14 directed edges. Four cycles close in it, and each is declared with the reason it could not be cut:
+**15 directed edges, 65 port references.** Five cycles close in it, and each is declared with the reason it could
+not be cut:
 
 | Cycle | Why it stays |
 |---|---|
@@ -123,20 +124,22 @@ edges are 0, which is `ModuleBoundaryTest` rule A's job and is asserted again on
 | **Console <-> Identity** | Console authenticates staff through Identity (`EmployeeAuthInterface`, `StaffJwtInterface`); Identity reaches Console for `EmployeeRepositoryInterface` because the stage 1 context map puts staff **authentication** in Identity and employee **records** in Console. Cutting it means moving one of those two, i.e. contradicting the map. |
 | **Identity <-> Money** | OTP-verified withdrawal (Money -> Identity's `EmailOtpServiceInterface`) versus wallet top-up (Identity -> Money's `PassengerWalletChargerInterface`). Both need a return value; cutting either moves an HTTP endpoint between modules. |
 | **Identity <-> Ride** | Driver-document checks at booking time (Ride -> Identity's `DocumentVerificationInterface`) versus ride stats and score on the profile page (Identity -> Ride's `ScoreServiceInterface`, `UserRideStatsInterface`). Same shape as Identity <-> Money. |
+| **Money <-> Ride** | Escrow is a COLUMN on the booking row, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids. |
 
-**One cycle was cut.** Communication -> Identity was exactly one line in the whole module tree: the
-`OtpMailInterface` binding in `CommunicationServiceProvider`, placed there in stage 1 because mail
-delivery is Communication's transport. A port is bound by the module that publishes it, so the binding
-moved to the kernel catalogue (section 2); the edge is 0 and with it the `Communication <-> Identity`
-cycle. The first attempt moved the binding into Identity's provider - `ModuleGraphTest` saw the cycle
-gone, but `CrossContextBoundaryTest` saw a new `IDENTITY_to_COMM` import (`App\Mail\OtpMailer` is
-Communication's context in the boundary map) against a baseline of 0. The fix would have been to raise a
-baseline, which is forbidden, so it moved to the kernel instead: the kernel is not a context, so no
-baseline and no edge moved.
+**Two cycles have been cut, and both cuts are the same lesson: move the contract, not the work.**
 
-The 16 longer loops in the graph are all consequences of those four mutual pairs; `ModuleGraphTest`
-asserts that every longer loop passes through a declared pair, so a loop that is a genuinely new design
-decision fails the test with its own name in the message.
+- `Communication -> Identity` was exactly one line in the whole tree - the `OtpMailInterface` binding in
+  `CommunicationServiceProvider`. The binding moved to the kernel catalogue (section 2), the edge is 0, and the
+  cycle went with it.
+- `Console <-> Ride` was cut in stage 3 A1 by INVERTING its single port: `ComplaintRecorder` is now declared by
+  its consumer (`Ride\Contracts\ComplaintRecorder`) and implemented and bound by Console, so Ride's no-show
+  conflict still opens exactly the same complaint through exactly the same service. `Ride -> Console` is gone
+  (16 -> 15 edges), the cycle with it, and the longer loops fell from 25 to 21. Nothing at runtime moved: same
+  class, same binding, same insert, no query change, no JSON change.
+
+The 21 longer loops are all consequences of the five mutual pairs; `ModuleGraphTest` asserts that every longer
+loop passes through a declared pair, so a loop that is a genuinely new design decision fails the test with its own
+name in the message.
 
 ## 5. Ports
 
@@ -144,7 +147,7 @@ A port is an interface in the provider module's `Contracts/`, bound to that modu
 provider. Consumers type-hint the port. A module may name any module's `Contracts` and may never name its
 implementation. Full reasoning: [ADR 0003](adr/0003-ports-live-in-each-modules-contracts.md).
 
-40 ports today. Adding one is a five-step change, and every step has a ratchet:
+**78 contract files today**, 65 of them referenced across the graph's 15 edges. A port is normally declared by the module that OWNS the capability; the one sanctioned exception is named below. Adding one is a five-step change, and every step has a ratchet:
 
 1. write the interface in the provider's `Contracts/`, with a docblock naming who consumes it and why it
    is shaped that way;
@@ -154,6 +157,20 @@ implementation. Full reasoning: [ADR 0003](adr/0003-ports-live-in-each-modules-c
 4. switch the consumer to the port, and only the port;
 5. run `ModuleGraphTest` - the new edge (or the new port on an existing edge) is declared data and needs
    its line updated with the reason. `ProviderWiringTest` will confirm the registration resolves.
+
+### Consumer-declared ports (the one exception)
+
+A contract may instead be declared by the module that CONSUMES it, when the capability is a narrow read or a single
+call whose owner is obvious and the alternative is a new edge or a cycle. Two ports do this today:
+
+| port | declared by (consumer) | implemented and bound by (owner) | why |
+|---|---|---|---|
+| `Communication\Contracts\ProfilePhotoDirectory` | Communication | Identity | the chat read path needs the senders' stored photo; declaring it from Identity would re-create the `Communication -> Identity` edge and cycle that stage 1.5 had just cut |
+| `Ride\Contracts\ComplaintRecorder` | Ride | Console | the reverse direction: Console's declaration created `Ride -> Console`; inverting it removed that edge AND the `Console <-> Ride` cycle with no runtime change (stage 3 A1) |
+
+The port still describes the OWNER's capability, is still bound in the OWNER's provider, and only the interface's
+namespace changes hands. It is not a way to move ownership: the table, the service, the schema and the binding all
+stay where they were.
 
 Two rules of taste, learned the hard way in stage 1.5:
 
@@ -309,6 +326,13 @@ failure.
 | Ride | `RideRepositoryInterface`, `NoShowReportInterface`, `UserRideStatsInterface`, `ScoreServiceInterface`, `GeocodingServiceInterface` | `BookingEscrowLedger` |
 | Identity | `UserRepositoryInterface`, `ProfileRepositoryInterface`, `PhotoRepositoryInterface`, `OtpRepositoryInterface`, `PasswordResetRepositoryInterface`, `VerificationRepositoryInterface`, `StaffTokenVerifierInterface`, `UserTokenVerifierInterface`, `EmployeeAuthInterface`, `StaffJwtInterface`, `DocumentVerificationInterface`, `VerificationApprovalInterface`, `EmailOtpServiceInterface`, `OtpMailInterface` | `TokenRevokerInterface`, `StaffTokenCleanupInterface`, `UserTokenCleanupInterface` |
 | Console | `ComplaintRepositoryInterface`, `EmployeeRepositoryInterface`, `EmployeeManagementInterface`, `BanLifterInterface`, `SupportAgentRoutingInterface` | `ComplaintRecorder`, `EmployeeTokenVersion` |
+
+The table lists the main ports, not every contract (78 exist). **Stage 3 changed four things in it**: Identity
+gained `PasswordVerifier` (the account-password check, so the hash never leaves the module); Money gained
+`WalletRequests` (the review reads AND the approve/reject movement, one desk); Ride gained the read-only
+`BookingView` / `RideView` (what Money may type a booking or a ride as, so 111 parameters stopped being untyped);
+and `ComplaintRecorder` moved to the Ride row because it is now declared by its CONSUMER and implemented by
+Console - the one inverted port in the map (section 5).
 
 Two rules ride along with that table, and both are ratchet-enforced rather than conventional:
 

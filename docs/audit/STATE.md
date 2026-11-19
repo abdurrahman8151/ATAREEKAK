@@ -1,4 +1,30 @@
-# STAGE 2 CLOSED
+# STAGE 3 CLOSED (Phase A only; Phase B all PARK)
+
+**Terminal state, measured on the final tip (audit sec 384).** Five serialised full-suite orders - default,
+reverse, random-11, random-20261102, random-7919 - each **3071 tests / 13368 assertions / 2 skipped / 0 failures**,
+with **0 per-test assertion-count differences** against default, **0 tests present in only one log**, and the
+leftover-rows probe **clean (0 rows in all 30 guarded tables) after every run**. `tests/Snapshots`, `MANIFEST.json`
+(213 entries) and `query-budgets.json` (170 entries) are **byte-identical to the Stage 3 start tip**;
+`SNAPSHOT_UPDATE=1` was never used; the schema was never touched.
+
+**Ratchets, start tip -> final tip:** EDGES **16 -> 15**, port references **62 -> 65**, 2-cycles **6 -> 5**
+(`Console <-> Ride` cut), derived loops **25 -> 21**; `KERNEL_MODEL_IMPORTS` **2** (owner-parked Profile pair,
+unchanged); `ENTRYPOINT_ALLOWLIST` **0**; `CONSOLE_FOREIGN_MODEL_FILES` **0**; `TABLE_OWNERS` **20**; typed
+cross-module Money parameters **0 -> 111 of 113**.
+
+**Parked, each with its measurement (sec 384 lists them; nothing here is blocked on my work):**
+1. `BookingCharge::snapshotBookingCharge()` - the one cross-module WRITE - stays untyped (a read-only view cannot
+   carry it); the fix is a Ride-owned `BookingMoneySnapshot::fill()` write port, a design step of its own.
+2. The driver screen (conversion needs assertion edits: `AdminDriverServiceTest:453`, 15 model-passing calls).
+3. Notification recipients (`NotificationPort` takes the principal by design, ADR 0007).
+4. D1 stored class names (ADR 0010 records the shipped behaviour), D2/D3/D4/D5/D7/D8 owner NO/PARK, D6 envelope
+   (inventory ready, sec 382).
+5. The two void `NotificationPort` edges - events are unavailable (rule A/B + ceiling) and queueing would change
+   delivery timing.
+6. The Profile pair - owner-parked since stage 2 (unblock conditions in the Stage 2 record, sec 350).
+
+## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- **Nothing in progress. Stage 3 Phase A is complete and verified; Phase B is entirely PARK by owner decision.**
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
 default-order suite and a reverse run, both **3071 tests / 13364 assertions / 2 skipped / 0 failures**, the
@@ -7,77 +33,22 @@ all 30 guarded tables) after every run**, plus the stored-class-name inventory a
 record of that run is the documentation commit that carries this line, and the local tag **`stage2-verified`**
 marks it. Nothing was pushed.
 
-## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
-- **STAGE 3 (Phase A only; Phase B entirely PARK). Start sha: the `stage2-verified` commit `e845ba3`.**
-  - **A1 DONE (audit sec 378):** census = 16 edges / 62 port references; **cut `Ride -> Console`** by moving its
-    single port (`ComplaintRecorder`) to the CONSUMER (Ride) with Console implementing + binding it - same class,
-    same binding, same insert, no query/JSON change. EDGES **16 -> 15**, 2-cycles **6 -> 5** (`Console <-> Ride`
-    gone), derived loops **25 -> 21**; `ModuleGraphTest` updated (EDGES, matrix, UNCUT_CYCLES, DERIVED_CYCLES,
-    stale "14 edges" header fixed). Other 15 edges parked with measurements - including the two void
-    `NotificationPort` edges, parked because an event needs a listener that names the publisher's class (rule A)
-    or a kernel listener (rule B + ceiling) and queueing would change delivery timing. Gate: **1821/6253** +
-    AppFuture **62/464**, Pint PASS.
-  - **A4 DONE (audit sec 381):** (a) **CONVERTED** - NEW `Identity\Contracts\PasswordVerifier` +
-    `PasswordVerifierService` (one write-PDO read + `Hash::check` + boolean); `WalletController` asks for the
-    ANSWER; `Money\WalletProvisioningService::passwordHashFor()` is **DELETED**, so the hash never leaves Identity.
-    Same 401, same query, wallet snapshots byte-identical; `Money -> Identity` 3 -> 4 declared. Recorded incident:
-    a silently-skipped `use` line made the container resolve
-    `...Identity\Providers\PasswordVerifierService`; `UntangleBatchTest` + `ClassReferenceIntegrityTest` +
-    `ProviderWiringTest` caught it at boot (18 failures, one missing import) - fixed, re-ran green.
-    (b) **PARKED** - the driver screen needs assertion edits (`AdminDriverServiceTest:453` reads
-    `items()[0]->avg_rating`; 15 calls pass models). (c) **PARKED** - notification recipients take the PRINCIPAL by
-    design (ADR 0007); those four call sites read the authenticated user, not another user's row.
-    Gate: **197/901** + **2209/10862 (2 skips)**, every snapshot byte-identical, Pint PASS.
-  - **A5 DONE (audit sec 383):** one full default-order run on the Stage 3 tip = **3071 / 13368 / 2 skipped / 0
-    failures, 16:56.621**; the 15 slowest recorded (slowest is
-    `NotificationChannelTest::test_channel_class_exists` at 14.6 s for one `class_exists` assertion - diagnosed as
-    boot cost, deliberately NOT trimmed because that would weaken what the test exercises). Assertions
-    13364 -> 13368 (+4) is accounted for by the two new contracts' `::class` references and the new provider
-    registration; no test added or changed. **No test-side fix taken.**
-  - **A6 DONE (audit sec 382):** INVENTORY ONLY, built from the committed snapshot corpus (170 cases) after a
-    static scan produced garbage and was discarded: statuses 200x124, 201x17, 422x13, 400x7, 401x6, 404x2, 409x1;
-    **five distinct error body shapes** (`message+success`; `code+message+status`; `errors+message`;
-    `message+status`; `message+status+success`) plus two singletons, and 149/154 routes snapshot-covered with 5
-    non-JSON routes parked. This is the artefact D6 needs; D6 stays PARKED.
-  - NEXT: **Phase C** - docs/ARCHITECTURE.md + ADRs for what changed, terminal STATE, then the full
-    default-order suite, a reverse run, the five-order matrix with per-test assertion-count diff and the
-    leftover-rows probe on the final tip (failure rule in force: a failure is pre-existing only if reproduced at
-    `e845ba3` in a separate worktree with its own vendor).
-  - **A3 DONE (audit sec 380):** D1 = PARK, so the note and nothing else - NEW `docs/adr/0010-stored-class-names.md`
-    (indexed in `docs/adr/README.md`): new rows keep the module namespace, all three readers accept both values via
-    `class_basename()`, no pinning and no backfill; PIN-OLD would be one change in
-    `ScoreLedger::resolveReference()` plus one value-to-class map, reversible at any time. No code, test, snapshot,
-    manifest or schema change.
-  - **A2 DONE (audit sec 379):** NEW `Ride\Contracts\BookingView` + `Ride\Contracts\RideView` (marker interfaces
-    with `@property-read` docs of EXACTLY the members Money reads - measured: booking id/seats/user_id/amount_paid;
-    ride id/price_per_seat/addresses/driver(_id)/cash fees/payment_method/timestamps), implemented by
-    `Ride\Models\Booking` / `Ride\Models\Ride`. **111 untyped parameters re-typed across 18 Money files** by a
-    TOKEN-BASED rewriter (a text regex cannot tell a signature from a call site). `Money -> Ride` 2 -> 4 ports
-    declared. **PARKED (measured):** `BookingCharge::snapshotBookingCharge()` - the one cross-module WRITE
-    (force-fill of the money snapshot onto the booking row) - stays untyped because a read-only view cannot carry a
-    write; its honest fix is a Ride-owned write port (`BookingMoneySnapshot::fill()`), a design step of its own.
-    Gate: AppFuture **62/464**, Unit+Review+Rides+Bookings+Wallet+Payment+Snapshots+T3+T4 **2316/11104 (2 skips)**,
-    every snapshot byte-identical, Pint PASS.
-  - **Start tip `40aab7b`; snapshot diff `af39d23..HEAD -- tests/Snapshots` = 47 files, ALL expected** (1 MANIFEST
-    + 4 ride api + 1 query-budgets + 41 state: 40 ledger `wallet_transaction_id` `null`->id + 1 score
-    `reference_type`). Budgets: 7 entries, all decreases.
-  - **STEP 1 + STEP 2:** full suite in default AND reverse order, one process each = **3071 tests / 13364
-    assertions / 2 skipped / 0 failures** in both (16:11.879 and 17:16.842). The 15 slowest tests are recorded in
-    sec 377.
-  - **STEP 3:** five-order matrix (default, reverse, random-11, random-20261102, random-7919): **3071/13364/2/0 in
-    every order**, **0 per-test assertion-count differences** against default, 0 tests present in only one log, and
-    the leftover-rows probe printed **clean - 0 rows in all 30 guarded tables** after EVERY run.
-  - **STEP 4:** nothing to classify - 0 failures across 15,371 test executions, so the `af39d23` baseline worktree
-    was not needed; the procedure (separate worktree + its OWN vendor + bisect on the failing file) is recorded for
-    the next failure, with the sec-369 lesson as the reason it is written down.
-  - **STEP 5:** exactly ONE column stores a class name: `score_transactions.reference_type` (old
-    `App\Models\Ride`/`Booking` -> new `App\Modules\Ride\Models\...`), written by `ScoreLedger::resolveReference()`;
-    all three readers use `class_basename` and accept both; **no literal old name is compared anywhere**; the only
-    consequence is `ScoreHistoryService` grouping mixed rows into two queries. Everything else checked and cleared
-    (morph `tokenable_type`, JSON payload columns, `reference` fields, cache DTOs, queue payloads).
-  - **STEP 6:** `docs/ARCHITECTURE.md` section 12 rewritten: 12.1 the MODEL-move queue hazard (drain the queue),
-    12.2 the stored class name, 12.3 the owner's open production actions (T1-3 rotation, RV-10 window W,
-    `APP_ENV=production` .env, the parked Profile pair).
+## Stage 3 steps (all committed, one per step)
+- **A1** (`5519e68`, sec 378): edge census 16/62; cut `Ride -> Console` by consumer-declaring `ComplaintRecorder`
+  (Console implements + binds) -> EDGES 15, 2-cycles 5, derived loops 21; the other 15 edges parked with
+  measurements (events unavailable: zero module events are referenced across modules; the two void
+  `NotificationPort` edges would change delivery timing if queued).
+- **A2** (`40ba9ed`, sec 379): `Ride\Contracts\BookingView` + `RideView` (marker + `@property-read`), 111 parameters
+  re-typed across 18 Money files by a token-based rewriter; `Money -> Ride` 2 -> 4; the one cross-module WRITE
+  parked.
+- **A3** (`1295332`, sec 380): ADR 0010 for D1 = PARK (no code).
+- **A4** (`a99f61c`, sec 381): `Identity\Contracts\PasswordVerifier` -> the hash never leaves Identity; the driver
+  screen and the notification recipients parked with their measurements.
+- **A6** (`c6e11ae`, sec 382): route status/error-shape inventory from the snapshot corpus (D6 artefact; D6 PARK).
+- **A5** (`f3a1265`, sec 383): full-suite time + the 15 slowest tests; no test-side fix taken.
+- **Phase C** (sec 384): docs (ARCHITECTURE.md sections 1/4/5/11, ADRs 0003/0008 amended, ADR 0010), the
+  five-order matrix on the final tip, per-test assertion diff, frozen corpus.
+
 - Done recently: **STAGE 2 - C2 the stuck-escrow report asks Money instead of reading its ledger (audit sec 376),
   commit `Stage 2 C2: the stuck-escrow report asks Money`.** `LedgerAggregates::heldEscrowReferences()` now runs
   the grouped `wallet_transactions` correlation (balance-movement based, `escrow_in_legs > 0`) and returns plain

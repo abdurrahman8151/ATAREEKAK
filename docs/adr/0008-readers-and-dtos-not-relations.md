@@ -11,6 +11,18 @@ A model that crosses a module boundary is a writable row leaving its owner.
 
 ## Decision
 
+Another module reads a row through a Reader contract that returns DTOs or scalars, never a relation and never the
+model.
+
+**Stage 3 amendment - read-only VIEW contracts for types the caller must name.** Two eras of this decision met in
+stage 3 A2: stage 2 C2 had to DROP the type hints on Money's booking/ride parameters (naming the moved models was
+an ownership violation), which made 111 parameters untyped and pushed the dependency out of the type system. The
+fix is a pair of marker interfaces - `Ride\Contracts\BookingView` and `RideView` - implemented by the models and
+documented with `@property-read` for exactly the members the caller reads. They carry no methods, because every use
+is a property read and getters would be churn; they carry no WRITE, which is why the one cross-module write
+(`BookingCharge::snapshotBookingCharge()`) stays untyped and parked pending a Ride-owned write port. A "view" is
+therefore the DTO idea applied to a type position: read-only, named by the owner, implemented by the model.
+
 Cross-module reads go through a **Reader contract** in the owning module's `Contracts` namespace: a narrow,
 verb-oriented interface (`WalletDirectory::forUser()`, `DriverEarningsReader::completedEarningsForDriver()`)
 that returns a **DTO**, never a model. Where a list is involved the contract has a batched method

@@ -15,6 +15,17 @@ That was better than concrete coupling, but it had two problems:
 
 ## Decision
 
+A port is an interface in the PROVIDER module's `Contracts/`, bound to the provider's implementation in its own
+provider. Consumers type-hint the port; they may name another module's Contracts and never its implementation.
+
+**Stage 3 amendment (one sanctioned exception).** When the capability is a narrow read or a single call whose owner
+is obvious, the CONSUMER may declare the interface and the OWNER implements and binds it - the table, the service,
+the schema and the binding all stay with the owner; only the interface's namespace changes hands. This exists to
+avoid a new edge or a cycle: `Communication\Contracts\ProfilePhotoDirectory` (implemented by Identity) avoided
+re-creating a cycle stage 1.5 had just cut, and `Ride\Contracts\ComplaintRecorder` (implemented by Console)
+removed the `Ride -> Console` edge and the `Console <-> Ride` cycle with no runtime change (stage 3 A1). It is not
+a way to move ownership, and each use must record which edge or cycle it removes - see `ARCHITECTURE.md` section 5.
+
 Each module publishes its ports in `app/Modules/<Module>/Contracts/`, and binds them to its own
 implementations in `app/Modules/<Module>/Providers/<Module>ServiceProvider.php`. A module may name
 another module's `Contracts` freely - that is the sanctioned edge - and may never name its

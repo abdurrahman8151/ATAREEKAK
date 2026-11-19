@@ -22644,3 +22644,83 @@ each) are seeding work by design, and every other entry on the list is a snapsho
 **Conclusion for A5: no test-side fix taken, and none is proposed that would leave the assertions intact.** The
 suite's time is fixture and boot cost spread thin (the slowest 15 = 51 s of 1014 s, i.e. 5%), not one pathological
 test.
+
+---
+
+### 384. STAGE 3 CLOSED - Phase A only (Phase B all PARK); five-order matrix on the final tip, corpus still frozen
+
+**Phase B starts nothing, by the file's own rule.** D1 PARK, D2 NO, D3 NO, D4 PARK, D5 NO, D6 PARK, D7 PARK,
+D8 PARK - "start a step only if its decision above is not PARK" leaves B1-B4 unstarted. A3 wrote the one-line ADR
+note D1 required (sec 380); D6's inventory is in sec 382 for whenever the owner picks an envelope.
+
+**Phase C verification, five serialised full-suite runs on the final tip** (one `phpunit` process at a time, each
+run with its own JUnit log, each followed immediately by the leftover-rows probe):
+
+| order | exit | tests | assertions | skipped | failures | time | leftovers |
+|---|---|---|---|---|---|---|---|
+| `default` | 0 | 3071 | 13368 | 2 | **0** | 1083 s | clean - 0 rows in all 30 guarded tables |
+| `reverse` | 0 | 3071 | 13368 | 2 | **0** | 1060 s | clean |
+| `random-11` | 0 | 3071 | 13368 | 2 | **0** | 1038 s | clean |
+| `random-20261102` | 0 | 3071 | 13368 | 2 | **0** | 1024 s | clean |
+| `random-7919` | 0 | 3071 | 13368 | 2 | **0** | 1023 s | clean |
+
+**Per-test assertion-count diff, every order against `default`** (identity = `classname::name` incl. the data-set
+suffix; count = the JUnit `assertions` attribute):
+
+| comparison | cases | assertions | per-test differences | only in one log |
+|---|---|---|---|---|
+| reverse vs default | 3071 vs 3071 | 13368 vs 13368 | **0** | 0 / 0 |
+| random-11 vs default | 3071 vs 3071 | 13368 vs 13368 | **0** | 0 / 0 |
+| random-20261102 vs default | 3071 vs 3071 | 13368 vs 13368 | **0** | 0 / 0 |
+| random-7919 vs default | 3071 vs 3071 | 13368 vs 13368 | **0** | 0 / 0 |
+
+**The failure rule was never needed.** 15,355 test executions (5 x 3071) produced **zero failures and zero
+errors**, so nothing had to be classified as pre-existing and no `e845ba3` worktree was created. Had one appeared,
+the rule stands: reproduce it at `e845ba3` in a separate worktree with its OWN `composer install`, bisect on that
+one file, and call it "unexplained" if it does not reproduce there.
+
+**The corpus stayed frozen.** `git diff --stat e845ba3 -- tests/Snapshots` is EMPTY: `tests/Snapshots`,
+`MANIFEST.json` (213 files) and `query-budgets.json` (170 entries) are **byte-identical to the Stage 3 start tip**.
+`SNAPSHOT_UPDATE=1` was never set in any run. The schema was never touched (no migration added).
+
+## Stage 3 - the per-phase report
+
+**Files changed (working tree vs `e845ba3`): 42 files, +809 / -199.** Code: 2 contracts + 1 service + 1 contract
+moved between modules (A1), 2 read-only view contracts + their two `implements` + 18 Money files retyped (A2),
+1 contract + 1 service + provider + controller + 3 deletions (A4). Tests: `ModuleGraphTest` only (the declared
+data, twice). Docs: `ARCHITECTURE.md` sections 1, 4, 5, 11 rewritten to the measured state, ADRs 0003 and 0008
+amended with the two stage-3 patterns, ADR 0010 added, ADR index updated, plus this audit record and `STATE.md`.
+
+**Ratchet numbers, before -> after:**
+
+| ratchet | before (e845ba3) | after |
+|---|---|---|
+| `ModuleGraphTest` EDGES | 16 edges / 62 port references | **15 / 65** |
+| 2-cycles (`UNCUT_CYCLES`) | 6 | **5** (`Console <-> Ride` cut) |
+| derived longer loops | 25 | **21** |
+| `KERNEL_MODEL_IMPORTS` | 2 (owner-parked Profile pair) | **2** (unchanged, still parked) |
+| `ENTRYPOINT_ALLOWLIST` | 0 | **0** |
+| `CONSOLE_FOREIGN_MODEL_FILES` | 0 | **0** |
+| `TABLE_OWNERS` | 20 tables | **20** (no table moved in stage 3) |
+| typed cross-module Money parameters | 0 of 111 | **111 of 113** (the 2 at the parked write site) |
+
+**Test totals:** 3071 tests / 13368 assertions / 2 skipped / 0 failures in all five orders, identical counts;
+the 2 skips are the pre-existing MySQL-spatial guard. Assertions rose 13364 -> 13368 across stage 3, accounted for
+by the three new classes' `::class` references and the one new provider registration; no test was added.
+
+**Snapshot / manifest status:** frozen and byte-identical to the start tip (213 manifest entries, 170 budgets).
+
+**Parked items, each with its measurement:**
+
+1. `BookingCharge::snapshotBookingCharge()` - the one cross-module WRITE (force-fill of the money snapshot onto
+   the booking row) - stays untyped; a read-only view cannot carry it, and the honest fix is a Ride-owned write
+   port (`BookingMoneySnapshot::fill()`), a design step of its own (sec 379).
+2. The driver screen - converting the presenter to summaries needs ASSERTION edits
+   (`AdminDriverServiceTest:453`, 15 model-passing calls) - sec 381.
+3. Notification recipients - `NotificationPort` takes the principal by design (ADR 0007) - sec 381.
+4. D1 stored class names (ADR 0010 records the shipped behaviour and what PIN-OLD would cost), D2/D3/D4/D5/D7/D8
+   (owner NO/PARK), D6 the errors envelope (inventory ready in sec 382).
+5. The two void `NotificationPort` edges (`Money -> Communication`, `Ride -> Communication`) - the textbook event
+   candidates, blocked by rule A (a listener must name the publisher's class), rule B and the kernel-contracts
+   ceiling, and by the delivery-timing change a queue would introduce (sec 378).
+6. The Profile pair (`Identity -> Profile`, `Identity -> ProfileComment`) - owner-parked since stage 2.
