@@ -5,6 +5,8 @@ namespace App\Modules\Money\Domain\Strategies;
 use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /**
@@ -44,8 +46,8 @@ final class EPayPaymentStrategy implements PaymentStrategy
     // ── Book ─────────────────────────────────────────────────────────────────
 
     public function processBookingPayment(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         $passenger,
     ): PaymentResult {
         $this->bookingCharge->chargePassengerForBooking($booking, $ride, $passenger);
@@ -60,8 +62,8 @@ final class EPayPaymentStrategy implements PaymentStrategy
      * Releases this passenger's share from escrow to the driver's wallet.
      */
     public function processRideCompletionPayment(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         $passenger,
     ): PaymentResult {
         $driver = $ride->driver;   // ← derive driver from ride; passenger is the confirmer
@@ -86,7 +88,7 @@ final class EPayPaymentStrategy implements PaymentStrategy
      * driver path would over-refund anyone whose reason string drifted.
      */
     public function processRefund(
-        $ride,
+        RideView $ride,
         EloquentCollection $bookings,
         string $reason,
     ): RefundResult {
@@ -108,7 +110,7 @@ final class EPayPaymentStrategy implements PaymentStrategy
      * Driver cancellation refunds 100% of every confirmed passenger, so there is no per-booking
      * arithmetic to summarise: the set path already did the whole set in one combined movement.
      */
-    private function refundForDriverCancellation($ride, EloquentCollection $bookings): RefundResult
+    private function refundForDriverCancellation(RideView $ride, EloquentCollection $bookings): RefundResult
     {
         $this->cancellationRefund->refundPassengersForDriverCancellation($ride, $bookings);
 
@@ -123,7 +125,7 @@ final class EPayPaymentStrategy implements PaymentStrategy
      * fraction of the total and cannot be reduced to a single "success". The summary is returned in
      * the result so the caller can see how much moved and how many rows need manual review.
      */
-    private function refundForStaffCancellation($ride, EloquentCollection $bookings): RefundResult
+    private function refundForStaffCancellation(RideView $ride, EloquentCollection $bookings): RefundResult
     {
         $summary = $this->cancellationRefund->refundPassengersForStaffCancellation($ride, $bookings);
 

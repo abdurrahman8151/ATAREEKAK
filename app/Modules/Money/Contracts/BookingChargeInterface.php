@@ -3,6 +3,8 @@
 namespace App\Modules\Money\Contracts;
 
 use App\Models\User;
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
 
 /**
  * Port over the passenger-charge step of the payment pipeline (batch 227).
@@ -14,5 +16,5 @@ use App\Models\User;
  */
 interface BookingChargeInterface
 {
-    public function chargePassengerForBooking($booking, $ride, User $passenger): void;
+    public function chargePassengerForBooking(BookingView $booking, RideView $ride, User $passenger): void;
 }

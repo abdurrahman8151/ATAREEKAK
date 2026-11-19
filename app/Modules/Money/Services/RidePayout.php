@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Modules\Money\Contracts\RidePayoutInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +28,7 @@ class RidePayout implements RidePayoutInterface
      * SyCash → Driver  (95%)
      * SyCash → Primary ( 5%)
      */
-    public function releaseEarningsToDriver($ride, Collection $confirmedBookings): void
+    public function releaseEarningsToDriver(RideView $ride, Collection $confirmedBookings): void
     {
         $total = $confirmedBookings->sum(fn ($b) => $b->seats * $ride->price_per_seat);
 
@@ -86,7 +88,7 @@ class RidePayout implements RidePayoutInterface
      * AND the settled set, so re-running this same completion cannot pay again, while
      * cancelling a different subset of the same ride is still a distinct movement.
      */
-    private function debitEscrowForRideCompletionSet($ride, Collection $confirmedBookings): string
+    private function debitEscrowForRideCompletionSet(RideView $ride, Collection $confirmedBookings): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         $escrowOutKey = PostingKey::buildForSet($ride->id, 'ride-complete', $confirmedBookings);
@@ -126,7 +128,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** SyCash debit row for a whole-set completion release: the escrow that left SyCash. */
-    private function recordEscrowReleasedRow($ride, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId): WalletTransaction
+    private function recordEscrowReleasedRow(RideView $ride, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId): WalletTransaction
     {
         // SyCash debit
         return WalletTransaction::create([
@@ -155,7 +157,7 @@ class RidePayout implements RidePayoutInterface
      * The sum is checked by `postTransfer`, so if the 95/5 arithmetic ever drifts from `$total`
      * the transfer is REFUSED rather than silently creating or destroying money.
      */
-    private function postCompletionTransfer($ride, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
+    private function postCompletionTransfer(RideView $ride, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
     {
         $this->ledger->postTransfer([
             [
@@ -180,7 +182,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Driver share of a completed ride (95%): the earnings row. */
-    public function recordDriverShare($ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): WalletTransaction
+    public function recordDriverShare(RideView $ride, float $driverShare, Wallet $driverWallet, float $driverPrev, string $txId): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
@@ -197,7 +199,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Platform share of a completed ride (5%): the platform fee row. */
-    public function recordPlatformShare($ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): WalletTransaction
+    public function recordPlatformShare(RideView $ride, float $primaryShare, Wallet $primaryWallet, float $primaryPrev, string $txId): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
@@ -224,7 +226,7 @@ class RidePayout implements RidePayoutInterface
      * @throws \RuntimeException if SyCash has insufficient balance,
      *                           or if any required wallet is missing.
      */
-    public function releaseEscrowToDriver($booking, $ride, User $driver): void
+    public function releaseEscrowToDriver(BookingView $booking, RideView $ride, User $driver): void
     {
         // `R2 sec 117`: seats x price is a MONEY product, so it is computed in integer minor units.
         // Multiplying the float first and rounding after could land on the wrong side of a half-fils.
@@ -288,7 +290,7 @@ class RidePayout implements RidePayoutInterface
      * but that exclusion lives in the CALLER. These guards make the guarantee hold at the
      * money layer itself, so a caller that gets that filter wrong can no longer pay twice.
      */
-    private function debitEscrowForBookingRelease($booking, float $total): string
+    private function debitEscrowForBookingRelease(BookingView $booking, float $total): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         $escrowOutKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-out', 'release');
@@ -324,7 +326,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the SyCash debit row for that booking. */
-    private function recordEscrowReleaseRow($booking, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId, string $txRef): WalletTransaction
+    private function recordEscrowReleaseRow(BookingView $booking, Wallet $syCashWallet, float $syCashPrev, float $total, string $escrowOutKey, string $txId, string $txRef): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $syCashWallet->id,
@@ -342,7 +344,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the driver's 95% earnings row for that booking. */
-    private function recordDriverEarningRow($booking, User $driver, Wallet $driverWallet, float $driverPrev, float $driverShare, string $txId, string $txRef): WalletTransaction
+    private function recordDriverEarningRow(BookingView $booking, User $driver, Wallet $driverWallet, float $driverPrev, float $driverShare, string $txId, string $txRef): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
@@ -359,7 +361,7 @@ class RidePayout implements RidePayoutInterface
     }
 
     /** Per-passenger escrow release: the platform's 5% fee row for that booking. */
-    private function recordPlatformFeeRow($booking, Wallet $primaryWallet, float $primaryPrev, float $primaryShare, string $txId, string $txRef): WalletTransaction
+    private function recordPlatformFeeRow(BookingView $booking, Wallet $primaryWallet, float $primaryPrev, float $primaryShare, string $txId, string $txRef): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
@@ -383,7 +385,7 @@ class RidePayout implements RidePayoutInterface
      * becomes checkable: if the two shares ever stop summing to `$total`, the legs do not
      * balance and the transfer is refused instead of quietly creating or destroying money.
      */
-    private function postPerPassengerTransfer($booking, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
+    private function postPerPassengerTransfer(BookingView $booking, Wallet $syCashWallet, Wallet $driverWallet, Wallet $primaryWallet, float $total, float $driverShare, float $primaryShare, array $transactions = []): void
     {
         $this->ledger->postTransfer([
             ['wallet_id' => $syCashWallet->id, 'amount' => -$total, 'description' => "booking #{$booking->id}: escrow released", 'wallet_transaction_id' => $transactions[$syCashWallet->id]->id ?? null],

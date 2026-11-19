@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -27,7 +29,7 @@ class BookingCharge implements BookingChargeInterface
      *   - DIRECT booking confirmed
      *   - REQUEST booking accepted by driver
      */
-    public function chargePassengerForBooking($booking, $ride, User $passenger): void
+    public function chargePassengerForBooking(BookingView $booking, RideView $ride, User $passenger): void
     {
         $amount = $booking->seats * $ride->price_per_seat;
 
@@ -59,7 +61,7 @@ class BookingCharge implements BookingChargeInterface
     /**
      * The replay guard, FIRST — before any wallet is locked or any balance is written.
      */
-    private function guardAgainstDoubleCharge($booking): string
+    private function guardAgainstDoubleCharge(BookingView $booking): string
     {
         // ── RV-02 L2 (D1): the replay guard, FIRST — before any wallet is locked or
         // any balance is written.
@@ -126,6 +128,13 @@ class BookingCharge implements BookingChargeInterface
     }
 
     /** Persist what this booking paid as an immutable snapshot on the booking itself. */
+    /**
+     * The ONE cross-module WRITE in Money's booking paths: it force-fills the money snapshot onto the booking
+     * row. Stage 3 A2 deliberately leaves this parameter UNTYPED - `BookingView` is read-only by contract, and
+     * typing this method against it would make the view claim a write it must not publish. The honest fix is a
+     * Ride-owned write port (e.g. `BookingMoneySnapshot::fill()`), which is a design step of its own and is
+     * parked in docs/audit/STATE.md; the runtime behaviour here is unchanged.
+     */
     private function snapshotBookingCharge($booking, $ride, $amount): void
     {
         // RV-40: persist the money as an immutable snapshot on the booking, the moment it
@@ -161,8 +170,8 @@ class BookingCharge implements BookingChargeInterface
      * @return array<int, WalletTransaction>
      */
     private function recordChargeTransactions(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         User $passenger,
         Wallet $passengerWallet,
         Wallet $syCashWallet,
@@ -210,7 +219,7 @@ class BookingCharge implements BookingChargeInterface
      *
      * @param  array<int, WalletTransaction>  $transactions  keyed by wallet id (stage 2 B2)
      */
-    private function postChargeLegs($booking, Wallet $passengerWallet, Wallet $syCashWallet, $amount, array $transactions = []): void
+    private function postChargeLegs(BookingView $booking, Wallet $passengerWallet, Wallet $syCashWallet, $amount, array $transactions = []): void
     {
         // ── Decision un3: double-entry legs ────────────────────────────────────
         // The two `wallet_transactions` rows above are the SINGLE-SIDED record: one row per wallet

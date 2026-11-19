@@ -4,10 +4,11 @@ namespace App\Modules\Ride\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
 use App\Models\User;
+use App\Modules\Ride\Contracts\BookingView;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Booking extends Model
+class Booking extends Model implements BookingView
 {
     // Stage 2 C2: the class moved into the module that owns `bookings`.
     protected $table = 'bookings';

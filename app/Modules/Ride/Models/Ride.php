@@ -4,6 +4,7 @@ namespace App\Modules\Ride\Models;
 
 use App\Models\Concerns\GuardsLazyLoading;
 use App\Models\User;
+use App\Modules\Ride\Contracts\RideView;
 use App\Support\GeoPoint;
 use Database\Factories\RideFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-class Ride extends Model
+class Ride extends Model implements RideView
 {
     // Stage 2 C2: the class moved into the module that owns `rides`. The explicit table keeps a
     // namespace change from ever changing which table a row lands in.

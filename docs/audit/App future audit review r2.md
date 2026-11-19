@@ -22423,3 +22423,49 @@ corrected to 15.
 **Gate for this step.** The touched flow is the no-show one: `Review` + `Rides` + `Bookings` + `T3Batch` +
 `T4Batch` + all `Unit` = **1821 tests / 6253 assertions OK** (2 pre-existing skips), plus `AppFuture` (all seven
 ratchets) **62 / 464 OK**. Pint PASS on every changed file. No snapshot, budget, manifest or schema change.
+
+---
+
+### 379. STAGE 3 A2 - the dropped cross-module type hints come back: `BookingView` / `RideView`, 111 parameters, one write site parked
+
+**What was wrong.** When the Ride cluster moved (Stage 2 C2, sec 368), naming `Booking` or `Ride` from Money
+became an ownership violation, so the type hints on Money's money paths were dropped: the dependency vanished from
+the type system, and a wrong argument could only fail at runtime. Measured on the Stage 3 tip with a
+signature-only scan: **111 untyped parameters across 18 files** - every money path that takes a booking or a ride
+(`BookingCharge`, `CancellationRefund`, the three payment strategies, `NoShowSettlement`, `RidePayout`, the
+cash-fee charger/refund pair, `WalletAccess`, the cancellation guard/writer, the posting key, and the five
+interfaces that declare them).
+
+**The two contracts that restore it, without handing over the models.**
+
+| contract | owner | implemented by | members, MEASURED from the call sites (not guessed) |
+|---|---|---|---|
+| `Ride\Contracts\BookingView` | Ride | `Ride\Models\Booking` | `id` (60 reads), `seats` (15), `user_id` (11), `amount_paid` (2) |
+| `Ride\Contracts\RideView` | Ride | `Ride\Models\Ride` | `id` (53), `price_per_seat` (13), `pickup_address`/`destination_address` (10 each), `driver_id` (6), `cash_creation_fee`/`cash_fee_deferred` (2 each), `created_at`, `departure_time`, `driver`, `payment_method` |
+
+They are marker interfaces with `@property-read` docblocks: every current use is a property read, and wrapping
+them in 134 getters would be churn with no safety gain (the project's static analysis is report-only Larastan, and
+`@property-read` is what it reads). No method was invented.
+
+**How the conversion was done - and why not with a text regex.** A regex cannot tell a function DECLARATION's
+parameter list from a call site that happens to pass `$booking`, and getting that wrong corrupts 18 files. The
+rewriter tokenises each file (`token_get_all`), tracks `T_FUNCTION`/parameter-list depth, and inserts the short
+type only for an untyped `$booking`/`$ride` **inside a signature**, then adds the `use` line (Pint sorted the
+imports afterwards). 113 parameters were typed by the script; two were then deliberately reverted (below), leaving
+**111 typed**. Every one of the 18 files `php -l`-clean, and `pint` PASS.
+
+**Ratchets.** `ModuleGraphTest` `Money -> Ride` **2 -> 4** (the two new ports, argued in `EDGES`), matrix row
+corrected. EDGES total unchanged at 15, cycles unchanged at 5 pairs / 21 derived loops - a new port on an existing
+edge, which is exactly the case the test's docblock says must be declared with its reason.
+
+**The one thing parked, with its measurement.** `BookingCharge::snapshotBookingCharge($booking, $ride, $amount)`
+force-fills the money snapshot ONTO the booking row - the single cross-module WRITE in Money's booking paths. It
+is left UNTYPED on purpose: `BookingView` is read-only by contract, and typing this method against it would make
+the view claim a write it must not publish. The honest fix is a Ride-owned write port (e.g.
+`BookingMoneySnapshot::fill()`), which changes the ownership map and is therefore its own design step - parked in
+`STATE.md`, not forced into a type-hint pass. Runtime behaviour there is unchanged.
+
+**Verification.** `AppFuture` (all seven ratchets) **62 / 464 OK**; `Unit` + `Review` + `Rides` + `Bookings` +
+`Wallet` + `Payment` + `Snapshots` (all 213 frozen files) + `T3Batch` + `T4Batch` = **2316 tests / 11104
+assertions OK** (2 pre-existing skips). Every snapshot is byte-identical: typing changed nothing observable - no
+query count moved and no JSON changed, which is what A2 required.

@@ -17,11 +17,20 @@ marks it. Nothing was pushed.
     `NotificationPort` edges, parked because an event needs a listener that names the publisher's class (rule A)
     or a kernel listener (rule B + ceiling) and queueing would change delivery timing. Gate: **1821/6253** +
     AppFuture **62/464**, Pint PASS.
-  - NEXT: **A2** (restore the dropped cross-module type hints - Money services' 14 Ride + 43 Booking parameters -
-    with typed Contracts/DTOs, e.g. a read-only `BookingView`; no query or JSON change), then A3 (D1 = PARK ->
-    one-line ADR note), A4 (password-verify port first, then the other two parked C3 readers), A5 (15 slowest +
-    suite time), A6 (route status/error inventory only), then Phase C (docs + full default + reverse + five-order
-    matrix + probe on the final tip).
+  - **A2 DONE (audit sec 379):** NEW `Ride\Contracts\BookingView` + `Ride\Contracts\RideView` (marker interfaces
+    with `@property-read` docs of EXACTLY the members Money reads - measured: booking id/seats/user_id/amount_paid;
+    ride id/price_per_seat/addresses/driver(_id)/cash fees/payment_method/timestamps), implemented by
+    `Ride\Models\Booking` / `Ride\Models\Ride`. **111 untyped parameters re-typed across 18 Money files** by a
+    TOKEN-BASED rewriter (a text regex cannot tell a signature from a call site). `Money -> Ride` 2 -> 4 ports
+    declared. **PARKED (measured):** `BookingCharge::snapshotBookingCharge()` - the one cross-module WRITE
+    (force-fill of the money snapshot onto the booking row) - stays untyped because a read-only view cannot carry a
+    write; its honest fix is a Ride-owned write port (`BookingMoneySnapshot::fill()`), a design step of its own.
+    Gate: AppFuture **62/464**, Unit+Review+Rides+Bookings+Wallet+Payment+Snapshots+T3+T4 **2316/11104 (2 skips)**,
+    every snapshot byte-identical, Pint PASS.
+  - NEXT: **A3** (D1 = PARK -> a one-line ADR note, no code), **A4** (a password-verify port in Identity first so
+    `WalletProvisioningService` never receives a hash; then the driver screen and the notification-recipient items -
+    convert what can be converted without touching an assertion, park the rest), **A5** (15 slowest tests + suite
+    time; test-side only), **A6** (route status/error inventory only), then Phase C.
   - **Start tip `40aab7b`; snapshot diff `af39d23..HEAD -- tests/Snapshots` = 47 files, ALL expected** (1 MANIFEST
     + 4 ride api + 1 query-budgets + 41 state: 40 ledger `wallet_transaction_id` `null`->id + 1 score
     `reference_type`). Budgets: 7 entries, all decreases.

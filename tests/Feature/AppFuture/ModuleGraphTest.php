@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          2
- *   Money              1       1      2        3          -
+ *   Money              1       1      4        3          -
  *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
  *   Console            4       7     12        9          -
@@ -148,7 +148,12 @@ class ModuleGraphTest extends TestCase
         // the table's owner - and Money calls it. Ride already calls Money for payouts and charges, so
         // this closes a mutual pair rather than opening a one-way one.
         // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through Ride.
-        'Money -> Ride' => 2,
+        'Money -> Ride' => 4,
+        // Stage 3 A2: the two new ports are `BookingView` and `RideView` - the READ-ONLY contracts that let
+        // Money type its 111 previously-untyped booking/ride parameters again (Stage 2 C2 had dropped the
+        // hints because naming the moved models would have been an ownership violation). Same calls, same
+        // queries, same JSON: the dependency is visible to the type system again, and the one cross-module
+        // WRITE in these paths stays untyped and parked.
         'Money -> Communication' => 1,
         'Money -> Identity' => 3,
         // Stage 2 C3: the third port is `UserDirectory`. The admin wallet-charge history eager-loaded the

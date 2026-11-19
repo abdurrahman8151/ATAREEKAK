@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Contracts\CashRideCounter;
+use App\Modules\Ride\Contracts\RideView;
 
 /**
  * CashRideFeeService
@@ -71,7 +72,7 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
     // =========================================================================
 
     /** Delegates to CashRideFeeRefundService. */
-    public function refundCashRideCreationFee($ride, User $driver, bool $hadActiveBookings = false): void
+    public function refundCashRideCreationFee(RideView $ride, User $driver, bool $hadActiveBookings = false): void
     {
         $this->refunds->refundCashRideCreationFee($ride, $driver, $hadActiveBookings);
     }
@@ -176,7 +177,7 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
      *
      * The ride must already have cash_creation_fee and cash_fee_deferred set.
      */
-    public function chargeCashRideCreationFee($ride, User $driver): void
+    public function chargeCashRideCreationFee(RideView $ride, User $driver): void
     {
         $this->creationFeeCharger->chargeCashRideCreationFee($ride, $driver);
     }

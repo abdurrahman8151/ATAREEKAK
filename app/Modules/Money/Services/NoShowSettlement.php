@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Modules\Money\Contracts\NoShowSettlementInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -22,7 +24,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      * Passenger didn't show — E-PAY ride.
      * SyCash → Driver (95%) + SyCash → Primary (5%).
      */
-    public function processPassengerNoShow($booking, $ride, User $passenger): void
+    public function processPassengerNoShow(BookingView $booking, RideView $ride, User $passenger): void
     {
         $total = $booking->seats * $ride->price_per_seat;
         // RV-19: one definition of the 95/5 split. This used to round each share independently,
@@ -68,7 +70,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      * Driver didn't show — E-PAY ride.
      * SyCash → Passenger (100% refund).
      */
-    public function processDriverNoShowRefund($ride, $booking, User $passenger): void
+    public function processDriverNoShowRefund(RideView $ride, BookingView $booking, User $passenger): void
     {
         $refundAmount = $booking->seats * $ride->price_per_seat;
 
@@ -102,7 +104,7 @@ class NoShowSettlement implements NoShowSettlementInterface
      *
      * @return array{0: Wallet, 1: Wallet, 2: Wallet}
      */
-    private function lockPassengerNoShowWallets($ride, $total): array
+    private function lockPassengerNoShowWallets(RideView $ride, $total): array
     {
         $syCashWallet = $this->access->lockWalletByPhone(config('admin.sycash.phone'));
         $driverWallet = $this->access->lockWalletByUserId($ride->driver_id);
@@ -137,7 +139,7 @@ class NoShowSettlement implements NoShowSettlementInterface
     }
 
     /** The escrow guard pair, before any balance moves: build the key, assert it is unused, debit. */
-    private function releaseEscrowOnce($booking, $amount, string $reason): string
+    private function releaseEscrowOnce(BookingView $booking, $amount, string $reason): string
     {
         // ── RV-02 L2 (D1): both escrow guards, before any balance moves ────────
         $escrowOutKey = $this->access->postingKey('booking:'.$booking->id, 'escrow-out', $reason);
@@ -196,7 +198,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** The SyCash escrow debit row, carrying the posting key that makes the movement single-shot. */
     private function recordEscrowOutTransaction(
-        $booking,
+        BookingView $booking,
         Wallet $syCashWallet,
         $total,
         $syCashPrev,
@@ -220,8 +222,8 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** The driver's 95% earning row and the platform's 5% fee row for a passenger no-show. */
     private function recordPassengerNoShowShares(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         Wallet $driverWallet,
         Wallet $primaryWallet,
         $driverShare,
@@ -264,8 +266,8 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** The SyCash escrow debit row plus the full refund row back to the passenger. */
     private function recordDriverNoShowRefundRows(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         User $passenger,
         Wallet $syCashWallet,
         Wallet $passengerWallet,
@@ -315,7 +317,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** Double-entry legs for the passenger no-show fan-out (same 95/5 shape as ride completion). */
     private function postPassengerNoShowLegs(
-        $booking,
+        BookingView $booking,
         Wallet $syCashWallet,
         Wallet $driverWallet,
         Wallet $primaryWallet,
@@ -334,7 +336,7 @@ class NoShowSettlement implements NoShowSettlementInterface
 
     /** Double-entry legs for the driver no-show refund (SyCash → passenger, 100%). */
     private function postDriverNoShowRefundLegs(
-        $booking,
+        BookingView $booking,
         Wallet $syCashWallet,
         Wallet $passengerWallet,
         $refundAmount,

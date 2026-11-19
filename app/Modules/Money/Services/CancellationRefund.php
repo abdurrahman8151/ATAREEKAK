@@ -5,6 +5,8 @@ namespace App\Modules\Money\Services;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
@@ -32,7 +34,7 @@ class CancellationRefund implements CancellationRefundInterface
      * SyCash → each Passenger (100%).
      * No creation fee was charged, so nothing to refund to driver.
      */
-    public function refundPassengersForDriverCancellation($ride, Collection $bookings): void
+    public function refundPassengersForDriverCancellation(RideView $ride, Collection $bookings): void
     {
         if ($bookings->isEmpty()) {
             return;
@@ -82,7 +84,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return array{refunded: float, bookings: int, needs_review: int, amount_source: string}
      */
-    public function refundPassengersForStaffCancellation($ride, Collection $bookings): array
+    public function refundPassengersForStaffCancellation(RideView $ride, Collection $bookings): array
     {
         [$refundable, $needsReview] = $this->splitStaffCancellationBookings($ride, $bookings);
 
@@ -126,7 +128,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return WalletTransaction the row this refund wrote (stage 2 B2)
      */
-    public function refundPassengerForStaffCancellation($ride, $booking, string $txId)
+    public function refundPassengerForStaffCancellation(RideView $ride, BookingView $booking, string $txId)
     {
         return $this->writer->refundPassengerForStaffCancellation($ride, $booking, $txId);
     }
@@ -176,8 +178,8 @@ class CancellationRefund implements CancellationRefundInterface
      * SyCash → Passenger (refund%) + SyCash → Driver (non-refundable%).
      */
     public function processTimeBasedCancellation(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         int $seatsCancelled,
         array $refundPolicy
     ): void {
@@ -228,7 +230,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return WalletTransaction the row this policy wrote (stage 2 B2)
      */
-    public function recordPassengerRefund($booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId)
+    public function recordPassengerRefund(BookingView $booking, int $seatsCancelled, array $refundPolicy, float $refundAmount, Wallet $passengerWallet, float $passengerPrev, string $txId)
     {
         return $this->writer->recordPassengerRefund($booking, $seatsCancelled, $refundPolicy, $refundAmount, $passengerWallet, $passengerPrev, $txId);
     }
@@ -238,7 +240,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return WalletTransaction|null
      */
-    public function recordDriverCompensation($ride, $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId)
+    public function recordDriverCompensation(RideView $ride, BookingView $booking, int $seatsCancelled, array $refundPolicy, float $driverAmount, Wallet $driverWallet, float $driverPrev, string $txId)
     {
         return $this->writer->recordDriverCompensation($ride, $booking, $seatsCancelled, $refundPolicy, $driverAmount, $driverWallet, $driverPrev, $txId);
     }
@@ -251,7 +253,7 @@ class CancellationRefund implements CancellationRefundInterface
      *
      * @return array{0: Collection, 1: int}
      */
-    private function splitStaffCancellationBookings($ride, Collection $bookings): array
+    private function splitStaffCancellationBookings(RideView $ride, Collection $bookings): array
     {
         $refundable = $bookings->filter(fn ($b) => (float) $b->amount_paid > 0.0);
 

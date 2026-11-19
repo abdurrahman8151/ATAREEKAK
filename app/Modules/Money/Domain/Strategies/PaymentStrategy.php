@@ -2,6 +2,8 @@
 
 namespace App\Modules\Money\Domain\Strategies;
 
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /**
@@ -20,8 +22,8 @@ interface PaymentStrategy
      * For cash:  no-op (payment will be collected offline).
      */
     public function processBookingPayment(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         $passenger,
     ): PaymentResult;
 
@@ -33,8 +35,8 @@ interface PaymentStrategy
      * For cash:  no-op (driver already collected cash in person).
      */
     public function processRideCompletionPayment(
-        $booking,
-        $ride,
+        BookingView $booking,
+        RideView $ride,
         $driver,
     ): PaymentResult;
 
@@ -65,7 +67,7 @@ interface PaymentStrategy
      * @param  string  $reason  'driver_cancellation' | 'staff_cancellation'
      */
     public function processRefund(
-        $ride,
+        RideView $ride,
         EloquentCollection $bookings,
         string $reason,
     ): RefundResult;

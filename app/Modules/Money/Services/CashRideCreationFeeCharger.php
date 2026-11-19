@@ -5,6 +5,7 @@ namespace App\Modules\Money\Services;
 use App\Models\User;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -21,7 +22,7 @@ class CashRideCreationFeeCharger
 {
     public function __construct(private readonly PrimaryAdminWallet $primaryAdminWallet, private readonly LedgerService $ledgerService) {}
 
-    public function chargeCashRideCreationFee($ride, User $driver): void
+    public function chargeCashRideCreationFee(RideView $ride, User $driver): void
     {
         $feeAmount = (float) $ride->cash_creation_fee;
         $driverWallet = Wallet::where('user_id', $driver->id)
@@ -46,7 +47,7 @@ class CashRideCreationFeeCharger
      *
      * @return array{deferred: string, charge: string}
      */
-    private function feePostingKeys($ride): array
+    private function feePostingKeys(RideView $ride): array
     {
         return [
             'deferred' => PostingKey::build('ride:'.$ride->id, 'cash-fee', 'deferred'),
@@ -55,7 +56,7 @@ class CashRideCreationFeeCharger
     }
 
     /** Deferred branch: raise the driver's cash-ride debt without moving any balance. */
-    private function chargeDeferredFee($ride, User $driver, Wallet $driverWallet, float $feeAmount, string $deferredKey): void
+    private function chargeDeferredFee(RideView $ride, User $driver, Wallet $driverWallet, float $feeAmount, string $deferredKey): void
     {
         PostingKey::assertUnused($deferredKey);
 
@@ -88,7 +89,7 @@ class CashRideCreationFeeCharger
     }
 
     /** Immediate branch: Driver wallet → Primary Admin wallet, with the ledger legs after the rows. */
-    private function chargeImmediateFee($ride, User $driver, Wallet $driverWallet, float $feeAmount, string $chargeKey): void
+    private function chargeImmediateFee(RideView $ride, User $driver, Wallet $driverWallet, float $feeAmount, string $chargeKey): void
     {
         // ── Immediate: Driver wallet → Primary Admin wallet ──────────────────
         PostingKey::assertUnused($chargeKey);
@@ -134,7 +135,7 @@ class CashRideCreationFeeCharger
     }
 
     /** The driver's debit row for the immediately charged creation fee. */
-    private function recordFeeChargedRow($ride, User $driver, Wallet $driverWallet, float $driverPrev, float $feeAmount, string $txId, string $chargeKey): WalletTransaction
+    private function recordFeeChargedRow(RideView $ride, User $driver, Wallet $driverWallet, float $driverPrev, float $feeAmount, string $txId, string $chargeKey): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $driverWallet->id,
@@ -153,7 +154,7 @@ class CashRideCreationFeeCharger
     }
 
     /** The primary admin's credit row for the immediately charged creation fee. */
-    private function recordFeeReceivedRow($ride, User $driver, Wallet $primaryWallet, float $primaryPrev, float $feeAmount, string $txId): WalletTransaction
+    private function recordFeeReceivedRow(RideView $ride, User $driver, Wallet $primaryWallet, float $primaryPrev, float $feeAmount, string $txId): WalletTransaction
     {
         return WalletTransaction::create([
             'wallet_id' => $primaryWallet->id,
@@ -178,7 +179,7 @@ class CashRideCreationFeeCharger
      * Debt is an obligation, and it becomes a real movement when it is later charged or cleared -
      * which those methods record.
      */
-    private function postFeeTransfer($ride, Wallet $driverWallet, Wallet $primaryWallet, float $feeAmount, ?WalletTransaction $chargedTransaction = null, ?WalletTransaction $receivedTransaction = null): void
+    private function postFeeTransfer(RideView $ride, Wallet $driverWallet, Wallet $primaryWallet, float $feeAmount, ?WalletTransaction $chargedTransaction = null, ?WalletTransaction $receivedTransaction = null): void
     {
         $this->ledgerService->postTransfer([
             ['wallet_id' => $driverWallet->id, 'amount' => -$feeAmount, 'description' => "ride #{$ride->id}: cash creation fee", 'wallet_transaction_id' => $chargedTransaction?->id],
