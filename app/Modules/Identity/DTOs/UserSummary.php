@@ -37,6 +37,12 @@ final class UserSummary
         // columns - the rule stays with the owner, the caller gets a boolean.
         public readonly ?Carbon $createdAt = null,
         public readonly bool $isBannedNow = false,
+        // Stage 4 A3: the driver list's two extra values. `avgRating` is the batched rating average (the
+        // RV-48 synthetic base included) and `latestCommunicationNumber` is the number the driver's latest
+        // ride carried - both computed by the owner, so the Console screen never reads `user_ratings` or
+        // `rides` for them. Additive with defaults, so every existing construction stands.
+        public readonly ?float $avgRating = null,
+        public readonly ?string $latestCommunicationNumber = null,
     ) {}
 
     /**

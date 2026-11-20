@@ -5,6 +5,7 @@ namespace App\Modules\Identity\Contracts;
 use App\Modules\Identity\DTOs\UserSummary;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Stage 2 C3: the read surface for user data, owned by IDENTITY.
@@ -93,6 +94,27 @@ interface UserDirectory
      *
      * @return LengthAwarePaginator<int, UserSummary>
      */
+    /**
+     * Stage 4 A3: the admin driver list, filtered, searched and paginated - the same statement Console used to
+     * build, moved to the module that owns `users`.
+     *
+     * The rating average and the driver's latest communication number ride along in the same DTO, so the screen
+     * needs no second read for either. The communication number is a subquery on `rides`: Ride owns that table,
+     * so its expression is built by Ride (`RideQueryExpressions`) and passed IN as a fragment - Identity embeds
+     * it in its own statement and names no Ride class, so this adds no port reference to the graph. The fragment
+     * is a subquery, never a result set, so it costs no query either. The driver predicate (a verified driver OR a pending/rejected
+     * verification WITH submitted documents) and the ban filter are the owner's own rules.
+     *
+     * @return LengthAwarePaginator<int, UserSummary>
+     */
+    public function driverListPage(
+        string $filter,
+        int $perPage,
+        int $page,
+        ?string $search,
+        ?Builder $latestCommunicationNumber = null,
+    ): LengthAwarePaginator;
+
     public function adminUserPage(
         string $type,
         string $status,

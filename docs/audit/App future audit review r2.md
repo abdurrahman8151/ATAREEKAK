@@ -22820,3 +22820,49 @@ fixture needles (a scanner that stopped seeing anything fails those).
 **2260 tests / 10681 assertions / 2 skipped / 0 failures**, every snapshot byte-identical - the booking-charge,
 ride and wallet snapshots are the byte-for-byte proof that the four values still land in the same rows, and the
 query budgets prove no query was added. `AppFuture` alone: **65 / 472**.
+
+---
+
+### 387. STAGE 4 A3 - the driver list moves to the owner of `users`, and the pinned assertion is replaced (D6)
+
+**The parked item, and the ruling.** Stage 3 A4 parked "the driver screen that asserts row attributes":
+`AdminDriverQueryService::getDrivers()` built a `users` query inside Console, paginated it, then set
+`avg_rating` on the returned **User models** from Identity's batched reader, and
+`AdminDriverServiceTest` asserted `getDrivers()->items()[0]->avg_rating` - a ROW ATTRIBUTE, read off a model
+Console had queried itself. D6 = YES: the screen reads through the Reader, and that assertion may be REPLACED
+(never deleted) by an equivalent assertion on the Reader's output.
+
+**What moved.**
+
+| before | after |
+|---|---|
+| Console builds the driver list statement (driver predicate, filters, search, ordering, pagination) over `users` | **Identity** builds it: `UserDirectory::driverListPage()` - `users` is Identity's table, and the driver predicate is Identity's own `photos` rule |
+| Console reads the rating with `UserRatingReader::averageForUsers()` and sets it as a model attribute | the owner computes it inside the page and returns it as `UserSummary::$avgRating` |
+| rows are User models | rows are `UserSummary` DTOs (the Reader's output) |
+| `AdminDriverPresenter::formatDriver(User $driver, ...)` | plus `formatDriverSummary($driver, ...)` - the same eleven keys, read from the DTO |
+| test: `items()[0]->avg_rating` | test: `items()[0]->avgRating` (**D6**, both lines 453 and 462, same 3.5 / 3.0 values) |
+
+**Three constraints that shaped it, and the mistakes they caught.**
+
+1. **Console may not NAME another module's DTO.** The first version imported
+   `App\Modules\Identity\DTOs\UserSummary` and type-hinted it: `ModuleBoundaryTest`,
+   `ModuleGraphTest` (rule A) and `CrossContextBoundaryTest` all failed - a DTO is an implementation class, so
+   Console reads its properties **untyped**, exactly as it read the model's. That is the same pattern the
+   `profile` array and the other port-returned DTOs already use.
+2. **No port reference may be added.** The first design had Identity resolve Ride's `RideQueryExpressions`
+   itself, which moved `Identity -> Ride` from 3 to 4 and the total from 65 to 66 - the stage 4 rule allows that
+   only if one reference is removed in the same commit, and no Console->Identity contract had become unused.
+   The honest fix kept every owner: **Ride still BUILDS the latest-communication-number expression (Console,
+   which already names that port, asks for it) and Identity embeds the fragment in its own statement.**
+   `Identity` names no Ride class; `Console -> Ride` stays 12, `Identity -> Ride` stays 3, the total stays
+   **65**, and the fragment is a subquery - never a result set - so it costs no query.
+3. **The query budget caught a real N+1.** The first version wrote
+   `'phone' => $driver->latestCommunicationNumber ?? $this->resolveDriverPhone($driver->id)`. The retired model
+   path checked whether the attribute KEY existed (it always did, selected or null) and never ran the fallback;
+   my `??` treated a null number as "missing" and issued one query per row. `admin/drivers` went to 10 queries
+   against a committed budget of 9 - the snapshot test said so in one line. Fixed by reading the DTO field
+   directly, with a comment recording WHY the null must not fall back.
+
+**Gate for this step** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots): see the
+run recorded with this commit. Focused first: driver units + the whole admin snapshot class =
+**198 / 605 OK**, `admin/drivers` byte-identical at 9 queries. `AppFuture` **65 / 472 OK**.

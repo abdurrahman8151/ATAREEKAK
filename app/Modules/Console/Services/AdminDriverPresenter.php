@@ -57,6 +57,67 @@ final class AdminDriverPresenter
         ];
     }
 
+    /**
+     * Stage 4 A3: the table row built from Identity's summary - the same eleven keys, the same values.
+     *
+     * The list screen hands in the summary it received, so nothing on this path reads a `users` row: the name,
+     * the flags, the timestamps, the rating and the communication number are all fields of the DTO.
+     */
+    /**
+     * The parameter is Identity's summary and stays UNTYPED here on purpose: naming another module's DTO is
+     * an implementation reference (rule A), so Console reads its properties exactly as it read the model's.
+     */
+    public function formatDriverSummary($driver, ?array $profile = null): array
+    {
+        $profile ??= $this->vehicleProfileFor($driver->id);
+
+        $vehicleLabel = null;
+        if ($profile['type_of_car'] ?? null) {
+            $vehicleLabel = $profile['type_of_car'];
+            if ($profile['color_of_car'] ?? null) {
+                $vehicleLabel .= ' | '.$profile['color_of_car'];
+            }
+        }
+
+        return [
+            'id' => $driver->id,
+            'driver_ref' => '#DR-'.$driver->id,
+            'full_name' => $driver->fullName(),
+            'profile_photo' => ($profile['profile_photo'] ?? null)
+                ? asset('storage/'.$profile['profile_photo'])
+                : null,
+            // The owner always selects the subquery, so the key is always present (null means "no ride yet").
+            // The retired model path checked key-existence for the same reason: a null must NOT trigger the
+            // one-query-per-row fallback.
+            'phone' => $driver->latestCommunicationNumber,
+            'vehicle' => $vehicleLabel,
+            'status' => $this->resolveDriverStatusForSummary($driver),
+            'avg_rating' => $driver->avgRating !== null ? round($driver->avgRating, 1) : null,
+            'is_verified_driver' => $driver->isVerifiedDriver,
+            'verification_status' => $driver->verificationStatus,
+            'joined_at' => $driver->createdAt->toIso8601String(),
+        ];
+    }
+
+    /** The same status rule `resolveDriverStatus()` applies, over the summary's fields. */
+    public function resolveDriverStatusForSummary($driver): string
+    {
+        if ($driver->isBannedNow) {
+            return 'suspended';
+        }
+        if ($driver->isVerifiedDriver) {
+            return 'verified';
+        }
+        if ($driver->verificationStatus === 'pending') {
+            return 'pending';
+        }
+        if ($driver->verificationStatus === 'rejected') {
+            return 'rejected';
+        }
+
+        return 'unverified';
+    }
+
     /** Identity, contact and verification keys of the driver profile payload, in their order. */
     public function driverProfileIdentity(User $driver, ?array $profile = null): array
     {

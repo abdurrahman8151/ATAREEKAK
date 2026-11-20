@@ -5,6 +5,7 @@ namespace App\Modules\Console\Services;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Contracts\UserDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Contracts\RideQueryExpressions;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -42,8 +43,11 @@ final class AdminDriverQueryService
             $drivers->getCollection()->pluck('id')->all()
         );
 
+        // Stage 4 A3: the rows are Identity's summaries now, so the presenter shapes those.
         return $drivers->getCollection()
-            ->map(fn (User $driver) => $this->presenter->formatDriver($driver, $profiles[$driver->id] ?? []))
+            // Stage 4 A3: the rows are Identity's summaries; Console reads their properties and never names
+            // the DTO class (rule A: a module may name another module's Contracts only).
+            ->map(fn ($driver) => $this->presenter->formatDriverSummary($driver, $profiles[$driver->id] ?? []))
             ->values()
             ->all();
     }
@@ -61,54 +65,18 @@ final class AdminDriverQueryService
         int $page = 1,
         ?string $search = null
     ): LengthAwarePaginator {
-        $query = User::query()
-            // Stage 2 C2: Ride owns the rows, so the expression is Ride's too. It is still embedded in
-            // THIS statement - the port returns a subquery, not a result set - so the endpoint's query
-            // count does not move.
-            ->addSelect(['latest_communication_number' => app(RideQueryExpressions::class)
-                ->latestCommunicationNumberSubquery('users.id'),
-            ])
-            ->where(function ($q) {
-                $q->where('is_verified_driver', true)
-                    ->orWhere(function ($q2) {
-                        $q2->whereIn('verification_status', ['pending', 'rejected'])
-                            ->whereIn('users.id', app(PhotoRepositoryInterface::class)
-                                ->driverDocumentUserIdsSubquery());
-                    });
-            });
-
-        match ($filter) {
-            'verified' => $query->where('is_verified_driver', true),
-            'pending' => $query->where('verification_status', 'pending')
-                ->whereIn('users.id', app(PhotoRepositoryInterface::class)->driverDocumentUserIdsSubquery()),
-            'suspended' => $query->bannedNow(),
-            default => null,
-        };
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
-
-        $query->orderByDesc('created_at');
-
-        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
-
-        // Stage 0.6 item 1 / Stage 2 C2: `avg_rating` used to come from `withAvg('receivedRatings ...')` -
-        // one aggregate subquery. `user_ratings` is Identity's table and the kernel relation that call leaned
-        // on is gone (owner ruling 2026-11-17), so the same ONE query now arrives from its batched reader and
-        // the value is set on the rows under the SAME attribute name: the presenter and the pinned tests read
-        // `avg_rating`, and a driver with no ratings still gets null rather than 0.
-        $ratings = app(UserRatingReader::class)->averageForUsers($paginator->getCollection()->pluck('id')->all());
-
-        foreach ($paginator->getCollection() as $driver) {
-            $driver->setAttribute('avg_rating', $ratings[(int) $driver->id] ?? null);
-        }
-
-        return $paginator;
+        // Stage 4 A3: `users` is Identity's table, so the whole statement - the driver predicate, the filters,
+        // the search, the ordering and the batched rating read - runs there and comes back as summaries. Same
+        // one pagination statement, same one rating read, same row order; the caller renders the DTOs.
+        return app(UserDirectory::class)->driverListPage(
+            $filter,
+            $perPage,
+            $page,
+            $search,
+            // Built by the module that owns `rides`, embedded by the module that owns `users`: one statement,
+            // one owner per table, no new port reference on either side.
+            app(RideQueryExpressions::class)->latestCommunicationNumberSubquery('users.id'),
+        );
     }
 
     /**

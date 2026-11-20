@@ -450,7 +450,9 @@ class AdminDriverServiceTest extends TestCase
         $this->rate($this->makeUser(), $driver, 4.0);
 
         // Synthetic 3.0 base (RV-48) + 4.0 = 7.0 / 2 = 3.5.
-        $this->assertEquals(3.5, $this->service->getDrivers()->items()[0]->avg_rating);
+        // Stage 4 A3 / D6: the row is Identity's summary now, so the same value is read from the Reader's
+        // output - the assertion is REPLACED, not deleted (3.5 either way).
+        $this->assertEquals(3.5, $this->service->getDrivers()->items()[0]->avgRating);
     }
 
     public function test_get_drivers_avg_rating_is_the_synthetic_base_when_no_real_ratings(): void
@@ -459,7 +461,8 @@ class AdminDriverServiceTest extends TestCase
         // average is 3.0, never null. The old null expectation contradicted the ruling.
         $this->makeUser(['is_verified_driver' => true]);
 
-        $this->assertEquals(3.0, $this->service->getDrivers()->items()[0]->avg_rating);
+        // Stage 4 A3 / D6: same replacement as above (the DTO carries the synthetic 3.0 base).
+        $this->assertEquals(3.0, $this->service->getDrivers()->items()[0]->avgRating);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

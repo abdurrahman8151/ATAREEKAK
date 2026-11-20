@@ -5,9 +5,11 @@ namespace App\Modules\Identity\Services;
 use App\Models\User;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\UserDirectory;
+use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Identity\DTOs\UserSummary;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -279,5 +281,84 @@ final class UserDirectoryReader implements UserDirectory
             createdAt: $user->created_at,
             isBannedNow: $user->isBannedNow(),
         );
+    }
+
+    /**
+     * Stage 4 A3: the admin driver list. Moved verbatim from Console's `AdminDriverQueryService::getDrivers()` -
+     * same columns, same driver predicate, same filters, same search, same ordering, same ONE rating read and the
+     * same ONE pagination statement. What changed is who runs it: `users` is Identity's table.
+     */
+    public function driverListPage(
+        string $filter,
+        int $perPage,
+        int $page,
+        ?string $search,
+        ?Builder $latestCommunicationNumber = null,
+    ): LengthAwarePaginator {
+        $query = User::query();
+
+        // Stage 4 A3: the fragment arrives from Ride (the owner of `rides`) through the caller, which already
+        // names that port. Optional, because the fragment is presentation of the phone column: without it the
+        // list still runs and the phone reads as null.
+        if ($latestCommunicationNumber !== null) {
+            $query->addSelect(['latest_communication_number' => $latestCommunicationNumber]);
+        }
+
+        $query
+            ->where(function ($q) {
+                $q->where('is_verified_driver', true)
+                    ->orWhere(function ($q2) {
+                        $q2->whereIn('verification_status', ['pending', 'rejected'])
+                            ->whereIn('users.id', $this->photos->driverDocumentUserIdsSubquery());
+                    });
+            });
+
+        match ($filter) {
+            'verified' => $query->where('is_verified_driver', true),
+            'pending' => $query->where('verification_status', 'pending')
+                ->whereIn('users.id', $this->photos->driverDocumentUserIdsSubquery()),
+            'suspended' => $query->bannedNow(),
+            default => null,
+        };
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $query->orderByDesc('created_at');
+
+        $paginator = $query->paginate($perPage, self::COLUMNS, 'page', $page);
+
+        // The same batched rating read Console made, and the same one query: Identity's own reader.
+        $ratings = app(UserRatingReader::class)->averageForUsers($paginator->getCollection()->pluck('id')->all());
+
+        $summaries = $paginator->getCollection()->map(function (User $user) use ($ratings) {
+            $summary = $this->toSummary($user);
+            $rating = $ratings[(int) $user->id] ?? null;
+
+            return new UserSummary(
+                id: $summary->id,
+                firstName: $summary->firstName,
+                lastName: $summary->lastName,
+                email: $summary->email,
+                status: $summary->status,
+                isVerifiedPassenger: $summary->isVerifiedPassenger,
+                isVerifiedDriver: $summary->isVerifiedDriver,
+                gender: $summary->gender,
+                address: $summary->address,
+                verificationStatus: $summary->verificationStatus,
+                updatedAt: $summary->updatedAt,
+                createdAt: $summary->createdAt,
+                isBannedNow: $summary->isBannedNow,
+                avgRating: $rating === null ? null : (float) $rating,
+                latestCommunicationNumber: $user->latest_communication_number,
+            );
+        });
+
+        return $paginator->setCollection($summaries);
     }
 }

@@ -122,8 +122,10 @@ class ModuleGraphTest extends TestCase
         // an eighth; the staff booking-cancel path's lookup and write are a ninth.
         'Console -> Ride' => 12,
         // Stage 3 A1: the twelfth port is the inverted `ComplaintRecorder` (see the note where `Ride ->
-        // Console` used to be). Same implementation, same binding, same insert - only the interface's home
-        // moved to the caller that needs it.
+        // Console` used to be). Stage 4 A3 moved the admin DRIVER LIST's statement into Identity (the owner
+        // of `users`) but left this port where it was: Console still BUILDS Ride's latest-communication-number
+        // expression and hands the fragment to Identity, so the owner of each table keeps owning its SQL and
+        // no port reference moved.
         'Identity -> Communication' => 2,
         // Stage 2 C2: the second port is `ProfilePhotoDirectory`, and it is declared by the CONSUMER.
         // Communication's chat read path needs the senders' stored `profile_photo`; Identity owns

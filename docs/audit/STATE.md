@@ -46,11 +46,20 @@ cross-module Money parameters **0 -> 111 of 113**.
     mistakes recorded: a missing `use ...Models\Booking;` made the `instanceof` guard always false, and the first
     design added a new port (4 -> 5 references) which the no-ceiling-raise rule forbids. Gate:
     **2260/10681 (2 skips)**, `AppFuture` **65/472**, every snapshot byte-identical.
-  - NEXT: **A3** (D6 = YES: the driver screen reads through the Reader and `AdminDriverServiceTest:453`'s assertion
-    is REPLACED by an equivalent assertion on the Reader's output - never deleted), then Phase B (D1 = PIN-OLD:
-    the stored-value map, the pinned write, both-value readers, the one state snapshot regenerated with a diff
-    report and `git diff af39d23 -- <file>` proved back to the pre-Stage-2 bytes), then C (Profile pair), D
-    (cycles, references must go DOWN), E (report-only), F (closing matrix).
+  - **A3 DONE (audit sec 387):** D6 = YES, so the driver list moved to the owner of `users`:
+    `UserDirectory::driverListPage()` (Identity) now builds the statement, computes the batched rating and returns
+    `UserSummary` DTOs; Console reads their properties UNTYPED (naming another module's DTO is an implementation
+    reference - rule A caught the first version), and `AdminDriverServiceTest`'s two `avg_rating` assertions are
+    REPLACED by `avgRating` reads on the Reader's output (D6; same 3.5 / 3.0 values, lines 453 and 462).
+    Constraints honoured: **EDGES 15, port references 65** (Ride still BUILDS the latest-communication-number
+    fragment, Console asks for it, Identity embeds it - no reference moved), and the `admin/drivers` query budget
+    stays 9 (the first version's `??` fallback caused a per-row phone query; the snapshot test caught it).
+    Gate: **2260/10681 (2 skips)**, focused admin units + admin snapshots **198/605**, `AppFuture` **65/472**.
+  - **PHASE A COMPLETE** (A1 census+ratchet, A2 the one write fixed, A3 the driver Reader). Next per the phase
+    rule: the **full default-order suite + one reverse run**, then **Phase B** (D1 = PIN-OLD: one explicit
+    stored-value <-> class map, new rows write the pre-Stage-2 value, readers accept both, a test for both values,
+    the one state snapshot regenerated with a diff report and `git diff af39d23 -- <file>` proved back to the
+    pre-Stage-2 bytes).
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
 default-order suite and a reverse run, both **3071 tests / 13364 assertions / 2 skipped / 0 failures**, the
