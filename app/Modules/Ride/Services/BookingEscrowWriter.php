@@ -2,7 +2,10 @@
 
 namespace App\Modules\Ride\Services;
 
+use App\DTOs\Money\BookingMoneySnapshot;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
+use App\Modules\Ride\Contracts\BookingView;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -50,5 +53,26 @@ final class BookingEscrowWriter implements BookingEscrowLedger
         }
 
         return $formatted;
+    }
+
+    /**
+     * Stage 4 A2: the owner persists the money snapshot Money computed for a charged booking.
+     *
+     * One UPDATE, on the model the caller already holds, exactly as the retired force-fill did.
+     */
+    public function recordMoneySnapshot(BookingView $booking, BookingMoneySnapshot $snapshot): void
+    {
+        if (! $booking instanceof Booking) {
+            throw new \InvalidArgumentException(
+                'recordMoneySnapshot expects a Booking; got '.get_debug_type($booking).'.'
+            );
+        }
+
+        $booking->forceFill([
+            'unit_price' => $snapshot->unitPrice,
+            'amount_paid' => $snapshot->amountPaid,
+            'payment_method' => $snapshot->paymentMethod,
+            'escrow_held' => $snapshot->escrowHeld,
+        ])->save();
     }
 }

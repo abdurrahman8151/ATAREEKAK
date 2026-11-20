@@ -27,9 +27,9 @@ final class ForeignWriteTest extends TestCase
      * @var array<string, array<int, string>>
      */
     private const FOREIGN_WRITES = [
-        'Modules/Money/Services/BookingCharge.php' => [
-            '$booking->forceFill() writes Ride\'s row through BookingView',
-        ],
+        // EMPTY as of stage 4 A2: Money returns the money snapshot as a DTO and Ride, which owns `bookings`,
+        // persists it. An empty census is only meaningful because the coverage assertion below and the fixture
+        // needles keep the detector honest - a scanner that stopped seeing anything would fail those two.
     ];
 
     /** The scan must actually cover the module tree, or an empty census would be vacuous. */

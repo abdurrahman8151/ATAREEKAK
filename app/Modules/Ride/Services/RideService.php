@@ -4,7 +4,6 @@ namespace App\Modules\Ride\Services;
 
 use App\DTOs\Ride\CreateRideDTO;
 use App\Enums\RideStatus;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
@@ -12,6 +11,7 @@ use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Events\RideCreated;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 

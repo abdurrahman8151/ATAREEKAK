@@ -4,11 +4,11 @@ namespace App\Modules\Ride\Services;
 
 use App\DTOs\Score\ScoreSnapshot;
 use App\Enums\ScoreAction;
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Ride\Domain\ScoreBounds;
 use App\Modules\Ride\Domain\ScorePolicyFactory;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Models\ScoreTransaction;
 use App\Modules\Ride\Models\UserScore;
 use Illuminate\Support\Facades\DB;

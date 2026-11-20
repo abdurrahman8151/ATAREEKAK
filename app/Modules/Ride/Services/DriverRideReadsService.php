@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Contracts\DriverRideReads;
+use App\Modules\Ride\Models\Ride;
 
 /**
  * The driver-profile ride reads behind {@see DriverRideReads}.

@@ -50,9 +50,10 @@ final class EPayPaymentStrategy implements PaymentStrategy
         RideView $ride,
         $passenger,
     ): PaymentResult {
-        $this->bookingCharge->chargePassengerForBooking($booking, $ride, $passenger);
+        $snapshot = $this->bookingCharge->chargePassengerForBooking($booking, $ride, $passenger);
 
-        return PaymentResult::success('Payment held in escrow');
+        // Stage 4 A2: the snapshot travels back to Ride, which owns `bookings` and persists it.
+        return PaymentResult::success('Payment held in escrow', null, $snapshot);
     }
 
     // ── Confirm (per-passenger) ──────────────────────────────────────────────

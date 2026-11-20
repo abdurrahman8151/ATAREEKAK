@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Contracts\StaffBookingCancellation;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Database\Eloquent\Collection;
 
 /**

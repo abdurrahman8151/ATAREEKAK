@@ -35,10 +35,22 @@ cross-module Money parameters **0 -> 111 of 113**.
     (shrink-only, non-vacuous: >=250 module files scanned + 3 fixture needles + 2 negative controls). The determinism
     ratchet caught the first needle version twice (heredoc `->save()` / `touch(` tokens) -> needles moved to
     `tests/Fixtures/foreign-writes/*.php.txt`. Gate: **2260/10681 (2 skips)**.
-  - NEXT: **A2** - fix the pinned site: Money returns the money snapshot as a DTO and Ride persists it through a
-    Ride-owned service (same values, same transaction boundary, same query count; ledger/booking-charge snapshots
-    unchanged), which drives the census to empty; then **A3** (D6=YES - driver screen reads through the Reader, its
-    assertion REPLACED), then Phase B (D1=PIN-OLD), C, D, E, F.
+  - **A2 DONE (audit sec 386):** the pinned site is FIXED and the census is **EMPTY**. NEW kernel DTO
+    `App\DTOs\Money\BookingMoneySnapshot`; Money computes it (`BookingCharge::moneySnapshotFor()`), and the OWNER
+    writes it through `BookingEscrowLedger::recordMoneySnapshot(BookingView, BookingMoneySnapshot)` implemented by
+    Ride's `BookingEscrowWriter` - a method on a contract Money ALREADY names, so EDGES stay **15** and port
+    references stay **65** (no ceiling raised). Same four values, same single UPDATE, same transaction, same
+    in-memory mutation; `PaymentResult::success()` carries the DTO back. The naive "return the DTO and let the
+    caller persist" broke 24 tests (RV02/DoubleEntryLedger/L16 call `chargePassengerForBooking` directly and assert
+    the SAME instance), which is why the write stayed in the method while its ownership moved. Two ratchet-caught
+    mistakes recorded: a missing `use ...Models\Booking;` made the `instanceof` guard always false, and the first
+    design added a new port (4 -> 5 references) which the no-ceiling-raise rule forbids. Gate:
+    **2260/10681 (2 skips)**, `AppFuture` **65/472**, every snapshot byte-identical.
+  - NEXT: **A3** (D6 = YES: the driver screen reads through the Reader and `AdminDriverServiceTest:453`'s assertion
+    is REPLACED by an equivalent assertion on the Reader's output - never deleted), then Phase B (D1 = PIN-OLD:
+    the stored-value map, the pinned write, both-value readers, the one state snapshot regenerated with a diff
+    report and `git diff af39d23 -- <file>` proved back to the pre-Stage-2 bytes), then C (Profile pair), D
+    (cycles, references must go DOWN), E (report-only), F (closing matrix).
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
 default-order suite and a reverse run, both **3071 tests / 13364 assertions / 2 skipped / 0 failures**, the

@@ -4,10 +4,10 @@ namespace App\Modules\Ride\Services;
 
 use App\Enums\BookingStatus;
 use App\Enums\RideStatus;
+use App\Models\User;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\NoshowReport;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
 
 /**
  * The no-show windows and the four guards the reporting flow runs before it opens a report:

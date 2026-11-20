@@ -3,10 +3,12 @@
 namespace App\Modules\Money\Services;
 
 use App\Domain\ValueObjects\Money;
+use App\DTOs\Money\BookingMoneySnapshot;
 use App\Models\User;
 use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
+use App\Modules\Ride\Contracts\BookingEscrowLedger;
 use App\Modules\Ride\Contracts\BookingView;
 use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +21,18 @@ class BookingCharge implements BookingChargeInterface
     public function __construct(
         private readonly WalletAccess $access,
         private readonly LedgerService $ledger = new LedgerService,
+        private ?BookingEscrowLedger $escrowLedger = null,
     ) {}
+
+    /**
+     * Stage 4 A2: the owner's writer for a booking's money columns, resolved lazily so `new BookingCharge($access)`
+     * in a unit test still works (the container supplies the real one in production). `WalletAccess` resolves the
+     * same contract the same way.
+     */
+    private function escrowLedger(): BookingEscrowLedger
+    {
+        return $this->escrowLedger ??= app(BookingEscrowLedger::class);
+    }
 
     /**
      * Charge passenger for an e-pay booking.
@@ -29,7 +42,7 @@ class BookingCharge implements BookingChargeInterface
      *   - DIRECT booking confirmed
      *   - REQUEST booking accepted by driver
      */
-    public function chargePassengerForBooking(BookingView $booking, RideView $ride, User $passenger): void
+    public function chargePassengerForBooking(BookingView $booking, RideView $ride, User $passenger): BookingMoneySnapshot
     {
         $amount = $booking->seats * $ride->price_per_seat;
 
@@ -38,8 +51,6 @@ class BookingCharge implements BookingChargeInterface
         [$syCashWallet, $passengerWallet] = $this->lockChargeWallets($passenger, $amount);
 
         [$passengerPrev, $syCashPrev] = $this->movePassengerFundsIntoEscrow($passengerWallet, $syCashWallet, $amount);
-
-        $this->snapshotBookingCharge($booking, $ride, $amount);
 
         $txId = 'RB_'.time().'_'.Str::random(8);
 
@@ -56,6 +67,32 @@ class BookingCharge implements BookingChargeInterface
             'passenger_id' => $passenger->id,
             'amount' => $amount,
         ]);
+
+        // Stage 4 A2: `bookings` is Ride's table, so the OWNER persists the snapshot - Money computes the four
+        // values and asks Ride's recorder to write them, in this same transaction, with the same single UPDATE and
+        // on the same in-memory model as the retired force-fill (audit sec 386).
+        $snapshot = $this->moneySnapshotFor($ride, $amount);
+        $this->escrowLedger()->recordMoneySnapshot($booking, $snapshot);
+
+        return $snapshot;
+    }
+
+    /**
+     * Stage 4 A2: the four values the old `snapshotBookingCharge()` wrote, computed as DATA.
+     *
+     * The semantics are RV-40's, unchanged: `unit_price` is the per-seat price captured at charge time,
+     * `amount_paid` the total moved off the passenger, `payment_method` the snapshot so flipping the ride's method
+     * cannot change refunds, and `escrow_held` what this booking now has sitting in SyCash (the settlement guards'
+     * fact). This runs only for e-pay - both callers gate on it - so a cash booking never asks for one.
+     */
+    private function moneySnapshotFor(RideView $ride, float $amount): BookingMoneySnapshot
+    {
+        return new BookingMoneySnapshot(
+            unitPrice: $ride->price_per_seat,
+            amountPaid: $amount,
+            paymentMethod: $ride->payment_method,
+            escrowHeld: $amount,
+        );
     }
 
     /**
@@ -125,40 +162,6 @@ class BookingCharge implements BookingChargeInterface
         $syCashWallet->save();
 
         return [$passengerPrev, $syCashPrev];
-    }
-
-    /** Persist what this booking paid as an immutable snapshot on the booking itself. */
-    /**
-     * The ONE cross-module WRITE in Money's booking paths: it force-fills the money snapshot onto the booking
-     * row. Stage 3 A2 deliberately leaves this parameter UNTYPED - `BookingView` is read-only by contract, and
-     * typing this method against it would make the view claim a write it must not publish. The honest fix is a
-     * Ride-owned write port (e.g. `BookingMoneySnapshot::fill()`), which is a design step of its own and is
-     * parked in docs/audit/STATE.md; the runtime behaviour here is unchanged.
-     */
-    private function snapshotBookingCharge($booking, $ride, $amount): void
-    {
-        // RV-40: persist the money as an immutable snapshot on the booking, the moment it
-        // is actually charged. Before this, nothing recorded what a booking paid; every
-        // later refund/settlement re-derived `seats * ride.price_per_seat`, so a mutable
-        // price or a partial-seat cancel silently changed what a paid booking "owed" and
-        // the booking could disagree with its own ledger with no source of truth.
-        //   unit_price     the per-seat price captured now
-        //   amount_paid    the total actually moved off the passenger now
-        //   payment_method snapshot so flipping the ride's method cannot change refunds
-        // These three never change after the charge, so they are always truthful here.
-        //   escrow_held    RV-02 L2: what this booking now has IN SyCash. Written here and
-        //                  cleared by the guarded decrement on every settlement, so the column
-        //                  answers "what does this booking still have sitting in escrow" — the
-        //                  fact the settlement guards are built on. It is the whole amount
-        //                  charged: this method runs only for e-pay (BookingService and
-        //                  EPayPaymentStrategy both gate on it), so a cash booking never reaches
-        //                  here and never needs a 0 written for it.
-        $booking->forceFill([
-            'unit_price' => $ride->price_per_seat,
-            'amount_paid' => $amount,
-            'payment_method' => $ride->payment_method,
-            'escrow_held' => $amount,
-        ])->save();
     }
 
     /**

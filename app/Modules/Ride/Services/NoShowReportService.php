@@ -3,11 +3,11 @@
 namespace App\Modules\Ride\Services;
 
 use App\Enums\BookingStatus;
+use App\Models\User;
+use App\Modules\Communication\Contracts\NotificationPort;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\NoshowReport;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
-use App\Modules\Communication\Contracts\NotificationPort;
 use App\Support\Logging\SafeExceptionLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

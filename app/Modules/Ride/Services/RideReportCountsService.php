@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Contracts\RideReportCounts;
+use App\Modules\Ride\Models\Ride;
 use Carbon\Carbon;
 
 /**

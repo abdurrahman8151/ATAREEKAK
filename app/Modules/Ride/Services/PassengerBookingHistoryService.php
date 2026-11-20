@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Contracts\PassengerBookingHistory;
+use App\Modules\Ride\Models\Booking;
 
 /**
  * The passenger-booking reads behind {@see PassengerBookingHistory} - moved VERBATIM from Identity's

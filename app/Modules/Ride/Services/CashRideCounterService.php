@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Contracts\CashRideCounter;
+use App\Modules\Ride\Models\Ride;
 
 /**
  * The cash-ride count behind {@see CashRideCounter} - the statement Money used to run itself, unchanged.

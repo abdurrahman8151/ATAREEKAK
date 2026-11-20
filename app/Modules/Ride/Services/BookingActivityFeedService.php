@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Contracts\BookingActivityFeed;
+use App\Modules\Ride\Models\Booking;
 
 /**
  * The recent-bookings feed behind {@see BookingActivityFeed} - the caller's query, eager loads and order, with

@@ -149,6 +149,10 @@ class ModuleGraphTest extends TestCase
         // this closes a mutual pair rather than opening a one-way one.
         // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through Ride.
         'Money -> Ride' => 4,
+        // Stage 4 A2 added a METHOD to `BookingEscrowLedger` (`recordMoneySnapshot`) rather than a fifth port:
+        // Money computes a booking's money snapshot and Ride - which owns `bookings` - writes it, so the one
+        // cross-module WRITE the stage 4 census found now lives with the owner. Same values, same single
+        // UPDATE, same transaction, and no new port reference (the ceiling stays where it was).
         // Stage 3 A2: the two new ports are `BookingView` and `RideView` - the READ-ONLY contracts that let
         // Money type its 111 previously-untyped booking/ride parameters again (Stage 2 C2 had dropped the
         // hints because naming the moved models would have been an ownership violation). Same calls, same

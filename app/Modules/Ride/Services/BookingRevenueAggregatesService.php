@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Services;
 
-use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Contracts\BookingRevenueAggregates;
+use App\Modules\Ride\Models\Booking;
 
 /**
  * The booking money projections behind {@see BookingRevenueAggregates} - the three Console expressions, verbatim.

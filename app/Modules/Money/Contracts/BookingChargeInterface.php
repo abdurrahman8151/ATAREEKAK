@@ -2,6 +2,7 @@
 
 namespace App\Modules\Money\Contracts;
 
+use App\DTOs\Money\BookingMoneySnapshot;
 use App\Models\User;
 use App\Modules\Ride\Contracts\BookingView;
 use App\Modules\Ride\Contracts\RideView;
@@ -16,5 +17,9 @@ use App\Modules\Ride\Contracts\RideView;
  */
 interface BookingChargeInterface
 {
-    public function chargePassengerForBooking(BookingView $booking, RideView $ride, User $passenger): void;
+    /**
+     * Charge the passenger and RETURN the booking's money snapshot - the caller's module owns `bookings` and
+     * persists it (stage 4 A2: the owner of a row is the only writer of it).
+     */
+    public function chargePassengerForBooking(BookingView $booking, RideView $ride, User $passenger): BookingMoneySnapshot;
 }

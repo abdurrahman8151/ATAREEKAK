@@ -22775,3 +22775,48 @@ budget, no manifest.
 **Next:** A2 fixes the pinned site (Money returns the snapshot as a DTO; Ride persists it through a Ride-owned
 service), which shrinks this list to empty - and the coverage half of the ratchet is what keeps the empty list
 meaningful.
+
+---
+
+### 386. STAGE 4 A2 - the one foreign write is gone: Money computes the snapshot, Ride writes it
+
+**The site.** A1 pinned exactly one module-level foreign write: `Money\Services\BookingCharge::snapshotBookingCharge()`
+force-filled `unit_price`, `amount_paid`, `payment_method` and `escrow_held` onto a **Ride-owned** booking through a
+`BookingView`-typed parameter. Legal to name, invisible to every name-based ratchet - and a real ownership break: a
+module writing another module's row.
+
+**The design that fits the tests as they are.** The naive reading of the fix - "Money returns a DTO and the caller
+persists it" - broke **24 tests** (`RV02EscrowDerivationTest`, `DoubleEntryLedgerTest`, the L16 no-show
+characterization): they call `BookingCharge::chargePassengerForBooking()` DIRECTLY and then assert the booking's
+snapshot columns **on the same in-memory instance** (`$booking->escrow_held`). Money's caller in those tests is the
+test itself, so there is nobody left to persist. The fix therefore has to keep the write inside the same method and
+the same transaction - but move its OWNERSHIP. Final shape:
+
+| piece | where it lives | why |
+|---|---|---|
+| `App\DTOs\Money\BookingMoneySnapshot` | kernel | both sides name it; property names are the column names on purpose |
+| `BookingCharge::moneySnapshotFor()` | Money | computes the four values (RV-40 semantics unchanged) |
+| `BookingEscrowLedger::recordMoneySnapshot(BookingView, BookingMoneySnapshot)` | Ride's contract | **the owner writes the row**; the method joined a contract Money ALREADY names, so no new port reference and no raised ceiling |
+| `BookingEscrowWriter::recordMoneySnapshot()` | Ride's service | `instanceof Booking` guard, then the same `forceFill([...])->save()` |
+| `PaymentResult::success(..., snapshot)` | Money | carries the DTO back for callers that want the numbers |
+
+Same four values, **same single UPDATE**, same transaction, same in-memory mutation, no extra read. The census
+ratchet now measures **zero** foreign writes, and it stays non-vacuous through its coverage assertion and its
+fixture needles (a scanner that stopped seeing anything fails those).
+
+**Two mistakes the ratchets caught, recorded because they are the point of the exercise.**
+
+1. `BookingEscrowWriter`'s guard threw `InvalidArgumentException: expects a Booking; got App\Modules\Ride\Models\Booking`
+   - the file had no `use ...Models\Booking;`, so the unqualified `Booking` resolved to
+   `App\Modules\Ride\Services\Booking` and the `instanceof` was always false. Four L16 tests failed immediately, with
+   the class name in the message: the same lesson as stage 3 A4's missing `use`.
+2. The first design added a NEW Ride contract (`BookingMoneySnapshotRecorder`), which raised `Money -> Ride` from 4
+   to 5 port references. The stage 4 rule forbids raising a ceiling unless one is removed in the same commit, and the
+   honest fix was not to hunt for a port to delete: it was to put the method on the contract Money already names
+   (`BookingEscrowLedger` is Ride's writing port for `bookings`' money columns, `escrow_held` included). Result:
+   **EDGES 15, port references 65 - exactly where stage 3 ended.**
+
+**Gate for this step** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots):
+**2260 tests / 10681 assertions / 2 skipped / 0 failures**, every snapshot byte-identical - the booking-charge,
+ride and wallet snapshots are the byte-for-byte proof that the four values still land in the same rows, and the
+query budgets prove no query was added. `AppFuture` alone: **65 / 472**.

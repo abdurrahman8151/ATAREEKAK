@@ -2,8 +2,8 @@
 
 namespace App\Modules\Ride\Events;
 
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
