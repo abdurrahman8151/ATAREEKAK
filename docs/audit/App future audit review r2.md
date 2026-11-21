@@ -22929,3 +22929,66 @@ with the pinned value and a row with the module-namespace value both read back a
 **Gate for this step** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots):
 **2264 tests / 10704 assertions / 2 skipped / 0 failures** - +4 tests and +23 assertions over the Phase A gate, all
 from the new pin test; `AppFuture` **65 / 472** plus the pin test's 4 / 23 = **69 / 495 OK**.
+
+---
+
+### 389. STAGE 4 C1 - characterization: every profile payload in the corpus, and every live `*.profile` eager load
+
+**Scope.** Characterization only, no code change. C2 is judged byte for byte against this.
+
+**The corpus has FIVE cases that emit a `profile` key; FOUR of them emit the profile ROW.**
+
+| case | path | shape |
+|---|---|---|
+| `rides/create-with-route` | `/ride/driver/profile` | the full 20-column profile object |
+| `rides/search-get` | `/data[i]/driver/profile` | the same object, per driver in the page (3 in the corpus) |
+| `rides/search-post` | `/data[i]/driver/profile` | the same object, per driver in the page (3 in the corpus) |
+| `session/user` | `/user/profile` | the same object |
+| `notifications/categories` | `/data/profile` | **unrelated**: the literal string `'Profile'` (a category label), not a profile row |
+
+The 20 keys, as the corpus holds them (canonical order - the snapshot repository `ksort`s every object before
+writing, so the corpus pins the SET of keys and their values, not the order the API prints): `address`,
+`back_id_pic`, `car_pic`, `color_of_car`, `created_at`, `description`, `driving_license_pic`, `face_id_pic`,
+`full_name`, `gender`, `id`, `mechanic_card_pic`, `number_of_rides`, `number_of_seats`, `profile_photo`, `radio`,
+`smoking`, `type_of_car`, `updated_at`, `user_id`.
+
+**The nested object is a RAW-MODEL serialization, and this is where it comes from.** None of the three resources
+emits a `profile` key itself: the key appears because the DRIVER model is serialized with its `profile` relation
+loaded (`relationsToArray()`). The live eager loads, measured:
+
+| site | statement |
+|---|---|
+| `Ride/Services/RideValidationService.php:29` | `loadMissing('profile')` + `if (! $driver->profile)` - the ride-creation precondition |
+| `Ride/Services/RideService.php:146` | `$ride->fresh(['driver.profile'])` |
+| `Ride/Services/RideSearchService.php:65, 223` | `with('driver.profile')` on the search page and on one ride |
+| `Ride/Repositories/RideRepository.php:195` | `Ride::with('driver.profile')` |
+
+So C2's job on these four endpoints is exactly what the step says: **remove the eager load and print the same
+twenty keys explicitly, from Identity's batched read.**
+
+**The other live readers of the relation, all outside Identity (the fall-out list C2 must convert).**
+
+| site | what it reads | the port that already exists |
+|---|---|---|
+| `Http/Resources/RideResource.php:116` | `$this->driver->profile?->profile_photo` | `withProfilePhotos()` map (Stage 2 C2 pattern) |
+| `Http/Resources/BookingResource.php:124` | `$user->profile?->profile_photo` | same |
+| `Communication/Services/ChatMessageHandler.php:204` | `$user->profile?->profile_photo` | `Communication\Contracts\ProfilePhotoDirectory` (consumer-declared) |
+| `Ride/Services/RideValidationService.php:31` | `if (! $driver->profile)` | Ride already names `ProfileDirectory` |
+| `DTOs/Auth/CachedUser.php:69-98` | the `profile` relation's attributes, cached and re-materialised | **D4's question** - decided below |
+| `Identity/Services/PassengerProfilePanelBuilder.php:156` | `$user->profile` | Identity's own read (moves with the model) |
+| `Identity/Services/ProfileCommentDirectoryService.php:66-68` | `$comment->profile?->user` | Identity's own read |
+| `Console/Testing/*` (3 files) | dev-only fixtures | ADR 0005 exemption |
+
+**D4 = AGENT: where the auth cache's profile rehydration lives, decided.** It moves INTO Identity. Today
+`JwtService` (Identity) asks the kernel DTO `CachedUser::fromOptionalModel()` to read `$user->profile` and to
+re-materialise the relation on the rebuilt model; after the move the kernel may not name the model at all, so:
+**Identity reads the profile columns itself (its own repository), hands `CachedUser` a plain array of them, and the
+DTO carries that array and materialises only the single field the kernel still reads (`profile_photo`) as a plain
+attribute.** The cache payload keeps the same columns, the same TTL and the same "no password" rule; nothing about
+what is cached changes - only who reads it. The ADR note is written in C2 (ADR 0011).
+
+**Query budgets.** D2 = YES allows `rides/create` and `chat/messages-store` to rise by exactly ONE query each, and
+only if unavoidable. The candidates: `rides/create` needs the driver's profile row for its nested object (today one
+`loadMissing('profile')`... which C2 replaces with the same one batched port call, so it may not rise at all);
+`chat/messages-store` reads `profile_photo` for the senders, which `ProfilePhotoDirectory` already batches. Both
+numbers will be measured in C2 and recorded either way - the RULE is that no other budget moves.
