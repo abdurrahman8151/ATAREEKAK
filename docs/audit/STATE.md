@@ -1,4 +1,40 @@
-# STAGE 3 CLOSED (Phase A only; Phase B all PARK)
+# STAGE 4 CLOSED
+
+**Stage 4 verified on `4b313c6`** - the final five-order matrix ran on that tree (audit sec 393): default,
+reverse, random-11, random-20261102, random-7919, each **3078 tests / 13404 assertions / 2 skipped / 0 failures**,
+with **0 per-test assertion-count differences**, **0 tests in only one log**, and the leftover-rows probe **clean
+(0 rows in all 30 guarded tables) after every run**. The corpus is frozen except the one file Phase B named (D1 /
+ADR 0010), and `git diff af39d23 -- <that file>` is empty - it is back to its pre-Stage-2 bytes.
+`query-budgets.json` untouched; `SNAPSHOT_UPDATE=1` used exactly once, for exactly that file.
+
+**Ratchets, `stage3-verified` -> `4b313c6`:** EDGES **15 -> 14**, port references **65 -> 64**, 2-cycles **5 -> 4**,
+derived loops **21 -> 6**, `KERNEL_MODEL_IMPORTS` **2 -> 0**, cross-module writes **1 -> 0** (new
+`ForeignWriteTest`), `ENTRYPOINT_ALLOWLIST` 0, `CONSOLE_FOREIGN_MODEL_FILES` 0, `TABLE_OWNERS` 20.
+
+**Assertion changes:** exactly the two D6-approved lines (`avg_rating` -> `avgRating` on Identity's DTO). Two test
+ADAPTATIONS of the same assertions are listed in sec 393 for the owner's confirmation (RV38's lazy-throw moved to
+`ProfileComment::profile`; the moderation fixture creates its profile through the model). Everything else in the test
+tree is a fixture migration.
+
+**Parked, with measurements (sec 391/392):** the four surviving cycles (Console<->Identity 10/3, Identity<->Money
+4/4, Money<->Ride 2/5, Identity<->Ride 3/3 - an inversion is a FLIP, not a removal); the `App\Models\User` move
+(D5 = report only). Nothing in this stage is left unverified.
+
+## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- **Nothing in progress. Stage 4 is complete and verified; the goal is closed.**
+
+## Stage 4 steps (all committed, one per step)
+- **A1** (`bb4b44f`, sec 385) - cross-module write census + `ForeignWriteTest` ratchet with fixture needles.
+- **A2** (`5be18e8`, sec 386) - the write moved to the owner (kernel `BookingMoneySnapshot`, `BookingEscrowLedger::recordMoneySnapshot`); census EMPTY.
+- **A3** (`30359cd`, sec 387) - the driver list reads through Identity's Reader (D6).
+- **B1** (`2b9364f`, sec 388) - the stored class name PINNED (D1), one map, both generations read, the one snapshot back to the pre-Stage-2 bytes.
+- **C1** (`43a3522`, sec 389) - profile JSON + eager-load characterization.
+- **C2+C3** (`39d6d22`, sec 390) - Profile pair into Identity, 20 read sites, ADR 0011 (D4), `KERNEL_MODEL_IMPORTS` = 0.
+- **D-1** (`276b036`, sec 391) - `Communication <-> Console` cut by merging two ports into one consumer-declared contract; the other four cycles parked with measurements.
+- **E** (`e74e82b`, sec 392) - the `App\Models\User` move report (D5 = report only).
+- **F** (`4b313c6` docs + this record, sec 393) - ARCHITECTURE 1/4/5/10, module READMEs, ADR 0012 "the owner writes the row", the final matrix and the per-phase report.
+
+## Stage 3 (closed) - retained for history
 
 **Terminal state, measured on the final tip (audit sec 384).** Five serialised full-suite orders - default,
 reverse, random-11, random-20261102, random-7919 - each **3071 tests / 13368 assertions / 2 skipped / 0 failures**,

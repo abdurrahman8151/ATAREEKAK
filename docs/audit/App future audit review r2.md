@@ -23169,3 +23169,108 @@ factory calls, and buy a boundary that the ownership map already grants for this
 it: drain the queue, move with a temporary `class_alias` for one release, update the ratchet to require the new name
 in the same commit, and re-run this stage's matrix - because the payback is architectural tidiness, not a bug being
 fixed.
+
+---
+
+### 393. STAGE 4 CLOSED - five-order matrix on the final tip, the corpus frozen except the one file Phase B named, and the full per-phase report
+
+**The final matrix.** Five serialised full-suite orders on the final tip (one `phpunit` process at a time, each with
+its own JUnit log, each followed immediately by the leftover-rows probe):
+
+| order | exit | tests | assertions | skipped | failures | time | leftovers |
+|---|---|---|---|---|---|---|---|
+| `default` | 0 | 3078 | 13404 | 2 | **0** | 1238 s | clean - 0 rows in all 30 guarded tables |
+| `reverse` | 0 | 3078 | 13404 | 2 | **0** | 1233 s | clean |
+| `random-11` | 0 | 3078 | 13404 | 2 | **0** | 1256 s | clean |
+| `random-20261102` | 0 | 3078 | 13404 | 2 | **0** | 1240 s | clean |
+| `random-7919` | 0 | 3078 | 13404 | 2 | **0** | 946 s | clean |
+
+**Per-test assertion-count diff, every order against `default`** (identity = `classname::name` including the
+data-set suffix; count = the JUnit `assertions` attribute):
+
+| comparison | cases | assertions | per-test differences | tests in only one log |
+|---|---|---|---|---|
+| reverse vs default | 3078 / 3078 | 13404 / 13404 | **0** | 0 / 0 |
+| random-11 vs default | 3078 / 3078 | 13404 / 13404 | **0** | 0 / 0 |
+| random-20261102 vs default | 3078 / 3078 | 13404 / 13404 | **0** | 0 / 0 |
+| random-7919 vs default | 3078 / 3078 | 13404 / 13404 | **0** | 0 / 0 |
+
+**The failure rule was never needed.** 15,390 test executions produced **zero failures and zero errors**, so nothing
+had to be classified and no `stage3-verified` worktree was created.
+
+**The corpus.** `git diff --stat stage3-verified -- tests/Snapshots` = **the one file Phase B named plus its manifest
+hash line**, and nothing else: `state/score/transactions-with-ride-and-booking-references.json` (3 lines, and
+`git diff af39d23 -- <file>` is EMPTY, i.e. back to the pre-Stage-2 bytes) + the single `MANIFEST.json` hash it
+forces. `query-budgets.json` is **byte-identical** - D2's +1 was never needed (see the budget note in sec 390).
+
+**Stored-class-name inventory, repeated on the final tip.** One column still stores a class name -
+`score_transactions.reference_type` - and the ONE corpus file that shows it now holds the PINNED pre-Stage-2 values.
+Nothing else: `notifications` has no morph column, and `personal_access_tokens.tokenable_type` is a legacy Sanctum
+column nothing writes (both recorded in sec 392).
+
+## Ratchet numbers, `stage3-verified` -> stage 4 tip
+
+| ratchet | before | after |
+|---|---|---|
+| `ModuleGraphTest` EDGES | 15 | **14** |
+| port references | 65 | **64** |
+| 2-cycles (`UNCUT_CYCLES`) | 5 | **4** |
+| derived longer loops | 21 | **6** |
+| `ModelOwnershipTest::KERNEL_MODEL_IMPORTS` | 2 (Profile pair, parked) | **0** |
+| `ForeignWriteTest` (new) cross-module writes | 1 | **0** |
+| `ENTRYPOINT_ALLOWLIST` | 0 | **0** |
+| `CONSOLE_FOREIGN_MODEL_FILES` | 0 | **0** |
+| `TABLE_OWNERS` | 20 | **20** (no table moved; two models did) |
+| typed cross-module Money parameters | 111 of 113 | 111 of 113 (stage 3's work, untouched) |
+
+## Every assertion edited or deleted, with the ruling
+
+The owner approved ONE assertion change (D6). It is:
+
+| file:line | change | ruling |
+|---|---|---|
+| `tests/Unit/Services/Admin/AdminDriverServiceTest.php:453` | `items()[0]->avg_rating` -> `items()[0]->avgRating` on the Reader's DTO | **D6 = YES** |
+| `tests/Unit/Services/Admin/AdminDriverServiceTest.php:462` | same replacement in the sibling case | **D6 = YES** (the same assertion, same value 3.0) |
+
+Two further test changes ADAPT how an assertion reaches its subject, without deleting an assertion. They are
+recorded here because the phase's list must be complete, and they did not need D6's ruling in my reading - the owner
+should confirm:
+
+| file | what changed | why |
+|---|---|---|
+| `tests/Feature/Review/RV38LazyArmingMechanismTest.php` | the "a lazy load throws under the guard" assertion now reads `ProfileComment::profile` instead of `User::profile`, because `User` has no relations left | the SUBJECT is the lazy guard; the exception type, the arming assertion and the no-op test are unchanged |
+| `tests/Feature/Staff/ReviewModerationServiceTest.php` | the comment fixture creates its profile through `Profile::create(...)` instead of the removed relation | fixture only; no assertion text changed |
+
+Everything else that moved in the test tree is a FIXTURE migration to `ProfileFixtures` (22 files), the
+`with('driver.profile')` -> port-map fixture swaps, and the determinism-safe `.php.txt` needles of `ForeignWriteTest`.
+
+## Stage 4, per phase
+
+**Files changed: 140 (app 72, tests 57, database 5, docs 6), +2270 / -373, in 11 commits.**
+
+| phase | step | commit | result |
+|---|---|---|---|
+| A | A1 | `bb4b44f` | write census (1 site) + `ForeignWriteTest` ratchet with fixture needles |
+| A | A2 | `5be18e8` | the write moved to the owner; census EMPTY; references 65 (no ceiling raised) |
+| A | A3 | `30359cd` | driver list through Identity's Reader; D6's assertion replacement |
+| A | gate | (recorded in sec 387) | 2260 / 10681 |
+| B | B1 | `2b9364f` | stored name PINNED + one map + both generations read + the one snapshot back to pre-Stage-2 bytes |
+| B | gate | `916669a` | 3078 / 13401 |
+| C | C1 | `43a3522` | profile JSON + eager-load characterization |
+| C | C2+C3 | `39d6d22` | Profile pair into Identity, 20 read sites, `KERNEL_MODEL_IMPORTS` = 0, ADR 0011 |
+| C | gate | `2b4ce79` | 3078 / 13401 |
+| D | D-1 | `276b036` | `Communication <-> Console` cut: 15 -> 14 edges, 65 -> 64 references, 21 -> 6 loops |
+| E | E | `e74e82b` | report on moving `App\Models\User` (no code) |
+| D+E | gate | (recorded in sec 391-392 region) | 3078 / 13404 |
+| F | docs | `4b313c6` | ARCHITECTURE 1/4/5/10, module READMEs, ADR 0012 |
+
+**Snapshot / manifest status:** frozen; one file regenerated by decision (D1 / ADR 0010) and proved back to its
+pre-Stage-2 bytes; `MANIFEST.json` carries exactly that one updated hash; `query-budgets.json` untouched.
+
+**Parked items** (all with measurements): the four surviving cycles (Console<->Identity 10/3, Identity<->Money 4/4,
+Money<->Ride 2/5, Identity<->Ride 3/3 - inversions are FLIPS, not removals, and would break the ownership map); the
+`App\Models\User` move (D5 = report only, sec 392); the auth-cache decision is settled in ADR 0011; D2's query
+allowance went unused.
+
+**Terminal line.** *Stage 4 verified on `4b313c6`* - the matrix above ran on that tree, and this record plus the
+STATE update are the docs-only commit that follows it.
