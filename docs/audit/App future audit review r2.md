@@ -23107,3 +23107,65 @@ ports on one edge answering a single call.
 **Gate for this step** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots + Chat +
 Notifications): recorded with the commit; focused first - engagement snapshots + Chat + Notifications + AppFuture =
 **110 / 622 OK**, `contact/store` byte-identical.
+
+---
+
+### 392. STAGE 4 E - REPORT ONLY (D5): what moving `App\Models\User` into Identity would touch
+
+**No code changed in this step.** Everything below is measured on the stage 4 tip.
+
+**1. Reference counts, by where the references live.**
+
+| area | `use App\Models\User;` lines | total `App\Models\User` mentions |
+|---|---|---|
+| Identity | 24 | 25 |
+| Ride | 24 | 24 |
+| Console | 21 | 21 |
+| Money | 20 | 21 |
+| Communication | 16 | 17 |
+| kernel dirs (`DTOs`, `Jobs`, `Events`, `Http`, `Observers`, `Providers`, `Broadcasting`) | 11 | 12 |
+| **app/ total** | **116** | **119** |
+| tests/ (Feature 136, Unit 32, Support 3) | **171** | **177** |
+| database/ (5 seeders + 2 factory lines) | **7** | **7** |
+
+Plus **493 `User::factory()` calls across 166 test files** - the principal is the most-used fixture in the suite.
+
+**2. `auth.php` and the guards.** `config/auth.php` imports the class and its `users` provider is
+`'model' => User::class` (line 67); the `jwt` guard resolves through Identity's `JwtService`, whose DTO
+(`CachedUser`) rebuilds a `User`, and the two middleware (`jwt`, `staff`) type-hint `$request->user()` as `User`.
+A move changes the provider's model line and every `use` - but note the shape: the provider is CONFIG, so a wrong
+model there fails at authentication time, not at boot.
+
+**3. Stored class names that could change.** This is the part that decides the move, because these values survive
+deploys:
+
+| storage | holds a class name today? | what a move would do |
+|---|---|---|
+| `score_transactions.reference_type` | **no** (only the Ride/Booking names, pinned by ADR 0010) | nothing - `User` is not a reference type there |
+| `personal_access_tokens.tokenable_type` | a `morphs('tokenable')` column from Sanctum's migration; the app surface was purged of Sanctum in stage 1.5, so **nothing writes it today** | nothing new is written; any HISTORICAL rows (to be checked in production before a move) keep the old name and nothing reads them |
+| `notifications` | **no morph column** (a plain `type` string) | nothing |
+| **queued payloads** | **yes, indirectly**: `SerializesModels` stores class names, and three events carry a `User` - `App\Events\UserVerified` (`User $user`), `Ride\Events\RideBooked` (`User $passenger`), `Ride\Events\RideCancelled` (`User $driver`) | a job queued BEFORE the deploy would unserialise `App\Models\User`; with the old class gone it fails. This is the ARCHITECTURE 12.1 hazard: **drain the queue before deploying** |
+
+**4. What `class_alias` would and would not protect.** `class_alias(App\Modules\Identity\Models\User::class,
+'App\Models\User')` would make old references - `new App\Models\User`, `instanceof`, type declarations, factories, and
+`unserialize()` of payloads written before the move - resolve to the same class. It would **not** protect:
+
+- **the ratchets.** `ModelOwnershipTest` and `ModuleBoundaryTest` scan SOURCE TEXT for `App\Models\User`; an alias in
+  a provider is invisible to them, so every module would still be "naming a kernel model" while the model lives in
+  Identity - the ratchet would either have to allow the old name (defeating the move) or the code would have to be
+  rewritten anyway.
+- **new writes.** A `::class` on the old name writes the old string, so `reference_type`-style columns would start
+  carrying whichever name the writer used.
+- **`class_exists('App\Models\User')`** - which the alias makes true only AFTER the alias is registered, i.e. after
+  the container boots; a pre-boot `class_exists` (some ratchets) would answer differently.
+- **the ownership map itself.** The alias keeps the old name as a supported surface, which is the opposite of the
+  move's goal; it is a bridge for a deploy, not a design.
+
+**5. Recommendation: keep `App\Models\User` in the kernel, and decide explicitly if that ever changes.**
+
+`User` is the ONE model ADR 0007 deliberately keeps in the kernel - it is the authenticated principal, importable by
+every context, and every module legitimately reads it. Moving it would invert that ADR, touch 294 references and 493
+factory calls, and buy a boundary that the ownership map already grants for this one class. If the owner ever takes
+it: drain the queue, move with a temporary `class_alias` for one release, update the ratchet to require the new name
+in the same commit, and re-run this stage's matrix - because the payback is architectural tidiness, not a bug being
+fixed.
