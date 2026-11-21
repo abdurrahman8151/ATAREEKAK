@@ -89,7 +89,14 @@ cross-module Money parameters **0 -> 111 of 113**.
     failures** in both (1215 s and 1235 s), leftover-rows probe clean after each. Same totals as the Phase B gate:
     the move added no tests and changed no assertion COUNT (the fixture migration is text-for-text, and the two
     relation adaptations moved assertions, they did not delete any).
-  - **D-1 DONE (audit sec 391):** the **`Communication <-> Console` cycle is CUT** and the graph SHRANK: **15 -> 14
+  - **PHASE D+E GATE DONE:** full default-order + reverse, **3078 tests / 13404 assertions / 2 skipped / 0
+    failures** in both (1233 s each), leftover-rows probe clean after each.
+- **PHASE F DOCS IN PROGRESS:** `ARCHITECTURE.md` sections 1 (441 files / 315 module / 79 contracts), 4 (the
+    14-edge graph, four cycles, the three cuts incl. D-1's merge), 5 (the third consumer-declared port) and 10 (the
+    Profile rows are no longer "pending"; nothing in the map is pending any more); Communication/Console READMEs
+    updated for the cut; NEW `docs/adr/0012-the-owner-writes-the-row.md` (indexed). Stored-class-name inventory
+    REPEATED: still exactly one corpus file, now holding the PINNED pre-Stage-2 values.
+- **D-1 DONE (audit sec 391):** the **`Communication <-> Console` cycle is CUT** and the graph SHRANK: **15 -> 14
     edges, 65 -> 64 port references, 5 -> 4 two-cycles, 21 -> 6 derived loops**. NEW kernel DTO
     `App\DTOs\Communication\SupportDeskAgent` + consumer-declared `Communication\Contracts\SupportDeskDirectory`;
     Console implements/binds it (`SupportDeskDirectoryService`) and names Communication's contract instead of

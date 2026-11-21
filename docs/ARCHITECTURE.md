@@ -21,17 +21,17 @@ that holds it is named next to it, so the number is never the source of truth - 
 ```
 app/
   Modules/
-    Communication/   32 files   8 ports   chat, push, notifications, mail transport
+    Communication/   33 files   9 ports   chat, push, notifications, mail transport, the support desk
     Money/           60 files  17 ports   ledger, wallets, escrow, refunds, payouts, payment strategies
-    Ride/            85 files  23 ports   booking and ride lifecycle, search, scoring, no-shows
-    Identity/        78 files  23 ports   passenger and staff auth, tokens, OTP, KYC, profiles
-    Console/         55 files   7 ports   the back office, employees, bans, support routing
+    Ride/            86 files  23 ports   booking and ride lifecycle, search, scoring, no-shows
+    Identity/        80 files  23 ports   passenger and staff auth, tokens, OTP, KYC, profiles
+    Console/         56 files   7 ports   the back office, employees, bans, support routing
   Models/ Enums/ DTOs/ Events/ Exceptions/ Jobs/ Listeners/ Mail/ Observers/ Support/ Services/
   Http/             the kernel: shared domain vocabulary and framework glue
 ```
 
-`app/` is **436 PHP files**: 310 in modules, 126 in the kernel, **78 of the module files being contracts** (65 of
-those are referenced across the 15 graph edges; the rest are internal). `tests/` is **304 PHP files**.
+`app/` is **441 PHP files**: 315 in modules, 126 in the kernel, **79 of the module files being contracts** (64 of
+those are referenced across the 14 graph edges; the rest are internal). `tests/` is **306 PHP files**.
 
 Why one deployable instead of services: the money paths need one transaction (an escrow hold and its
 ledger posting commit or roll back together), and the boundaries were discovered by moving code, which
@@ -109,37 +109,36 @@ edges are 0, which is `ModuleBoundaryTest` rule A's job and is asserted again on
 
 | from \ to | Communication | Money | Ride | Identity | Console |
 |---|---|---|---|---|---|
-| **Communication** | - | - | - | 0 | 2 |
+| **Communication** | - | - | - | 0 | - |
 | **Money** | 1 | - | 4 | 4 | - |
 | **Ride** | 1 | 5 | - | 3 | - |
 | **Identity** | 2 | 4 | 3 | - | 3 |
-| **Console** | 4 | 7 | 12 | 10 | - |
+| **Console** | 5 | 7 | 12 | 10 | - |
 
-**15 directed edges, 65 port references.** Five cycles close in it, and each is declared with the reason it could
-not be cut:
+**14 directed edges, 64 port references. Four cycles close in it, and each is declared with the reason it could
+not be cut:**
 
 | Cycle | Why it stays |
 |---|---|
-| **Communication <-> Console** | Communication's `ContactController` (`POST /api/contact`) needs the least-loaded support agent *and* that agent's shadow user to build its response. An event cannot return the agent, and a kernel listener would be a sixth kernel file naming module Contracts (ceiling is 5, shrink-only). Moving the controller into Console would hand a passenger-facing endpoint to the back-office module. |
-| **Console <-> Identity** | Console authenticates staff through Identity (`EmployeeAuthInterface`, `StaffJwtInterface`); Identity reaches Console for `EmployeeRepositoryInterface` because the stage 1 context map puts staff **authentication** in Identity and employee **records** in Console. Cutting it means moving one of those two, i.e. contradicting the map. |
+| **Console <-> Identity** | Console authenticates staff through Identity (`EmployeeAuthInterface`, `StaffJwtInterface`); Identity reaches Console for `EmployeeRepositoryInterface` because the stage 1 context map puts staff **authentication** in Identity and employee **records** in Console. Cutting it means moving one of those two, i.e. contradicting the map. The ten Console -> Identity ports are the admin surface, and each returns data a screen prints. |
 | **Identity <-> Money** | OTP-verified withdrawal (Money -> Identity's `EmailOtpServiceInterface`) versus wallet top-up (Identity -> Money's `PassengerWalletChargerInterface`). Both need a return value; cutting either moves an HTTP endpoint between modules. |
-| **Identity <-> Ride** | Driver-document checks at booking time (Ride -> Identity's `DocumentVerificationInterface`) versus ride stats and score on the profile page (Identity -> Ride's `ScoreServiceInterface`, `UserRideStatsInterface`). Same shape as Identity <-> Money. |
+| **Identity <-> Ride** | Driver-document checks at booking time (Ride -> Identity's `DocumentVerificationInterface`) versus ride stats, score and booking history on the profile page (Identity -> Ride's `ScoreServiceInterface`, `UserRideStatsInterface`, `PassengerBookingHistory`). Same shape as Identity <-> Money. |
 | **Money <-> Ride** | Escrow is a COLUMN on the booking row, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids. |
 
-**Two cycles have been cut, and both cuts are the same lesson: move the contract, not the work.**
+**Three cycles have been cut, and all three are the same lesson: move the contract, not the work.**
 
-- `Communication -> Identity` was exactly one line in the whole tree - the `OtpMailInterface` binding in
-  `CommunicationServiceProvider`. The binding moved to the kernel catalogue (section 2), the edge is 0, and the
-  cycle went with it.
-- `Console <-> Ride` was cut in stage 3 A1 by INVERTING its single port: `ComplaintRecorder` is now declared by
-  its consumer (`Ride\Contracts\ComplaintRecorder`) and implemented and bound by Console, so Ride's no-show
-  conflict still opens exactly the same complaint through exactly the same service. `Ride -> Console` is gone
-  (16 -> 15 edges), the cycle with it, and the longer loops fell from 25 to 21. Nothing at runtime moved: same
-  class, same binding, same insert, no query change, no JSON change.
+- `Communication -> Identity` (stage 1.5): the `OtpMailInterface` binding moved to the kernel catalogue.
+- `Console <-> Ride` (stage 3 A1): `ComplaintRecorder` became consumer-declared (`Ride\Contracts`), implemented and
+  bound by Console - the no-show conflict still opens exactly the same complaint.
+- `Communication <-> Console` (stage 4 D-1): the contact endpoint asked Console TWO questions through TWO ports. One
+  consumer-declared `Communication\Contracts\SupportDeskDirectory` returns one kernel DTO (agent + shadow user), so
+  Communication names no Console class and Console implements the contract. **15 -> 14 edges, 65 -> 64 port
+  references, 5 -> 4 cycles, 21 -> 6 derived loops** - the only cut in the record that also made the graph smaller,
+  because it MERGED two ports instead of flipping one.
 
-The 21 longer loops are all consequences of the five mutual pairs; `ModuleGraphTest` asserts that every longer
-loop passes through a declared pair, so a loop that is a genuinely new design decision fails the test with its own
-name in the message.
+The six longer loops are all consequences of the four mutual pairs; `ModuleGraphTest` asserts that every longer loop
+passes through a declared pair, so a loop that is a genuinely new design decision fails the test with its own name in
+the message.
 
 ## 5. Ports
 
@@ -147,7 +146,7 @@ A port is an interface in the provider module's `Contracts/`, bound to that modu
 provider. Consumers type-hint the port. A module may name any module's `Contracts` and may never name its
 implementation. Full reasoning: [ADR 0003](adr/0003-ports-live-in-each-modules-contracts.md).
 
-**78 contract files today**, 65 of them referenced across the graph's 15 edges. A port is normally declared by the module that OWNS the capability; the one sanctioned exception is named below. Adding one is a five-step change, and every step has a ratchet:
+**79 contract files today**, 64 of them referenced across the graph's 14 edges. A port is normally declared by the module that OWNS the capability; the one sanctioned exception is named below. Adding one is a five-step change, and every step has a ratchet:
 
 1. write the interface in the provider's `Contracts/`, with a docblock naming who consumes it and why it
    is shaped that way;
@@ -167,6 +166,7 @@ call whose owner is obvious and the alternative is a new edge or a cycle. Two po
 |---|---|---|---|
 | `Communication\Contracts\ProfilePhotoDirectory` | Communication | Identity | the chat read path needs the senders' stored photo; declaring it from Identity would re-create the `Communication -> Identity` edge and cycle that stage 1.5 had just cut |
 | `Ride\Contracts\ComplaintRecorder` | Ride | Console | the reverse direction: Console's declaration created `Ride -> Console`; inverting it removed that edge AND the `Console <-> Ride` cycle with no runtime change (stage 3 A1) |
+| `Communication\Contracts\SupportDeskDirectory` | Communication | Console | the contact endpoint needed two Console answers (least-loaded agent, its shadow chat user); merging them into one consumer-declared call removed `Communication -> Console`, the cycle, and one port reference (stage 4 D-1) |
 
 The port still describes the OWNER's capability, is still bound in the OWNER's provider, and only the interface's
 namespace changes hands. It is not a way to move ownership: the table, the service, the schema and the binding all
@@ -283,16 +283,18 @@ The schema is frozen - no migrations, no foreign-key changes, no table renames -
 | Identity | RefreshToken | `refresh_tokens` | `App\Modules\Identity\Models` (moved) |
 | Identity | StaffRefreshToken | `staff_refresh_tokens` | `App\Modules\Identity\Models` (moved) |
 | Identity | Photo | `photos` | `App\Modules\Identity\Models` (moved) |
-| Identity | Profile | `profiles` | `App\Models` (pending) |
-| Identity | ProfileComment | `profile_comments` | `App\Models` (pending) |
+| Identity | Profile | `profiles` | `App\Modules\Identity\Models` (moved, stage 4 C2) |
+| Identity | ProfileComment | `profile_comments` | `App\Modules\Identity\Models` (moved, stage 4 C2) |
 | Identity | UserRating | `user_ratings` | `App\Modules\Identity\Models` (moved) |
 | Console | Complaint | `complaints` | `App\Modules\Console\Models` (moved) |
 | Console | ComplaintAttachment | `complaint_attachments` | `App\Modules\Console\Models` (moved) |
 | Console | Employee | `employees` | `App\Modules\Console\Models` (moved) |
 | *kernel* | User | `users` | `App\Models` - the authenticated principal only ([ADR 0007](adr/0007-user-is-the-authenticated-principal.md)) |
 
-"Pending" means the ownership is declared and enforced by the ratchets, while the class itself still sits in
-`app/Models`. Moving a class is NOT only "the imports that still name it" - that reading cost this phase three
+**Nothing in the map is pending any more.** The two rows that used to say "pending" (Identity's `Profile` and
+`ProfileComment`) moved in stage 4 C2, so every module-owned table now has its model in the owning module's
+`Models/` namespace and the kernel keeps exactly one model: the authenticated principal. The notes below are
+kept as the record of what the LAST move had to get past. Moving a class is NOT only "the imports that still name it" - that reading cost this phase three
 rollbacks. The MEASURED blockers (re-derive them with `php scripts/measure-model-readiness.php`; the numbers are
 recorded in `docs/audit/App future audit review r2.md` sec 354) are:
 

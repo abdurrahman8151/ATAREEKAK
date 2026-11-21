@@ -31,8 +31,10 @@ everything the system does ends in a notification, and routing that through one 
 the FCM client and the chat schema in one place.
 
 Its own dependencies: **Console** (`SupportAgentRoutingInterface`, `EmployeeManagementInterface`, used by
-`ContactController` to park a passenger with the least-loaded support agent). That is the
-`Communication <-> Console` cycle, declared in `ModuleGraphTest` with its reason.
+`ContactController` to park a passenger with the least-loaded support agent). Stage 4 D-1 inverted that
+dependency: `SupportDeskDirectory` is declared HERE and implemented by Console, so Communication names no
+Console class and the `Communication <-> Console` cycle is gone (one call returns the agent and its shadow
+chat user). The surviving cycle is `Console <-> Identity`.
 
 ## What it may not do
 

@@ -31,9 +31,10 @@ biggest consumer in the graph: Communication (3 ports: notifications and chat), 
 documents, login, bans), Money (3: wallet requests, ledger, cancellation refunds) and Ride (2: score and
 ride stats on the staff user profile).
 
-Two of its edges are declared uncut cycles - `Communication <-> Console` and `Console <-> Identity` - with
-the reasons recorded in `ModuleGraphTest`, because both are the back office needing the domain it
-administers, and the domain needing the back office's employee records.
+One of its edges is a declared uncut cycle - `Console <-> Identity` - with the reason recorded in
+`ModuleGraphTest`, because the back office needs the domain it administers and the domain needs the back
+office's employee records. The `Communication <-> Console` cycle was CUT in stage 4 D-1: Console implements
+Communication's `SupportDeskDirectory`, so Communication names no Console class.
 
 ## What it may not do
 
