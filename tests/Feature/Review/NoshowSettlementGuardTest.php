@@ -12,6 +12,7 @@ use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Services\Noshowservice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
@@ -33,6 +34,7 @@ use Tests\TestCase;
  */
 class NoshowSettlementGuardTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     private User $driver;
@@ -66,7 +68,7 @@ class NoshowSettlementGuardTest extends TestCase
         ]);
 
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
-        $this->driver->profile()->create(['full_name' => 'D', 'number_of_rides' => 0]);
+        $this->createProfileFor($this->driver, ['full_name' => 'D', 'number_of_rides' => 0]);
         $this->driverWallet = Wallet::create([
             'user_id' => $this->driver->id,
             'phone_number' => '0911'.rand(100000, 999999),
@@ -76,7 +78,7 @@ class NoshowSettlementGuardTest extends TestCase
         $this->driver->update(['wallet_id' => $this->driverWallet->id]);
 
         $this->passenger = User::factory()->create(['is_verified_passenger' => true]);
-        $this->passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
+        $this->createProfileFor($this->passenger, ['full_name' => 'P', 'number_of_rides' => 0]);
         $this->passengerWallet = Wallet::create([
             'user_id' => $this->passenger->id,
             'phone_number' => '0922'.rand(100000, 999999),

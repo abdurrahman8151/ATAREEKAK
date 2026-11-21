@@ -30,4 +30,17 @@ interface ProfilePhotoDirectory
      * @return array<int, string|null>
      */
     public function photoPathsFor(array $userIds): array;
+
+    /**
+     * Stage 4 C2: the WHOLE profile row per sender, keyed by user id - ONE query.
+     *
+     * Added because the chat send path used to attach the `User::profile` relation to the message it broadcasts,
+     * and that kernel relation is gone with the model's move into Identity. Communication may not name Identity's
+     * `ProfileDirectory` (that would re-create the `Communication <-> Identity` cycle stage 1.5 cut), so the read
+     * grows HERE, on the port this module already publishes and Identity already implements.
+     *
+     * @param  array<int, int>  $userIds
+     * @return array<int, array<string, mixed>> the model's own serialization; an absent id means no profile row
+     */
+    public function profileRowsFor(array $userIds): array;
 }

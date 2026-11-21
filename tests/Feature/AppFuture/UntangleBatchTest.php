@@ -6,6 +6,7 @@ use App\Console\Testing\Getloadtesttokens;
 use App\Console\Testing\Testfullrideflow;
 use App\Enums\BookingStatus;
 use App\Models\User;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
@@ -48,7 +49,13 @@ class UntangleBatchTest extends TestCase
         }
 
         $driver = User::factory()->create();
-        $driver->profile()->create(['full_name' => 'AF4 Driver', 'number_of_rides' => 0]);
+        // Stage 4 C2: `User::profile()` is gone with the model's move into Identity, so the fixture writes
+        // the row through the owner's own model.
+        Profile::create([
+            'user_id' => $driver->id,
+            'full_name' => 'AF4 Driver',
+            'number_of_rides' => 0,
+        ]);
         $ride = $this->insertRideAt($driver, 36.2765, 33.5138, 37.1343, 36.2021);
 
         // Direct service call is what the endpoint now runs; the old repository
@@ -68,7 +75,9 @@ class UntangleBatchTest extends TestCase
         // Owner ruling 2026-11-17: the `receivedRatings` assertion is GONE with the kernel
         // relation it pinned. Ratings are not a relation on `User` any more - the resources take a
         // batched map from Identity's `UserRatingReader::averageForUsers()`.
-        $this->assertTrue($found->driver->relationLoaded('profile'), 'wired path batch-loads driver profile');
+        // Stage 4 C2: the relation is still LOADED, but it no longer comes from an eager load - the service
+        // sets it from Identity's batched read, under the same key, so the raw-model response is unchanged.
+        $this->assertTrue($found->driver->relationLoaded('profile'), 'wired path supplies the driver profile from Identity');
         $this->assertTrue(isset($found->total_booked_seats), 'wired path supplies the booked-seat count');
     }
 

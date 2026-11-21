@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Identity\Models\Photo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
@@ -28,6 +29,7 @@ use Tests\TestCase;
  */
 class KycActionGateTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -128,7 +130,7 @@ class KycActionGateTest extends TestCase
         ]);
 
         if (! $driver->profile) {
-            $driver->profile()->create(['full_name' => 'Verified Driver', 'number_of_rides' => 0]);
+            $this->createProfileFor($driver, ['full_name' => 'Verified Driver', 'number_of_rides' => 0]);
         }
 
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $type) {

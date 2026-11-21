@@ -4,10 +4,12 @@ namespace Tests\Unit\Services;
 
 use App\Models\User;
 use App\Modules\Identity\Models\Photo;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Identity\Services\DocumentVerificationService;
 use App\Modules\Ride\Services\RideValidationService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\TestCase;
 
 /**
@@ -18,6 +20,7 @@ use Tests\TestCase;
  */
 class RideValidationServiceTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     private RideValidationService $service;
@@ -113,7 +116,7 @@ class RideValidationServiceTest extends TestCase
     public function test_driver_without_profile_cannot_create_ride(): void
     {
         $driver = User::factory()->create(['is_verified_driver' => true]);
-        $driver->profile()->delete();
+        Profile::where('user_id', $driver->id)->delete();
 
         $this->expectException(\Exception::class);
         $this->service->validateDriverCanCreateRide($driver->fresh());
@@ -124,7 +127,7 @@ class RideValidationServiceTest extends TestCase
         $driver = User::factory()->create(['is_verified_driver' => true]);
 
         if (! $driver->profile) {
-            $driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
+            $this->createProfileFor($driver, ['full_name' => 'Driver', 'number_of_rides' => 0]);
         }
 
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $type) {
@@ -140,7 +143,7 @@ class RideValidationServiceTest extends TestCase
         $driver = User::factory()->create(['is_verified_driver' => true]);
 
         if (! $driver->profile) {
-            $driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
+            $this->createProfileFor($driver, ['full_name' => 'Driver', 'number_of_rides' => 0]);
         }
 
         // Only face_id — missing back_id, license, mechanic_card

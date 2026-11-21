@@ -4,6 +4,7 @@ namespace Tests\Feature\Rides;
 
 use App\Http\Resources\RideResource;
 use App\Models\User;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Identity\Models\UserRating;
 use App\Modules\Ride\Models\Ride;
@@ -12,6 +13,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
@@ -25,6 +27,7 @@ use Tests\TestCase;
  */
 class RideSearchServiceTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     private RideSearchService $service;
@@ -46,7 +49,7 @@ class RideSearchServiceTest extends TestCase
         ]);
 
         if (! $this->driver->profile) {
-            $this->driver->profile()->create([
+            $this->createProfileFor($this->driver, [
                 'full_name' => 'Search Test Driver',
                 'number_of_rides' => 0,
             ]);
@@ -334,8 +337,11 @@ class RideSearchServiceTest extends TestCase
         // Stage 2 C2: ratings are no longer a relation on `User`; the resource takes the same batched map
         // the producers pass, from Identity's reader (owner ruling 2026-11-17). The assertion below is
         // untouched - only the wiring in this fixture changed.
-        $freshRide = $ride->fresh(['driver', 'driver.profile']);
+        // Stage 4 C2: `driver.profile` is not an eager-loadable relation any more; the resource takes the same
+        // batched photo map the producers pass, from Identity's own read.
+        $freshRide = $ride->fresh(['driver']);
         $row = (new RideResource($freshRide))
+            ->withProfilePhotos(app(ProfileDirectory::class)->photoPathsForUsers([$freshRide->driver_id]))
             ->withRatings(app(UserRatingReader::class)->averageForUsers([$freshRide->driver_id]))
             ->toArray(request());
 

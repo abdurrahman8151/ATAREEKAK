@@ -3,8 +3,8 @@
 namespace Tests\Feature\Review;
 
 use App\Enums\BookingStatus;
-use App\Modules\Ride\Models\Booking;
 use App\Models\User;
+use App\Modules\Ride\Models\Booking;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;

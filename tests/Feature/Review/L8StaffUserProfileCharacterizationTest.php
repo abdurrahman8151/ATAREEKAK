@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Review;
 
-use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Identity\Models\UserRating;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;

@@ -121,8 +121,29 @@ class BookingResource extends JsonResource
     {
         $storedPhoto = $this->profilePhotos !== null
             ? ($this->profilePhotos[$user->id] ?? null)
-            : $user->profile?->profile_photo;
+            : $this->injectedProfilePhoto($user);
 
         return $storedPhoto ? asset('storage/'.$storedPhoto) : $user->avatar;
+    }
+
+    /** The injected profile's stored photo (stage 4 C2) - see RideResource for the shapes accepted. */
+    private function injectedProfilePhoto($user): ?string
+    {
+        // Stage 4 C2: see RideResource - an unloaded `profile` property throws, so check the relation flag.
+        $profile = $user->relationLoaded('profile') ? $user->profile : null;
+
+        if ($profile === null) {
+            return null;
+        }
+
+        if (is_array($profile)) {
+            return $profile['profile_photo'] ?? null;
+        }
+
+        if ($profile instanceof \ArrayAccess) {
+            return $profile['profile_photo'] ?? null;
+        }
+
+        return $profile->profile_photo ?? null;
     }
 }

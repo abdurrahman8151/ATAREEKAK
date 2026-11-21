@@ -7,6 +7,7 @@ use App\Modules\Identity\Models\Photo;
 use App\Modules\Money\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
@@ -29,6 +30,7 @@ use Tests\TestCase;
  */
 class RideValidationParityTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -49,7 +51,7 @@ class RideValidationParityTest extends TestCase
             'verification_status' => 'approved', 'password' => bcrypt('password123'),
         ]);
         if (! $this->driver->profile) {
-            $this->driver->profile()->create(['full_name' => 'Parity Driver', 'number_of_rides' => 0]);
+            $this->createProfileFor($this->driver, ['full_name' => 'Parity Driver', 'number_of_rides' => 0]);
         }
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $t) {
             Photo::firstOrCreate(

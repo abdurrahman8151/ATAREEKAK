@@ -70,15 +70,24 @@ cross-module Money parameters **0 -> 111 of 113**.
   - **PHASE B GATE DONE:** full default-order + reverse, **3078 tests / 13401 assertions / 2 skipped / 0
     failures** in both (940 s and 942 s), leftover-rows probe clean after each. Corpus diff vs `stage3-verified` =
     exactly the named snapshot + its one manifest hash line (nothing else changed).
-  - NEXT: **Phase C** (Profile + ProfileComment into Identity). Measured before starting: the two kernel models are
-    named ONLY by Identity (4 + 2 files) plus three kernel files - `DTOs/Auth/CachedUser.php` (called from
-    Identity's `JwtService:233` = D4's question: the rehydration lives in Identity and hands the kernel a plain
-    column array) and the two `Console/Testing/` dev tools (ADR 0005). Removing `User::profile()` (kernel) touches
-    exactly four external reads: `Http/Resources/RideResource:116`, `Http/Resources/BookingResource:124`,
-    `Communication/Services/ChatMessageHandler:204`, `Ride/Services/RideValidationService:31` - Ride and
-    Communication already name `ProfileDirectory` / `ProfilePhotoDirectory`, so the batched photo read is the one
-    that may cost the +1 query D2 allows on `rides/create` and `chat/messages-store`; D3 = NO means the nested
-    `profile` JSON must stay byte-identical or the move is Parked with the diff. Then Phase D (cycles, references
+  - **C2 + C3 DONE (audit sec 390):** `Profile` + `ProfileComment` MOVED into `App\Modules\Identity\Models`;
+    `User::profile()` REMOVED; twenty read sites converted to Identity's ports (`ProfileDirectory::profilesForUsers`
+    new, `ProfilePhotoDirectory::profileRowsFor` new on Communication's own port - no new edge, no new cycle, no
+    raised ceiling); **D4 decided and written as ADR 0011**: the auth cache carries the profile as DATA that
+    Identity reads, re-materialised as a Collection so `/api/session/user` stays byte-identical. **D2 was NOT
+    needed**: zero budget Rises, several decreases (`bookings/accept` 44 -> 42, `bookings/reject` 31 -> 28,
+    `bookings/cancel` 50 -> 48, `chat/conversations-store` 7 -> 6, `admin/passenger-full-profile` 20 -> 19,
+    `admin/wallet-requests-approve` 30 -> 28), `query-budgets.json` untouched. **C3**: `KERNEL_MODEL_IMPORTS` is
+    **EMPTY**, its non-vacuity moved to a >=250-module-file coverage guard + a measured==declared equality.
+    Twenty-two test files migrated to a `ProfileFixtures` trait (fixtures only); TWO assertion-level adaptations
+    recorded (RV38's lazy-throw moved to `ProfileComment::profile`; the moderation fixture) - D6 remains the only
+    owner-approved assertion change, and these are relation adaptations of the same assertions.
+    Two real bugs D3 caught: the chat send path 500 (a Collection read as a model) and `session/user` losing its
+    `profile` object (the first D4 design was too narrow). Gate: **2841/12034 (2 skips)**, snapshots **186/2069**,
+    corpus byte-identical, `AppFuture` **65/472**.
+  - NEXT: **Phase C gate** (full default-order suite + one reverse run), then **Phase D** (cut the declared
+    two-cycles with consumer-declared contracts; references must go DOWN; park with measurement), **Phase E**
+    (User-into-Identity report, no code), **Phase F** (closing matrix + docs + terminal line). Then Phase D (cycles, references
     must go DOWN), E (report-only), F (closing matrix).
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full

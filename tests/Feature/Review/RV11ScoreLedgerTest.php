@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Review;
 
+use App\Models\User;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
-use App\Models\User;
 use App\Modules\Ride\Models\ScoreTransaction;
 use App\Modules\Ride\Models\UserScore;
 use App\Modules\Ride\Services\ScoreService;

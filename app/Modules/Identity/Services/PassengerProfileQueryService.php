@@ -35,7 +35,10 @@ final class PassengerProfileQueryService
         // Stage 2 C2: the `photos` eager load was DEAD WEIGHT - the full-profile screen never reads a
         // document, which the byte-identical snapshot proves. Identity owns the table, so the relation
         // went with the model instead of leaving a kernel edge to it.
-        return User::with(['profile'])->findOrFail($userId);
+        // Stage 4 C2: the `profile` relation is gone from the kernel model, so the bundle is the user only;
+        // the presenter reads the profile through Identity's own repository - ONE query, exactly the query the
+        // eager load cost.
+        return User::findOrFail($userId);
     }
 
     /** The stats bundle. `findOrFail` is kept, so the controller still answers 404. */

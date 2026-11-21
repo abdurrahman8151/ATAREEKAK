@@ -8,6 +8,7 @@ use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\TestCase;
 
@@ -20,6 +21,7 @@ use Tests\TestCase;
  */
 class RV55NoRouteDataGuardTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -36,7 +38,7 @@ class RV55NoRouteDataGuardTest extends TestCase
             'verification_status' => 'approved', 'password' => bcrypt('password123'),
         ]);
         if (! $driver->profile) {
-            $driver->profile()->create(['full_name' => 'RV55 Driver', 'number_of_rides' => 0]);
+            $this->createProfileFor($driver, ['full_name' => 'RV55 Driver', 'number_of_rides' => 0]);
         }
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $t) {
             Photo::firstOrCreate(

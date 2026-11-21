@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
@@ -32,6 +33,7 @@ use Tests\TestCase;
  */
 class MoneyPathBatchTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -63,7 +65,7 @@ class MoneyPathBatchTest extends TestCase
         $this->seedSystemWallet(config('admin.external.phone'), 0.0);
 
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
-        $this->driver->profile()->create(['full_name' => 'D', 'number_of_rides' => 0]);
+        $this->createProfileFor($this->driver, ['full_name' => 'D', 'number_of_rides' => 0]);
         $this->driverWallet = Wallet::create([
             'user_id' => $this->driver->id, 'phone_number' => '0911'.rand(100000, 999999),
             'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 0,
@@ -71,7 +73,7 @@ class MoneyPathBatchTest extends TestCase
         $this->driver->update(['wallet_id' => $this->driverWallet->id]);
 
         $this->passenger = User::factory()->create(['is_verified_passenger' => true]);
-        $this->passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
+        $this->createProfileFor($this->passenger, ['full_name' => 'P', 'number_of_rides' => 0]);
         $this->passengerWallet = Wallet::create([
             'user_id' => $this->passenger->id, 'phone_number' => '0922'.rand(100000, 999999),
             'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 1000000,

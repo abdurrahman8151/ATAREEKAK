@@ -3,14 +3,14 @@
 namespace Tests\Feature\Snapshots;
 
 use App\Enums\StaffRole;
-use App\Models\Profile;
-use App\Models\ProfileComment;
 use App\Models\User;
 use App\Modules\Communication\Models\Message;
 use App\Modules\Console\Models\Complaint;
 use App\Modules\Console\Models\ComplaintAttachment;
 use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Models\Photo;
+use App\Modules\Identity\Models\Profile;
+use App\Modules\Identity\Models\ProfileComment;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletRequest;
 use App\Modules\Money\Models\WalletTransaction;

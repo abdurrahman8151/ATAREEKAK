@@ -16,5 +16,6 @@ in a line at the top rather than being rewritten.
 | [0008](0008-readers-and-dtos-not-relations.md) | Readers and DTOs instead of relations and eager loads |
 | [0009](0009-events-move-with-their-publisher.md) | Domain events move with their publisher; jobs and listeners stay in the kernel |
 | [0010](0010-stored-class-names.md) | Stored class names: new rows keep the module namespace, readers accept both (decision PARKED) |
+| [0011](0011-auth-cache-profile-as-data.md) | The auth cache carries the profile as data; Identity rehydrates it |
 
 The map those decisions produce is in [../ARCHITECTURE.md](../ARCHITECTURE.md).

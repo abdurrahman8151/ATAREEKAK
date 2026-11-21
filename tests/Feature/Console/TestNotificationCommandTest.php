@@ -4,10 +4,11 @@ namespace Tests\Feature\Console;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\TestCase;
 
 /**
- * FIX: The previous setUp called $this->user->profile()->create() unconditionally.
+ * FIX: The previous setUp called $this->createProfileFor($this->user, ) unconditionally.
  * UserObserver already creates a profile for every new User, so that second
  * create() threw a unique-constraint SQL error, setUp() failed silently, and
  * every test in the class was skipped — explaining the 0% source coverage.
@@ -16,6 +17,7 @@ use Tests\TestCase;
  */
 class TestNotificationCommandTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     private User $user;
@@ -27,7 +29,7 @@ class TestNotificationCommandTest extends TestCase
 
         // Profile is auto-created by UserObserver; only create manually as fallback.
         if (! $this->user->profile) {
-            $this->user->profile()->create([
+            $this->createProfileFor($this->user, [
                 'full_name' => 'Test User',
                 'number_of_rides' => 0,
             ]);

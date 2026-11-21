@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Staff;
 
-use App\Models\Profile;
-use App\Models\ProfileComment;
 use App\Models\User;
 use App\Modules\Console\Models\Employee;
+use App\Modules\Identity\Models\Profile;
+use App\Modules\Identity\Models\ProfileComment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

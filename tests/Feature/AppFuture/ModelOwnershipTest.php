@@ -108,14 +108,14 @@ final class ModelOwnershipTest extends TestCase
      * @var array<string, string>
      */
     private const KERNEL_MODEL_IMPORTS = [
-        // Stage 2 C2: the Complaint pair went with the sec-374 move, and the Money and Console-wallet pairs
-        // went in secs 372/373. These two are what is LEFT, and both are OWNER-PARKED (the Profile move needs a
-        // +1 query on two endpoints and a nested-`profile` JSON change; the owner's ruling was to keep it
-        // parked). They stay declared because they are still measured - removing them here would not remove
-        // the imports, it would only hide them.
-        'Identity -> Profile' => 'profiles',
-        'Identity -> ProfileComment' => 'profile_comments',
+        // Stage 4 C2: EMPTY. `Profile` and `ProfileComment` moved into Identity, so no module names a foreign
+        // kernel model any more - the last two owner-parked pairs went with the move the owner unblocked
+        // (D2 = YES, D3 = NO, D4 = AGENT). Shrink-only in both directions now: an added line means a module
+        // started reading another module's table, and a stale line here fails the equality check below.
     ];
+
+    /** The scan must cover the whole module tree, or an empty list would prove nothing. */
+    private const MIN_MODULE_FILES = 250;
 
     /** @test */
     public function a_module_may_only_name_models_it_owns(): void
@@ -127,18 +127,34 @@ final class ModelOwnershipTest extends TestCase
             'The module sweep found fewer modules than exist - the scan is broken, not the codebase.'
         );
 
-        $found = $this->foreignModelPairs($modules);
-        $this->assertNotEmpty($found, 'The scan found no model imports at all - it is not looking where modules are.');
+        // Stage 4 C2/C3: the pair list is EMPTY, so "the scan found nothing" is now the SUCCESS case and can no
+        // longer be the non-vacuity guard. Coverage is: the sweep must have walked the whole module tree.
+        $files = 0;
+        foreach ($modules as $module) {
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(base_path('app/Modules/'.$module)));
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $files++;
+                }
+            }
+        }
 
-        $declared = self::KERNEL_MODEL_IMPORTS;
-        $this->assertNotEmpty($declared, 'A empty baseline would make this ratchet vacuous.');
+        $this->assertGreaterThanOrEqual(
+            self::MIN_MODULE_FILES,
+            $files,
+            'The sweep covered fewer module files than exist - the scan is broken, not the codebase.'
+        );
 
-        $new = array_values(array_diff(array_keys($found), array_keys($declared)));
-        sort($new);
+        $found = array_keys($this->foreignModelPairs($modules));
+        $declared = array_keys(self::KERNEL_MODEL_IMPORTS);
+        sort($found);
+        sort($declared);
+
         $this->assertSame(
-            [],
-            $new,
-            "A module started naming a model it does not own:\n  ".implode("\n  ", $new)
+            $declared,
+            $found,
+            "A module names a model it does not own, or a declared line is stale:\n  measured: "
+            .json_encode($found)."\n  declared: ".json_encode($declared)
             ."\nAdd a Reader contract in the owning module's Contracts instead of a line here."
         );
     }

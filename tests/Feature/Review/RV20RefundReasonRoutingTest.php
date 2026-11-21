@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Review;
 
-use App\Modules\Ride\Models\Booking;
-use App\Modules\Ride\Models\Ride;
 use App\Modules\Money\Domain\Strategies\CashPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\EPayPaymentStrategy;
 use App\Modules\Money\Domain\Strategies\PaymentStrategy;
 use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Money\Services\CancellationRefund;
 use App\Modules\Money\Services\RidePayout;
+use App\Modules\Ride\Models\Booking;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Mockery;
 use Tests\TestCase;

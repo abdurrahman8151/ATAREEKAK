@@ -8,6 +8,7 @@ use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Ride\Models\Booking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
@@ -28,6 +29,7 @@ use Tests\TestCase;
  */
 class RV40MoneySnapshotTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     private Wallet $syCash;
@@ -54,7 +56,7 @@ class RV40MoneySnapshotTest extends TestCase
         ]);
 
         $this->passenger = User::factory()->create(['is_verified_passenger' => true]);
-        $this->passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
+        $this->createProfileFor($this->passenger, ['full_name' => 'P', 'number_of_rides' => 0]);
         $pw = Wallet::create([
             'user_id' => $this->passenger->id,
             'phone_number' => '0922'.rand(100000, 999999),

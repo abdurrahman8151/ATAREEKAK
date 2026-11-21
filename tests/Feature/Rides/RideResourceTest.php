@@ -3,10 +3,12 @@
 namespace Tests\Feature\Rides;
 
 use App\Models\User;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
@@ -29,6 +31,7 @@ use Tests\TestCase;
  */
 class RideResourceTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -50,8 +53,8 @@ class RideResourceTest extends TestCase
             'password' => bcrypt('password123'),
         ]);
 
-        if (! $this->driver->profile) {
-            $this->driver->profile()->create([
+        if (! Profile::where('user_id', $this->driver->id)->exists()) {
+            $this->createProfileFor($this->driver, [
                 'full_name' => 'Test Driver',
                 'number_of_rides' => 0,
             ]);
@@ -275,7 +278,8 @@ class RideResourceTest extends TestCase
             ->departureTime(now()->addHours(3))
             ->create();
 
-        return Ride::with(['driver', 'driver.profile'])->find($ride->id);
+        // Stage 4 C2: the profile is no longer a relation - the handler supplies it from Identity's read.
+        return Ride::with('driver')->find($ride->id);
     }
 
     private function getToken(User $user): string

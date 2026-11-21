@@ -8,6 +8,7 @@ use App\Modules\Identity\Contracts\TokenRevokerInterface;
 use App\Modules\Identity\Contracts\UserTokenCleanupInterface;
 use App\Modules\Identity\Contracts\UserTokenVerifierInterface;
 use App\Modules\Identity\Models\RefreshToken;
+use App\Modules\Identity\Repositories\ProfileRepository;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -231,7 +232,10 @@ class JwtService implements TokenRevokerInterface, UserTokenCleanupInterface, Us
             // subsequent request would use it. Force the primary on the miss path so a busted
             // cache always rehydrates from authoritative data.
             fn () => CachedUser::fromOptionalModel(
-                User::with('profile')->useWritePdo()->find($userId)
+                // Stage 4 C2 (D4): Identity reads the profile row itself and hands it in as data - the kernel DTO
+                // may not name the model, and the payload keeps the same columns it always had.
+                User::query()->useWritePdo()->find($userId),
+                app(ProfileRepository::class)->getProfileByUserId($userId)?->toArray(),
             )
         );
 

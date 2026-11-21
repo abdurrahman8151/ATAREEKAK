@@ -99,7 +99,12 @@ final class ChatMessageHandler implements ChatMessageHandlerInterface
         // — 2 extra DB queries per message (~100ms wasted).
         // Kept UNCHANGED in stage 2 C2: the broadcast payload carries this relation, and the single-message
         // path reads the loaded profile with zero extra queries.
-        $message->setRelation('sender', $sender->loadMissing('profile'));
+        // Stage 4 C2: the sender's profile comes from Identity through the port Communication publishes (the
+        // kernel relation went with the model). Same ONE query the retired eager load cost, same key, so the
+        // broadcast payload and the single-message read are unchanged.
+        $profileRow = $this->profilePhotos->profileRowsFor([$sender->id])[(int) $sender->id] ?? null;
+        $sender->setRelation('profile', $profileRow === null ? null : collect($profileRow));
+        $message->setRelation('sender', $sender);
 
         return $message;
     }
@@ -200,8 +205,23 @@ final class ChatMessageHandler implements ChatMessageHandlerInterface
      */
     private function resolvePhotoPath(User $user): ?string
     {
+        // Stage 4 C2: the loaded-relation fast path still wins when a caller attached one (the send path
+        // does), and it may now be an array; otherwise Identity's port answers.
         if ($user->relationLoaded('profile')) {
-            return $user->profile?->profile_photo;
+            $profile = $user->profile;
+
+            if ($profile === null) {
+                return null;
+            }
+
+            // Stage 4 C2: the injected value is Identity's row as an Arrayable (a Collection) or a plain array -
+            // reading `->profile_photo` off a Collection is an undefined property, which is what turned the whole
+            // send path into a 500 the first time round.
+            if (is_array($profile) || $profile instanceof \ArrayAccess) {
+                return $profile['profile_photo'] ?? null;
+            }
+
+            return $profile->profile_photo ?? null;
         }
 
         return $this->profilePhotos->photoPathsFor([$user->id])[$user->id] ?? null;

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Modules\Identity\Contracts\VerificationRepositoryInterface;
 use App\Modules\Identity\Models\Photo;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Money\Models\Wallet;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -117,7 +118,7 @@ class DriverSeeder extends Seeder
 
             // ── 6. Update profile with vehicle details ──────────────────────
             // Profile was already created by the observer; we just fill vehicle info.
-            $user->profile()->update([
+            Profile::where('user_id', $user->id)->update([
                 'type_of_car' => $data['vehicle'],
                 'color_of_car' => $data['color'],
                 'number_of_seats' => $data['seats'],

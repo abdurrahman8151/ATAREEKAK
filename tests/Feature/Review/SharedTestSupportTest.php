@@ -9,6 +9,7 @@ use App\Modules\Ride\Models\Booking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\Concerns\ActsAsStaff;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\GeoPoint;
 use Tests\Support\RideBuilder;
@@ -30,6 +31,7 @@ use Tests\TestCase;
 class SharedTestSupportTest extends TestCase
 {
     use ActsAsStaff;
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -149,7 +151,7 @@ class SharedTestSupportTest extends TestCase
     {
         $driver = User::factory()->create(['is_verified_driver' => true]);
         $passenger = User::factory()->create(['is_verified_passenger' => true]);
-        $passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
+        $this->createProfileFor($passenger, ['full_name' => 'P', 'number_of_rides' => 0]);
 
         // Idempotent: the reserved phones are shared across the whole suite, and `seedSystemWallet` is a
         // firstOrCreate, so the escrow wallet can already hold a balance left by an earlier test in the

@@ -9,12 +9,14 @@ use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
 class RideControllerFullTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -45,7 +47,7 @@ class RideControllerFullTest extends TestCase
         ]);
 
         if (! $this->driver->profile) {
-            $this->driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
+            $this->createProfileFor($this->driver, ['full_name' => 'Driver', 'number_of_rides' => 0]);
         }
 
         foreach (['face_id', 'back_id', 'license', 'mechanic_card'] as $type) {
@@ -59,7 +61,7 @@ class RideControllerFullTest extends TestCase
         ]);
 
         if (! $this->passenger->profile) {
-            $this->passenger->profile()->create(['full_name' => 'Passenger', 'number_of_rides' => 0]);
+            $this->createProfileFor($this->passenger, ['full_name' => 'Passenger', 'number_of_rides' => 0]);
         }
 
         $this->seedSystemWallets(10_000_000);

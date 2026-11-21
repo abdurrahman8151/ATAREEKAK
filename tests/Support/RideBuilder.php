@@ -2,8 +2,8 @@
 
 namespace Tests\Support;
 
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Support\Facades\DB;
 
 /**

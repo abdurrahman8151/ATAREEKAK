@@ -148,10 +148,11 @@ class User extends Authenticatable
     }
 
     // ── Relationships ────────────────────────────────────────────────────────
-    public function profile(): HasOne
-    {
-        return $this->hasOne(Profile::class);
-    }
+    // Stage 4 C2: `profile()` (hasOne Profile) is REMOVED - `Profile` is Identity's model now, so a kernel
+    // relation to it would be a kernel -> module implementation reference. Every reader was converted to
+    // Identity's ports in the same step (the ride and booking resources take a batched photo map, the chat
+    // senders use Communication's `ProfilePhotoDirectory`, the ride precondition and the passenger panel read
+    // through Identity itself), so nothing in the kernel reads `$request->user()->profile` any more.
 
     // Stage 2 C2: `rides()` (hasMany Ride) is REMOVED. It had exactly one live consumer - Console's
     // driver-profile presenter - which now queries Ride itself, so keeping it would only have been a

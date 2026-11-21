@@ -2,10 +2,10 @@
 
 namespace App\Modules\Identity\Services;
 
-use App\Models\Profile;
 use App\Modules\Communication\Contracts\ProfilePhotoDirectory;
 use App\Modules\Identity\Contracts\PhotoRepositoryInterface;
 use App\Modules\Identity\Contracts\ProfileDirectory;
+use App\Modules\Identity\Models\Profile;
 
 /**
  * Stage 2 C2: Identity's profile reads for other modules. One method, one statement (or the same small
@@ -58,6 +58,32 @@ final class ProfileDirectoryReader implements ProfileDirectory, ProfilePhotoDire
     public function photoPathsForUsers(array $userIds): array
     {
         return $this->photoPathsFor($userIds);
+    }
+
+    /**
+     * Stage 4 C2: the whole profile row per user, as the model serializes it - ONE query for a page.
+     *
+     * `toArray()` (not `getAttributes()`) on purpose: the eager load this replaces serialized the model, so
+     * casts and ISO timestamps must match, or a raw-model response would drift.
+     */
+    public function profilesForUsers(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        return Profile::query()
+            ->whereIn('user_id', $userIds)
+            ->get()
+            ->keyBy('user_id')
+            ->map(fn (Profile $profile) => $profile->toArray())
+            ->all();
+    }
+
+    /** Stage 4 C2: Communication's consumer-declared form of `profilesForUsers()` - same rows, same query. */
+    public function profileRowsFor(array $userIds): array
+    {
+        return $this->profilesForUsers($userIds);
     }
 
     /**

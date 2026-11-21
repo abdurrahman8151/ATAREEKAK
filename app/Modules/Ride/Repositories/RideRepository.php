@@ -192,7 +192,7 @@ class RideRepository implements RideRepositoryInterface
     {
         Log::info('RideRepository: Fetching upcoming rides');
 
-        return Ride::with('driver.profile')
+        return Ride::with('driver')
             ->where('departure_time', '>', now())
             ->orderBy('departure_time', 'asc')
             ->get();

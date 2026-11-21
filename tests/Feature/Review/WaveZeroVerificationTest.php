@@ -3,10 +3,10 @@
 namespace Tests\Feature\Review;
 
 use App\Http\Middleware\TrustProxies;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Identity\Services\JwtService;
 use App\Modules\Ride\Http\Controllers\RideController;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Services\RideSearchService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;

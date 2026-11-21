@@ -3,8 +3,8 @@
 namespace Tests\Feature\Review;
 
 use App\Enums\RideStatus;
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
+use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Services\RideSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;

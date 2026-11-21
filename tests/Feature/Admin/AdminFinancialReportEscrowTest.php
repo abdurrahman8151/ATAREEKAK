@@ -12,6 +12,7 @@ use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\Concerns\SeedsSystemWallets;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
@@ -32,6 +33,7 @@ use Tests\TestCase;
  */
 class AdminFinancialReportEscrowTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
     use SeedsSystemWallets;
 
@@ -69,7 +71,7 @@ class AdminFinancialReportEscrowTest extends TestCase
         $this->primary->update(['balance' => 0]);
 
         $this->driver = User::factory()->create(['is_verified_driver' => true]);
-        $this->driver->profile()->create(['full_name' => 'Driver', 'number_of_rides' => 0]);
+        $this->createProfileFor($this->driver, ['full_name' => 'Driver', 'number_of_rides' => 0]);
         $this->driverWallet = Wallet::create([
             'user_id' => $this->driver->id, 'phone_number' => '0911'.rand(100000, 999999),
             'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 0,
@@ -80,7 +82,7 @@ class AdminFinancialReportEscrowTest extends TestCase
 
         foreach ([['p1', '0922', 'p1Token'], ['p2', '0933', 'p2Token']] as [$prop, $prefix, $tokenProp]) {
             $u = User::factory()->create(['is_verified_passenger' => true]);
-            $u->profile()->create(['full_name' => $prop, 'number_of_rides' => 0]);
+            $this->createProfileFor($u, ['full_name' => $prop, 'number_of_rides' => 0]);
             $w = Wallet::create([
                 'user_id' => $u->id, 'phone_number' => $prefix.rand(100000, 999999),
                 'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 1_000_000,

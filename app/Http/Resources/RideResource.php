@@ -113,7 +113,7 @@ class RideResource extends JsonResource
         // Stage 2 C2: the batched map when the producer supplied one, otherwise the relation (transitional).
         $storedPhoto = $this->profilePhotos !== null
             ? ($this->profilePhotos[$this->driver->id] ?? null)
-            : $this->driver->profile?->profile_photo;
+            : $this->injectedProfilePhoto($this->driver);
 
         return [
             'id' => $this->driver->id,
@@ -198,5 +198,34 @@ class RideResource extends JsonResource
         }
 
         return "{$minutes}m";
+    }
+
+    /**
+     * The stored photo of a profile a producer injected under the `profile` key (stage 4 C2).
+     *
+     * The kernel relation is gone, so a producer attaches Identity's row array - as an array or a Collection,
+     * both of which `relationsToArray()` can print. A model value is still accepted so this file keeps working
+     * for any caller that has not converted yet; null means "no profile row", exactly as the eager load
+     * serialized it.
+     */
+    private function injectedProfilePhoto($driver): ?string
+    {
+        // Stage 4 C2: `profile` is not a relation on the kernel model any more, so reading it as a property
+        // would throw RelationNotFoundException. Only a producer-injected relation is readable.
+        $profile = $driver->relationLoaded('profile') ? $driver->profile : null;
+
+        if ($profile === null) {
+            return null;
+        }
+
+        if (is_array($profile)) {
+            return $profile['profile_photo'] ?? null;
+        }
+
+        if ($profile instanceof \ArrayAccess) {
+            return $profile['profile_photo'] ?? null;
+        }
+
+        return $profile->profile_photo ?? null;
     }
 }

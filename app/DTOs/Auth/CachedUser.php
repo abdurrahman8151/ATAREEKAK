@@ -2,7 +2,6 @@
 
 namespace App\DTOs\Auth;
 
-use App\Models\Profile;
 use App\Models\User;
 
 /**
@@ -30,14 +29,20 @@ use App\Models\User;
  *
  * WHAT IS DELIBERATELY ABSENT. `password` only. Everything the middleware and the app actually read
  * off `$request->user()` is carried: identity, status, the ban fields the auto-lift needs,
- * `token_version` for revocation, the verification flags, and the `profile` relation (which the
- * middleware and many controllers read).
+ * `token_version` for revocation and the verification flags.
+ *
+ * Stage 4 C2 (D4): the profile is still carried, but as DATA. `Profile` moved into Identity, so this kernel
+ * DTO may not read the relation - Identity reads the row and hands it in, and `toUser()` attaches it as a
+ * Collection (Arrayable), which is what keeps a raw-model response like `/api/session/user` byte-identical.
+ * The cache geometry is unchanged: same columns, same 5-minute TTL, still no `password`.
  */
 final class CachedUser
 {
     /**
      * @param  array<string, mixed>  $attributes  the user's columns EXCLUDING `password`
-     * @param  array<string, mixed>|null  $profile
+     * @param  array<string, mixed>|null  $profile  the profile ROW as Identity read it, or null when the user has
+     *                                              none. Data, not a model: what is cached must not name the
+     *                                              module class, and what is rebuilt must not be a module model.
      */
     public function __construct(
         public readonly array $attributes,
@@ -51,24 +56,19 @@ final class CachedUser
      * 401 USER_NOT_FOUND. Turning it into an exception here would return a 500 instead, so the
      * "no such user" answer is preserved exactly as before this refactor.
      */
-    public static function fromOptionalModel(?User $user): ?self
+    public static function fromOptionalModel(?User $user, ?array $profile = null): ?self
     {
-        return $user ? self::fromModel($user) : null;
+        return $user ? self::fromModel($user, $profile) : null;
     }
 
     /** Build the cache payload from a freshly-read model. */
-    public static function fromModel(User $user): self
+    public static function fromModel(User $user, ?array $profile = null): self
     {
         // `getAttributes()` is the raw column set; unset the credential rather than trying to
         // remember every other sensitive-ish column, so a future column is cached by default and the
         // one field that must never be cached is explicitly removed.
         $attributes = $user->getAttributes();
         unset($attributes['password']);
-
-        $profile = null;
-        if ($user->relationLoaded('profile') && $user->profile !== null) {
-            $profile = $user->profile->getAttributes();
-        }
 
         return new self($attributes, $profile);
     }
@@ -88,17 +88,11 @@ final class CachedUser
         $user->exists = true;
         $user->setRawAttributes($this->attributes, true);
 
-        if ($this->profile !== null) {
-            $profile = new Profile;
-            $profile->forceFill($this->profile);
-            $profile->exists = true;
-            $profile->setRawAttributes($this->profile, true);
-            $user->setRelation('profile', $profile);
-        } else {
-            // Explicitly mark it loaded-and-null so a read of `$user->profile` returns null instead
-            // of triggering a lazy load (which the armed lazy guard would reject).
-            $user->setRelation('profile', null);
-        }
+        // Stage 4 C2 (D4): the relation is attached as the DATA Identity cached, never as a module model. A
+        // Collection is Arrayable, so a raw-model response that prints the principal still prints the profile
+        // object byte for byte (`/api/session/user` is exactly that case, and D3 = NO froze it); `null` is
+        // attached explicitly for a user with no profile row, which is what the retired eager load serialized.
+        $user->setRelation('profile', $this->profile === null ? null : collect($this->profile));
 
         return $user;
     }

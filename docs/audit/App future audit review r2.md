@@ -22992,3 +22992,64 @@ only if unavoidable. The candidates: `rides/create` needs the driver's profile r
 `loadMissing('profile')`... which C2 replaces with the same one batched port call, so it may not rise at all);
 `chat/messages-store` reads `profile_photo` for the senders, which `ProfilePhotoDirectory` already batches. Both
 numbers will be measured in C2 and recorded either way - the RULE is that no other budget moves.
+
+---
+
+### 390. STAGE 4 C2 + C3 - `Profile` and `ProfileComment` join Identity: twenty read sites through the owner, the JSON frozen, `KERNEL_MODEL_IMPORTS` at ZERO
+
+**The move.** `git mv` of both models from the kernel into `app/Modules/Identity/Models/`, namespaces rewritten, and
+every reference repointed (17 files across Identity, the two exempt `Console/Testing` dev tools, the kernel DTO, and
+five test/support files). `User::profile()` - the kernel `hasOne` - is **gone**: with the model in Identity it was a
+kernel -> module implementation reference, which `ModuleBoundaryTest` would (rightly) refuse.
+
+**The twenty read sites, and what each got instead.** Every one is a port that already existed, plus two new reads on
+ports that already existed (no new edge, no new cycle, and no raised ceiling):
+
+| site | replaced by |
+|---|---|
+| `RideSearchService::searchRides()` (`driver.profile` eager load) | `ProfileDirectory::profilesForUsers()`, ONE batched read, injected under the SAME key as an Arrayable (`null` stays `null`) |
+| `RideSearchService`'s nearby-rides query | same hydration helper |
+| `RideService` create-with-route (`fresh(['driver.profile'])`) | `fresh(['driver'])` + the same one-query hydration |
+| `RideRepository::getUpcomingRides()` | eager load dropped (no consumer of that read) |
+| `RideValidationService` (`loadMissing('profile')` + `$driver->profile`) | `ProfileDirectory::profilesForUsers([$id]) !== []` - ONE query, as before |
+| `RideResource` / `BookingResource` avatar fallback | the producer's batched photo map; the fallback reads only a producer-INJECTED relation (`relationLoaded()` first - reading an unloaded one throws) |
+| `ChatMessageHandler` send path (`loadMissing('profile')`) | `ProfilePhotoDirectory::profileRowsFor()` - Communication's consumer-declared port gained the method, because naming Identity's `ProfileDirectory` from Communication would re-create the cycle stage 1.5 cut. Same ONE query |
+| `ChatMessageHandler::resolvePhotoPath()` | handles the injected row (array/ArrayAccess) |
+| `PassengerProfileQueryService::profileBundle` + `PassengerProfilePanelBuilder` | `ProfileRepository::getProfileByUserId()` (Identity's own read) |
+| `CachedUser` + `JwtService` | **D4**, [ADR 0011](../adr/0011-auth-cache-profile-as-data.md): the cache carries the row as DATA that Identity reads; the DTO attaches it as a Collection, so `/api/session/user` stays byte-identical |
+| `DriverSeeder`, 22 test files | `ProfileFixtures::createProfileFor()` / `Profile::where('user_id', ...)` - mechanical fixture migration, no assertion changed |
+
+**D3 was the hard constraint, and it caught two real bugs.**
+
+1. **`session/user` lost its `profile` object** when the cache stopped carrying the relation - a live response change.
+   The first D4 design ("materialise only `profile_photo`") was wrong for the same reason: that endpoint prints the
+   whole principal. Corrected to carry the row and re-materialise it as an Arrayable; the snapshot is byte-identical
+   again.
+2. **The chat send path 500'd** because `resolvePhotoPath()` read `$profile->profile_photo` off a **Collection** -
+   an undefined property, which PHP raises and the controller's broad catch turns into a 500. The ArrayAccess branch
+   fixed it; the four `chat/*` snapshot cases went from 500 to byte-identical.
+
+**Budgets: D2 was not needed.** The snapshot suite passes with **zero budget rises** - the batched port reads replaced
+the eager loads one-for-one - and several budgets went DOWN because a charge path no longer re-reads a profile
+(`bookings/accept` 44 -> 42, `bookings/reject` 31 -> 28, `bookings/cancel` 50 -> 48, `chat/conversations-store` 7 -> 6,
+`admin/passenger-full-profile` 20 -> 19, `admin/wallet-requests-approve` 30 -> 28). `query-budgets.json` is
+**untouched**: a decrease is advice, and the file stays byte-identical as the phase requires.
+
+**C3, in this commit because the gate cannot be green without it:** `ModelOwnershipTest::KERNEL_MODEL_IMPORTS` is
+**EMPTY** (it was the two owner-parked Profile pairs), and because an empty list would make the old
+"`found` must be non-empty" guard vacuous, the non-vacuity moved to **coverage**: the sweep must walk at least 250
+module PHP files before the equality check (measured == declared). A new foreign-model import fails; a stale declared
+line fails too.
+
+**Test migration, recorded for the Phase F assertion list.** Twenty-two files moved from `$user->profile()->create(...)`
+to the `ProfileFixtures` trait (fixtures only - no assertion text touched), and **two** tests needed an
+assertion-level adaptation, both because their SUBJECT was a relation that no longer exists:
+`RV38LazyArmingMechanismTest` asserts "a lazy load throws under the guard" (now on `ProfileComment::profile`, still a
+live relation, same exception type) and `ReviewModerationServiceTest`'s comment fixture creates its profile through the
+model. No owner ruling was needed for either: D6 is the only assertion change the owner approved, and these are
+fixture/relation adaptations of the same assertions, recorded here for review.
+
+**Gate for C2+C3** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots + Rides +
+Bookings + Chat + Notifications + Profile + Auth + Staff + Admin): **2841 tests / 12034 assertions / 2 skipped /
+0 failures**. Snapshots alone: **186 / 2069 OK**, corpus byte-identical to `stage3-verified` except the one file
+Phase B named. `AppFuture`: **65 / 472**.

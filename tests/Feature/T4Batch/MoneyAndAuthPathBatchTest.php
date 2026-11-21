@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\T4Batch;
 
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
 use App\Modules\Console\Contracts\EmployeeRepositoryInterface;
 use App\Modules\Console\Models\Employee;
 use App\Modules\Identity\Models\StaffRefreshToken;
 use App\Modules\Identity\Services\StaffJwtService;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;

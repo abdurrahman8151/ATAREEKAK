@@ -4,6 +4,7 @@ namespace App\Modules\Ride\Services;
 
 use App\Models\User;
 use App\Modules\Identity\Contracts\DocumentVerificationInterface;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Ride\Models\UserScore;
 use Carbon\Carbon;
 
@@ -24,11 +25,12 @@ final class RideValidationService
             throw new \InvalidArgumentException('You must be verified as a driver to create rides');
         }
 
-        // RV-37 / un9: the profile is read on every ride-creation attempt, and the document
-        // validator below reads it too - load it once, explicitly, instead of lazily.
-        $driver->loadMissing('profile');
+        // RV-37 / un9: the profile is read on every ride-creation attempt, and the document validator below
+        // reads it too. Stage 4 C2: `Profile` is Identity's model and the kernel relation is gone, so the check
+        // asks Identity - ONE query, exactly the query the retired `loadMissing('profile')` cost.
+        $hasProfile = app(ProfileDirectory::class)->profilesForUsers([$driver->id]) !== [];
 
-        if (! $driver->profile) {
+        if (! $hasProfile) {
             throw new \InvalidArgumentException('Driver profile not found. Please complete your profile.');
         }
 

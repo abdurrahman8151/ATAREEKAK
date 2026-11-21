@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Review;
 
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

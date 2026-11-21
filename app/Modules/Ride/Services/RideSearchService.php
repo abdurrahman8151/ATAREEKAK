@@ -3,6 +3,7 @@
 namespace App\Modules\Ride\Services;
 
 use App\Enums\RideStatus;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Identity\Contracts\UserRatingReader;
 use App\Modules\Ride\Models\Ride;
 use App\Support\GeoPoint;
@@ -62,10 +63,9 @@ final class RideSearchService
                 // NOTE: no select-restrictions here - the controller serializes raw models (no Resource),
                 // so a trimmed column list would SUBTRACT fields from a live response shape.
                 'driver',
-                'driver.profile',
-                // Stage 2 C2: `driver.receivedRatings` is gone with the kernel relation (owner ruling
-                // 2026-11-17). The nested key it produced is restored below from Identity's reader, in
-                // ONE batched query for the whole page - see `rowsForUsers()`.
+                // Stage 4 C2: `driver.profile` is GONE with the model's move into Identity. The nested key is
+                // restored below from Identity's own read, in ONE query for the whole page - the same query the
+                // eager load cost - so this raw-model response stays byte-identical.
             ])
             ->withCount(['bookings as total_booked_seats' => function ($query) {
                 $query->selectRaw('COALESCE(SUM(seats), 0)');
@@ -77,6 +77,8 @@ final class RideSearchService
         // serialized. That keeps this raw-model response byte-identical (and the AF-4 N+1 test's
         // "exactly one user_ratings query" contract) with no relation on the kernel principal.
         $ratingRows = app(UserRatingReader::class)->rowsForUsers($rides->pluck('driver_id')->all());
+
+        $this->hydrateDriverProfiles($rides);
 
         foreach ($rides as $ride) {
             if ($ride->driver) {
@@ -220,8 +222,35 @@ final class RideSearchService
                 'ST_Distance_Sphere(pickup_location, ST_GeomFromText(?, 4326)) <= ?',
                 [$pointWkt, $radiusMeters]
             )
-            ->with(['driver', 'driver.profile'])
+            ->with(['driver'])
             ->orderBy('departure_time', 'asc')
             ->get();
+    }
+
+    /**
+     * Stage 4 C2: put each page's driver profile back under the `profile` key, from Identity's own read.
+     *
+     * The eager load this replaces serialized the model (so a driver with no profile row serialized `null`, and
+     * one with a row serialized an object); the two cases are reproduced exactly - `null` stays `null`, a row
+     * becomes an Arrayable so `relationsToArray()` keeps printing it. ONE query for the whole collection.
+     */
+    private function hydrateDriverProfiles(Collection $rides): void
+    {
+        $driverIds = $rides->pluck('driver_id')->filter()->unique()->values()->all();
+
+        if ($driverIds === []) {
+            return;
+        }
+
+        $profileRows = app(ProfileDirectory::class)->profilesForUsers($driverIds);
+
+        foreach ($rides as $ride) {
+            if (! $ride->driver) {
+                continue;
+            }
+
+            $row = $profileRows[(int) $ride->driver_id] ?? null;
+            $ride->driver->setRelation('profile', $row === null ? null : collect($row));
+        }
     }
 }

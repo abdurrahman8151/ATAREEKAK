@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Modules\Ride\Models\Ride;
 use App\Models\User;
+use App\Modules\Ride\Models\Ride;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class RideFactory extends Factory

@@ -2,8 +2,8 @@
 
 namespace App\Modules\Identity\Services;
 
-use App\Models\ProfileComment;
 use App\Modules\Identity\Contracts\ProfileCommentDirectory;
+use App\Modules\Identity\Models\ProfileComment;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 /**

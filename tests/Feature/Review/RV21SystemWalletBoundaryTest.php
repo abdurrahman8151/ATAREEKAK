@@ -8,6 +8,7 @@ use App\Modules\Money\Services\BookingCharge;
 use App\Modules\Ride\Models\Booking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
@@ -32,6 +33,7 @@ use Tests\TestCase;
  */
 class RV21SystemWalletBoundaryTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -49,7 +51,7 @@ class RV21SystemWalletBoundaryTest extends TestCase
 
         $driver = User::factory()->create(['is_verified_driver' => true]);
         $passenger = User::factory()->create(['is_verified_passenger' => true]);
-        $passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
+        $this->createProfileFor($passenger, ['full_name' => 'P', 'number_of_rides' => 0]);
 
         // Legit passenger wallet, funded.
         $pw = Wallet::create([
@@ -120,7 +122,7 @@ class RV21SystemWalletBoundaryTest extends TestCase
 
         $driver = User::factory()->create(['is_verified_driver' => true]);
         $passenger = User::factory()->create(['is_verified_passenger' => true]);
-        $passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
+        $this->createProfileFor($passenger, ['full_name' => 'P', 'number_of_rides' => 0]);
         $pw = Wallet::create([
             'user_id' => $passenger->id,
             'phone_number' => '0922'.rand(100000, 999999),

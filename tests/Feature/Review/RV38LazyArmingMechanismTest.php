@@ -3,11 +3,13 @@
 namespace Tests\Feature\Review;
 
 use App\Models\Concerns\GuardsLazyLoading;
-use App\Models\Profile;
 use App\Models\User;
+use App\Modules\Identity\Models\Profile;
+use App\Modules\Identity\Models\ProfileComment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\TestCase;
 
 /**
@@ -29,6 +31,7 @@ use Tests\TestCase;
  */
 class RV38LazyArmingMechanismTest extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     private ?bool $restoreFlag = null;
@@ -113,12 +116,23 @@ class RV38LazyArmingMechanismTest extends TestCase
             $found->preventsLazyLoading,
             'RV-38: a single-row User::find() must inherit the lazy guard from the static flag'
         );
-        $this->assertFalse($found->relationLoaded('profile'),
+        // Stage 4 C2: `User` has no relations left, so the "a genuine lazy load throws" half is asserted on a
+        // model that still has one - the comment's `profile` - while the arming assertion above stays on the
+        // principal, which is what RV-38 was about.
+        $profile = $this->createProfileFor($found);
+        $comment = ProfileComment::create([
+            'profile_id' => $profile->id,
+            'user_id' => $found->id,
+            'comment' => 'lazy violation probe',
+        ]);
+        $reloaded = ProfileComment::findOrFail($comment->id);
+
+        $this->assertFalse($reloaded->relationLoaded('profile'),
             'precondition: profile must not be eager-loaded for this to mean anything');
 
         $this->expectException(LazyLoadingViolationException::class);
 
-        $found->profile; // a genuine lazy relation load -> must now throw
+        $reloaded->profile; // a genuine lazy relation load -> must now throw
     }
 
     /** @test */
@@ -154,9 +168,18 @@ class RV38LazyArmingMechanismTest extends TestCase
         $this->assertFalse($found->preventsLazyLoading,
             'with the static flag off, the guard stays off — no behavioural change');
 
-        // And a lazy relation load still WORKS normally (no exception). The factory creates a
-        // Profile, so we assert the relation resolves to an actual Profile, not null.
-        $this->assertInstanceOf(Profile::class, $found->profile,
+        // And a lazy relation load still WORKS normally (no exception). Stage 4 C2: `User` has no relations left
+        // (they all moved with their models), so the assertion uses a relation that still exists - the comment's
+        // own `profile` - which is what the guard is about: a lazy load resolving instead of throwing.
+        $profile = $this->createProfileFor($found);
+        $comment = ProfileComment::create([
+            'profile_id' => $profile->id,
+            'user_id' => $found->id,
+            'comment' => 'lazy-arming probe',
+        ]);
+        $reloaded = ProfileComment::findOrFail($comment->id);
+
+        $this->assertInstanceOf(Profile::class, $reloaded->profile,
             'with the guard disabled a lazy relation load resolves normally');
     }
 }

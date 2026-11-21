@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * Stage 2 C2: the staff review-moderation screen's read and delete of `profile_comments`, as data.
  *
  * `profile_comments` is Identity's table. Console's moderation screen used to query
- * `App\Models\ProfileComment` directly and hand the model back through `format()`, which is the coupling
+ * `App\Modules\Identity\Models\ProfileComment` directly and hand the model back through `format()`, which is the coupling
  * this port removes. The page keeps the SAME eager loads and the SAME filters, so the query count and the
  * response shape do not move; only the type crossing the boundary changes, from a model to arrays.
  */

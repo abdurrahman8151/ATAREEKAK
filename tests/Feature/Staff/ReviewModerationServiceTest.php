@@ -2,10 +2,11 @@
 
 namespace Staff;
 
-use App\Models\ProfileComment;
 use App\Models\User;
 use App\Modules\Console\Services\ReviewModerationService;
 use App\Modules\Identity\Contracts\ProfileCommentDirectory;
+use App\Modules\Identity\Models\Profile;
+use App\Modules\Identity\Models\ProfileComment;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -230,8 +231,9 @@ class ReviewModerationServiceTest extends TestCase
         $commenter = $commenter ?? $this->commenter;
         $recipient = $recipient ?? $this->recipient;
 
-        $profile = $recipient->profile
-            ?? $recipient->profile()->firstOrCreate(['full_name' => $recipient->first_name]);
+        // Stage 4 C2: the kernel relation is gone, so the fixture reads/creates the row through the owner model.
+        $profile = Profile::where('user_id', $recipient->id)->first()
+            ?? Profile::create(['user_id' => $recipient->id, 'full_name' => $recipient->first_name]);
 
         return ProfileComment::create([
             'profile_id' => $profile->id,

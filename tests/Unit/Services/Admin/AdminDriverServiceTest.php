@@ -5,6 +5,7 @@ namespace Tests\Unit\Services\Admin;
 use App\Models\User;
 use App\Modules\Console\Services\AdminDriverService;
 use App\Modules\Identity\Models\Photo;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Identity\Models\UserRating;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
@@ -113,7 +114,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_dashboard_data_admin_photo_uses_given_admin_id(): void
     {
         $admin = $this->makeUser();
-        $admin->profile->update(['profile_photo' => 'profiles/profile_photo/admin.jpg']);
+        Profile::where('user_id', $admin->id)->update(['profile_photo' => 'profiles/profile_photo/admin.jpg']);
 
         $data = $this->service->getDashboardData($admin->id);
 
@@ -491,7 +492,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_format_driver_profile_photo_is_null_when_explicitly_removed(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update(['profile_photo' => null]);
+        Profile::where('user_id', $driver->id)->update(['profile_photo' => null]);
 
         $formatted = $this->service->formatDriver($this->reloadDriver($driver->id));
 
@@ -501,7 +502,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_format_driver_profile_photo_returns_asset_url(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update(['profile_photo' => 'profiles/profile_photo/custom.jpg']);
+        Profile::where('user_id', $driver->id)->update(['profile_photo' => 'profiles/profile_photo/custom.jpg']);
 
         $formatted = $this->service->formatDriver($this->reloadDriver($driver->id));
 
@@ -520,7 +521,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_format_driver_vehicle_shows_type_only_when_no_color(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update(['type_of_car' => 'Toyota Camry']);
+        Profile::where('user_id', $driver->id)->update(['type_of_car' => 'Toyota Camry']);
 
         $formatted = $this->service->formatDriver($this->reloadDriver($driver->id));
 
@@ -530,7 +531,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_format_driver_vehicle_combines_type_and_color(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update(['type_of_car' => 'Toyota Camry', 'color_of_car' => 'White']);
+        Profile::where('user_id', $driver->id)->update(['type_of_car' => 'Toyota Camry', 'color_of_car' => 'White']);
 
         $formatted = $this->service->formatDriver($this->reloadDriver($driver->id));
 
@@ -726,7 +727,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_profile_vehicle_fields_reflect_profile_data(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update([
+        Profile::where('user_id', $driver->id)->update([
             'type_of_car' => 'Kia Sportage',
             'color_of_car' => 'Black',
             'number_of_seats' => 4,
@@ -936,7 +937,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_profile_photo_null_when_absent(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update(['profile_photo' => null]);
+        Profile::where('user_id', $driver->id)->update(['profile_photo' => null]);
 
         $this->assertNull($this->service->getDriverDashboard($driver->id)['profile_photo']);
     }
@@ -944,7 +945,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_profile_photo_returns_url_when_present(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update(['profile_photo' => 'profiles/profile_photo/driver.jpg']);
+        Profile::where('user_id', $driver->id)->update(['profile_photo' => 'profiles/profile_photo/driver.jpg']);
 
         $this->assertStringContainsString('driver.jpg', $this->service->getDriverDashboard($driver->id)['profile_photo']);
     }
@@ -1231,7 +1232,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_driver_dashboard_vehicle_info(): void
     {
         $driver = $this->makeUser();
-        $driver->profile->update([
+        Profile::where('user_id', $driver->id)->update([
             'type_of_car' => 'Hyundai Elantra',
             'color_of_car' => 'Silver',
             'number_of_seats' => 4,
@@ -1335,7 +1336,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_recent_activity_includes_vehicle_update_event(): void
     {
         $driver = $this->makeUser(['first_name' => 'Layla', 'last_name' => 'Saab', 'is_verified_driver' => true]);
-        $driver->profile->update(['type_of_car' => 'Kia Sportage']);
+        Profile::where('user_id', $driver->id)->update(['type_of_car' => 'Kia Sportage']);
 
         $activity = $this->service->getRecentActivity();
 
@@ -1356,7 +1357,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_recent_activity_vehicle_update_requires_driver_or_documents(): void
     {
         $plainUser = $this->makeUser(['is_verified_driver' => false]);
-        $plainUser->profile->update(['type_of_car' => 'Kia Sportage']);
+        Profile::where('user_id', $plainUser->id)->update(['type_of_car' => 'Kia Sportage']);
 
         $this->assertEmpty($this->service->getRecentActivity());
     }
@@ -1365,7 +1366,7 @@ class AdminDriverServiceTest extends TestCase
     {
         $applicant = $this->makeUser(['verification_status' => 'none', 'is_verified_driver' => false]);
         $this->attachDriverDocs($applicant);
-        $applicant->profile->update(['type_of_car' => 'Kia Sportage']);
+        Profile::where('user_id', $applicant->id)->update(['type_of_car' => 'Kia Sportage']);
 
         $activity = $this->service->getRecentActivity();
 
@@ -1642,7 +1643,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_admin_photo_returns_null_when_profile_has_no_photo(): void
     {
         $admin = $this->makeUser();
-        $admin->profile->update(['profile_photo' => null]);
+        Profile::where('user_id', $admin->id)->update(['profile_photo' => null]);
 
         $this->assertNull($this->service->getAdminPhoto($admin->id));
     }
@@ -1650,7 +1651,7 @@ class AdminDriverServiceTest extends TestCase
     public function test_get_admin_photo_returns_asset_url_when_photo_present(): void
     {
         $admin = $this->makeUser();
-        $admin->profile->update(['profile_photo' => 'profiles/profile_photo/admin.jpg']);
+        Profile::where('user_id', $admin->id)->update(['profile_photo' => 'profiles/profile_photo/admin.jpg']);
 
         $this->assertStringContainsString('admin.jpg', $this->service->getAdminPhoto($admin->id));
     }
@@ -1671,7 +1672,8 @@ class AdminDriverServiceTest extends TestCase
 
     private function reloadDriver(int $id): User
     {
-        return User::with('profile')->findOrFail($id);
+        // Stage 4 C2: the `profile` relation is gone; the presenter reads the profile through Identity's port.
+        return User::findOrFail($id);
     }
 
     /** Attach license/mechanic_card style documents so a user counts as a driver applicant. */

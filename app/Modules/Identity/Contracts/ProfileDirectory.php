@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * Stage 2 C2: the profile reads other modules are allowed to make, as data rather than as a model.
  *
  * `profiles` is Identity's table, and the Console reporting screens used to answer these questions with
- * `App\Models\Profile` themselves (four files on the Console allowlist). Each method here replaces one of
+ * `App\Modules\Identity\Models\Profile` themselves (four files on the Console allowlist). Each method here replaces one of
  * those reads 1:1 - the same statement, the same rows, the raw stored values - so the caller keeps its
  * own URL formatting, its own response shape and its own query budget. Callers get scalars or arrays,
  * never the model: a foreign model handed across a boundary is exactly what this phase removes, so the
@@ -53,6 +53,20 @@ interface ProfileDirectory
      * @return array<int, array{profile_photo: string|null, type_of_car: string|null, color_of_car: string|null, number_of_seats: int|null, car_pic: string|null}>
      */
     public function vehicleProfilesForUsers(array $userIds): array;
+
+    /**
+     * The WHOLE profile row for each of the given users, keyed by user id - ONE query.
+     *
+     * Stage 4 C2: the replacement for every `*.profile` eager load that fed a RAW-MODEL response. The rows are
+     * the model's own `toArray()`, which is exactly what the eager-loaded relation serialized (casts applied,
+     * timestamps as ISO strings), so a caller can inject the value back under the `profile` key and keep its
+     * response byte-identical. A user with no profile row is ABSENT - the caller must distinguish that from a row
+     * with null columns, because the two serialize differently (`null` versus an object).
+     *
+     * @param  array<int, int>  $userIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function profilesForUsers(array $userIds): array;
 
     /**
      * The recent-activity feed's "vehicle / profile update" rows, newest first.

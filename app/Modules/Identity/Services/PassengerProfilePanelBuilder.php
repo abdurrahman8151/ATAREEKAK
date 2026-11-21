@@ -3,10 +3,11 @@
 namespace App\Modules\Identity\Services;
 
 use App\Domain\ValueObjects\Money;
-use App\Models\Profile;
 use App\Models\User;
 use App\Modules\Console\Contracts\ComplaintDirectory;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Identity\Models\UserRating;
+use App\Modules\Identity\Repositories\ProfileRepository;
 use App\Modules\Money\Contracts\WalletChargeHistory;
 use App\Modules\Money\Contracts\WalletDirectory;
 use App\Modules\Ride\Contracts\PassengerBookingHistory;
@@ -33,6 +34,7 @@ final class PassengerProfilePanelBuilder
         private readonly WalletChargeHistory $chargeHistory,
         private readonly WalletDirectory $wallets,
         private readonly ComplaintDirectory $complaints,
+        private readonly ProfileRepository $profiles,
     ) {}
 
     public function buildStats(User $user, $wallet = null): array
@@ -153,7 +155,8 @@ final class PassengerProfilePanelBuilder
 
     public function formatUser(User $user): array
     {
-        $profile = $user->profile;
+        // Stage 4 C2: `Profile` is this module's model and the kernel relation is gone, so the row is read here.
+        $profile = $this->profiles->getProfileByUserId($user->id);
 
         return [
             'id' => $user->id,

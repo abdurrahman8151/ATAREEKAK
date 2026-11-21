@@ -12,6 +12,7 @@ use App\Modules\Ride\Services\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\Concerns\ProfileFixtures;
 use Tests\Support\RideBuilder;
 use Tests\TestCase;
 
@@ -40,6 +41,7 @@ use Tests\TestCase;
  */
 class CancelSeatsEquivalenceCheck extends TestCase
 {
+    use ProfileFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -62,7 +64,7 @@ class CancelSeatsEquivalenceCheck extends TestCase
     private function fixtureAtHighElapsed(string $paymentMethod): array
     {
         $driver = User::factory()->create(['is_verified_driver' => true]);
-        $driver->profile()->create(['full_name' => 'D', 'number_of_rides' => 0]);
+        $this->createProfileFor($driver, ['full_name' => 'D', 'number_of_rides' => 0]);
         $driverWallet = Wallet::create([
             'user_id' => $driver->id, 'phone_number' => '0911'.rand(1000000, 9999999),
             'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 0,
@@ -70,7 +72,7 @@ class CancelSeatsEquivalenceCheck extends TestCase
         $driver->update(['wallet_id' => $driverWallet->id]);
 
         $passenger = User::factory()->create(['is_verified_passenger' => true]);
-        $passenger->profile()->create(['full_name' => 'P', 'number_of_rides' => 0]);
+        $this->createProfileFor($passenger, ['full_name' => 'P', 'number_of_rides' => 0]);
         $passengerWallet = Wallet::create([
             'user_id' => $passenger->id, 'phone_number' => '0922'.rand(1000000, 9999999),
             'wallet_number' => 'WLT-'.Str::random(10), 'balance' => 1_000_000,

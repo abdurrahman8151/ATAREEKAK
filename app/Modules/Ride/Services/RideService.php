@@ -6,6 +6,7 @@ use App\DTOs\Ride\CreateRideDTO;
 use App\Enums\RideStatus;
 use App\Models\User;
 use App\Modules\Communication\Contracts\NotificationPort;
+use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
@@ -143,7 +144,13 @@ final class RideService
 
             broadcast(new RideCreated($ride));
 
-            return $ride->fresh(['driver.profile']);
+            // Stage 4 C2: the profile comes from Identity's own read now (ONE query, the same one the eager
+            // load cost), set under the same key so the raw-model response is unchanged.
+            $fresh = $ride->fresh(['driver']);
+            $profileRow = app(ProfileDirectory::class)->profilesForUsers([$fresh->driver_id])[(int) $fresh->driver_id] ?? null;
+            $fresh->driver?->setRelation('profile', $profileRow === null ? null : collect($profileRow));
+
+            return $fresh;
         });
     }
 

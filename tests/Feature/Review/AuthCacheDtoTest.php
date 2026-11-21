@@ -4,6 +4,7 @@ namespace Tests\Feature\Review;
 
 use App\DTOs\Auth\CachedUser;
 use App\Models\User;
+use App\Modules\Identity\Models\Profile;
 use App\Modules\Identity\Services\JwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -73,7 +74,12 @@ class AuthCacheDtoTest extends TestCase
     {
         $user = $this->seedUser();
 
-        $dto = CachedUser::fromModel(User::with('profile')->find($user->id));
+        // Stage 4 C2: Identity reads the profile row and hands it in as data; the kernel DTO no longer reads
+        // a relation.
+        $dto = CachedUser::fromModel(
+            User::find($user->id),
+            Profile::where('user_id', $user->id)->first()?->toArray(),
+        );
 
         $this->assertNotNull($dto);
         // The middleware and controllers read all of these off $request->user().
@@ -120,7 +126,7 @@ class AuthCacheDtoTest extends TestCase
     public function the_profile_relation_is_present_and_null_safe(): void
     {
         $user = $this->seedUser();
-        $user->profile()->delete();
+        Profile::where('user_id', $user->id)->delete();
 
         $rebuilt = app(JwtService::class)->findUserCached($user->id);
 
