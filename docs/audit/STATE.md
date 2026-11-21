@@ -67,11 +67,19 @@ cross-module Money parameters **0 -> 111 of 113**.
     af39d23 -- <file>` EMPTY** (back to the pre-Stage-2 bytes); the manifest's single hash line refreshed by
     `scripts/refresh-snapshot-manifest.php` ("changed 1"); `query-budgets.json` untouched. Gate:
     **2264/10704 (2 skips)**, `AppFuture` + the pin test **69/495**.
-  - NEXT: **Phase B gate** (full default-order suite + one reverse run), then **Phase C** (Profile + ProfileComment
-    into Identity: D2 = YES only if unavoidable, D3 = NO so the JSON must stay byte-identical, D4 = AGENT - decide
-    where the auth cache's profile rehydration lives and write it in an ADR note; characterize the profile JSON
-    first, then a batched Identity Reader DTO, `KERNEL_MODEL_IMPORTS` may reach 0), then D (cycles, references must
-    go DOWN), E (report-only), F (closing matrix).
+  - **PHASE B GATE DONE:** full default-order + reverse, **3078 tests / 13401 assertions / 2 skipped / 0
+    failures** in both (940 s and 942 s), leftover-rows probe clean after each. Corpus diff vs `stage3-verified` =
+    exactly the named snapshot + its one manifest hash line (nothing else changed).
+  - NEXT: **Phase C** (Profile + ProfileComment into Identity). Measured before starting: the two kernel models are
+    named ONLY by Identity (4 + 2 files) plus three kernel files - `DTOs/Auth/CachedUser.php` (called from
+    Identity's `JwtService:233` = D4's question: the rehydration lives in Identity and hands the kernel a plain
+    column array) and the two `Console/Testing/` dev tools (ADR 0005). Removing `User::profile()` (kernel) touches
+    exactly four external reads: `Http/Resources/RideResource:116`, `Http/Resources/BookingResource:124`,
+    `Communication/Services/ChatMessageHandler:204`, `Ride/Services/RideValidationService:31` - Ride and
+    Communication already name `ProfileDirectory` / `ProfilePhotoDirectory`, so the batched photo read is the one
+    that may cost the +1 query D2 allows on `rides/create` and `chat/messages-store`; D3 = NO means the nested
+    `profile` JSON must stay byte-identical or the move is Parked with the diff. Then Phase D (cycles, references
+    must go DOWN), E (report-only), F (closing matrix).
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
 default-order suite and a reverse run, both **3071 tests / 13364 assertions / 2 skipped / 0 failures**, the
