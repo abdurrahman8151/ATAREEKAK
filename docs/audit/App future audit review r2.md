@@ -23274,3 +23274,101 @@ allowance went unused.
 
 **Terminal line.** *Stage 4 verified on `4b313c6`* - the matrix above ran on that tree, and this record plus the
 STATE update are the docs-only commit that follows it.
+
+---
+
+### 394. STAGE 5 A1 + A2 - REPORT ONLY: every reference in the four surviving cycles, and the layer orders that would have to absorb them
+
+**No code and no test changed in this step.** Gate checked first: HEAD is `fd5b4e8` (Stage 4 closed), the tree carries
+only the owner's `AGENTS.md` and `docker-compose.local.yml`, the tag `stage4-verified` is `4b313c6`, and the start
+numbers match Stage 4's end: **14 directed edges, 64 port references, 4 two-cycles, 6 derived loops**.
+
+#### A1 - the four cycles, reference by reference
+
+Every reference below is a `use App\Modules\X\Contracts\Y` in the consuming module (that is what the graph ratchet
+counts). Category: **(a)** data pulled across, **(b)** a decision or orchestration living in the wrong module,
+**(c)** a notification, **(d)** a type only. "Cheapest REAL removal" means the lower module stops pulling: the caller
+passes the value in, or the orchestration moves to the owner.
+
+**Cycle 1 - `Console <-> Identity` (Console -> Identity 10, Identity -> Console 3).**
+
+| direction / contract | where it is used (file: contract method) | cat | cheapest REAL removal | size | money risk |
+|---|---|---|---|---|---|
+| Identity -> Console: `ComplaintDirectory` | `PassengerProfilePanelBuilder` (`recentForUser`, `statusCounts`), `PassengerProfileQueryService` (`pageForUser`) | a | none that keeps the response: the admin passenger-profile page is IDENTITY's endpoint and the complaint block is Console's data, so the page's orchestration would have to move to Console (route ownership) | 1 controller + 1 route + tests | none (no money) |
+| Identity -> Console: `EmployeeRepositoryInterface` | `EmployeeAuthService` (`credentialsFor`, `markLoggedIn`), `StaffJwtService` (`activeTokenSubjectById`) | **b** | **pass the values in**: Console's `StaffAuthController` already names `EmployeeAuthInterface`; it can look up its own `StaffCredentials` DTO and pass it into `authenticate()`, and the token-version subject can be passed the same way - Identity then reads no employee row | 2 interfaces + 3 services + ~4 tests | none (staff auth) |
+| Identity -> Console: `EmployeeTokenVersion` | `StaffJwtService` (`bump`) | b | partial: the bump's TRIGGERS live in both modules (Console's ban/logout AND Identity's password reset), so moving the write to Console still leaves Identity asking for it - only a split (Console bumps for its own flows; Identity keeps the port for its own) helps, which is not a removal | ~2 files, risky | none |
+| Console -> Identity: the ten ports | staff auth (`EmployeeAuthInterface`, `StaffJwtInterface`, `TokenRevokerInterface`), directories (`UserDirectory`, `ProfileDirectory`, `ProfileCommentDirectory`), reads (`UserRatingReader`, `PhotoRepositoryInterface`, `VerificationRepositoryInterface`), approval (`VerificationApprovalInterface`) | a + b | **none needed under the recommended order** - they all point DOWN | - | - |
+
+**Cycle 2 - `Identity <-> Money` (Identity -> Money 4, Money -> Identity 4).**
+
+| direction / contract | where it is used | cat | cheapest REAL removal | size | money risk |
+|---|---|---|---|---|---|
+| Identity -> Money: `PassengerWalletChargerInterface` | `PassengerProfileController` (`creditWalletBalance`, `injectExternalCapital`, `bustWalletChargeCaches`, ...) - the ADMIN TOP-UP | **b** | the top-up endpoint is Identity's; the money decision is Money's. Removal = the endpoint (or its orchestration) moves to Money | 1 controller + 1 route + tests | **high** (money writes) |
+| Identity -> Money: `WalletChargeHistory` | `PassengerProfilePanelBuilder`, `PassengerProfileQueryService` | a | the charge-history block rides on the same page as above - same endpoint move | same | none alone |
+| Identity -> Money: `WalletDirectory` | `PassengerProfileController`, `PassengerProfilePanelBuilder` (`forUser`) | a | same page/endpoint | same | none alone |
+| Identity -> Money: `WalletTransactionRecorder` | `PassengerProfileQueryService` (`record`) | b | same (Identity records a Money ledger row for its own top-up) | same | high |
+| Money -> Identity: `EmailOtpServiceInterface` | `WalletController` (`sendOtp`, `verifyOtp`) - the WITHDRAWAL | **b** | Money's withdrawal endpoint is called by the CLIENT, so there is no caller to pass "OTP verified" in; the OTP check must stay inside Money or the withdrawal moves | 1 controller + 1 route | **high** |
+| Money -> Identity: `PasswordVerifier` | `WalletController` (`verify`) | b | as above (re-confirm the account password inside Money's endpoint) | same | high |
+| Money -> Identity: `ProfileDirectory`, `UserDirectory` | `WalletChargeHistoryReader` (`photoPathsForUsers`, `summariesFor`) | a | the rows Money renders name the users they belong to; the caller of that reader is Identity - under the recommended order this is DOWNWARD | - | none |
+
+**Cycle 3 - `Identity <-> Ride` (Identity -> Ride 3, Ride -> Identity 3).**
+
+| direction / contract | where it is used | cat | cheapest REAL removal | size | money risk |
+|---|---|---|---|---|---|
+| Identity -> Ride: `PassengerBookingHistory` | `PassengerProfilePanelBuilder`, `ProfileInteractionService` | a | the passenger-profile page again: the trip block is Ride's, the page is Identity's - removal needs the page's orchestration in Ride (or an endpoint move) | 1 builder + 1 route + tests | none |
+| Identity -> Ride: `ScoreServiceInterface` | `ProfileController` (`getScore`) | a | same page (`GET /api/profile`): the score would have to arrive from Ride | 1 controller + tests | none |
+| Identity -> Ride: `UserRideStatsInterface` | `ProfileController` (`ridesAsDriver`, `bookingsAsPassenger`) | a | same page | same | none |
+| Ride -> Identity: `DocumentVerificationInterface` | `RideValidationService` (`validateDriverDocuments`) | **b** | a DECISION (KYC) needed synchronously while a passenger creates a ride - the caller is the passenger, so no caller can pass it in; removal means the ride-creation precondition moves or the KYC state is denormalised onto `users` (schema frozen) | 1 service + tests | medium |
+| Ride -> Identity: `ProfileDirectory`, `UserRatingReader` | `RideLifecycleHandler`, `RideSearchReadHandler`, `RideSearchService`, `RideService`, `BookingService` (photos, ratings) | a | these are response enrichment: the values could be produced by the CALLER of the Ride handlers only if the caller were a module (it is the client) | 5 files + snapshots | none |
+
+**Cycle 4 - `Money <-> Ride` (Money -> Ride 4, Ride -> Money 5).**
+
+| direction / contract | where it is used | cat | cheapest REAL removal | size | money risk |
+|---|---|---|---|---|---|
+| Money -> Ride: `BookingView` | 15 Money files (parameter types) | **d** | **move the view interfaces to the kernel** (`app/Contracts/`): a read-only view is shared vocabulary, not Ride's service - Money then names no Ride contract for them | 2 interfaces + 15 imports + `implements` + ratchet | none |
+| Money -> Ride: `RideView` | 14 Money files (parameter types) | **d** | same move | same | none |
+| Money -> Ride: `CashRideCounter` | `CashRideFeeService` (`countForDriver`) | a | **pass the value in**: Ride's `RideService`/`RideCompletionService` already call Money's cash-fee service; they own `rides` and can count | 1 service + 2 callers + tests | low |
+| Money -> Ride: `BookingEscrowLedger` | `BookingCharge`, `WalletAccess` (the guarded escrow decrement + `heldFor`) | **b** | the decrement belongs to the owner of `bookings`, but it is part of Money's atomic settlement (posting keys, wallet locks). Removal = Ride performs the guarded write before/around the money movement | 4 Money files + 2 Ride files + ledger tests | **very high** |
+| Ride -> Money: the five ports | `CancellationRefundInterface`, `CashRideFeeServiceInterface`, `NoShowSettlementInterface`, `PaymentStrategyFactoryInterface`, `RidePayoutInterface` - the whole settlement/cancellation/payout orchestration | **b** | under the recommended order these are DOWNWARD; the other order would have to move the money orchestration into Money, i.e. re-cut the money paths | large | very high |
+
+#### A2 - the total orders, and what each costs
+
+Two orders were costed by counting, for every edge, whether it points UP (against the order). Kernel and
+Communication are unconstrained (Communication has no incoming edge from a module it would need to look up to; the
+kernel is not a module).
+
+| order (bottom -> top) | upward edges | upward port references | notes |
+|---|---|---|---|
+| **O1 (recommended): Communication < Identity < Money < Ride < Console** | `Identity -> Console` (3), `Identity -> Money` (4), `Identity -> Ride` (3), `Money -> Ride` (4) | **14 of 64** | puts the identity facts below the modules that consume them, and the money mechanics below the ride lifecycle that triggers them; Console ends on top, which is where its 34 outgoing references already point |
+| O2: Communication < Identity < Ride < Money < Console | `Identity -> Console` (3), `Identity -> Ride` (3), `Identity -> Money` (4), `Ride -> Money` (5) | **15 of 64** | the same except Ride/Money swapped; it costs one more reference AND makes the money orchestration upward, i.e. it moves the settlement layer on top of its own trigger |
+
+**Recommendation: O1.** It is the cheaper of the two by one reference, it keeps the money mechanics below the ride
+lifecycle (the direction the settlement calls already run), and it leaves the two "identity facts" modules
+(Communication, Identity) at the bottom, which is where a layered reading expects them.
+
+**What O1 can actually remove without a behavior change - the honest count.** Of the 14 upward references:
+
+| upward edge | removable behaviour-free | removable = parked |
+|---|---|---|
+| `Identity -> Console` (3) | **2**: `EmployeeRepositoryInterface` (credentials passed in by Console's controller) and `EmployeeTokenVersion` (partially - see A1) | 1: `ComplaintDirectory` (needs the admin passenger-profile endpoint to move) |
+| `Identity -> Money` (4) | **0** | all 4: the top-up endpoint and the panel's wallet blocks are the same Identity page; every removal needs that endpoint's orchestration in Money |
+| `Identity -> Ride` (3) | **0** | all 3: the passenger profile page pulls ride data; removal needs the page or the endpoint in Ride |
+| `Money -> Ride` (4) | **3**: `BookingView` + `RideView` (move the views to the kernel) and `CashRideCounter` (Ride passes the count in) | 1: `BookingEscrowLedger` (the guarded decrement is inside Money's atomic settlement) |
+
+**So the phase's goal - an ACYCLIC graph - is NOT reachable by layering alone at this stage.** With the full
+behaviour-free set applied, **5 of the 14 upward references go**, and the graph still contains **two** of the four
+cycles: `Identity <-> Money` and `Identity <-> Ride`, because each side of both is an ENDPOINT whose response is
+composed from the other module's data (the admin passenger-profile page and the passenger's own profile page). Those
+two cycles cannot be removed without moving a route/response owner, which D2 parks.
+
+**Which cycles are therefore expected to stay Parked under D2:**
+
+| cycle | why layering cannot fix it | what would be needed |
+|---|---|---|
+| `Identity <-> Money` | Money's withdrawal endpoint verifies an Identity OTP and re-confirms the account password (its caller is the client, not a module); Identity's top-up endpoint writes Money's ledger | move the withdrawal OTP check or the top-up orchestration = response/ownership change |
+| `Identity <-> Ride` | Identity's profile pages render Ride's score, stats and trip history; Ride's booking precondition needs Identity's KYC decision synchronously | move the profile endpoints to the modules that own their data, or denormalise KYC onto `users` (schema frozen) |
+
+**Ready for Phase B under O1 if the owner approves it:** the layering ratchet (B0) plus three behaviour-free steps -
+(A) Identity -> Console's two removable ports, (B) the two view interfaces moving to the kernel, (C) `CashRideCounter`'s
+value passed in - each with the same values, the same query count and the same JSON, and each shrinking the pinned
+upward list. The remaining two cycles stay in `UNCUT_CYCLES` with the reason recorded above.

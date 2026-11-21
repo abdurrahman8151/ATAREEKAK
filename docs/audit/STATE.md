@@ -1,4 +1,35 @@
-# STAGE 4 CLOSED
+# STAGE 5 - PHASE A REPORT DONE, WAITING ON D1
+
+**Stage 5 gate checked:** HEAD `fd5b4e8` (Stage 4 closed), tree carries only the owner's `AGENTS.md` +
+`docker-compose.local.yml`, tag `stage4-verified` = `4b313c6`. **Start sha `fd5b4e8`; start numbers: 14 edges,
+64 port references, 4 two-cycles, 6 derived loops.**
+
+**PHASE A (report only, audit sec 394, docs commit) - the finding: the graph is NOT made acyclic by layering at this
+stage.** O1 (`Communication < Identity < Money < Ride < Console`, recommended) has **14 upward references of 64**
+across four upward edges; only **5 of them can go without a behaviour change**:
+
+1. `Identity -> Console`: `EmployeeRepositoryInterface` (Console's `StaffAuthController` passes its own
+   `StaffCredentials` into `authenticate()`) - **removable**; `EmployeeTokenVersion` - partially;
+   `ComplaintDirectory` - parked (needs the admin passenger-profile endpoint to move).
+2. `Money -> Ride`: `BookingView` + `RideView` (**type-only** - move the two view interfaces to the kernel) and
+   `CashRideCounter` (Ride passes the count in) - **removable**; `BookingEscrowLedger` - parked (it is inside Money's
+   atomic settlement: posting keys, wallet locks, ledger legs).
+3. `Identity -> Money` (4) and `Identity -> Ride` (3): **nothing removable** - each side is an ENDPOINT whose response
+   composes the other module's data (the admin passenger-profile page and the passenger's own profile page).
+   Removing them means moving a route/response owner = D2 PARK.
+
+**So Phase B under O1 would remove 5 port references and still leave TWO cycles** (`Identity <-> Money`,
+`Identity <-> Ride`) parked with the reasons above. The two cheap, high-value steps if D1 = APPROVED O1 are the
+kernel view move (2 references, type-only, zero behaviour risk) and `CashRideCounter` passed in.
+
+**WAITING FOR D1** (`OWNER DECISIONS` in the Stage 5 file): `D1 layer order: PENDING` -> the owner writes
+`APPROVED <order>` (O1 recommended) or tells the agent. **Phase B does not start until then.** D2 = PARK and
+D3 = YES are already recorded.
+
+## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- **Stage 5 Phase A complete (docs only, sec 394). Nothing in code changed. Phase B is blocked on D1.**
+
+## Stage 4 (closed) - retained for history
 
 **Stage 4 verified on `4b313c6`** - the final five-order matrix ran on that tree (audit sec 393): default,
 reverse, random-11, random-20261102, random-7919, each **3078 tests / 13404 assertions / 2 skipped / 0 failures**,
