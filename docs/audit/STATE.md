@@ -85,9 +85,18 @@ cross-module Money parameters **0 -> 111 of 113**.
     Two real bugs D3 caught: the chat send path 500 (a Collection read as a model) and `session/user` losing its
     `profile` object (the first D4 design was too narrow). Gate: **2841/12034 (2 skips)**, snapshots **186/2069**,
     corpus byte-identical, `AppFuture` **65/472**.
-  - NEXT: **Phase C gate** (full default-order suite + one reverse run), then **Phase D** (cut the declared
-    two-cycles with consumer-declared contracts; references must go DOWN; park with measurement), **Phase E**
-    (User-into-Identity report, no code), **Phase F** (closing matrix + docs + terminal line). Then Phase D (cycles, references
+  - **PHASE C GATE DONE:** full default-order + reverse, **3078 tests / 13401 assertions / 2 skipped / 0
+    failures** in both (1215 s and 1235 s), leftover-rows probe clean after each. Same totals as the Phase B gate:
+    the move added no tests and changed no assertion COUNT (the fixture migration is text-for-text, and the two
+    relation adaptations moved assertions, they did not delete any).
+  - NEXT: **Phase D** (cut the declared two-cycles). Start numbers: **15 edges, 65 port references, 5 two-cycles,
+    21 derived loops**. The one cut already identified that BOTH removes the cycle and takes the reference count
+    DOWN (the phase requires references to go down): `Communication <-> Console` - Communication's `ContactController`
+    names TWO Console ports (`SupportAgentRoutingInterface` + `EmployeeManagementInterface`) to build one response.
+    One consumer-declared contract returning one DTO (agent + shadow user) replaces both: Communication names no
+    Console port (-2), Console implements and binds it and names Communication's contract (+1, an edge that already
+    exists) => references 65 -> 64, `Communication -> Console` gone, one 2-cycle and every loop through it gone.
+    Then Phase E (User report), Phase F (matrix + docs + terminal line). Then Phase D (cycles, references
     must go DOWN), E (report-only), F (closing matrix).
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
