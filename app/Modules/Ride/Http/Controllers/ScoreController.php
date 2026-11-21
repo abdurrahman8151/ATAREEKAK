@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Ride\Http\Resources\ScoreTransactionResource;
 use App\Modules\Ride\Services\ScoreHistoryService;
 use App\Modules\Ride\Services\ScoreService;
+use App\Modules\Ride\Support\StoredClassNames;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -58,7 +59,7 @@ class ScoreController extends Controller
                 'new_score' => $tx->new_score,
                 'reason' => $tx->reason,
                 'high_cancel_rate_applied' => $tx->high_cancel_rate_applied,
-                'reference_type' => class_basename($tx->reference_type ?? ''),
+                'reference_type' => StoredClassNames::basenameFor($tx->reference_type),
                 'reference_id' => $tx->reference_id,
                 'created_at' => $tx->created_at->toIso8601String(),
             ])->all();

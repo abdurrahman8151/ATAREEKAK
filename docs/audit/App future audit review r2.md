@@ -22866,3 +22866,66 @@ Console had queried itself. D6 = YES: the screen reads through the Reader, and t
 **Gate for this step** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots): see the
 run recorded with this commit. Focused first: driver units + the whole admin snapshot class =
 **198 / 605 OK**, `admin/drivers` byte-identical at 9 queries. `AppFuture` **65 / 472 OK**.
+
+---
+
+### 388. STAGE 4 B1 - the stored class name is PINNED (D1 = PIN-OLD): one map, the write stops drifting, both generations read
+
+**The decision, and what it forbids.** ADR 0010 recorded that exactly one column stores a class name -
+`score_transactions.reference_type`, written by `ScoreLedger::resolveReference()` as `get_class($reference)` (or the
+`Booking`/`Ride` class constants). After Stage 2 moved those classes, every row written since holds the module
+namespace while every older row holds the pre-move name, and the two generations group separately in
+`ScoreHistoryService`. The owner chose PIN-OLD: **new rows keep writing the pre-Stage-2 value and readers accept
+both.**
+
+**The one place: `App\Modules\Ride\Support\StoredClassNames` + `stored-class-names.json`.**
+
+| direction | how | used by |
+|---|---|---|
+| class -> stored value (PINNED) | the data file's `map` (key = current class, value = the pinned name) | `ScoreLedger::resolveReference()` - the only WRITE |
+| stored value -> current class | both generations per entry (the pinned value AND the class name are keys) | `ScoreHistoryService::hydrateReferences()` |
+| stored value -> API short name | the same map, then `class_basename` | `ScoreController`, `ScoreTransactionResource` |
+
+Unknown values pass through unchanged (`storedFor`) or resolve to null (`classFor`), and `basenameFor` falls back
+to the value's own basename rather than throwing, so a row this map has never heard of still renders. **No
+`Relation::morphMap`**: nothing declares `morphTo()` on the column, so it is not a true Eloquent morph and a morph
+map would imply a relation that does not exist - the class docblock says so and names the map as the place to build
+one from if it ever becomes one.
+
+**Why the names live in a JSON data file, and the three ratchets that forced it.** The first version wrote the
+pinned strings as PHP literals with `::class`-style maps. Three existing ratchets failed immediately, and each was
+RIGHT:
+
+1. `DanglingImportTest` reads every `App\` FQCN in `app/` and `tests/` - **including docblocks** - and flags names
+   that do not resolve. A pinned pre-move name is exactly that: a name that no longer resolves. (Stage 3 had hit
+   the same docblock behaviour with dead class names.)
+2. `ModelOwnershipTest` read the same literals as a module naming the kernel's `Ride`/`Booking` models - which the
+   move had already made illegal.
+3. So the strings moved to where they belong: **production data** - the same footing the frozen snapshot corpus
+   already had, which stores these exact strings and is not scanned. The PHP class now contains no pre-move FQCN in
+   code OR in prose; the docblocks describe the names instead of printing them.
+
+That is not a trick to dodge a ratchet; it is the distinction the ratchets were drawing: as CODE, a pre-move name is
+a stale reference; as a STORED VALUE, it is the whole point of PIN-OLD.
+
+**The test that pins all three halves** (`tests/Feature/Review/StoredClassNamesTest.php`, 4 cases, +4 tests in the
+step gate): the map itself (write value, both generations resolving to the same current class, unknown values
+untouched); a new RIDE reference row writes the pinned value; a new BOOKING reference row writes the pinned value;
+and - the one a snapshot cannot prove, because the aliaser rewrites every scalar inside a reference block - **a row
+with the pinned value and a row with the module-namespace value both read back as a hydrated `Ride` reference**
+(same `type`, same id, same origin/destination text) off `GET /api/score/transactions`.
+
+**The snapshot, regenerated exactly once and for one file.**
+
+| step | evidence |
+|---|---|
+| `SNAPSHOT_UPDATE=1` run | `phpunit --filter "transactions-with-ride-and-booking-references"` only - **1 test, 2 assertions, OK** |
+| files touched by that run | `git status --short tests/Snapshots` = exactly ONE: `state/score/transactions-with-ride-and-booking-references.json` |
+| the diff, by category | 3 lines: 2 x `reference_type` `App\Modules\Ride\Models\Ride` -> the pre-move Ride name, 1 x `...\Booking` -> the pre-move Booking name |
+| back to the pre-Stage-2 bytes | `git diff af39d23 -- <that file>` is **EMPTY** |
+| the manifest entry it forces | `php scripts/refresh-snapshot-manifest.php` -> "Frozen files: 213 (added 0, removed 0, changed 1)": one hash line, for that one file, in its own diff; `query-budgets.json` untouched |
+| everything else in the corpus | byte-identical (`git status` clean for every other snapshot) |
+
+**Gate for this step** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots):
+**2264 tests / 10704 assertions / 2 skipped / 0 failures** - +4 tests and +23 assertions over the Phase A gate, all
+from the new pin test; `AppFuture` **65 / 472** plus the pin test's 4 / 23 = **69 / 495 OK**.

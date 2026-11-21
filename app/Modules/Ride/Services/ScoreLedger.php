@@ -11,6 +11,7 @@ use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Models\ScoreTransaction;
 use App\Modules\Ride\Models\UserScore;
+use App\Modules\Ride\Support\StoredClassNames;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -274,16 +275,19 @@ irstOrCreate calls with three different attribute lists - one starting at 100, o
      */
     private function resolveReference(?object $reference, array $context): array
     {
+        // Stage 4 B1 / ADR 0010 (owner decision D1 = PIN-OLD): the column stores the PRE-Stage-2 name for the
+        // reference types that already have production rows, so new and old rows agree and a future class MOVE
+        // cannot change what is written. `StoredClassNames` is the only place that knows those names.
         if ($reference !== null) {
-            return [get_class($reference), $reference->id];
+            return [StoredClassNames::storedFor(get_class($reference)), $reference->id];
         }
 
         if (isset($context['booking_id'])) {
-            return [Booking::class, (int) $context['booking_id']];
+            return [StoredClassNames::storedFor(Booking::class), (int) $context['booking_id']];
         }
 
         if (isset($context['ride_id'])) {
-            return [Ride::class, (int) $context['ride_id']];
+            return [StoredClassNames::storedFor(Ride::class), (int) $context['ride_id']];
         }
 
         return [null, null];

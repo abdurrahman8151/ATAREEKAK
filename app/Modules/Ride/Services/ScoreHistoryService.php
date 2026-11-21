@@ -5,6 +5,7 @@ namespace App\Modules\Ride\Services;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
 use App\Modules\Ride\Models\ScoreTransaction;
+use App\Modules\Ride\Support\StoredClassNames;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
@@ -52,7 +53,8 @@ final class ScoreHistoryService
             }
 
             $ids = $txGroup->pluck('reference_id')->filter()->unique()->values();
-            $type = class_basename($className);
+            // Stage 4 B1: both stored generations resolve to the same current class through the map.
+            $type = StoredClassNames::basenameFor($className);
 
             // One query per reference type with any required eager loads
             $models = match ($type) {

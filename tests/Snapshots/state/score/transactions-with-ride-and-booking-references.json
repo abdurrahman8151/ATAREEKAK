@@ -41,7 +41,7 @@
             "previous_score": 70,
             "reason": "Ride completed successfully — all parties rewarded",
             "reference_id": "<id:7>",
-            "reference_type": "App\\Modules\\Ride\\Models\\Ride",
+            "reference_type": "App\\Models\\Ride",
             "user_id": "<id:6>"
         },
         {
@@ -52,7 +52,7 @@
             "previous_score": 70,
             "reason": "Ride completed successfully — all parties rewarded",
             "reference_id": "<id:7>",
-            "reference_type": "App\\Modules\\Ride\\Models\\Ride",
+            "reference_type": "App\\Models\\Ride",
             "user_id": "<id:2>"
         },
         {
@@ -63,7 +63,7 @@
             "previous_score": 80,
             "reason": "Passenger absent at pickup — no-show penalty applied",
             "reference_id": "<id:10>",
-            "reference_type": "App\\Modules\\Ride\\Models\\Booking",
+            "reference_type": "App\\Models\\Booking",
             "user_id": "<id:2>"
         }
     ],

@@ -5,6 +5,7 @@ namespace App\Modules\Ride\Http\Resources;
 use App\Enums\ScoreAction;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
+use App\Modules\Ride\Support\StoredClassNames;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -98,7 +99,7 @@ final class ScoreTransactionResource extends JsonResource
             return null;
         }
 
-        $type = class_basename($this->reference_type);
+        $type = StoredClassNames::basenameFor($this->reference_type);
         $base = [
             'type' => $type,
             'id' => $this->reference_id,

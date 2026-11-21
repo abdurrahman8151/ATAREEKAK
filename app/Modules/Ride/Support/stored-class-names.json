@@ -1,0 +1,7 @@
+{
+    "note": "The pinned stored class names (stage 4 B1 / ADR 0010, owner decision D1 = PIN-OLD). Key = the CURRENT class the value means; value = what `score_transactions.reference_type` writes and has written in production. DATA, not code: it lives in a data file so the import and ownership ratchets - which scan PHP sources for FQCNs that must resolve - do not read a stored string as a live reference. The classes named on the right stopped existing at that path when stage 2 moved them.",
+    "map": {
+        "App\\Modules\\Ride\\Models\\Ride": "App\\Models\\Ride",
+        "App\\Modules\\Ride\\Models\\Booking": "App\\Models\\Booking"
+    }
+}

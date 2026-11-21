@@ -55,11 +55,23 @@ cross-module Money parameters **0 -> 111 of 113**.
     fragment, Console asks for it, Identity embeds it - no reference moved), and the `admin/drivers` query budget
     stays 9 (the first version's `??` fallback caused a per-row phone query; the snapshot test caught it).
     Gate: **2260/10681 (2 skips)**, focused admin units + admin snapshots **198/605**, `AppFuture` **65/472**.
-  - **PHASE A COMPLETE** (A1 census+ratchet, A2 the one write fixed, A3 the driver Reader). Next per the phase
-    rule: the **full default-order suite + one reverse run**, then **Phase B** (D1 = PIN-OLD: one explicit
-    stored-value <-> class map, new rows write the pre-Stage-2 value, readers accept both, a test for both values,
-    the one state snapshot regenerated with a diff report and `git diff af39d23 -- <file>` proved back to the
-    pre-Stage-2 bytes).
+  - **B1 DONE (audit sec 388):** D1 = PIN-OLD. NEW `App\Modules\Ride\Support\StoredClassNames` + its DATA file
+    `stored-class-names.json` (the strings are production data; the PHP class holds no pre-move FQCN in code OR
+    prose - `DanglingImportTest` and `ModelOwnershipTest` were right to flag the first version's literals, and the
+    snapshot corpus already stores these exact strings unscanned). `ScoreLedger::resolveReference()` writes the
+    pinned value; `ScoreController`, `ScoreTransactionResource` and `ScoreHistoryService` read both generations
+    through the map; **no `Relation::morphMap`** (the column is not a true morph). NEW
+    `tests/Feature/Review/StoredClassNamesTest` (4 cases: the map, the RIDE write, the BOOKING write, and BOTH
+    generations reading back as a hydrated reference). Snapshot: `SNAPSHOT_UPDATE=1` on that ONE case only, exactly
+    one file changed (`state/score/transactions-with-ride-and-booking-references.json`, 3 lines), **`git diff
+    af39d23 -- <file>` EMPTY** (back to the pre-Stage-2 bytes); the manifest's single hash line refreshed by
+    `scripts/refresh-snapshot-manifest.php` ("changed 1"); `query-budgets.json` untouched. Gate:
+    **2264/10704 (2 skips)**, `AppFuture` + the pin test **69/495**.
+  - NEXT: **Phase B gate** (full default-order suite + one reverse run), then **Phase C** (Profile + ProfileComment
+    into Identity: D2 = YES only if unavoidable, D3 = NO so the JSON must stay byte-identical, D4 = AGENT - decide
+    where the auth cache's profile rehydration lives and write it in an ADR note; characterize the profile JSON
+    first, then a batched Identity Reader DTO, `KERNEL_MODEL_IMPORTS` may reach 0), then D (cycles, references must
+    go DOWN), E (report-only), F (closing matrix).
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full
 default-order suite and a reverse run, both **3071 tests / 13364 assertions / 2 skipped / 0 failures**, the
