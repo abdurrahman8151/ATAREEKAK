@@ -13,15 +13,15 @@ use Tests\TestCase;
  * `ModuleBoundaryTest` says what MAY cross a boundary (Contracts, never implementation). This file says
  * what DOES cross it, so that the graph cannot grow or close a new loop by accident. The measured graph
  * on 2026-11-03, counting only code (comments and docblocks are stripped first, so history notes about
- * old namespaces cannot register as edges), is 15 directed edges and every one of them is a Contracts
+ * old namespaces cannot register as edges), is 14 directed edges and every one of them is a Contracts
  * edge:
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
- *   Communication      -       -      -        -          2
+ *   Communication      -       -      -        -          -
  *   Money              1       1      4        4          -
  *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
- *   Console            4       7     12        9          -
+ *   Console            5       7     12        9          -
  *
  * Four loops close in it. One was cut in this item (below). The other four are declared, each with the
  * reason it could not be cut without moving an endpoint or contradicting the stage 1 ownership map:
@@ -80,8 +80,12 @@ class ModuleGraphTest extends TestCase
 
     /** Directed Contracts edges, with the number of distinct ports each one uses. Shrink-only. */
     private const EDGES = [
-        'Communication -> Console' => 2,
-        'Console -> Communication' => 4,
+        // Stage 4 D-1: `Communication -> Console` is GONE. The contact endpoint asked Console two questions
+        // through two ports; Communication now declares ONE contract (`SupportDeskDirectory`) and Console
+        // implements and binds it, so the cycle and the edge both went - and the reference count with them.
+        'Console -> Communication' => 5,
+        // Stage 4 D-1: the fifth port is the inverted `SupportDeskDirectory` (see where `Communication ->
+        // Console` used to be). One method in, two Console ports out: 15 edges -> 14, 65 references -> 64.
         'Console -> Identity' => 10,
         // Stage 2 C3: the tenth port is `UserDirectory`. The staff complaint lists used to eager-load the
         // complainant's `users` row for its name and email; the same ONE query now arrives from Identity's
@@ -191,7 +195,6 @@ class ModuleGraphTest extends TestCase
 
     /** Loops that are declared uncut, with the reason. Adding one here is a design decision. */
     private const UNCUT_CYCLES = [
-        'Communication <-> Console' => 'a passenger-facing contact endpoint must reach the back office to build its response; an event cannot return the agent and a kernel listener would breach the 5-file Contracts ceiling',
         'Console <-> Identity' => 'staff authentication lives in Identity and employee records in Console (batch 233 context map); cutting it would move one or the other',
         'Identity <-> Money' => 'OTP-verified withdrawal versus wallet top-up: both need a return value and cutting either moves an HTTP endpoint between modules',
         'Money <-> Ride' => 'escrow is a COLUMN ON THE BOOKING ROW, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids',
@@ -205,21 +208,6 @@ class ModuleGraphTest extends TestCase
      * edge test fails first and this list tells you exactly which new loop it closed.
      */
     private const DERIVED_CYCLES = [
-        'Communication -> Console -> Identity',
-        'Communication -> Console -> Identity -> Money',
-        'Communication -> Console -> Identity -> Money -> Ride',
-        'Communication -> Console -> Identity -> Ride',
-        'Communication -> Console -> Identity -> Ride -> Money',
-        'Communication -> Console -> Money',
-        'Communication -> Console -> Money -> Identity',
-        'Communication -> Console -> Money -> Identity -> Ride',
-        'Communication -> Console -> Money -> Ride',
-        'Communication -> Console -> Money -> Ride -> Identity',
-        'Communication -> Console -> Ride',
-        'Communication -> Console -> Ride -> Identity',
-        'Communication -> Console -> Ride -> Identity -> Money',
-        'Communication -> Console -> Ride -> Money',
-        'Communication -> Console -> Ride -> Money -> Identity',
         'Console -> Money -> Identity',
         'Console -> Money -> Ride -> Identity',
         'Console -> Ride -> Identity',

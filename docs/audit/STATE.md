@@ -89,14 +89,20 @@ cross-module Money parameters **0 -> 111 of 113**.
     failures** in both (1215 s and 1235 s), leftover-rows probe clean after each. Same totals as the Phase B gate:
     the move added no tests and changed no assertion COUNT (the fixture migration is text-for-text, and the two
     relation adaptations moved assertions, they did not delete any).
-  - NEXT: **Phase D** (cut the declared two-cycles). Start numbers: **15 edges, 65 port references, 5 two-cycles,
-    21 derived loops**. The one cut already identified that BOTH removes the cycle and takes the reference count
-    DOWN (the phase requires references to go down): `Communication <-> Console` - Communication's `ContactController`
-    names TWO Console ports (`SupportAgentRoutingInterface` + `EmployeeManagementInterface`) to build one response.
-    One consumer-declared contract returning one DTO (agent + shadow user) replaces both: Communication names no
-    Console port (-2), Console implements and binds it and names Communication's contract (+1, an edge that already
-    exists) => references 65 -> 64, `Communication -> Console` gone, one 2-cycle and every loop through it gone.
-    Then Phase E (User report), Phase F (matrix + docs + terminal line). Then Phase D (cycles, references
+  - **D-1 DONE (audit sec 391):** the **`Communication <-> Console` cycle is CUT** and the graph SHRANK: **15 -> 14
+    edges, 65 -> 64 port references, 5 -> 4 two-cycles, 21 -> 6 derived loops**. NEW kernel DTO
+    `App\DTOs\Communication\SupportDeskAgent` + consumer-declared `Communication\Contracts\SupportDeskDirectory`;
+    Console implements/binds it (`SupportDeskDirectoryService`) and names Communication's contract instead of
+    Communication naming its two ports - one call replaces `SupportAgentRoutingInterface` +
+    `EmployeeManagementInterface`. Same routing query, same self-heal, same 503/422, `agent.name` unchanged
+    (`contact/store` byte-identical). Gate: **2293/10758 (2 skips)**, focus **110/622**, `AppFuture` **65/472**.
+    **The other four cycles are PARKED with their measurements** (sec 391): Console<->Identity 10/3,
+    Identity<->Money 4/4, Money<->Ride 2/5, Identity<->Ride 3/3 - an inversion there is a FLIP (same reference
+    count) and breaks the section-10 ownership map; none has two ports on one edge answering a single call.
+  - NEXT: **Phase E** (D5 = REPORT-ONLY: what moving `App\Models\User` into Identity would touch, no code), then the
+    Phase D+E gate (full default + reverse), then **Phase F** (five-order matrix + per-test diff + probe on the final
+    tip, stored-class-name inventory repeat, ARCHITECTURE + READMEs + ADR updates, the assertion list with owner
+    rulings, terminal "Stage 4 verified on <sha>"). Then Phase D (cycles, references
     must go DOWN), E (report-only), F (closing matrix).
 
 **Stage 2 verified on `40aab7b`** - the closing run (audit sec 377) started at that tip and proved it: full

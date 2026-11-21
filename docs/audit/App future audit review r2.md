@@ -23053,3 +23053,57 @@ fixture/relation adaptations of the same assertions, recorded here for review.
 Bookings + Chat + Notifications + Profile + Auth + Staff + Admin): **2841 tests / 12034 assertions / 2 skipped /
 0 failures**. Snapshots alone: **186 / 2069 OK**, corpus byte-identical to `stage3-verified` except the one file
 Phase B named. `AppFuture`: **65 / 472**.
+
+---
+
+### 391. STAGE 4 D-1 - the `Communication <-> Console` cycle is cut, and the reference count goes DOWN (15 -> 14 edges, 65 -> 64 references)
+
+**Why this cycle, and why it is the only one that can also shrink the graph.** `/api/contact` needed TWO things from
+Console to build ONE response: which support agent is least loaded (Console's `Employee` model) and that agent's
+shadow chat account (a kernel `User`). Two ports, one workflow - and that is what held the cycle open. The phase
+requires that a cut take the PORT REFERENCE COUNT DOWN, so the inversion had to merge the two questions into one:
+
+| before | after |
+|---|---|
+| `SupportAgentRoutingInterface::leastLoadedSupportAgent(): Employee` (Console model) | `Communication\Contracts\SupportDeskDirectory::leastLoadedAgent(): ?SupportDeskAgent` - ONE consumer-declared port |
+| `EmployeeManagementInterface::ensureShadowUser(Employee): User` | the same call returns the shadow user inside the DTO |
+| Communication names TWO Console ports | Communication names NO Console class |
+| Console -> Communication: 4 | Console -> Communication: **5** (it implements and binds the new contract) |
+
+`SupportDeskAgent` (kernel DTO: agent id, display name, shadow `User`) is the same shape as `BookingMoneySnapshot`
+from A2: both sides must name it, so it lives in the kernel and neither module names the other's implementation.
+Console's `SupportDeskDirectoryService` runs the same routing query and the same permanent self-heal, in the same
+order - the endpoint's 503 (no agent), the 422 (the caller IS the agent) and the `agent.name` string are untouched,
+which the byte-identical `contact/store` snapshot proves.
+
+**Graph before -> after:**
+
+| metric | before | after |
+|---|---|---|
+| EDGES | 15 | **14** |
+| port references | 65 | **64** |
+| 2-cycles | 5 | **4** |
+| derived loops | 21 | **6** |
+
+The derived loops fell by fifteen because every loop that started `Communication -> Console -> ...` disappeared with
+that one edge; the six that remain are all consequences of the four surviving pairs. `ModuleGraphTest` was updated in
+the same commit: the edge removed, `Console -> Communication` 4 -> 5 with its reason, the matrix corrected,
+`Communication <-> Console` deleted from `UNCUT_CYCLES`, and `DERIVED_CYCLES` replaced with the measured six.
+
+**The other four cycles: parked, each with its measurement and the reason an inversion cannot help.**
+
+| cycle | ports (each way) | why it cannot be cut |
+|---|---|---|
+| `Console <-> Identity` | 10 / 3 | Console authenticates staff through Identity and Identity reads employee RECORDS through Console. Inverting either side flips the direction (same reference count) and moves ownership of staff authentication or of employee records, which is the batch-233 context map itself. The 10 Console -> Identity ports are the whole admin surface (staff auth, directory, ratings, photos, verification) and each returns data the screen prints |
+| `Identity <-> Money` | 4 / 4 | OTP-verified withdrawal (Money -> Identity) and wallet top-up (Identity -> Money) both need return values to build their responses; the customer side of each is an HTTP endpoint. Inverting moves an endpoint between modules; deleting either removes a feature |
+| `Money <-> Ride` | 2 / 5 | escrow is a COLUMN on the booking row: the module that owns the table must own the guarded decrement, and the schema is frozen (`BookingEscrowLedger`). The other Money -> Ride port is a count (`CashRideCounter`), and `rides` is Ride's table. Inversion flips both directions without removing a reference |
+| `Identity <-> Ride` | 3 / 3 | driver-document verification at booking time versus ride stats, score and booking history on the profile page. Same shape as Identity <-> Money: both sides return values a response prints, and either inversion flips an endpoint |
+
+For all four the measurement is the honest reason rather than a preference: an inversion is a FLIP, not a removal -
+it keeps the reference count identical and breaks the ownership map the ARCHITECTURE section 10 records. Phase D's
+own bar (references must go DOWN) is only met by a merge like D-1's, and none of the remaining four has a pair of
+ports on one edge answering a single call.
+
+**Gate for this step** (Unit + Review incl. L16/L27 + Wallet + Payment + Console + AppFuture + Snapshots + Chat +
+Notifications): recorded with the commit; focused first - engagement snapshots + Chat + Notifications + AppFuture =
+**110 / 622 OK**, `contact/store` byte-identical.

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Console\Providers;
 
+use App\Modules\Communication\Contracts\SupportDeskDirectory;
 use App\Modules\Console\Contracts\BanLifterInterface;
 use App\Modules\Console\Contracts\ComplaintDirectory;
 use App\Modules\Console\Contracts\ComplaintRepositoryInterface;
@@ -27,6 +28,7 @@ use App\Modules\Console\Services\EmployeeTokenVersionBumper;
 use App\Modules\Console\Services\ReviewModerationService;
 use App\Modules\Console\Services\StaffComplaintService;
 use App\Modules\Console\Services\SupportAgentRoutingService;
+use App\Modules\Console\Services\SupportDeskDirectoryService;
 use App\Modules\Ride\Contracts\ComplaintRecorder;
 use Illuminate\Support\ServiceProvider;
 
@@ -71,6 +73,9 @@ final class ConsoleServiceProvider extends ServiceProvider
         $this->app->bind(ComplaintDirectory::class, ComplaintDirectoryService::class);
         $this->app->bind(EmployeeManagementInterface::class, EmployeeManagementService::class);
         $this->app->bind(SupportAgentRoutingInterface::class, SupportAgentRoutingService::class);
+        // Stage 4 D-1: the support-desk answer Communication declares, implemented by the module that owns
+        // `employees`. One call replaces the two ports the contact endpoint used to need.
+        $this->app->bind(SupportDeskDirectory::class, SupportDeskDirectoryService::class);
         $this->app->bind(BanLifterInterface::class, BanService::class);
     }
 }
