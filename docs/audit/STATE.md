@@ -1,4 +1,20 @@
-# STAGE 5 - PHASE A REPORT DONE, WAITING ON D1
+# STAGE 5 - PHASE B IN PROGRESS (D1 = APPROVED O1)
+
+**D1 = APPROVED O1** (owner, 2026-11-24): bottom-to-top **Communication < Identity < Money < Ride < Console**, with
+the four amendments recorded (actual numbers per step; no `BookingEscrowLedger` / route-owner move; step (b) described
+as moving the views into the shared kernel; the step gate and Phase C closing run unchanged).
+
+- **B0 DONE (audit sec 395):** the layering ratchet is in - `ModuleLayeringTest` + `Tests\Support\Boundary\LayeringScanner`.
+  The approved order is declared data; an upward edge fails; the current **4 upward edges / 14 references** are pinned
+  shrink-only (`Identity -> Console` 3, `Identity -> Money` 4, `Identity -> Ride` 3, `Money -> Ride` 4); the classifier
+  is proven by a synthetic probe (a new upward edge is caught, a downward one is not, an unplaced module is reported).
+  Gate: **2267 / 10713 (2 skips)**. No app code changed.
+  - NEXT: **B1 = step (a)** - `Identity -> Console`'s removable ports by passing values in (credentials into
+    `authenticate()`, the refresh subject in, the token-version bump moved to Console's callers), then report the
+    ACTUAL edges/references/cycles/loops.
+
+## Stage 5 Phase A (report, closed) - retained
+
 
 **Stage 5 gate checked:** HEAD `fd5b4e8` (Stage 4 closed), tree carries only the owner's `AGENTS.md` +
 `docker-compose.local.yml`, tag `stage4-verified` = `4b313c6`. **Start sha `fd5b4e8`; start numbers: 14 edges,

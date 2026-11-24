@@ -23372,3 +23372,44 @@ two cycles cannot be removed without moving a route/response owner, which D2 par
 (A) Identity -> Console's two removable ports, (B) the two view interfaces moving to the kernel, (C) `CashRideCounter`'s
 value passed in - each with the same values, the same query count and the same JSON, and each shrinking the pinned
 upward list. The remaining two cycles stay in `UNCUT_CYCLES` with the reason recorded above.
+
+---
+
+### 395. STAGE 5 B0 - the layering ratchet (owner decision D1 = APPROVED O1)
+
+**D1 recorded:** `D1 layer order: APPROVED O1` - bottom-to-top
+**`Communication < Identity < Money < Ride < Console`**, with the owner's four amendments applied from here on:
+actual numbers after every step (not estimates), no `BookingEscrowLedger` and no route/response-owner move (those
+stay parked under D2/D3), step (b) described as moving the two read-only views into the shared kernel (not as
+removing the dependency), and the step gate / Phase C closing run kept exactly as the Stage 5 file states.
+
+**The ratchet: `ModuleLayeringTest` + `Tests\Support\Boundary\LayeringScanner`.**
+
+- The approved order is declared as data (`LAYERS`, index 0 = bottom; the test also asserts it lists exactly the
+  modules on disk and that the indexes are a contiguous `0..n-1` range, so a missing layer cannot hide a gap).
+- An edge `A -> B` is UPWARD when `index(A) < index(B)`. The graph is read from `ModuleGraphTest::EDGES` - the
+  ratchet that already pins the edges - so the two tests cannot disagree about what the graph is.
+- **The current upward edges are PINNED with their reference counts**, and the pin is shrink-only: measured must
+  equal pinned, so a new upward edge fails AND a stale pinned line fails.
+
+| upward edge | port references at B0 |
+|---|---|
+| `Identity -> Console` | 3 |
+| `Identity -> Money` | 4 |
+| `Identity -> Ride` | 3 |
+| `Money -> Ride` | 4 |
+
+- The probe is a pure self-test of the classifier: a synthetic `Communication -> Console` edge (bottom to top) is
+  classified as upward, a synthetic `Console -> Identity` (top to bottom) is not, a same-module edge is not, and an
+  edge naming a module the order does not place is reported as `unplaced` rather than silently ignored. The real
+  sweep also asserts it saw at least 14 edges, so an empty pin would look like a broken scanner, not a layered
+  codebase.
+
+**Where this leaves the phase.** The pin is the honest starting point: under O1 the graph currently has **four
+upward edges carrying 14 of its 64 references**, and the owner's amendments already say the two cycles that cannot
+go without a behaviour change stay parked. Phase B now shrinks this pin one step at a time and reports the ACTUAL
+edges, references, 2-cycles and derived loops after each step.
+
+**Step gate (B0):** Unit + Review (incl. L16/L27) + Wallet + Payment + Console + AppFuture + Snapshots +
+`ModuleLayeringTest` = **2267 tests / 10713 assertions / 2 skipped / 0 failures**. No app code changed, no snapshot,
+no budget, no manifest.
