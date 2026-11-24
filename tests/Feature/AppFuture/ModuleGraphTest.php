@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          -
- *   Money              1       1      2        4          -
+ *   Money              1       1      1        4          -
  *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
  *   Console            5       7     12        9          -
@@ -154,7 +154,10 @@ class ModuleGraphTest extends TestCase
         // the table's owner - and Money calls it. Ride already calls Money for payouts and charges, so
         // this closes a mutual pair rather than opening a one-way one.
         // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through Ride.
-        'Money -> Ride' => 2,
+        'Money -> Ride' => 1,
+        // Stage 5 B1(c): the cash-ride COUNT is now passed in by Ride (which owns `rides`), so Money asks Ride
+        // for nothing but the escrow ledger. That last port stays on purpose - the guarded decrement is inside
+        // Money's atomic settlement, and moving it is parked under D2/D3.
         // Stage 5 B1(b): `BookingView` and `RideView` are NOT Ride's service contracts any more - they are the
         // shared read-only vocabulary of the kernel (`app/Contracts`), where a view of a row belongs. Money
         // still depends on Ride for the escrow ledger and the cash-ride count; what left the edge is the two

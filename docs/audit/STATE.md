@@ -17,9 +17,16 @@ as moving the views into the shared kernel; the step gate and Phase C closing ru
     references, 4 cycles (unchanged), 6 derived loops (unchanged), layering pin 14 -> 12.** Two ratchets caught real
     problems: the stale classmap (fatal at inheritance) and the moved interfaces' docblocks naming
     `App\Modules\Ride\Models` (reworded). Gate: **2374 / 10957 (2 skips)**.
-  - NEXT: **B1(c)** - `CashRideCounter` passed in by Ride (the last behaviour-free upward reference: `Money -> Ride`
-    2 -> 1), then report the ACTUAL numbers; then **Phase C** (full default + reverse + five-order matrix + probe,
-    ARCHITECTURE + READMEs + ADR 0013 "module layering", terminal line).
+  - **B1(c) DONE (audit sec 397):** `CashRideFeeServiceInterface::canCreateCashRide()` takes `int $cashRidesCount` -
+    Ride counts its own rows and passes it (same one query, same position, same transaction); the five test calls
+    gained the argument through a fixture helper, no assertion changed. **ACTUAL Phase B end: 14 edges (unchanged),
+    64 -> 61 references, 4 cycles (UNCHANGED), 6 derived loops (unchanged), layering pin 14 -> 11.** No cycle
+    disappeared - `Money -> Ride` keeps `BookingEscrowLedger` by owner amendment, and the other three are parked
+    under D2 with their measurements. Gate: **2374 / 10957 (2 skips)**.
+  - NEXT: **Phase C** - full default + reverse + five-order matrix with the per-test assertion-count diff and probe
+    on the final tip; ARCHITECTURE (graph + layer order) + READMEs + ADR 0013 "module layering"; the ratchet table
+    vs `stage4-verified`; the assertion list (expected: the D6 pair from stage 4 only); terminal line
+    "Stage 5 verified on <sha>" only if everything is green.
 
 ## Stage 5 Phase A (report, closed) - retained
 

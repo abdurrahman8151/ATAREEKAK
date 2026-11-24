@@ -49,9 +49,10 @@ final class ModuleLayeringTest extends TestCase
         'Identity -> Console' => 3,
         'Identity -> Money' => 4,
         'Identity -> Ride' => 3,
-        // stage 5 B1(b): 4 -> 2 - the two read-only views moved into the shared kernel; the dependency on
-        // Ride that remains (the escrow ledger and the cash-ride count) still points up and is pinned here.
-        'Money -> Ride' => 2,
+        // stage 5 B1(b)+(c): 4 -> 2 (the views moved to the shared kernel) -> 1 (the cash-ride count is passed in
+        // by Ride). What remains is the escrow ledger, which stays by owner ruling - so this edge is the one
+        // upward reference that must never reach zero.
+        'Money -> Ride' => 1,
     ];
 
     /** The sweep must see the whole graph, or an empty pinned list would prove nothing. */

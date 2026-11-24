@@ -30,7 +30,14 @@ interface CashRideFeeServiceInterface
      *
      * @return array{allowed: bool, deferred: bool, fee: float, reason: string}
      */
-    public function canCreateCashRide(User $driver, float $feeAmount): array;
+    /**
+     * Stage 5 B1(c): `$cashRidesCount` is passed IN - `rides` is Ride's table, so the module that owns it counts
+     * its own rows and the tier decision (which stays here) receives the number. Same one query, same tiers,
+     * same messages; the caller is the only thing that changed.
+     *
+     * @return array{allowed: bool, deferred: bool, fee: float, reason: string}
+     */
+    public function canCreateCashRide(User $driver, float $feeAmount, int $cashRidesCount): array;
 
     /** Charge the 5% creation fee for a newly created cash ride (immediate or deferred). */
     public function chargeCashRideCreationFee(RideView $ride, User $driver): void;

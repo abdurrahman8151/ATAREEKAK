@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Models\User;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Services\CashRideFeeService;
+use App\Modules\Ride\Contracts\CashRideCounter;
 use App\Modules\Ride\Models\Booking;
 use App\Modules\Ride\Models\Ride;
 use Carbon\Carbon;
@@ -114,6 +115,15 @@ class CashRideFeeServiceTest extends TestCase
         ]);
     }
 
+    /**
+     * Stage 5 B1(c): the tier check takes the cash-ride count as an argument now. The fixtures below seed real rides,
+     * so the test reads the same number from the module that owns `rides` - no assertion changes.
+     */
+    private function cashRidesOf(User $driver): int
+    {
+        return app(CashRideCounter::class)->countForDriver((int) $driver->id);
+    }
+
     // =========================================================================
     // SECTION 1 — WALLET EXISTENCE GATE
     // =========================================================================
@@ -123,7 +133,7 @@ class CashRideFeeServiceTest extends TestCase
     {
         $walletlessDriver = User::factory()->create();
 
-        $result = $this->service->canCreateCashRide($walletlessDriver, 5.00);
+        $result = $this->service->canCreateCashRide($walletlessDriver, 5.00, $this->cashRidesOf($walletlessDriver));
 
         $this->assertFalse($result['allowed']);
         $this->assertStringContainsStringIgnoringCase('wallet', $result['reason']);
@@ -136,7 +146,7 @@ class CashRideFeeServiceTest extends TestCase
     /** @test */
     public function test_first_cash_ride_is_deferred(): void
     {
-        $result = $this->service->canCreateCashRide($this->driver, 5.00);
+        $result = $this->service->canCreateCashRide($this->driver, 5.00, $this->cashRidesOf($this->driver));
 
         $this->assertTrue($result['allowed']);
         $this->assertTrue($result['deferred']);
@@ -148,7 +158,7 @@ class CashRideFeeServiceTest extends TestCase
     {
         $this->seedRide();
 
-        $result = $this->service->canCreateCashRide($this->driver, 5.00);
+        $result = $this->service->canCreateCashRide($this->driver, 5.00, $this->cashRidesOf($this->driver));
 
         $this->assertTrue($result['allowed']);
         $this->assertTrue($result['deferred']);
@@ -165,7 +175,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->seedRide();
         $this->wallet->update(['cash_ride_debt' => 10.00]);
 
-        $result = $this->service->canCreateCashRide($this->driver, 5.00);
+        $result = $this->service->canCreateCashRide($this->driver, 5.00, $this->cashRidesOf($this->driver));
 
         $this->assertFalse($result['allowed']);
         $this->assertStringContainsStringIgnoringCase('debt', $result['reason']);
@@ -178,7 +188,7 @@ class CashRideFeeServiceTest extends TestCase
         $this->seedRide();
         $this->wallet->update(['balance' => 50.00, 'cash_ride_debt' => 0.00]);
 
-        $result = $this->service->canCreateCashRide($this->driver, 5.00);
+        $result = $this->service->canCreateCashRide($this->driver, 5.00, $this->cashRidesOf($this->driver));
 
         $this->assertTrue($result['allowed']);
         $this->assertFalse($result['deferred']);

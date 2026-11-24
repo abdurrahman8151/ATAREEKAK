@@ -23461,3 +23461,48 @@ composes the other module's data" cycles are parked under D2.
 **Step gate (B1(b)):** Unit + Review (incl. L16/L27 + the ledger property tests) + Wallet + Payment + Console +
 AppFuture + Snapshots + Rides + Bookings = **2374 tests / 10957 assertions / 2 skipped / 0 failures**. Every snapshot
 byte-identical (the move is imports and namespaces), `query-budgets.json` untouched.
+
+---
+
+### 397. STAGE 5 B1(c) - the cash-ride count is passed in by its owner; the ACTUAL end of Phase B
+
+**What moved.** `CashRideCounter` is Ride's statement over `rides`, and Money's `CashRideFeeService` used to ask
+for it (`countForDriver`) on every cash-ride creation. Ride now counts its own rows and passes the number:
+`CashRideFeeServiceInterface::canCreateCashRide(User $driver, float $feeAmount, int $cashRidesCount)`. The tier
+decision, the thresholds, the messages and the deferred/charged outcome are untouched - only the caller changed, and
+`RideService` computes the count immediately before the call (the same one query, in the same position, inside the
+same transaction).
+
+`CashRideFeeServiceTest`'s five direct calls gained the third argument through a small `cashRidesOf()` helper that
+reads the count from the owner - the fixtures seed real rides, so the number is the same one the service used to
+look up. **No assertion changed.**
+
+**ACTUAL numbers, Phase B end (`stage4-verified` -> now):**
+
+| metric | stage 4 start | after B0 | after B1(b) | after B1(c) |
+|---|---|---|---|---|
+| EDGES | 14 | 14 | 14 | **14** |
+| port references | 64 | 64 | 62 | **61** |
+| 2-cycles | 4 | 4 | 4 | **4** |
+| derived loops | 6 | 6 | 6 | **6** |
+| layering pin, upward references | 14 | 14 | 12 | **11** |
+
+**Which cycles disappeared: NONE, and that is the honest result.** Every cycle keeps at least one reference in each
+direction, exactly as the owner's amendments anticipated:
+
+| cycle | references each way now | why it survives |
+|---|---|---|
+| `Console <-> Identity` | 10 / 3 | Identity->Console's three are parked: `EmployeeRepositoryInterface` is load-bearing in the refresh reuse-detection path, `EmployeeTokenVersion` would change a stored value, `ComplaintDirectory` needs the endpoint moved (D2) |
+| `Identity <-> Money` | 4 / 4 | the withdrawal OTP/password checks and the top-up/panel orchestration: each removal moves a route or response owner (D2) |
+| `Identity <-> Ride` | 3 / 3 | the profile pages render Ride's score/stats/trips; Ride's booking precondition needs Identity's KYC decision synchronously (D2) |
+| `Money <-> Ride` | 1 / 5 | **`BookingEscrowLedger` is the one reference that must stay** (owner amendment 2: no escrow move), so this edge can never reach zero |
+
+What Phase B DID achieve: the layering ratchet exists and is proven; two references of type-only coupling left the
+graph (the views, now shared kernel vocabulary); one upward reference became a value passed in (the count); and the
+remaining 11 upward references are pinned, shrink-only, with their reasons recorded. The phase's original premise -
+an acyclic graph - is **not** achievable under the approved amendments, and this section says so with the measured
+numbers rather than an estimate.
+
+**Step gate (B1(c)):** Unit + Review (incl. L16/L27 + ledger property tests) + Wallet + Payment + Console +
+AppFuture + Snapshots + Rides + Bookings = **2374 tests / 10957 assertions / 2 skipped / 0 failures**. Snapshots
+byte-identical; `query-budgets.json` untouched (the count query moved sides, it did not appear).

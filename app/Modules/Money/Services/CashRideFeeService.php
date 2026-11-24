@@ -7,7 +7,6 @@ use App\Domain\ValueObjects\Money;
 use App\Models\User;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Models\Wallet;
-use App\Modules\Ride\Contracts\CashRideCounter;
 
 /**
  * CashRideFeeService
@@ -131,7 +130,7 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
      * 'deferred' = true  → fee will be added to debt, not deducted from balance.
      * 'deferred' = false → fee will be deducted immediately on creation.
      */
-    public function canCreateCashRide(User $driver, float $feeAmount): array
+    public function canCreateCashRide(User $driver, float $feeAmount, int $cashRidesCount): array
     {
         // RV-37 / un9: explicit load instead of a lazy read. Same single query, but it states
         // the dependency and survives the armed lazy-loading guard (this runs on every cash-ride
@@ -156,7 +155,7 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
         }
 
         // Balance insufficient → apply grace period for the first two cash rides.
-        $cashRideCount = $this->countCashRides($driver->id);
+        $cashRideCount = $cashRidesCount;
 
         if ($cashRideCount < self::DEFERRED_RIDES_ALLOWED) {
             return $this->cashRideAllowed($feeAmount, true);
@@ -185,16 +184,6 @@ final class CashRideFeeService implements CashRideFeeServiceInterface
     // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================
-
-    /**
-     * Count how many cash rides this driver has created so far
-     * (including the current one if already saved).
-     */
-    private function countCashRides(int $driverId): int
-    {
-        // Stage 2 C2: the count over the rides table is Ride's; the tier logic below is unchanged.
-        return app(CashRideCounter::class)->countForDriver($driverId);
-    }
 
     // =========================================================================
     // PRIVATE HELPERS — ELIGIBILITY CHECK

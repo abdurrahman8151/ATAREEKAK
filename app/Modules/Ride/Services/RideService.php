@@ -10,6 +10,7 @@ use App\Modules\Identity\Contracts\ProfileDirectory;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
+use App\Modules\Ride\Contracts\CashRideCounter;
 use App\Modules\Ride\Contracts\RideRepositoryInterface;
 use App\Modules\Ride\Events\RideCreated;
 use App\Modules\Ride\Models\Ride;
@@ -33,6 +34,9 @@ final class RideService
         private readonly Noshowservice $noshowService,
         private readonly CashRideFeeServiceInterface $cashRideFeeService,
         private readonly RouteCalculationService $routeService,
+        // Stage 5 B1(c): `rides` is this module's table, so this module counts its own cash rides and passes the
+        // number to Money's tier decision.
+        private readonly CashRideCounter $cashRideCounter,
     ) {
         $this->cancellations = new RideCancellationService(
             $validationService,
@@ -112,7 +116,11 @@ final class RideService
             // Cash ride: check eligibility and stamp fee fields
             if ($dto->paymentMethod->value === 'cash') {
                 $feeAmount = $dto->calculateRideCreationFee()->amount();
-                $eligibility = $this->cashRideFeeService->canCreateCashRide($driver, $feeAmount);
+                $eligibility = $this->cashRideFeeService->canCreateCashRide(
+                    $driver,
+                    $feeAmount,
+                    $this->cashRideCounter->countForDriver((int) $driver->id),
+                );
 
                 if (! $eligibility['allowed']) {
                     throw new \InvalidArgumentException($eligibility['reason']);
