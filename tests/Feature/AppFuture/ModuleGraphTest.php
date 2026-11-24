@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   from \ to        Comm   Money   Ride   Identity   Console
  *   Communication      -       -      -        -          -
- *   Money              1       1      4        4          -
+ *   Money              1       1      2        4          -
  *   Ride               1       5      1        3          -
  *   Identity           2       4      3        -          3
  *   Console            5       7     12        9          -
@@ -154,7 +154,11 @@ class ModuleGraphTest extends TestCase
         // the table's owner - and Money calls it. Ride already calls Money for payouts and charges, so
         // this closes a mutual pair rather than opening a one-way one.
         // Stage 2 C2: Money's cash-creation-fee tiers count the driver's cash rides through Ride.
-        'Money -> Ride' => 4,
+        'Money -> Ride' => 2,
+        // Stage 5 B1(b): `BookingView` and `RideView` are NOT Ride's service contracts any more - they are the
+        // shared read-only vocabulary of the kernel (`app/Contracts`), where a view of a row belongs. Money
+        // still depends on Ride for the escrow ledger and the cash-ride count; what left the edge is the two
+        // TYPES, which were never a service call (4 ports -> 2, references 64 -> 62).
         // Stage 4 A2 added a METHOD to `BookingEscrowLedger` (`recordMoneySnapshot`) rather than a fifth port:
         // Money computes a booking's money snapshot and Ride - which owns `bookings` - writes it, so the one
         // cross-module WRITE the stage 4 census found now lives with the owner. Same values, same single

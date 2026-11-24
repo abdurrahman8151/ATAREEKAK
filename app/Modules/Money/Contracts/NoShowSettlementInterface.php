@@ -2,9 +2,9 @@
 
 namespace App\Modules\Money\Contracts;
 
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use App\Models\User;
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
 
 /**
  * Port over the no-show settlement paths (batch 233).

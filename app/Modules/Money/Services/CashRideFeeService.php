@@ -2,12 +2,12 @@
 
 namespace App\Modules\Money\Services;
 
+use App\Contracts\RideView;
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
 use App\Modules\Money\Contracts\CashRideFeeServiceInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Contracts\CashRideCounter;
-use App\Modules\Ride\Contracts\RideView;
 
 /**
  * CashRideFeeService

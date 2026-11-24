@@ -9,9 +9,17 @@ as moving the views into the shared kernel; the step gate and Phase C closing ru
   shrink-only (`Identity -> Console` 3, `Identity -> Money` 4, `Identity -> Ride` 3, `Money -> Ride` 4); the classifier
   is proven by a synthetic probe (a new upward edge is caught, a downward one is not, an unplaced module is reported).
   Gate: **2267 / 10713 (2 skips)**. No app code changed.
-  - NEXT: **B1 = step (a)** - `Identity -> Console`'s removable ports by passing values in (credentials into
-    `authenticate()`, the refresh subject in, the token-version bump moved to Console's callers), then report the
-    ACTUAL edges/references/cycles/loops.
+  - **B1(a) PARKED, B1(b) DONE (audit sec 396):** step (a) removes ZERO references - `EmployeeRepositoryInterface` is
+    load-bearing in the refresh REUSE-DETECTION branch (a staff-auth restructure, not a layer move) and
+    `EmployeeTokenVersion` would change a stored value (the reset path bumps `token_version` twice today). Step (b):
+    `BookingView` + `RideView` moved to `app/Contracts` (21 imports repointed) - described as moving shared read-only
+    vocabulary into the kernel, NOT as removing Money's dependency on Ride. **ACTUAL: 14 edges (unchanged), 64 -> 62
+    references, 4 cycles (unchanged), 6 derived loops (unchanged), layering pin 14 -> 12.** Two ratchets caught real
+    problems: the stale classmap (fatal at inheritance) and the moved interfaces' docblocks naming
+    `App\Modules\Ride\Models` (reworded). Gate: **2374 / 10957 (2 skips)**.
+  - NEXT: **B1(c)** - `CashRideCounter` passed in by Ride (the last behaviour-free upward reference: `Money -> Ride`
+    2 -> 1), then report the ACTUAL numbers; then **Phase C** (full default + reverse + five-order matrix + probe,
+    ARCHITECTURE + READMEs + ADR 0013 "module layering", terminal line).
 
 ## Stage 5 Phase A (report, closed) - retained
 

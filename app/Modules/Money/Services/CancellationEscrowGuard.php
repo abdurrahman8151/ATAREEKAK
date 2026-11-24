@@ -2,9 +2,9 @@
 
 namespace App\Modules\Money\Services;
 
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use App\Modules\Money\Models\Wallet;
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Database\Eloquent\Collection;
 
 /**

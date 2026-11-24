@@ -2,9 +2,9 @@
 
 namespace App\Modules\Ride\Models;
 
+use App\Contracts\RideView;
 use App\Models\Concerns\GuardsLazyLoading;
 use App\Models\User;
-use App\Modules\Ride\Contracts\RideView;
 use App\Support\GeoPoint;
 use Database\Factories\RideFactory;
 use Illuminate\Database\Eloquent\Builder;

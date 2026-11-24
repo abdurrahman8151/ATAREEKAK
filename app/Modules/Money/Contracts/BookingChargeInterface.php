@@ -2,10 +2,10 @@
 
 namespace App\Modules\Money\Contracts;
 
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use App\DTOs\Money\BookingMoneySnapshot;
 use App\Models\User;
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
 
 /**
  * Port over the passenger-charge step of the payment pipeline (batch 227).

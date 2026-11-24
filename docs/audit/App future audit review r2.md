@@ -23413,3 +23413,51 @@ edges, references, 2-cycles and derived loops after each step.
 **Step gate (B0):** Unit + Review (incl. L16/L27) + Wallet + Payment + Console + AppFuture + Snapshots +
 `ModuleLayeringTest` = **2267 tests / 10713 assertions / 2 skipped / 0 failures**. No app code changed, no snapshot,
 no budget, no manifest.
+
+---
+
+### 396. STAGE 5 B1(a) PARKED + B1(b) DONE - the two read-only views move into the shared kernel
+
+**B1(a) - `Identity -> Console`'s two "removable" ports: PARKED, with what the code actually says.** The stage 5 A1
+report called both removable; reading them at implementation depth says otherwise, so neither was touched:
+
+| port | why it cannot go without a behaviour change |
+|---|---|
+| `EmployeeRepositoryInterface` | removal needs three things at once: Console passes `StaffCredentials` into `authenticate()` (fine), `markLoggedIn` moves to Console's controller (fine), and `StaffJwtService::refreshAccessToken()` stops reading the employee subject. The last one is load-bearing in TWO places: the refresh path, and its REUSE-DETECTION branch, which calls `revokeAllTokens()` - i.e. bumps Console's `token_version` - from inside Identity's refresh. Threading a subject resolver through the refresh call cannot cover that branch without re-cutting a staff-auth security path; the honest verdict is a staff-auth restructure, not a layer move |
+| `EmployeeTokenVersion` | Console's `EmployeeManagementService::resetPassword()` already increments `employees.token_version` itself and then calls Identity's `revokeAllTokens()`, which bumps it AGAIN - the stored value rises by **2** today. Moving the write to Console makes it **1**, a stored-value change (the invalidation outcome is the same, the column value is not) - a behaviour change, so PARK |
+
+So step (a) removes **zero** references. The pin keeps `Identity -> Console` at 3 and the cycle stays.
+
+**B1(b) - the two read-only views move into the shared kernel (`app/Contracts`).** `BookingView` and `RideView`
+left `App\Modules\Ride\Contracts` for `App\Contracts`, with their `implements` and 21 imports repointed. As the owner
+asked, this is recorded for what it is: **the views are shared vocabulary, and the move puts them where shared
+read-only views belong - it does not remove Money's dependency on Ride**, which still exists for the escrow ledger
+and the cash-ride count. What it removes is the two TYPE references from the graph edge, because a type is not a
+service call.
+
+| metric | before B1(b) | after B1(b) |
+|---|---|---|
+| EDGES | 14 | **14** |
+| port references | 64 | **62** |
+| 2-cycles | 4 | **4** |
+| derived loops | 6 | **6** |
+| layering pin (`Money -> Ride`) | 4 | **2** |
+| layering pin total (upward refs) | 14 | **12** |
+
+**Which cycles disappear: none.** Every cycle keeps at least one reference in each direction: `Console <-> Identity`
+(10 / 3), `Identity <-> Money` (4 / 4), `Identity <-> Ride` (3 / 3), `Money <-> Ride` (2 / 1 after B1(c)). This is the
+honest consequence of the owner's amendments - `BookingEscrowLedger` stays, no route moves, and the two "endpoint
+composes the other module's data" cycles are parked under D2.
+
+**Two ratchets caught real problems during the move, recorded because they are the point of the system:**
+
+1. The stale optimised classmap made PHP load `App\Modules\Ride\Contracts\BookingView` after the file had moved -
+   a fatal at inheritance time, not a test failure. `composer dump-autoload --no-scripts` fixed it, exactly as in
+   stage 3 A4.
+2. `ModuleBoundaryTest` refused the two moved interfaces because their DOCBLOCKS still printed
+   `App\Modules\Ride\Models` - a kernel file naming module implementation, in prose. The docblocks were reworded to
+   say "the Ride module's models namespace"; the same lesson as stage 4 B1's docblock FQCNs.
+
+**Step gate (B1(b)):** Unit + Review (incl. L16/L27 + the ledger property tests) + Wallet + Payment + Console +
+AppFuture + Snapshots + Rides + Bookings = **2374 tests / 10957 assertions / 2 skipped / 0 failures**. Every snapshot
+byte-identical (the move is imports and namespaces), `query-budgets.json` untouched.

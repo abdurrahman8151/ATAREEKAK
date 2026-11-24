@@ -2,12 +2,12 @@
 
 namespace App\Modules\Money\Services;
 
+use App\Contracts\BookingView;
 use App\Domain\ValueObjects\Money;
 use App\Enums\WalletKind;
 use App\Models\User;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
-use App\Modules\Ride\Contracts\BookingView;
 use Illuminate\Database\Eloquent\Collection;
 
 /** Wallet lookup, row locking and the balance guard shared by the money paths. */

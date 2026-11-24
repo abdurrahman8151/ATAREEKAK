@@ -2,9 +2,9 @@
 
 namespace App\Modules\Money\Contracts;
 
+use App\Contracts\RideView;
 use App\Models\User;
 use App\Modules\Money\Models\Wallet;
-use App\Modules\Ride\Contracts\RideView;
 
 /**
  * Port over the 5% cash-ride creation fee (batch 233).

@@ -2,9 +2,9 @@
 
 namespace App\Modules\Ride\Services;
 
+use App\Contracts\BookingView;
 use App\DTOs\Money\BookingMoneySnapshot;
 use App\Modules\Ride\Contracts\BookingEscrowLedger;
-use App\Modules\Ride\Contracts\BookingView;
 use App\Modules\Ride\Models\Booking;
 use Illuminate\Support\Facades\DB;
 

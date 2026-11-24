@@ -2,11 +2,11 @@
 
 namespace App\Modules\Money\Domain\Strategies;
 
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use App\Modules\Money\Contracts\BookingChargeInterface;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Contracts\RidePayoutInterface;
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /**

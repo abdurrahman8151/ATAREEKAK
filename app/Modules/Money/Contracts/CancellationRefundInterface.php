@@ -2,8 +2,8 @@
 
 namespace App\Modules\Money\Contracts;
 
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 

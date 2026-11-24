@@ -2,13 +2,13 @@
 
 namespace App\Modules\Money\Services;
 
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
 use App\Modules\Money\Contracts\RidePayoutInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ride\Contracts;
 
+use App\Contracts\BookingView;
 use App\DTOs\Money\BookingMoneySnapshot;
 
 /**

@@ -2,9 +2,9 @@
 
 namespace App\Modules\Ride\Models;
 
+use App\Contracts\BookingView;
 use App\Models\Concerns\GuardsLazyLoading;
 use App\Models\User;
-use App\Modules\Ride\Contracts\BookingView;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

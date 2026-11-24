@@ -2,11 +2,11 @@
 
 namespace App\Modules\Money\Services;
 
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use App\Modules\Money\Contracts\CancellationRefundInterface;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;

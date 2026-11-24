@@ -2,8 +2,8 @@
 
 namespace App\Modules\Money\Domain\Strategies;
 
-use App\Modules\Ride\Contracts\BookingView;
-use App\Modules\Ride\Contracts\RideView;
+use App\Contracts\BookingView;
+use App\Contracts\RideView;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Log;
 

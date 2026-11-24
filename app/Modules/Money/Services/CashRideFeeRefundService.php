@@ -2,11 +2,11 @@
 
 namespace App\Modules\Money\Services;
 
+use App\Contracts\RideView;
 use App\Domain\ValueObjects\Money;
 use App\Models\User;
 use App\Modules\Money\Models\Wallet;
 use App\Modules\Money\Models\WalletTransaction;
-use App\Modules\Ride\Contracts\RideView;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
