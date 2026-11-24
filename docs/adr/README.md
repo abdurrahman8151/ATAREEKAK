@@ -18,5 +18,6 @@ in a line at the top rather than being rewritten.
 | [0010](0010-stored-class-names.md) | Stored class names: new rows keep the module namespace, readers accept both (decision PARKED) |
 | [0011](0011-auth-cache-profile-as-data.md) | The auth cache carries the profile as data; Identity rehydrates it |
 | [0012](0012-the-owner-writes-the-row.md) | The owner of a row is the only writer of it |
+| [0013](0013-module-layering.md) | Module layering: the approved order, the ratchet, and the references that stay upward |
 
 The map those decisions produce is in [../ARCHITECTURE.md](../ARCHITECTURE.md).

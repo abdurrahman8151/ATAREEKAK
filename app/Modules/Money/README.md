@@ -3,6 +3,11 @@
 The ledger, wallets, escrow and every way money moves. The most load-bearing module in the project: a
 bug here loses or duplicates money, so its rules are the ones the audit treats as untouchable.
 
+Its one remaining dependency UP the declared layer order is `Money -> Ride`'s `BookingEscrowLedger` (the guarded
+escrow decrement, inside the atomic settlement): stage 5 removed the two read-only views (they are kernel
+vocabulary now) and the cash-ride count (Ride passes it in), and the ledger port stays by owner ruling
+(ADR 0013).
+
 ## What it owns
 
 - `Domain/Ledger` - posting keys, ledger types, double-entry posting.

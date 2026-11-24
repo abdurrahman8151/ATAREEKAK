@@ -19,7 +19,7 @@ The ride lifecycle: the booking, the trip, the completion, and everything that c
   with their publisher (ADR 0009). All three use `SerializesModels` and are queued for broadcast, so they are
   listed in [ARCHITECTURE section 12](../../../docs/ARCHITECTURE.md) under "drain the queue before deploying".
 
-## Public Contracts (5)
+## Public Contracts (4)
 
 | Port | Implemented by | Consumers today |
 |---|---|---|
@@ -29,6 +29,12 @@ The ride lifecycle: the booking, the trip, the completion, and everything that c
 | `NoShowReportInterface` | `Noshowservice` | the `ResolveExpiredNoshowReports` artisan command |
 | `GeocodingServiceInterface` | `GeocodingService` | internal; published so tests and future consumers can fake it |
 
+`BookingView` and `RideView` used to sit in this folder. Stage 5 moved them to `app/Contracts/` because they are
+shared READ-ONLY vocabulary for a row - Money types its parameters against them - not a service Ride publishes.
+That is a move into the kernel, not a dependency removed: Money still depends on Ride for the escrow ledger.
+`CashRideCounter` stayed here but lost its only cross-module caller: Ride counts its own cash rides and passes
+the number to Money's fee tiers (stage 5 B1(c)).
+
 ## Who may call it
 
 Identity and Console, through the ports above. Ride's own dependencies are the widest in the graph -
@@ -36,7 +42,9 @@ Money (5 ports: charge, refund, payout, cash fee, no-show settlement), Communica
 12 files), Identity (`DocumentVerificationInterface`, for driver-document checks at booking time).
 
 That `Ride <-> Identity` pair is one of the four declared uncut cycles: Ride checks documents through
-Identity, and Identity's profile page renders Ride's stats and score.
+Identity, and Identity's profile page renders Ride's stats and score. The declared layer order is
+`Communication < Identity < Money < Ride < Console`, and the references that point up it are pinned in
+`tests/Feature/AppFuture/ModuleLayeringTest` with their reasons (ADR 0013).
 
 ## What it may not do
 

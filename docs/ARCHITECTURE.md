@@ -23,15 +23,17 @@ app/
   Modules/
     Communication/   33 files   9 ports   chat, push, notifications, mail transport, the support desk
     Money/           60 files  17 ports   ledger, wallets, escrow, refunds, payouts, payment strategies
-    Ride/            86 files  23 ports   booking and ride lifecycle, search, scoring, no-shows
+    Ride/            84 files  21 ports   booking and ride lifecycle, search, scoring, no-shows
     Identity/        80 files  23 ports   passenger and staff auth, tokens, OTP, KYC, profiles
     Console/         56 files   7 ports   the back office, employees, bans, support routing
   Models/ Enums/ DTOs/ Events/ Exceptions/ Jobs/ Listeners/ Mail/ Observers/ Support/ Services/
   Http/             the kernel: shared domain vocabulary and framework glue
 ```
 
-`app/` is **441 PHP files**: 315 in modules, 126 in the kernel, **79 of the module files being contracts** (64 of
-those are referenced across the 14 graph edges; the rest are internal). `tests/` is **306 PHP files**.
+`app/` is **441 PHP files**: 313 in modules, 128 in the kernel, **77 of the module files being contracts** (61 of
+those are referenced across the 14 graph edges; the rest are internal). The kernel also holds the two read-only
+row views (`app/Contracts/BookingView.php`, `RideView.php`), which are shared vocabulary rather than a module's
+service surface. `tests/` is **308 PHP files**.
 
 Why one deployable instead of services: the money paths need one transaction (an escrow hold and its
 ledger posting commit or roll back together), and the boundaries were discovered by moving code, which
@@ -110,20 +112,20 @@ edges are 0, which is `ModuleBoundaryTest` rule A's job and is asserted again on
 | from \ to | Communication | Money | Ride | Identity | Console |
 |---|---|---|---|---|---|
 | **Communication** | - | - | - | 0 | - |
-| **Money** | 1 | - | 4 | 4 | - |
+| **Money** | 1 | - | 1 | 4 | - |
 | **Ride** | 1 | 5 | - | 3 | - |
 | **Identity** | 2 | 4 | 3 | - | 3 |
 | **Console** | 5 | 7 | 12 | 10 | - |
 
-**14 directed edges, 64 port references. Four cycles close in it, and each is declared with the reason it could
-not be cut:**
+**14 directed edges, 61 port references. Four cycles close in it, and each is declared with the reason it could
+not be cut - stage 5 proved by measurement that none of them can be removed by layering alone (ADR 0013):**
 
 | Cycle | Why it stays |
 |---|---|
 | **Console <-> Identity** | Console authenticates staff through Identity (`EmployeeAuthInterface`, `StaffJwtInterface`); Identity reaches Console for `EmployeeRepositoryInterface` because the stage 1 context map puts staff **authentication** in Identity and employee **records** in Console. Cutting it means moving one of those two, i.e. contradicting the map. The ten Console -> Identity ports are the admin surface, and each returns data a screen prints. |
 | **Identity <-> Money** | OTP-verified withdrawal (Money -> Identity's `EmailOtpServiceInterface`) versus wallet top-up (Identity -> Money's `PassengerWalletChargerInterface`). Both need a return value; cutting either moves an HTTP endpoint between modules. |
 | **Identity <-> Ride** | Driver-document checks at booking time (Ride -> Identity's `DocumentVerificationInterface`) versus ride stats, score and booking history on the profile page (Identity -> Ride's `ScoreServiceInterface`, `UserRideStatsInterface`, `PassengerBookingHistory`). Same shape as Identity <-> Money. |
-| **Money <-> Ride** | Escrow is a COLUMN on the booking row, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids. |
+| **Money <-> Ride** | Escrow is a COLUMN on the booking row, so the module owning the table owns the guarded decrement; Money keeps the semantics and Ride keeps the storage. Cutting it means moving escrow off bookings, which the frozen schema forbids. Stage 5 removed the two view TYPES and the cash-ride COUNT from this edge; the ledger port is the one reference that stays. |
 
 **Three cycles have been cut, and all three are the same lesson: move the contract, not the work.**
 
@@ -139,6 +141,18 @@ not be cut:**
 The six longer loops are all consequences of the four mutual pairs; `ModuleGraphTest` asserts that every longer loop
 passes through a declared pair, so a loop that is a genuinely new design decision fails the test with its own name in
 the message.
+
+### 4.1 The layer order (stage 5)
+
+The modules have a declared bottom-to-top order, and `ModuleLayeringTest` fails on any edge that points UP it:
+
+     Communication  <  Identity  <  Money  <  Ride  <  Console
+
+The references that still point up are PINNED there, shrink-only, each with the reason it survives (`Identity ->
+Console` 3, `Identity -> Money` 4, `Identity -> Ride` 3, `Money -> Ride` 1 - eleven references in total). They are
+the price of keeping response owners and the escrow semantics where they are; **the graph is therefore not
+acyclic**, and [ADR 0013](adr/0013-module-layering.md) records why the remaining four cycles cannot be removed
+without a behaviour change.
 
 ## 5. Ports
 
