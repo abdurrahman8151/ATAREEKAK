@@ -1,32 +1,33 @@
-# STAGE 5 - PHASE B IN PROGRESS (D1 = APPROVED O1)
+# STAGE 5 CLOSED
 
-**D1 = APPROVED O1** (owner, 2026-11-24): bottom-to-top **Communication < Identity < Money < Ride < Console**, with
-the four amendments recorded (actual numbers per step; no `BookingEscrowLedger` / route-owner move; step (b) described
-as moving the views into the shared kernel; the step gate and Phase C closing run unchanged).
+**Stage 5 verified on `45871ec`** - the five-order matrix ran on that tree (audit sec 398): default, reverse,
+random-11, random-20261102, random-7919, each **3081 tests / 13413 assertions / 2 skipped / 0 failures**, with
+**0 per-test assertion-count differences**, **0 tests in only one log**, and the leftover-rows probe **clean (0 rows
+in all 30 guarded tables) after every run**. `tests/Snapshots` (213 files), `MANIFEST.json` and `query-budgets.json`
+are **byte-identical to `stage4-verified`** - stage 5 changed no response, status code, auth rule, query count or
+schema.
 
-- **B0 DONE (audit sec 395):** the layering ratchet is in - `ModuleLayeringTest` + `Tests\Support\Boundary\LayeringScanner`.
-  The approved order is declared data; an upward edge fails; the current **4 upward edges / 14 references** are pinned
-  shrink-only (`Identity -> Console` 3, `Identity -> Money` 4, `Identity -> Ride` 3, `Money -> Ride` 4); the classifier
-  is proven by a synthetic probe (a new upward edge is caught, a downward one is not, an unplaced module is reported).
-  Gate: **2267 / 10713 (2 skips)**. No app code changed.
-  - **B1(a) PARKED, B1(b) DONE (audit sec 396):** step (a) removes ZERO references - `EmployeeRepositoryInterface` is
-    load-bearing in the refresh REUSE-DETECTION branch (a staff-auth restructure, not a layer move) and
-    `EmployeeTokenVersion` would change a stored value (the reset path bumps `token_version` twice today). Step (b):
-    `BookingView` + `RideView` moved to `app/Contracts` (21 imports repointed) - described as moving shared read-only
-    vocabulary into the kernel, NOT as removing Money's dependency on Ride. **ACTUAL: 14 edges (unchanged), 64 -> 62
-    references, 4 cycles (unchanged), 6 derived loops (unchanged), layering pin 14 -> 12.** Two ratchets caught real
-    problems: the stale classmap (fatal at inheritance) and the moved interfaces' docblocks naming
-    `App\Modules\Ride\Models` (reworded). Gate: **2374 / 10957 (2 skips)**.
-  - **B1(c) DONE (audit sec 397):** `CashRideFeeServiceInterface::canCreateCashRide()` takes `int $cashRidesCount` -
-    Ride counts its own rows and passes it (same one query, same position, same transaction); the five test calls
-    gained the argument through a fixture helper, no assertion changed. **ACTUAL Phase B end: 14 edges (unchanged),
-    64 -> 61 references, 4 cycles (UNCHANGED), 6 derived loops (unchanged), layering pin 14 -> 11.** No cycle
-    disappeared - `Money -> Ride` keeps `BookingEscrowLedger` by owner amendment, and the other three are parked
-    under D2 with their measurements. Gate: **2374 / 10957 (2 skips)**.
-  - NEXT: **Phase C** - full default + reverse + five-order matrix with the per-test assertion-count diff and probe
-    on the final tip; ARCHITECTURE (graph + layer order) + READMEs + ADR 0013 "module layering"; the ratchet table
-    vs `stage4-verified`; the assertion list (expected: the D6 pair from stage 4 only); terminal line
-    "Stage 5 verified on <sha>" only if everything is green.
+**Ratchets, `stage4-verified` -> `45871ec`:** EDGES **14 -> 14**, port references **64 -> 61**, 2-cycles **4 -> 4**,
+derived loops **6 -> 6**, **layering pin 14 -> 11** (new ratchet), `KERNEL_MODEL_IMPORTS` **0**, cross-module writes
+**0**, `ModuleLayeringTest` new (3 tests / 9 assertions).
+
+**The honest outcome: the graph is NOT acyclic, and no cycle disappeared.** Each of the four keeps at least one
+reference in each direction - `Money -> Ride` keeps `BookingEscrowLedger` by owner amendment (so that edge can never
+reach zero); the other three are endpoints composing the other module's data (D2). Stage 5 delivered the layering
+ratchet, three fewer references, and every remaining upward reference pinned with its reason (ADR 0013).
+
+**Assertions edited or deleted: NONE** (expected and actual). Test edits were mechanical - `CashRideFeeServiceTest`'s
+calls gained the count argument through a fixture helper, assertions untouched.
+
+## In progress (write-ahead block: written before the first edit, cleared at a terminal state)
+- **Nothing in progress. Stage 5 is complete and verified.**
+
+## Stage 5 steps (all committed, one per step)
+- **A1+A2** (`638709e`, sec 394) - the cycle reference inventory + two costed layer orders (report only, D1 pending).
+- **B0** (`ee02ce6`, sec 395) - the layering ratchet with the O1 order pinned shrink-only (14 upward refs).
+- **B1(a) PARKED / B1(b)** (`c4211ac`, sec 396) - the two read-only views move into the shared kernel; references 64 -> 62.
+- **B1(c)** (`ff769a5`, sec 397) - the cash-ride count is passed in by Ride; references 62 -> 61.
+- **C docs** (`45871ec`) - ARCHITECTURE (graph + 4.1 layer order), Ride/Money READMEs, ADR 0013; closing matrix in sec 398.
 
 ## Stage 5 Phase A (report, closed) - retained
 

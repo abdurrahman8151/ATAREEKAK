@@ -23506,3 +23506,70 @@ numbers rather than an estimate.
 **Step gate (B1(c)):** Unit + Review (incl. L16/L27 + ledger property tests) + Wallet + Payment + Console +
 AppFuture + Snapshots + Rides + Bookings = **2374 tests / 10957 assertions / 2 skipped / 0 failures**. Snapshots
 byte-identical; `query-budgets.json` untouched (the count query moved sides, it did not appear).
+
+---
+
+### 398. STAGE 5 CLOSED - the layer order is ratcheted, three references left the graph, no cycle could, and the closing matrix is green
+
+**The closing run.** Five serialised full-suite orders on the final tip (one `phpunit` process at a time, each with its
+own JUnit log, each followed by the leftover-rows probe):
+
+| order | exit | tests | assertions | skipped | failures | time | leftovers |
+|---|---|---|---|---|---|---|---|
+| `default` | 0 | 3081 | 13413 | 2 | **0** | 958 s | clean - 0 rows in all 30 guarded tables |
+| `reverse` | 0 | 3081 | 13413 | 2 | **0** | 972 s | clean |
+| `random-11` | 0 | 3081 | 13413 | 2 | **0** | 973 s | clean |
+| `random-20261102` | 0 | 3081 | 13413 | 2 | **0** | 974 s | clean |
+| `random-7919` | 0 | 3081 | 13413 | 2 | **0** | 964 s | clean |
+
+**Per-test assertion-count diff, every order against `default`:** 0 differences, 0 tests present in only one log, in
+all four comparisons (3081 cases and 13413 assertions in each). 15,405 test executions, zero failures - the
+pre-existing-failure rule never had a subject.
+
+**The corpus.** `git diff --stat stage4-verified HEAD -- tests/Snapshots` is **EMPTY**: every snapshot, the manifest
+and `query-budgets.json` are byte-identical to `stage4-verified`. Stage 5 changed no response, no status code, no auth
+rule, no query count and no schema.
+
+## Ratchet numbers, `stage4-verified` -> stage 5 tip
+
+| ratchet | before | after |
+|---|---|---|
+| EDGES | 14 | **14** |
+| port references | 64 | **61** |
+| 2-cycles (`UNCUT_CYCLES`) | 4 | **4** |
+| derived longer loops | 6 | **6** |
+| **layering pin** (upward references, new in stage 5) | - | **11** (from 14) |
+| `KERNEL_MODEL_IMPORTS` | 0 | **0** |
+| cross-module writes (`ForeignWriteTest`) | 0 | **0** |
+| `ModuleLayeringTest` (new) | - | **3 tests / 9 assertions** |
+
+**Every assertion edited or deleted: NONE - expected and actual.** The only test edits were mechanical: pipeline
+fixtures in `CashRideFeeServiceTest` gained the third argument through a helper that reads the count from the module
+that owns `rides` (the assertions are untouched), and the two new test files are additions.
+
+**Which cycles disappeared: none, and the numbers say why.** `Console <-> Identity` (10/3), `Identity <-> Money`
+(4/4), `Identity <-> Ride` (3/3) and `Money <-> Ride` (1/5) all survive, each because at least one direction is an
+endpoint composing the other module's data, or because the reference that must stay does stay: `Money -> Ride` keeps
+`BookingEscrowLedger` by the owner's amendment, so that edge can never reach zero. The stage-5 goal of an acyclic
+graph was **not** reachable under the approved amendments, and sec 394/395/397 recorded that with measurements before
+and after every step rather than after the fact.
+
+## Stage 5, per phase
+
+**Files changed: 36 (app 27, tests 4, docs 5), +827 / -70, in 5 commits** (plus the Stage 4 tip itself):
+
+| phase | step | commit | result |
+|---|---|---|---|
+| A | A1+A2 | `638709e` | the full cycle reference inventory, two costed orders, O1 recommended; **report only** |
+| B | B0 | `ee02ce6` | the layering ratchet: order as data, upward edges pinned shrink-only (14 refs), synthetic probe |
+| B | B1(a) | (in `c4211ac`'s record) | **parked**: `EmployeeRepositoryInterface` is load-bearing in the refresh reuse-detection path, `EmployeeTokenVersion` would change a stored value |
+| B | B1(b) | `c4211ac` | `BookingView` + `RideView` move into the shared kernel; references 64 -> 62 |
+| B | B1(c) | `ff769a5` | the cash-ride count is passed in by Ride; references 62 -> 61 |
+| C | docs | `45871ec` | ARCHITECTURE (graph + 4.1 layer order), Ride/Money READMEs, ADR 0013 "module layering" |
+
+**Snapshot / manifest status:** byte-identical to `stage4-verified` (all 213 files, the manifest and the budgets).
+**Parked items, with measurements:** the four cycles (each with the per-direction reason in sec 394/397), the two
+`Identity -> Console` ports (sec 396), and `BookingEscrowLedger` (owner amendment - never to be moved).
+
+**Terminal line.** *Stage 5 verified on `45871ec`* - the matrix above ran on that tree, and this record plus the
+STATE update are the docs-only commit that follows it.
